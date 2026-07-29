@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { createServerClient } from "@/lib/supabase/server";
 import { buildActivityTimeline } from "@/modules/leads/activity-timeline";
 import { TaskList } from "./task-list";
+import { InteractionList } from "./interaction-list";
 
 export default async function LeadWorkspacePage({
   params,
@@ -26,7 +27,7 @@ export default async function LeadWorkspacePage({
         .eq("lead_id", leadId),
       supabase
         .from("interactions")
-        .select("occurred_at, type, summary")
+        .select("id, occurred_at, type, summary")
         .eq("lead_id", leadId),
       supabase
         .from("tasks")
@@ -62,6 +63,8 @@ export default async function LeadWorkspacePage({
       ) : null}
 
       <TaskList leadId={leadId} tasks={tasks ?? []} />
+
+      <InteractionList leadId={leadId} interactions={interactions ?? []} />
 
       <section aria-label="Activity">
         <h2>Activity</h2>
