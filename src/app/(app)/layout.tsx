@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createServerClient } from "@/lib/supabase/server";
+import { NotificationsBell } from "./notifications-bell";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createServerClient();
@@ -23,7 +24,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <Link href="/">Dashboard</Link>
           <Link href="/pipeline">Pipeline</Link>
           <Link href="/leads/new">New lead</Link>
-          <Link href="/notifications">Notifications</Link>
+          <NotificationsBell />
         </nav>
       </header>
       <main>{children}</main>
