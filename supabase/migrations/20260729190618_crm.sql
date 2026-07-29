@@ -205,3 +205,44 @@ revoke all on function public.submit_lead_intake(uuid, text, text, text, text, t
   from public, anon, authenticated;
 grant execute on function public.submit_lead_intake(uuid, text, text, text, text, text, uuid, integer)
   to service_role;
+
+create or replace function public.change_lead_stage(
+  p_company_id uuid,
+  p_lead_id uuid,
+  p_to_stage public.lead_stage,
+  p_changed_by uuid,
+  p_note text
+) returns table (from_stage public.lead_stage)
+language plpgsql security definer
+set search_path = ''
+as $$
+declare
+  v_from_stage public.lead_stage;
+begin
+  select stage into v_from_stage
+  from public.leads
+  where id = p_lead_id and company_id = p_company_id
+  for update;
+
+  if not found then
+    raise exception 'Lead % not found for company %', p_lead_id, p_company_id;
+  end if;
+
+  update public.leads
+  set stage = p_to_stage, updated_at = now()
+  where id = p_lead_id;
+
+  insert into public.lead_stage_history (
+    company_id, lead_id, from_stage, to_stage, changed_by, note
+  ) values (
+    p_company_id, p_lead_id, v_from_stage, p_to_stage, p_changed_by, p_note
+  );
+
+  return query select v_from_stage;
+end;
+$$;
+
+revoke all on function public.change_lead_stage(uuid, uuid, public.lead_stage, uuid, text)
+  from public, anon, authenticated;
+grant execute on function public.change_lead_stage(uuid, uuid, public.lead_stage, uuid, text)
+  to service_role;

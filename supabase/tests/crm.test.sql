@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(17);
+select plan(20);
 
 select has_table('public', 'lead_stage_history', 'lead_stage_history exists');
 select has_table('public', 'tasks', 'tasks exists');
@@ -85,6 +85,35 @@ select function_privs_are(
   array['uuid','text','text','text','text','text','uuid','integer'],
   'authenticated', array[]::text[],
   'authenticated role cannot call submit_lead_intake directly'
+);
+
+select is(
+  (select from_stage from public.change_lead_stage(
+    '00000000-0000-4000-8000-000000000001',
+    (select lead_id from public.submit_lead_intake(
+      '00000000-0000-4000-8000-000000000001',
+      'Casey Nguyen', '555-010-2000', 'casey@example.com',
+      '9 Maple Ave, Newark, NJ', null,
+      '77777777-7777-4777-8777-777777777777', 1
+    )),
+    'contacting', null, null
+  )),
+  'new'::public.lead_stage,
+  'change_lead_stage returns the prior stage'
+);
+select is(
+  (select stage from public.leads
+   where submitted_address = '9 Maple Ave, Newark, NJ'),
+  'contacting',
+  'change_lead_stage updates the lead stage'
+);
+select is(
+  (select count(*) from public.lead_stage_history
+   where lead_id = (select id from public.leads
+                     where submitted_address = '9 Maple Ave, Newark, NJ')
+     and from_stage = 'new' and to_stage = 'contacting'),
+  1::bigint,
+  'change_lead_stage appends stage history'
 );
 
 select * from finish();

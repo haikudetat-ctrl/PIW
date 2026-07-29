@@ -888,6 +888,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      change_lead_stage: {
+        Args: {
+          p_changed_by: string
+          p_company_id: string
+          p_lead_id: string
+          p_note: string
+          p_to_stage: Database["public"]["Enums"]["lead_stage"]
+        }
+        Returns: {
+          from_stage: Database["public"]["Enums"]["lead_stage"]
+        }[]
+      }
       claim_outbox_events: {
         Args: { p_claimed_by: string; p_limit: number }
         Returns: {
