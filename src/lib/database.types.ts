@@ -168,6 +168,8 @@ export type Database = {
         Row: {
           attempt_count: number
           available_at: string
+          claimed_at: string | null
+          claimed_by: string | null
           event_id: string
           last_error: string | null
           published_at: string | null
@@ -175,6 +177,8 @@ export type Database = {
         Insert: {
           attempt_count?: number
           available_at?: string
+          claimed_at?: string | null
+          claimed_by?: string | null
           event_id: string
           last_error?: string | null
           published_at?: string | null
@@ -182,6 +186,8 @@ export type Database = {
         Update: {
           attempt_count?: number
           available_at?: string
+          claimed_at?: string | null
+          claimed_by?: string | null
           event_id?: string
           last_error?: string | null
           published_at?: string | null
@@ -647,7 +653,27 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      claim_outbox_events: {
+        Args: { p_claimed_by: string; p_limit: number }
+        Returns: {
+          attempt_count: number
+          event_id: string
+          payload: Json
+        }[]
+      }
+      complete_outbox_event: {
+        Args: { p_event_id: string }
+        Returns: undefined
+      }
       current_company_id: { Args: never; Returns: string }
+      enqueue_domain_event: {
+        Args: { p_company_id: string; p_event: Json }
+        Returns: string
+      }
+      fail_outbox_event: {
+        Args: { p_error: string; p_event_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       observation_method: "measured" | "calculated" | "assumed" | "reported"

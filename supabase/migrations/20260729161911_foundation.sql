@@ -165,7 +165,9 @@ create table public.event_outbox (
   available_at timestamptz not null default now(),
   published_at timestamptz,
   attempt_count integer not null default 0 check (attempt_count >= 0),
-  last_error text
+  last_error text,
+  claimed_at timestamptz,
+  claimed_by text
 );
 
 create table public.audit_log (
@@ -313,3 +315,117 @@ create policy "company admins read domain events" on public.domain_events
 create policy "company admins read audit log" on public.audit_log
   for select to authenticated
   using (company_id = (select public.current_company_id()));
+
+create or replace function public.enqueue_domain_event(
+  p_company_id uuid,
+  p_event jsonb
+) returns uuid
+language plpgsql security definer
+set search_path = ''
+as $$
+declare v_event_id uuid := (p_event->>'id')::uuid;
+begin
+  insert into public.domain_events (
+    id, company_id, pipeline_run_id, event_name, schema_version,
+    correlation_id, causation_event_id, idempotency_key, payload, occurred_at
+  ) values (
+    v_event_id,
+    p_company_id,
+    (p_event->>'pipelineRunId')::uuid,
+    p_event->>'name',
+    (p_event->>'schemaVersion')::integer,
+    (p_event->>'correlationId')::uuid,
+    nullif(p_event->>'causationEventId', '')::uuid,
+    p_event->>'idempotencyKey',
+    p_event,
+    (p_event->>'occurredAt')::timestamptz
+  )
+  on conflict (idempotency_key) do nothing;
+
+  insert into public.event_outbox (event_id)
+  select id from public.domain_events
+  where idempotency_key = p_event->>'idempotencyKey'
+  on conflict (event_id) do nothing;
+
+  return v_event_id;
+end;
+$$;
+
+create or replace function public.claim_outbox_events(
+  p_limit integer,
+  p_claimed_by text
+) returns table (
+  event_id uuid,
+  payload jsonb,
+  attempt_count integer
+)
+language plpgsql security definer
+set search_path = ''
+as $$
+begin
+  return query
+  with candidates as (
+    select outbox.event_id
+    from public.event_outbox as outbox
+    where outbox.published_at is null
+      and outbox.available_at <= now()
+      and (
+        outbox.claimed_at is null
+        or outbox.claimed_at < now() - interval '5 minutes'
+      )
+    order by outbox.available_at, outbox.event_id
+    for update skip locked
+    limit greatest(0, least(p_limit, 100))
+  ),
+  claimed as (
+    update public.event_outbox as outbox
+    set claimed_at = now(),
+        claimed_by = p_claimed_by,
+        attempt_count = outbox.attempt_count + 1
+    from candidates
+    where outbox.event_id = candidates.event_id
+    returning outbox.event_id, outbox.attempt_count
+  )
+  select claimed.event_id, events.payload, claimed.attempt_count
+  from claimed
+  join public.domain_events as events on events.id = claimed.event_id;
+end;
+$$;
+
+create or replace function public.complete_outbox_event(p_event_id uuid)
+returns void
+language sql security definer
+set search_path = ''
+as $$
+  update public.event_outbox
+  set published_at = now(), claimed_at = null, claimed_by = null, last_error = null
+  where event_id = p_event_id and published_at is null
+$$;
+
+create or replace function public.fail_outbox_event(
+  p_event_id uuid,
+  p_error text
+) returns void
+language sql security definer
+set search_path = ''
+as $$
+  update public.event_outbox
+  set claimed_at = null,
+      claimed_by = null,
+      last_error = left(p_error, 500),
+      available_at = now() + least(
+        interval '15 minutes',
+        interval '5 seconds' * power(2, least(attempt_count, 8))
+      )
+  where event_id = p_event_id and published_at is null
+$$;
+
+revoke all on function public.enqueue_domain_event(uuid, jsonb) from public, anon, authenticated;
+revoke all on function public.claim_outbox_events(integer, text) from public, anon, authenticated;
+revoke all on function public.complete_outbox_event(uuid) from public, anon, authenticated;
+revoke all on function public.fail_outbox_event(uuid, text) from public, anon, authenticated;
+
+grant execute on function public.enqueue_domain_event(uuid, jsonb) to service_role;
+grant execute on function public.claim_outbox_events(integer, text) to service_role;
+grant execute on function public.complete_outbox_event(uuid) to service_role;
+grant execute on function public.fail_outbox_event(uuid, text) to service_role;
