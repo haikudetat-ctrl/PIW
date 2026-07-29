@@ -524,6 +524,115 @@ export type Database = {
           },
         ]
       }
+      parcels: {
+        Row: {
+          acreage: number | null
+          block: string
+          building_description: string | null
+          company_id: string
+          county: string | null
+          created_at: string
+          dwelling_units: number | null
+          geometry: unknown
+          gis_pin: string | null
+          id: string
+          improvement_value_cents: number | null
+          is_primary: boolean
+          land_description: string | null
+          land_value_cents: number | null
+          lot: string
+          municipality_code: string | null
+          municipality_name: string | null
+          net_value_cents: number | null
+          pams_pin: string | null
+          property_class: string | null
+          property_id: string
+          property_location: string | null
+          provider_request_id: string | null
+          qualifier: string | null
+          street_address: string | null
+          year_built: number | null
+        }
+        Insert: {
+          acreage?: number | null
+          block: string
+          building_description?: string | null
+          company_id: string
+          county?: string | null
+          created_at?: string
+          dwelling_units?: number | null
+          geometry?: unknown
+          gis_pin?: string | null
+          id?: string
+          improvement_value_cents?: number | null
+          is_primary?: boolean
+          land_description?: string | null
+          land_value_cents?: number | null
+          lot: string
+          municipality_code?: string | null
+          municipality_name?: string | null
+          net_value_cents?: number | null
+          pams_pin?: string | null
+          property_class?: string | null
+          property_id: string
+          property_location?: string | null
+          provider_request_id?: string | null
+          qualifier?: string | null
+          street_address?: string | null
+          year_built?: number | null
+        }
+        Update: {
+          acreage?: number | null
+          block?: string
+          building_description?: string | null
+          company_id?: string
+          county?: string | null
+          created_at?: string
+          dwelling_units?: number | null
+          geometry?: unknown
+          gis_pin?: string | null
+          id?: string
+          improvement_value_cents?: number | null
+          is_primary?: boolean
+          land_description?: string | null
+          land_value_cents?: number | null
+          lot?: string
+          municipality_code?: string | null
+          municipality_name?: string | null
+          net_value_cents?: number | null
+          pams_pin?: string | null
+          property_class?: string | null
+          property_id?: string
+          property_location?: string | null
+          provider_request_id?: string | null
+          qualifier?: string | null
+          street_address?: string | null
+          year_built?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "parcels_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "parcels_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "parcels_provider_request_id_fkey"
+            columns: ["provider_request_id"]
+            isOneToOne: false
+            referencedRelation: "provider_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pipeline_runs: {
         Row: {
           company_id: string
@@ -590,6 +699,7 @@ export type Database = {
           created_at: string
           id: string
           location: unknown
+          merged_into_property_id: string | null
           municipality: string | null
           resolution_status: string
           state_code: string
@@ -602,6 +712,7 @@ export type Database = {
           created_at?: string
           id?: string
           location?: unknown
+          merged_into_property_id?: string | null
           municipality?: string | null
           resolution_status?: string
           state_code?: string
@@ -614,6 +725,7 @@ export type Database = {
           created_at?: string
           id?: string
           location?: unknown
+          merged_into_property_id?: string | null
           municipality?: string | null
           resolution_status?: string
           state_code?: string
@@ -625,6 +737,102 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "properties_merged_into_property_id_fkey"
+            columns: ["merged_into_property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      property_addresses: {
+        Row: {
+          canonical_address: string | null
+          company_id: string
+          confidence: number
+          county: string | null
+          created_at: string
+          id: string
+          latitude: number | null
+          location: unknown
+          longitude: number | null
+          match_method: Database["public"]["Enums"]["address_match_method"]
+          municipality: string | null
+          property_id: string
+          provider_request_id: string | null
+          state_code: string | null
+          submitted_address: string
+          worker_run_id: string
+          zip: string | null
+        }
+        Insert: {
+          canonical_address?: string | null
+          company_id: string
+          confidence: number
+          county?: string | null
+          created_at?: string
+          id?: string
+          latitude?: number | null
+          location?: unknown
+          longitude?: number | null
+          match_method: Database["public"]["Enums"]["address_match_method"]
+          municipality?: string | null
+          property_id: string
+          provider_request_id?: string | null
+          state_code?: string | null
+          submitted_address: string
+          worker_run_id: string
+          zip?: string | null
+        }
+        Update: {
+          canonical_address?: string | null
+          company_id?: string
+          confidence?: number
+          county?: string | null
+          created_at?: string
+          id?: string
+          latitude?: number | null
+          location?: unknown
+          longitude?: number | null
+          match_method?: Database["public"]["Enums"]["address_match_method"]
+          municipality?: string | null
+          property_id?: string
+          provider_request_id?: string | null
+          state_code?: string | null
+          submitted_address?: string
+          worker_run_id?: string
+          zip?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_addresses_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_addresses_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_addresses_provider_request_id_fkey"
+            columns: ["provider_request_id"]
+            isOneToOne: false
+            referencedRelation: "provider_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_addresses_worker_run_id_fkey"
+            columns: ["worker_run_id"]
+            isOneToOne: true
+            referencedRelation: "worker_runs"
             referencedColumns: ["id"]
           },
         ]
@@ -715,6 +923,93 @@ export type Database = {
           },
         ]
       }
+      review_tasks: {
+        Row: {
+          candidate_data: Json
+          company_id: string
+          created_at: string
+          id: string
+          lead_id: string
+          pipeline_run_id: string
+          property_id: string
+          reason: Database["public"]["Enums"]["review_task_reason"]
+          resolution_notes: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          retry_count: number
+          status: Database["public"]["Enums"]["review_task_status"]
+          triggering_event_name: string
+        }
+        Insert: {
+          candidate_data?: Json
+          company_id: string
+          created_at?: string
+          id?: string
+          lead_id: string
+          pipeline_run_id: string
+          property_id: string
+          reason: Database["public"]["Enums"]["review_task_reason"]
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          retry_count?: number
+          status?: Database["public"]["Enums"]["review_task_status"]
+          triggering_event_name: string
+        }
+        Update: {
+          candidate_data?: Json
+          company_id?: string
+          created_at?: string
+          id?: string
+          lead_id?: string
+          pipeline_run_id?: string
+          property_id?: string
+          reason?: Database["public"]["Enums"]["review_task_reason"]
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          retry_count?: number
+          status?: Database["public"]["Enums"]["review_task_status"]
+          triggering_event_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "review_tasks_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_tasks_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_tasks_pipeline_run_id_fkey"
+            columns: ["pipeline_run_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_tasks_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_tasks_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "admin_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       source_records: {
         Row: {
           company_id: string
@@ -752,6 +1047,61 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      structures: {
+        Row: {
+          company_id: string
+          created_at: string
+          footprint_geometry: unknown
+          id: string
+          is_primary: boolean
+          parcel_id: string | null
+          property_id: string
+          source: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          footprint_geometry?: unknown
+          id?: string
+          is_primary?: boolean
+          parcel_id?: string | null
+          property_id: string
+          source: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          footprint_geometry?: unknown
+          id?: string
+          is_primary?: boolean
+          parcel_id?: string | null
+          property_id?: string
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "structures_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "structures_parcel_id_fkey"
+            columns: ["parcel_id"]
+            isOneToOne: false
+            referencedRelation: "parcels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "structures_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
             referencedColumns: ["id"]
           },
         ]
@@ -921,6 +1271,22 @@ export type Database = {
         Args: { p_error: string; p_event_id: string }
         Returns: undefined
       }
+      resolve_review_task: {
+        Args: {
+          p_action: string
+          p_admin_id: string
+          p_company_id: string
+          p_notes: string
+          p_review_task_id: string
+          p_selected_candidate_index: number
+        }
+        Returns: {
+          new_status: Database["public"]["Enums"]["review_task_status"]
+          next_attempt: number
+          pipeline_run_id: string
+          property_id: string
+        }[]
+      }
       submit_lead_intake: {
         Args: {
           p_company_id: string
@@ -940,6 +1306,10 @@ export type Database = {
       }
     }
     Enums: {
+      address_match_method:
+        | "exact_single_match"
+        | "no_match"
+        | "multiple_matches"
       interaction_type: "call" | "email" | "text" | "site_visit" | "note"
       lead_stage:
         | "new"
@@ -968,6 +1338,19 @@ export type Database = {
         | "partial"
         | "review_required"
         | "failed"
+      review_task_reason:
+        | "low_address_confidence"
+        | "duplicate_candidates"
+        | "multiple_parcels"
+        | "condo_ambiguity"
+        | "commercial_property"
+        | "unsupported_property_type"
+      review_task_status:
+        | "open"
+        | "resolved"
+        | "rejected"
+        | "retried"
+        | "unsupported"
       task_status: "open" | "complete" | "cancelled"
       worker_status:
         | "queued"
@@ -1103,6 +1486,11 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      address_match_method: [
+        "exact_single_match",
+        "no_match",
+        "multiple_matches",
+      ],
       interaction_type: ["call", "email", "text", "site_visit", "note"],
       lead_stage: [
         "new",
@@ -1134,6 +1522,21 @@ export const Constants = {
         "review_required",
         "failed",
       ],
+      review_task_reason: [
+        "low_address_confidence",
+        "duplicate_candidates",
+        "multiple_parcels",
+        "condo_ambiguity",
+        "commercial_property",
+        "unsupported_property_type",
+      ],
+      review_task_status: [
+        "open",
+        "resolved",
+        "rejected",
+        "retried",
+        "unsupported",
+      ],
       task_status: ["open", "complete", "cancelled"],
       worker_status: [
         "queued",
@@ -1146,4 +1549,3 @@ export const Constants = {
     },
   },
 } as const
-
