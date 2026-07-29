@@ -909,6 +909,23 @@ export type Database = {
         Args: { p_error: string; p_event_id: string }
         Returns: undefined
       }
+      submit_lead_intake: {
+        Args: {
+          p_company_id: string
+          p_correlation_id: string
+          p_email: string
+          p_name: string
+          p_notes: string
+          p_phone: string
+          p_pipeline_version: number
+          p_submitted_address: string
+        }
+        Returns: {
+          lead_id: string
+          pipeline_run_id: string
+          property_id: string
+        }[]
+      }
     }
     Enums: {
       interaction_type: "call" | "email" | "text" | "site_visit" | "note"

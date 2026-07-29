@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(13);
+select plan(17);
 
 select has_table('public', 'lead_stage_history', 'lead_stage_history exists');
 select has_table('public', 'tasks', 'tasks exists');
@@ -51,6 +51,40 @@ select is(
   has_table_privilege('service_role', 'public.notifications', 'insert'),
   true,
   'service role can insert notifications'
+);
+
+insert into public.companies (id, name)
+values ('00000000-0000-4000-8000-000000000001', 'PIW Local Roofing')
+on conflict (id) do nothing;
+
+select is(
+  (select count(*) from public.submit_lead_intake(
+    '00000000-0000-4000-8000-000000000001',
+    'Jordan Rivera', '555-010-1000', 'jordan@example.com',
+    '12 Birch St, Trenton, NJ', null,
+    '55555555-5555-4555-8555-555555555555', 1
+  )),
+  1::bigint,
+  'submit_lead_intake returns one row'
+);
+select is(
+  (select resolution_status from public.properties
+   where id = (select property_id from public.leads
+               where submitted_address = '12 Birch St, Trenton, NJ')),
+  'unresolved',
+  'lead intake creates an unresolved property'
+);
+select is(
+  (select count(*) from public.pipeline_runs
+   where correlation_id = '55555555-5555-4555-8555-555555555555'),
+  1::bigint,
+  'lead intake creates one pipeline run'
+);
+select function_privs_are(
+  'public', 'submit_lead_intake',
+  array['uuid','text','text','text','text','text','uuid','integer'],
+  'authenticated', array[]::text[],
+  'authenticated role cannot call submit_lead_intake directly'
 );
 
 select * from finish();

@@ -156,3 +156,52 @@ create policy "company admins mark notifications read" on public.notifications
   for update to authenticated
   using (company_id = (select public.current_company_id()))
   with check (company_id = (select public.current_company_id()));
+
+create or replace function public.submit_lead_intake(
+  p_company_id uuid,
+  p_name text,
+  p_phone text,
+  p_email text,
+  p_submitted_address text,
+  p_notes text,
+  p_correlation_id uuid,
+  p_pipeline_version integer
+) returns table (
+  lead_id uuid,
+  property_id uuid,
+  pipeline_run_id uuid
+)
+language plpgsql security definer
+set search_path = ''
+as $$
+declare
+  v_property_id uuid;
+  v_lead_id uuid;
+  v_pipeline_run_id uuid;
+begin
+  insert into public.properties (company_id, resolution_status)
+  values (p_company_id, 'unresolved')
+  returning id into v_property_id;
+
+  insert into public.leads (
+    company_id, property_id, name, phone, email, submitted_address, notes
+  ) values (
+    p_company_id, v_property_id, p_name, p_phone, p_email, p_submitted_address, p_notes
+  )
+  returning id into v_lead_id;
+
+  insert into public.pipeline_runs (
+    company_id, lead_id, property_id, correlation_id, pipeline_version, status
+  ) values (
+    p_company_id, v_lead_id, v_property_id, p_correlation_id, p_pipeline_version, 'received'
+  )
+  returning id into v_pipeline_run_id;
+
+  return query select v_lead_id, v_property_id, v_pipeline_run_id;
+end;
+$$;
+
+revoke all on function public.submit_lead_intake(uuid, text, text, text, text, text, uuid, integer)
+  from public, anon, authenticated;
+grant execute on function public.submit_lead_intake(uuid, text, text, text, text, text, uuid, integer)
+  to service_role;
