@@ -49,6 +49,7 @@ export type Database = {
           entity_type: string
           id: number
           metadata: Json
+          worker_run_id: string | null
         }
         Insert: {
           action: string
@@ -60,6 +61,7 @@ export type Database = {
           entity_type: string
           id?: never
           metadata?: Json
+          worker_run_id?: string | null
         }
         Update: {
           action?: string
@@ -71,6 +73,7 @@ export type Database = {
           entity_type?: string
           id?: never
           metadata?: Json
+          worker_run_id?: string | null
         }
         Relationships: [
           {
@@ -78,6 +81,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_log_worker_run_id_fkey"
+            columns: ["worker_run_id"]
+            isOneToOne: false
+            referencedRelation: "worker_runs"
             referencedColumns: ["id"]
           },
         ]

@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(44);
+select plan(46);
 
 select has_table('public', 'property_addresses', 'property_addresses exists');
 select has_table('public', 'parcels', 'parcels exists');
@@ -41,6 +41,10 @@ select col_not_null(
 select col_is_fk(
   'public', 'property_addresses', 'worker_run_id',
   'property_addresses.worker_run_id references worker_runs'
+);
+select has_column(
+  'public', 'audit_log', 'worker_run_id',
+  'audit entries can identify the producing worker attempt'
 );
 
 select policies_are(
@@ -334,28 +338,54 @@ select throws_ok(
 );
 
 insert into public.audit_log (
-  company_id, action, entity_type, entity_id, correlation_id
+  company_id, action, entity_type, entity_id, correlation_id, worker_run_id
 ) values (
   '00000000-0000-4000-8000-000000000001',
   'property.address_validated',
   'property',
   '77777777-7777-4777-8777-777777777777',
-  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  '33333333-3333-4333-8333-333333333333'
 );
 
 select throws_ok(
   $$ insert into public.audit_log (
-       company_id, action, entity_type, entity_id, correlation_id
+       company_id, action, entity_type, entity_id, correlation_id, worker_run_id
      ) values (
        '00000000-0000-4000-8000-000000000001',
        'property.address_validated',
        'property',
        '77777777-7777-4777-8777-777777777777',
-       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+       '33333333-3333-4333-8333-333333333333'
      ) $$,
   '23505',
   null,
-  'address-validation audit actions are idempotent'
+  'same-attempt address-validation audit actions are idempotent'
+);
+
+insert into public.worker_runs (
+  id, pipeline_run_id, worker_type, worker_version, idempotency_key
+) values (
+  '55555555-5555-4555-8555-555555555555',
+  '22222222-2222-4222-8222-222222222222',
+  'address-validation',
+  1,
+  'property-identity-test-address-validation-attempt-2'
+);
+
+select lives_ok(
+  $$ insert into public.audit_log (
+       company_id, action, entity_type, entity_id, correlation_id, worker_run_id
+     ) values (
+       '00000000-0000-4000-8000-000000000001',
+       'property.address_validated',
+       'property',
+       '77777777-7777-4777-8777-777777777777',
+       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+       '55555555-5555-4555-8555-555555555555'
+     ) $$,
+  'distinct address-validation attempts retain distinct audits'
 );
 
 select * from finish();

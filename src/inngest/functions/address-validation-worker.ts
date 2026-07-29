@@ -96,6 +96,7 @@ export interface AddressValidationWorkerRepository {
     propertyId: string;
     companyId: string;
     correlationId: string;
+    workerRunId: string;
   }): Promise<void>;
 }
 
@@ -237,6 +238,7 @@ export async function runAddressValidation(
     propertyId: observationPropertyId,
     companyId,
     correlationId: event.correlationId,
+    workerRunId: workerRun.id,
   });
   await repository.markWorkerRunCompleted(workerRun.id);
 
@@ -710,6 +712,7 @@ export class SupabaseAddressValidationWorkerRepository
     propertyId: string;
     companyId: string;
     correlationId: string;
+    workerRunId: string;
   }) {
     const { data: property, error } = await this.client
       .from("properties")
@@ -725,6 +728,7 @@ export class SupabaseAddressValidationWorkerRepository
       entity_type: "property",
       entity_id: input.propertyId,
       correlation_id: input.correlationId,
+      worker_run_id: input.workerRunId,
     });
     if (auditError && auditError.code !== "23505") {
       throw new Error("Failed to write address-validation audit entry");

@@ -79,7 +79,7 @@ function makeRepository(overrides: Partial<AddressValidationWorkerRepository> = 
     async createReviewTask() {},
     async publishDiscoveryRequested() {},
     async writeAudit(input) {
-      const key = `${input.action}:${input.propertyId}:${input.correlationId}`;
+      const key = `${input.action}:${input.propertyId}:${input.correlationId}:${input.workerRunId}`;
       if (auditKeys.has(key)) return;
       auditKeys.add(key);
       auditWrites += 1;
@@ -253,6 +253,16 @@ test("audit failure leaves the run replayable until the audit succeeds", async (
   expect(writeAudit).toHaveBeenCalledTimes(2);
   expect(result.outcome).toBe("discovery_requested");
   expect(state.completions).toBe(1);
+});
+
+test("distinct worker attempts each retain their own audit entry", async () => {
+  const state = makeRepository();
+
+  await runAddressValidation(event, state.repository);
+  await runAddressValidation({ ...event, attempt: 2 }, state.repository);
+
+  expect(state.auditWrites).toBe(2);
+  expect(state.addressWrites).toBe(2);
 });
 
 test("ambiguous duplicate candidates create one review observation without publish or merge", async () => {
