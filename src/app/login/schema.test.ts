@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { loginInputSchema } from "./actions";
+import { loginInputSchema } from "./schema";
 
 test("requires a valid email and nonempty password", () => {
   expect(() =>

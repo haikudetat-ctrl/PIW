@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createServerClient } from "@/lib/supabase/server";
+import { FoundationDiagnostics } from "./foundation-diagnostics";
 
 export default async function HomePage() {
   const supabase = await createServerClient();
@@ -22,6 +23,7 @@ export default async function HomePage() {
       <p>PIW · New Jersey residential roofing</p>
       <h1>Property Intelligence Worker</h1>
       <p>Foundation online</p>
+      <FoundationDiagnostics />
     </main>
   );
 }
