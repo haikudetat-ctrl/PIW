@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { createServerClient } from "@/lib/supabase/server";
 import { buildActivityTimeline } from "@/modules/leads/activity-timeline";
+import { TaskList } from "./task-list";
 
 export default async function LeadWorkspacePage({
   params,
@@ -10,23 +11,29 @@ export default async function LeadWorkspacePage({
   const { leadId } = await params;
   const supabase = await createServerClient();
 
-  const [{ data: lead }, { data: stageHistory }, { data: interactions }] = await Promise.all([
-    supabase
-      .from("leads")
-      .select(
-        "id, name, phone, email, submitted_address, notes, stage, property_id, properties(canonical_address, resolution_status)",
-      )
-      .eq("id", leadId)
-      .maybeSingle(),
-    supabase
-      .from("lead_stage_history")
-      .select("changed_at, from_stage, to_stage")
-      .eq("lead_id", leadId),
-    supabase
-      .from("interactions")
-      .select("occurred_at, type, summary")
-      .eq("lead_id", leadId),
-  ]);
+  const [{ data: lead }, { data: stageHistory }, { data: interactions }, { data: tasks }] =
+    await Promise.all([
+      supabase
+        .from("leads")
+        .select(
+          "id, name, phone, email, submitted_address, notes, stage, property_id, properties(canonical_address, resolution_status)",
+        )
+        .eq("id", leadId)
+        .maybeSingle(),
+      supabase
+        .from("lead_stage_history")
+        .select("changed_at, from_stage, to_stage")
+        .eq("lead_id", leadId),
+      supabase
+        .from("interactions")
+        .select("occurred_at, type, summary")
+        .eq("lead_id", leadId),
+      supabase
+        .from("tasks")
+        .select("id, title, due_at, status")
+        .eq("lead_id", leadId)
+        .order("created_at"),
+    ]);
 
   if (!lead) notFound();
 
@@ -53,6 +60,8 @@ export default async function LeadWorkspacePage({
           <p>{lead.notes}</p>
         </section>
       ) : null}
+
+      <TaskList leadId={leadId} tasks={tasks ?? []} />
 
       <section aria-label="Activity">
         <h2>Activity</h2>
