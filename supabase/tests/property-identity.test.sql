@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(43);
+select plan(44);
 
 select has_table('public', 'property_addresses', 'property_addresses exists');
 select has_table('public', 'parcels', 'parcels exists');
@@ -331,6 +331,31 @@ select throws_ok(
   '23505',
   null,
   'a property can have at most one primary structure'
+);
+
+insert into public.audit_log (
+  company_id, action, entity_type, entity_id, correlation_id
+) values (
+  '00000000-0000-4000-8000-000000000001',
+  'property.address_validated',
+  'property',
+  '77777777-7777-4777-8777-777777777777',
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+);
+
+select throws_ok(
+  $$ insert into public.audit_log (
+       company_id, action, entity_type, entity_id, correlation_id
+     ) values (
+       '00000000-0000-4000-8000-000000000001',
+       'property.address_validated',
+       'property',
+       '77777777-7777-4777-8777-777777777777',
+       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+     ) $$,
+  '23505',
+  null,
+  'address-validation audit actions are idempotent'
 );
 
 select * from finish();
