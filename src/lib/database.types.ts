@@ -237,6 +237,116 @@ export type Database = {
           },
         ]
       }
+      interactions: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          lead_id: string
+          occurred_at: string
+          summary: string
+          type: Database["public"]["Enums"]["interaction_type"]
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          lead_id: string
+          occurred_at?: string
+          summary: string
+          type: Database["public"]["Enums"]["interaction_type"]
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          lead_id?: string
+          occurred_at?: string
+          summary?: string
+          type?: Database["public"]["Enums"]["interaction_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interactions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interactions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "admin_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interactions_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_stage_history: {
+        Row: {
+          changed_at: string
+          changed_by: string | null
+          company_id: string
+          from_stage: Database["public"]["Enums"]["lead_stage"] | null
+          id: string
+          lead_id: string
+          note: string | null
+          to_stage: Database["public"]["Enums"]["lead_stage"]
+        }
+        Insert: {
+          changed_at?: string
+          changed_by?: string | null
+          company_id: string
+          from_stage?: Database["public"]["Enums"]["lead_stage"] | null
+          id?: string
+          lead_id: string
+          note?: string | null
+          to_stage: Database["public"]["Enums"]["lead_stage"]
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string | null
+          company_id?: string
+          from_stage?: Database["public"]["Enums"]["lead_stage"] | null
+          id?: string
+          lead_id?: string
+          note?: string | null
+          to_stage?: Database["public"]["Enums"]["lead_stage"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_stage_history_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "admin_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_stage_history_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_stage_history_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       leads: {
         Row: {
           company_id: string
@@ -248,7 +358,7 @@ export type Database = {
           phone: string
           property_id: string | null
           service_requested: string
-          stage: string
+          stage: Database["public"]["Enums"]["lead_stage"]
           submitted_address: string
           updated_at: string
         }
@@ -262,7 +372,7 @@ export type Database = {
           phone: string
           property_id?: string | null
           service_requested?: string
-          stage?: string
+          stage?: Database["public"]["Enums"]["lead_stage"]
           submitted_address: string
           updated_at?: string
         }
@@ -276,7 +386,7 @@ export type Database = {
           phone?: string
           property_id?: string | null
           service_requested?: string
-          stage?: string
+          stage?: Database["public"]["Enums"]["lead_stage"]
           submitted_address?: string
           updated_at?: string
         }
@@ -293,6 +403,57 @@ export type Database = {
             columns: ["property_id"]
             isOneToOne: false
             referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          body: string | null
+          company_id: string
+          correlation_id: string | null
+          created_at: string
+          id: string
+          lead_id: string | null
+          read_at: string | null
+          title: string
+          type: Database["public"]["Enums"]["notification_type"]
+        }
+        Insert: {
+          body?: string | null
+          company_id: string
+          correlation_id?: string | null
+          created_at?: string
+          id?: string
+          lead_id?: string | null
+          read_at?: string | null
+          title: string
+          type: Database["public"]["Enums"]["notification_type"]
+        }
+        Update: {
+          body?: string | null
+          company_id?: string
+          correlation_id?: string | null
+          created_at?: string
+          id?: string
+          lead_id?: string | null
+          read_at?: string | null
+          title?: string
+          type?: Database["public"]["Enums"]["notification_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
             referencedColumns: ["id"]
           },
         ]
@@ -595,6 +756,80 @@ export type Database = {
           },
         ]
       }
+      tasks: {
+        Row: {
+          assigned_to: string | null
+          company_id: string
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          due_at: string | null
+          id: string
+          lead_id: string
+          status: Database["public"]["Enums"]["task_status"]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          company_id: string
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          due_at?: string | null
+          id?: string
+          lead_id: string
+          status?: Database["public"]["Enums"]["task_status"]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          company_id?: string
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          due_at?: string | null
+          id?: string
+          lead_id?: string
+          status?: Database["public"]["Enums"]["task_status"]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "admin_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "admin_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       worker_runs: {
         Row: {
           attempt_count: number
@@ -676,6 +911,21 @@ export type Database = {
       }
     }
     Enums: {
+      interaction_type: "call" | "email" | "text" | "site_visit" | "note"
+      lead_stage:
+        | "new"
+        | "contacting"
+        | "appointment_set"
+        | "estimating"
+        | "proposal_sent"
+        | "won"
+        | "lost"
+        | "nurture"
+      notification_type:
+        | "lead_submitted"
+        | "review_task_created"
+        | "pipeline_stuck"
+        | "pipeline_failed"
       observation_method: "measured" | "calculated" | "assumed" | "reported"
       observation_status: "current" | "superseded" | "disputed" | "rejected"
       pipeline_status:
@@ -689,6 +939,7 @@ export type Database = {
         | "partial"
         | "review_required"
         | "failed"
+      task_status: "open" | "complete" | "cancelled"
       worker_status:
         | "queued"
         | "running"
@@ -823,6 +1074,23 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      interaction_type: ["call", "email", "text", "site_visit", "note"],
+      lead_stage: [
+        "new",
+        "contacting",
+        "appointment_set",
+        "estimating",
+        "proposal_sent",
+        "won",
+        "lost",
+        "nurture",
+      ],
+      notification_type: [
+        "lead_submitted",
+        "review_task_created",
+        "pipeline_stuck",
+        "pipeline_failed",
+      ],
       observation_method: ["measured", "calculated", "assumed", "reported"],
       observation_status: ["current", "superseded", "disputed", "rejected"],
       pipeline_status: [
@@ -837,6 +1105,7 @@ export const Constants = {
         "review_required",
         "failed",
       ],
+      task_status: ["open", "complete", "cancelled"],
       worker_status: [
         "queued",
         "running",
