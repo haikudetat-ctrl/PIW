@@ -69,7 +69,5 @@ export async function createLead(formData: FormData) {
     },
   });
 
-  // Task 7 (Lead Workspace) redirects here to /leads/${result.leadId} once
-  // that route exists. Until then, land back on the dashboard.
-  redirect(`/?submitted=${result.leadId}`);
+  redirect(`/leads/${result.leadId}`);
 }
