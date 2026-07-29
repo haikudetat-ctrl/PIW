@@ -19,22 +19,61 @@ const diagnosticRequestedSchema = z.object({
   data: diagnosticRequestedDataSchema,
 });
 
+export const leadSubmittedDataSchema = z.object({
+  leadId: uuidSchema,
+  propertyId: uuidSchema,
+  name: z.string().min(1),
+  phone: z.string().min(1),
+  email: z.email(),
+  submittedAddress: z.string().min(1),
+  serviceRequested: z.literal("roofing"),
+  notes: z.string().optional(),
+});
+
+const leadSubmittedSchema = z.object({
+  id: uuidSchema,
+  name: z.literal("crm/lead.submitted"),
+  schemaVersion: z.literal(1),
+  correlationId: uuidSchema,
+  causationEventId: uuidSchema.optional(),
+  leadId: uuidSchema,
+  propertyId: uuidSchema,
+  pipelineRunId: uuidSchema,
+  occurredAt: z.iso.datetime(),
+  idempotencyKey: z.string().min(1),
+  data: leadSubmittedDataSchema,
+});
+
 export const eventEnvelopeSchema = z.discriminatedUnion("name", [
   diagnosticRequestedSchema,
+  leadSubmittedSchema,
 ]);
 
 export type DomainEvent = z.infer<typeof eventEnvelopeSchema>;
 
-type DiagnosticEventInput = {
-  name: "system/diagnostic.requested";
-  correlationId: string;
-  pipelineRunId: string;
-  data: z.infer<typeof diagnosticRequestedDataSchema>;
-  now?: Date;
-  id?: string;
-};
+type EventInput =
+  | {
+      name: "system/diagnostic.requested";
+      correlationId: string;
+      pipelineRunId: string;
+      causationEventId?: string;
+      data: z.infer<typeof diagnosticRequestedDataSchema>;
+      now?: Date;
+      id?: string;
+    }
+  | {
+      name: "crm/lead.submitted";
+      correlationId: string;
+      pipelineRunId: string;
+      leadId: string;
+      propertyId: string;
+      causationEventId?: string;
+      data: z.infer<typeof leadSubmittedDataSchema>;
+      now?: Date;
+      id?: string;
+    };
 
-export function createEventEnvelope(input: DiagnosticEventInput): DomainEvent {
+export function createEventEnvelope(input: EventInput): DomainEvent {
   const id = input.id ?? crypto.randomUUID();
   return eventEnvelopeSchema.parse({
     ...input,
