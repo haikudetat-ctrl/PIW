@@ -7,10 +7,15 @@ property-first CRM and intelligence platform.
 PIW v1 supports New Jersey residential roofing and does not include weather
 or storm intelligence.
 
+Phase 2 adds lead intake, the pipeline board, the lead workspace, tasks,
+interactions, and in-app notifications. No enrichment pipeline runs yet — the
+CRM Writer completes each pipeline run immediately.
+
 ## Documentation
 
 - [Architecture design](docs/superpowers/specs/2026-07-29-property-intelligence-worker-architecture-design.md)
 - [Foundation implementation plan](docs/superpowers/plans/2026-07-29-piw-foundation-implementation.md)
+- [CRM implementation plan](docs/superpowers/plans/2026-07-29-piw-crm-implementation.md)
 - [Local development runbook](docs/runbooks/local-development.md)
 - [Deployment runbook](docs/runbooks/deployment.md)
 

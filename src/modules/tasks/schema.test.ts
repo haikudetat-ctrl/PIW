@@ -10,3 +10,14 @@ test("requires a nonempty title", () => {
     assignedTo: undefined,
   });
 });
+
+test("treats an empty dueAt the same as absent, matching an untouched form field", () => {
+  expect(
+    taskInputSchema.parse({ title: "Call homeowner", dueAt: "" }),
+  ).toEqual({
+    title: "Call homeowner",
+    description: undefined,
+    dueAt: undefined,
+    assignedTo: undefined,
+  });
+});
