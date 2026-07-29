@@ -237,6 +237,15 @@ revoke all on all tables in schema public from anon;
 revoke all on all tables in schema public from authenticated;
 revoke execute on function public.current_company_id() from public, anon;
 
+-- service_role bypasses RLS but, unlike on hosted Supabase, this local
+-- Postgres image grants it no implicit table privileges; trusted
+-- server-side code (Supabase service client, Inngest functions) needs
+-- explicit grants to read and write every application table directly.
+grant usage on schema public to service_role;
+grant all on all tables in schema public to service_role;
+grant all on all sequences in schema public to service_role;
+grant all on all routines in schema public to service_role;
+
 grant usage on schema public to authenticated;
 grant execute on function public.current_company_id() to authenticated;
 grant select on public.companies, public.admin_profiles, public.properties,

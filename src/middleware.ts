@@ -5,6 +5,12 @@ import { parseClientEnv } from "@/lib/env/client";
 const PUBLIC_PATHS = ["/login", "/auth/callback"];
 
 export async function middleware(request: NextRequest) {
+  // API routes authenticate themselves (Supabase session or Inngest signing
+  // key) and must return REST status codes, not an HTML redirect to /login.
+  if (request.nextUrl.pathname.startsWith("/api/")) {
+    return NextResponse.next({ request });
+  }
+
   let response = NextResponse.next({ request });
 
   const env = parseClientEnv({
