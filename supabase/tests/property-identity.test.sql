@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(46);
+select plan(48);
 
 select has_table('public', 'property_addresses', 'property_addresses exists');
 select has_table('public', 'parcels', 'parcels exists');
@@ -386,6 +386,36 @@ select lives_ok(
        '55555555-5555-4555-8555-555555555555'
      ) $$,
   'distinct address-validation attempts retain distinct audits'
+);
+
+select lives_ok(
+  $$ insert into public.audit_log (
+       company_id, action, entity_type, entity_id, correlation_id, worker_run_id
+     ) values (
+       '00000000-0000-4000-8000-000000000001',
+       'property.discovery_resolved',
+       'property',
+       '77777777-7777-4777-8777-777777777777',
+       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+       '55555555-5555-4555-8555-555555555555'
+     ) $$,
+  'a discovery attempt writes its audit entry'
+);
+
+select throws_ok(
+  $$ insert into public.audit_log (
+       company_id, action, entity_type, entity_id, correlation_id, worker_run_id
+     ) values (
+       '00000000-0000-4000-8000-000000000001',
+       'property.discovery_resolved',
+       'property',
+       '77777777-7777-4777-8777-777777777777',
+       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+       '55555555-5555-4555-8555-555555555555'
+     ) $$,
+  '23505',
+  null,
+  'same-attempt property-discovery audit actions are idempotent'
 );
 
 select * from finish();
