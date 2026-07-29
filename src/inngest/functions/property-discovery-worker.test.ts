@@ -4,6 +4,7 @@ import type { ProviderResult } from "@/modules/providers/contracts";
 import {
   runPropertyDiscovery,
   SupabasePropertyDiscoveryWorkerRepository,
+  type PropertyDiscoveryAttempt,
   type PropertyDiscoveryWorkerRepository,
   type WorkerRunRecord,
 } from "./property-discovery-worker";
@@ -60,6 +61,7 @@ function makeRepository(
   const parcelByProperty = new Map<string, string>();
   const structureProperties = new Set<string>();
   const auditKeys = new Set<string>();
+  const attempts = new Map<string, PropertyDiscoveryAttempt>();
   let completions = 0;
   let audits = 0;
   let lookups = 0;
@@ -87,6 +89,15 @@ function makeRepository(
     async lookupParcels() {
       lookups += 1;
       return evidence();
+    },
+    async loadWorkerAttempt(workerRunId) {
+      return attempts.get(workerRunId) ?? null;
+    },
+    async persistWorkerAttempt({ workerRunId, attempt }) {
+      const existing = attempts.get(workerRunId);
+      if (existing) return existing;
+      attempts.set(workerRunId, attempt);
+      return attempt;
     },
     async recordProviderEvidence() {
       return { providerRequestId: "provider-request-1" };
@@ -258,6 +269,99 @@ test("replay resumes after a downstream failure without duplicating current stat
   expect(state.audits).toBe(1);
 });
 
+test("review replay reuses its first decision when the provider later returns a parcel", async () => {
+  const lookupParcels = vi
+    .fn()
+    .mockResolvedValueOnce(evidence([]))
+    .mockResolvedValueOnce(evidence());
+  const createReviewTask = vi
+    .fn()
+    .mockRejectedValueOnce(new Error("review queue unavailable"))
+    .mockResolvedValue(undefined);
+  const recordParcel = vi.fn(async () => ({ parcelId: "parcel-1" }));
+  const state = makeRepository({
+    lookupParcels,
+    createReviewTask,
+    recordParcel,
+  });
+
+  await expect(runPropertyDiscovery(event, state.repository)).rejects.toThrow(
+    "review queue unavailable",
+  );
+  const replay = await runPropertyDiscovery(event, state.repository);
+
+  expect(replay.outcome).toBe("review_required");
+  expect(lookupParcels).toHaveBeenCalledTimes(1);
+  expect(createReviewTask).toHaveBeenCalledTimes(2);
+  expect(recordParcel).not.toHaveBeenCalled();
+});
+
+test("resolved replay reuses its first decision when the provider later returns no match", async () => {
+  const lookupParcels = vi
+    .fn()
+    .mockResolvedValueOnce(evidence())
+    .mockResolvedValueOnce(evidence([]));
+  const completePipelineRun = vi
+    .fn()
+    .mockRejectedValueOnce(new Error("pipeline unavailable"))
+    .mockResolvedValue(undefined);
+  const createReviewTask = vi.fn();
+  const state = makeRepository({
+    lookupParcels,
+    completePipelineRun,
+    createReviewTask,
+  });
+
+  await expect(runPropertyDiscovery(event, state.repository)).rejects.toThrow(
+    "pipeline unavailable",
+  );
+  const replay = await runPropertyDiscovery(event, state.repository);
+
+  expect(replay.outcome).toBe("resolved");
+  expect(lookupParcels).toHaveBeenCalledTimes(1);
+  expect(createReviewTask).not.toHaveBeenCalled();
+  expect(state.parcelWrites).toBe(1);
+  expect(state.structureWrites).toBe(1);
+});
+
+test("delivery arriving after a review decision is persisted cannot resolve concurrently", async () => {
+  let releaseReview!: () => void;
+  let reviewStarted!: () => void;
+  const reviewStartedPromise = new Promise<void>((resolve) => {
+    reviewStarted = resolve;
+  });
+  const releaseReviewPromise = new Promise<void>((resolve) => {
+    releaseReview = resolve;
+  });
+  const lookupParcels = vi
+    .fn()
+    .mockResolvedValueOnce(evidence([]))
+    .mockResolvedValueOnce(evidence());
+  const createReviewTask = vi.fn(async () => {
+    reviewStarted();
+    await releaseReviewPromise;
+  });
+  const recordParcel = vi.fn(async () => ({ parcelId: "parcel-1" }));
+  const state = makeRepository({
+    lookupParcels,
+    createReviewTask,
+    recordParcel,
+  });
+
+  const firstDelivery = runPropertyDiscovery(event, state.repository);
+  await reviewStartedPromise;
+  const secondDelivery = runPropertyDiscovery(event, state.repository);
+  releaseReview();
+  const results = await Promise.all([firstDelivery, secondDelivery]);
+
+  expect(results.map((result) => result.outcome)).toEqual([
+    "review_required",
+    "review_required",
+  ]);
+  expect(lookupParcels).toHaveBeenCalledTimes(1);
+  expect(recordParcel).not.toHaveBeenCalled();
+});
+
 test("audit failure leaves the run replayable until the audit succeeds", async () => {
   const writeAudit = vi
     .fn()
@@ -345,6 +449,66 @@ test("parcel writes convert every provider dollar value to integer cents", async
   expect(Number.isInteger(insertedParcel?.net_value_cents)).toBe(true);
 });
 
+test("parcel writes preserve sanitized MultiPolygon geometry", async () => {
+  let insertedParcel: Record<string, unknown> | undefined;
+  const client = {
+    from(table: string) {
+      if (table !== "parcels") throw new Error(`Unexpected table: ${table}`);
+      return {
+        insert(value: Record<string, unknown>) {
+          insertedParcel = value;
+          return {
+            select() {
+              return {
+                single: async () => ({
+                  data: { id: "parcel-1" },
+                  error: null,
+                }),
+              };
+            },
+          };
+        },
+      };
+    },
+  };
+  const repository = new SupabasePropertyDiscoveryWorkerRepository(
+    client as never,
+  );
+
+  await repository.recordParcel({
+    propertyId: event.propertyId,
+    companyId: "99999999-9999-4999-8999-999999999999",
+    parcel: {
+      ...RESIDENTIAL_PARCEL,
+      geometry: {
+        type: "MultiPolygon",
+        coordinates: [
+          [
+            [
+              [-74.761, 40.221],
+              [-74.759, 40.221],
+              [-74.759, 40.219],
+              [-74.761, 40.221],
+            ],
+          ],
+          [
+            [
+              [-74.751, 40.211],
+              [-74.749, 40.211],
+              [-74.749, 40.209],
+              [-74.751, 40.211],
+            ],
+          ],
+        ],
+      },
+    },
+  });
+
+  expect(insertedParcel?.geometry).toBe(
+    "SRID=4326;MULTIPOLYGON(((-74.761 40.221,-74.759 40.221,-74.759 40.219,-74.761 40.221)),((-74.751 40.211,-74.749 40.211,-74.749 40.209,-74.751 40.211)))",
+  );
+});
+
 test("primary parcel conflicts load the existing parcel for downstream work", async () => {
   const client = {
     from(table: string) {
@@ -388,4 +552,62 @@ test("primary parcel conflicts load the existing parcel for downstream work", as
       parcel: RESIDENTIAL_PARCEL,
     }),
   ).resolves.toEqual({ parcelId: "existing-parcel" });
+});
+
+test("source evidence identifiers remain distinct and traceable across tenants", async () => {
+  const sourceIdentifiers: string[] = [];
+  let providerRequestCount = 0;
+  const client = {
+    from(table: string) {
+      if (table === "provider_requests") {
+        return {
+          insert() {
+            providerRequestCount += 1;
+            return {
+              select() {
+                return {
+                  single: async () => ({
+                    data: {
+                      id: `provider-request-${providerRequestCount}`,
+                      requested_at: "2026-07-29T12:00:00.000Z",
+                      completed_at: "2026-07-29T12:00:00.000Z",
+                    },
+                    error: null,
+                  }),
+                };
+              },
+            };
+          },
+        };
+      }
+      if (table === "source_records") {
+        return {
+          async upsert(value: Record<string, unknown>) {
+            sourceIdentifiers.push(String(value.source_identifier));
+            return { error: null };
+          },
+        };
+      }
+      throw new Error(`Unexpected table: ${table}`);
+    },
+  };
+  const repository = new SupabasePropertyDiscoveryWorkerRepository(
+    client as never,
+  );
+
+  await repository.recordProviderEvidence({
+    pipelineRunId: "11111111-1111-4111-8111-111111111111",
+    companyId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    evidence: evidence(),
+  });
+  await repository.recordProviderEvidence({
+    pipelineRunId: "22222222-2222-4222-8222-222222222222",
+    companyId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    evidence: evidence(),
+  });
+
+  expect(sourceIdentifiers).toEqual([
+    "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa:0101-101-5",
+    "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb:0101-101-5",
+  ]);
 });

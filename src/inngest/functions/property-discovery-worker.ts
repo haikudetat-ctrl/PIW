@@ -1,6 +1,10 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { ParcelData } from "@/domain/property-identity";
+import { z } from "zod";
+import {
+  parcelDataSchema,
+  type ParcelData,
+} from "@/domain/property-identity";
 import {
   inngest,
   propertyDiscoveryRequested,
@@ -8,7 +12,10 @@ import {
 import type { Database, Json } from "@/lib/database.types";
 import { parseServerEnv } from "@/lib/env/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { decideParcelResolution } from "@/modules/property-identity/decide-parcel-resolution";
+import {
+  decideParcelResolution,
+  type ParcelResolutionDecision,
+} from "@/modules/property-identity/decide-parcel-resolution";
 import type {
   ProviderAdapter,
   ProviderResult,
@@ -24,6 +31,40 @@ type ParcelReviewReason =
   | "condo_ambiguity"
   | "commercial_property"
   | "unsupported_property_type";
+
+const parcelEvidenceSchema = z.object({
+  value: z.array(parcelDataSchema),
+  provider: z.string().min(1),
+  sourceIdentifier: z.string().min(1),
+  retrievedAt: z.iso.datetime(),
+  estimatedCostMicros: z.number().int().nonnegative(),
+  actualCostMicros: z.number().int().nonnegative().optional(),
+  rawArtifactId: z.string().min(1).optional(),
+});
+
+const propertyDiscoveryAttemptSchema = z.object({
+  evidence: parcelEvidenceSchema,
+  decision: z.discriminatedUnion("outcome", [
+    z.object({
+      outcome: z.literal("resolved"),
+      parcel: parcelDataSchema,
+    }),
+    z.object({
+      outcome: z.literal("review"),
+      reason: z.enum([
+        "multiple_parcels",
+        "condo_ambiguity",
+        "commercial_property",
+        "unsupported_property_type",
+      ]),
+    }),
+  ]),
+});
+
+export type PropertyDiscoveryAttempt = {
+  evidence: ParcelEvidence;
+  decision: ParcelResolutionDecision;
+};
 
 export interface PropertyDiscoveryWorkerRepository {
   assertEventScope(input: {
@@ -48,6 +89,13 @@ export interface PropertyDiscoveryWorkerRepository {
     correlationId: string;
     companyId: string;
   }): Promise<ParcelEvidence>;
+  loadWorkerAttempt(
+    workerRunId: string,
+  ): Promise<PropertyDiscoveryAttempt | null>;
+  persistWorkerAttempt(input: {
+    workerRunId: string;
+    attempt: PropertyDiscoveryAttempt;
+  }): Promise<PropertyDiscoveryAttempt>;
   recordProviderEvidence(input: {
     pipelineRunId: string;
     companyId: string;
@@ -125,21 +173,32 @@ export async function runPropertyDiscovery(
     companyId,
   });
 
-  const evidence = await repository.lookupParcels({
-    latitude: event.latitude,
-    longitude: event.longitude,
-    canonicalAddress: event.canonicalAddress,
-    pipelineRunId: event.pipelineRunId,
-    correlationId: event.correlationId,
-    companyId,
-  });
+  let attempt = await repository.loadWorkerAttempt(workerRun.id);
+  if (attempt === null) {
+    const evidence = await repository.lookupParcels({
+      latitude: event.latitude,
+      longitude: event.longitude,
+      canonicalAddress: event.canonicalAddress,
+      pipelineRunId: event.pipelineRunId,
+      correlationId: event.correlationId,
+      companyId,
+    });
+    attempt = await repository.persistWorkerAttempt({
+      workerRunId: workerRun.id,
+      attempt: {
+        evidence,
+        decision: decideParcelResolution(evidence.value),
+      },
+    });
+  }
+
   const { providerRequestId } = await repository.recordProviderEvidence({
     pipelineRunId: event.pipelineRunId,
     companyId,
-    evidence,
+    evidence: attempt.evidence,
   });
 
-  const decision = decideParcelResolution(evidence.value);
+  const decision = attempt.decision;
   let outcome: "resolved" | "review_required";
 
   if (decision.outcome === "review") {
@@ -149,7 +208,7 @@ export async function runPropertyDiscovery(
       propertyId: event.propertyId,
       companyId,
       reason: decision.reason,
-      candidateData: { candidates: evidence.value },
+      candidateData: { candidates: attempt.evidence.value },
     });
     outcome = "review_required";
   } else {
@@ -194,15 +253,12 @@ function dollarsToCents(value: number | null): number | null {
   return value === null ? null : Math.round(value * 100);
 }
 
-function polygonGeoJsonToEwkt(
-  geometry: Record<string, unknown> | null,
-): string | null {
-  if (geometry === null || geometry.type !== "Polygon") return null;
-  if (!Array.isArray(geometry.coordinates)) {
+function polygonCoordinatesToWkt(rawCoordinates: unknown): string {
+  if (!Array.isArray(rawCoordinates)) {
     throw new Error("Invalid parcel polygon geometry");
   }
 
-  const rings = geometry.coordinates.map((rawRing) => {
+  const rings = rawCoordinates.map((rawRing) => {
     if (!Array.isArray(rawRing)) {
       throw new Error("Invalid parcel polygon geometry");
     }
@@ -220,7 +276,29 @@ function polygonGeoJsonToEwkt(
     return `(${positions.join(",")})`;
   });
 
-  return `SRID=4326;POLYGON(${rings.join(",")})`;
+  return `(${rings.join(",")})`;
+}
+
+function parcelGeoJsonToEwkt(
+  geometry: Record<string, unknown> | null,
+): string | null {
+  if (geometry === null) return null;
+
+  if (geometry.type === "Polygon") {
+    return `SRID=4326;POLYGON${polygonCoordinatesToWkt(
+      geometry.coordinates,
+    )}`;
+  }
+
+  if (geometry.type === "MultiPolygon") {
+    if (!Array.isArray(geometry.coordinates)) {
+      throw new Error("Invalid parcel polygon geometry");
+    }
+    const polygons = geometry.coordinates.map(polygonCoordinatesToWkt);
+    return `SRID=4326;MULTIPOLYGON(${polygons.join(",")})`;
+  }
+
+  throw new Error("Invalid parcel polygon geometry");
 }
 
 type PropertyIdentityProviderRegistry = ReturnType<
@@ -358,6 +436,51 @@ export class SupabasePropertyDiscoveryWorkerRepository
     });
   }
 
+  async loadWorkerAttempt(workerRunId: string) {
+    const { data, error } = await this.client
+      .from("worker_runs")
+      .select("output")
+      .eq("id", workerRunId)
+      .single();
+    if (error || !data) {
+      throw new Error("Failed to load property-discovery attempt");
+    }
+    if (data.output === null) return null;
+
+    const parsed = propertyDiscoveryAttemptSchema.safeParse(data.output);
+    if (!parsed.success) {
+      throw new Error("Stored property-discovery attempt is invalid");
+    }
+    return parsed.data;
+  }
+
+  async persistWorkerAttempt(input: {
+    workerRunId: string;
+    attempt: PropertyDiscoveryAttempt;
+  }) {
+    const validatedAttempt = propertyDiscoveryAttemptSchema.parse(input.attempt);
+    const { data: updated, error } = await this.client
+      .from("worker_runs")
+      .update({ output: validatedAttempt as unknown as Json })
+      .eq("id", input.workerRunId)
+      .is("output", null)
+      .select("output")
+      .maybeSingle();
+    if (error) {
+      throw new Error("Failed to persist property-discovery attempt");
+    }
+
+    if (updated?.output) {
+      return propertyDiscoveryAttemptSchema.parse(updated.output);
+    }
+
+    const existing = await this.loadWorkerAttempt(input.workerRunId);
+    if (existing === null) {
+      throw new Error("Failed to load persisted property-discovery attempt");
+    }
+    return existing;
+  }
+
   async recordProviderEvidence(input: {
     pipelineRunId: string;
     companyId: string;
@@ -401,7 +524,7 @@ export class SupabasePropertyDiscoveryWorkerRepository
       {
         company_id: input.companyId,
         provider: input.evidence.provider,
-        source_identifier: input.evidence.sourceIdentifier,
+        source_identifier: `${input.companyId}:${input.evidence.sourceIdentifier}`,
         retrieved_at:
           providerRequest.completed_at ?? providerRequest.requested_at,
         raw_payload: input.evidence.value as unknown as Json,
@@ -449,7 +572,7 @@ export class SupabasePropertyDiscoveryWorkerRepository
         building_description: input.parcel.buildingDescription,
         land_description: input.parcel.landDescription,
         dwelling_units: input.parcel.dwellingUnits,
-        geometry: polygonGeoJsonToEwkt(input.parcel.geometry),
+        geometry: parcelGeoJsonToEwkt(input.parcel.geometry),
         provider_request_id: input.providerRequestId,
       })
       .select("id")

@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(48);
+select plan(50);
 
 select has_table('public', 'property_addresses', 'property_addresses exists');
 select has_table('public', 'parcels', 'parcels exists');
@@ -312,6 +312,31 @@ select throws_ok(
   '23505',
   null,
   'a property can have at most one primary parcel'
+);
+
+select lives_ok(
+  $$ insert into public.parcels (
+       company_id, property_id, is_primary, block, lot, geometry
+     ) values (
+       '00000000-0000-4000-8000-000000000001',
+       '77777777-7777-4777-8777-777777777777',
+       false,
+       '10',
+       '22',
+       'SRID=4326;MULTIPOLYGON(((0 0,0 1,1 1,0 0)))'
+     ) $$,
+  'valid multipart parcel geometry can be persisted'
+);
+
+select is(
+  (
+    select extensions.st_geometrytype(geometry::extensions.geometry)
+    from public.parcels
+    where property_id = '77777777-7777-4777-8777-777777777777'
+      and lot = '22'
+  ),
+  'ST_MultiPolygon',
+  'multipart parcel geometry retains its geometry type'
 );
 
 insert into public.structures (
