@@ -161,6 +161,25 @@ test("low confidence records the observation and creates review instead of disco
   expect(result.outcome).toBe("review_required");
 });
 
+test("a retried address attempt preserves its lineage on the next review task", async () => {
+  const lowConfidence = {
+    ...VALIDATED_ADDRESS,
+    canonicalAddress: null,
+    confidence: 0,
+  };
+  const createReviewTask = vi.fn();
+  const state = makeRepository({
+    validateAddress: async () => evidence(lowConfidence),
+    createReviewTask,
+  });
+
+  await runAddressValidation({ ...event, attempt: 2 }, state.repository);
+
+  expect(createReviewTask).toHaveBeenCalledWith(
+    expect.objectContaining({ attempt: 2 }),
+  );
+});
+
 test("duplicate match attaches the observation to canonical property and completes duplicate pipeline", async () => {
   const canonicalPropertyId = "ffffffff-ffff-4fff-8fff-ffffffffffff";
   const recordPropertyAddress = vi.fn(async () => true);

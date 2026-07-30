@@ -217,6 +217,20 @@ test("no parcel candidates create review instead of resolving", async () => {
   expect(result.outcome).toBe("review_required");
 });
 
+test("a retried discovery attempt preserves its lineage on the next review task", async () => {
+  const createReviewTask = vi.fn();
+  const state = makeRepository({
+    lookupParcels: async () => evidence([]),
+    createReviewTask,
+  });
+
+  await runPropertyDiscovery({ ...event, attempt: 3 }, state.repository);
+
+  expect(createReviewTask).toHaveBeenCalledWith(
+    expect.objectContaining({ attempt: 3 }),
+  );
+});
+
 test("completed replay returns before provider calls or writes", async () => {
   const state = makeRepository();
 

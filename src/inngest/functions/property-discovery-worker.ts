@@ -123,6 +123,7 @@ export interface PropertyDiscoveryWorkerRepository {
     companyId: string;
     reason: ParcelReviewReason;
     candidateData: unknown;
+    attempt: number;
   }): Promise<void>;
   completePipelineRun(input: {
     pipelineRunId: string;
@@ -209,6 +210,7 @@ export async function runPropertyDiscovery(
       companyId,
       reason: decision.reason,
       candidateData: { candidates: attempt.evidence.value },
+      attempt: event.attempt,
     });
     outcome = "review_required";
   } else {
@@ -634,6 +636,7 @@ export class SupabasePropertyDiscoveryWorkerRepository
     companyId: string;
     reason: ParcelReviewReason;
     candidateData: unknown;
+    attempt: number;
   }) {
     const scope = await this.assertEventScope(input);
     if (scope.companyId !== input.companyId) throw new Error(SCOPE_ERROR);
@@ -646,6 +649,7 @@ export class SupabasePropertyDiscoveryWorkerRepository
       reason: input.reason,
       triggering_event_name: "property/discovery_requested",
       candidate_data: input.candidateData as Json,
+      retry_count: input.attempt - 1,
     });
     if (reviewError && reviewError.code !== "23505") {
       throw new Error("Failed to create property-discovery review task");

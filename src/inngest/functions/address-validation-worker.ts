@@ -79,6 +79,7 @@ export interface AddressValidationWorkerRepository {
     companyId: string;
     reason: "low_address_confidence" | "duplicate_candidates";
     candidateData: unknown;
+    attempt: number;
   }): Promise<void>;
   publishDiscoveryRequested(input: {
     leadId: string;
@@ -184,6 +185,7 @@ export async function runAddressValidation(
       companyId,
       reason: "low_address_confidence",
       candidateData: { result },
+      attempt: event.attempt,
     });
     outcome = "review_required";
   } else {
@@ -203,6 +205,7 @@ export async function runAddressValidation(
         candidateData: {
           candidatePropertyIds: duplicateDecision.candidatePropertyIds,
         },
+        attempt: event.attempt,
       });
       outcome = "review_required";
     } else if (duplicateDecision?.outcome === "merge") {
@@ -643,6 +646,7 @@ export class SupabaseAddressValidationWorkerRepository
     companyId: string;
     reason: "low_address_confidence" | "duplicate_candidates";
     candidateData: unknown;
+    attempt: number;
   }) {
     const scope = await this.assertEventScope(input);
     if (scope.companyId !== input.companyId) throw new Error(SCOPE_ERROR);
@@ -655,6 +659,7 @@ export class SupabaseAddressValidationWorkerRepository
       reason: input.reason,
       triggering_event_name: "property/address.validation_requested",
       candidate_data: input.candidateData as Json,
+      retry_count: input.attempt - 1,
     });
     if (reviewError && reviewError.code !== "23505") {
       throw new Error("Failed to create address-validation review task");

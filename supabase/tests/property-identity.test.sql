@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(72);
+select plan(81);
 
 select has_table('public', 'property_addresses', 'property_addresses exists');
 select has_table('public', 'parcels', 'parcels exists');
@@ -629,6 +629,126 @@ select is(
 );
 
 select is(
+  (select count(*) from public.audit_log
+   where entity_type = 'review_task'
+     and entity_id = '94000000-0000-4000-8000-000000000005'
+     and action = 'review.task_retried'),
+  1::bigint,
+  'replayed retry keeps one durable admin audit row'
+);
+select is(
+  (select count(*)
+   from public.event_outbox as outbox
+   join public.domain_events as event on event.id = outbox.event_id
+   where event.idempotency_key =
+     'property/address.validation_requested:92000000-0000-4000-8000-000000000005:2'),
+  1::bigint,
+  'address retry atomically creates its attempt-2 outbox event'
+);
+
+-- A worker can return to review after a retry. Its new review task carries the
+-- triggering attempt as retry_count so the next retry advances to attempt 3.
+update public.properties
+set resolution_status = 'review_required'
+where id = '90000000-0000-4000-8000-000000000006';
+update public.pipeline_runs
+set status = 'review_required'
+where id = '92000000-0000-4000-8000-000000000005';
+insert into public.review_tasks (
+  id, company_id, pipeline_run_id, lead_id, property_id, reason,
+  triggering_event_name, candidate_data, retry_count
+) values (
+  '94000000-0000-4000-8000-000000000008',
+  '00000000-0000-4000-8000-000000000001',
+  '92000000-0000-4000-8000-000000000005',
+  '91000000-0000-4000-8000-000000000005',
+  '90000000-0000-4000-8000-000000000006',
+  'low_address_confidence',
+  'property/address.validation_requested',
+  '{}',
+  1
+);
+
+select is(
+  (select next_attempt from public.resolve_review_task(
+    '00000000-0000-4000-8000-000000000001',
+    '94000000-0000-4000-8000-000000000008',
+    'retry', null, null, 'third address attempt'
+  )),
+  3,
+  'a second review cycle advances to attempt 3'
+);
+select is(
+  (select count(*)
+   from public.event_outbox as outbox
+   join public.domain_events as event on event.id = outbox.event_id
+   where event.idempotency_key in (
+     'property/address.validation_requested:92000000-0000-4000-8000-000000000005:2',
+     'property/address.validation_requested:92000000-0000-4000-8000-000000000005:3'
+   )),
+  2::bigint,
+  'review retry lineage produces distinct attempt-2 and attempt-3 events'
+);
+select is(
+  (select count(*) from public.audit_log
+   where entity_type = 'review_task'
+     and entity_id = '94000000-0000-4000-8000-000000000008'
+     and action = 'review.task_retried'),
+  1::bigint,
+  'the second review cycle writes one durable admin audit row'
+);
+select is(
+  (
+    with replay as (
+      select * from public.resolve_review_task(
+        '00000000-0000-4000-8000-000000000001',
+        '94000000-0000-4000-8000-000000000008',
+        'retry', null, null, 'replayed third attempt'
+      )
+    )
+    select row(
+      (select next_attempt from replay),
+      (select count(*) from public.audit_log
+       where entity_type = 'review_task'
+         and entity_id = '94000000-0000-4000-8000-000000000008'
+         and action = 'review.task_retried'),
+      (select count(*)
+       from public.event_outbox as outbox
+       join public.domain_events as event on event.id = outbox.event_id
+       where event.idempotency_key =
+         'property/address.validation_requested:92000000-0000-4000-8000-000000000005:3')
+    )
+  ),
+  row(3, 1::bigint, 1::bigint),
+  'same-action replay reuses attempt 3 without duplicate audit or outbox rows'
+);
+
+insert into public.worker_runs (
+  id, pipeline_run_id, worker_type, worker_version, idempotency_key
+) values (
+  '95000000-0000-4000-8000-000000000001',
+  '92000000-0000-4000-8000-000000000006',
+  'address-validation',
+  1,
+  'review-discovery-retry-context'
+);
+insert into public.property_addresses (
+  company_id, property_id, worker_run_id, submitted_address,
+  canonical_address, latitude, longitude, state_code, match_method, confidence
+) values (
+  '00000000-0000-4000-8000-000000000001',
+  '90000000-0000-4000-8000-000000000007',
+  '95000000-0000-4000-8000-000000000001',
+  '6 Retry Way',
+  '6 Retry Way, Trenton, NJ 08608',
+  40.2206,
+  -74.7699,
+  'NJ',
+  'exact_single_match',
+  100
+);
+
+select is(
   (select next_attempt from public.resolve_review_task(
     '00000000-0000-4000-8000-000000000001',
     '94000000-0000-4000-8000-000000000006',
@@ -641,6 +761,99 @@ select is(
   (select status from public.pipeline_runs where id = '92000000-0000-4000-8000-000000000006'),
   'validating'::public.pipeline_status,
   'discovery retry resets the pipeline to the discovery predecessor state'
+);
+
+insert into public.properties (id, company_id, resolution_status)
+values (
+  '90000000-0000-4000-8000-000000000009',
+  '00000000-0000-4000-8000-000000000001',
+  'review_required'
+);
+insert into public.leads (
+  id, company_id, property_id, name, phone, email, submitted_address
+) values (
+  '91000000-0000-4000-8000-000000000008',
+  '00000000-0000-4000-8000-000000000001',
+  '90000000-0000-4000-8000-000000000009',
+  'Missing Context Lead',
+  '555-0108',
+  'missing-context@example.com',
+  '8 Missing Context Way'
+);
+insert into public.pipeline_runs (
+  id, company_id, lead_id, property_id, correlation_id, pipeline_version,
+  status
+) values (
+  '92000000-0000-4000-8000-000000000008',
+  '00000000-0000-4000-8000-000000000001',
+  '91000000-0000-4000-8000-000000000008',
+  '90000000-0000-4000-8000-000000000009',
+  '93000000-0000-4000-8000-000000000008',
+  1,
+  'review_required'
+);
+insert into public.review_tasks (
+  id, company_id, pipeline_run_id, lead_id, property_id, reason,
+  triggering_event_name
+) values (
+  '94000000-0000-4000-8000-000000000009',
+  '00000000-0000-4000-8000-000000000001',
+  '92000000-0000-4000-8000-000000000008',
+  '91000000-0000-4000-8000-000000000008',
+  '90000000-0000-4000-8000-000000000009',
+  'multiple_parcels',
+  'property/discovery_requested'
+);
+
+select throws_ok(
+  $$ select public.resolve_review_task(
+       '00000000-0000-4000-8000-000000000001',
+       '94000000-0000-4000-8000-000000000009',
+       'retry', null, null, 'missing canonical context') $$,
+  null,
+  'Discovery retry requires a canonical address for review task 94000000-0000-4000-8000-000000000009',
+  'retry refuses to close when a durable event cannot be constructed'
+);
+select is(
+  (
+    select row(
+      task.status,
+      task.retry_count,
+      property.resolution_status,
+      run.status,
+      (select count(*) from public.audit_log
+       where entity_type = 'review_task'
+         and entity_id = task.id),
+      (select count(*)
+       from public.event_outbox as outbox
+       join public.domain_events as event on event.id = outbox.event_id
+       where event.pipeline_run_id = run.id)
+    )
+    from public.review_tasks as task
+    join public.properties as property on property.id = task.property_id
+    join public.pipeline_runs as run on run.id = task.pipeline_run_id
+    where task.id = '94000000-0000-4000-8000-000000000009'
+  ),
+  row(
+    'open'::public.review_task_status,
+    0,
+    'review_required'::text,
+    'review_required'::public.pipeline_status,
+    0::bigint,
+    0::bigint
+  ),
+  'failed retry leaves task, property, pipeline, audit, and outbox unchanged'
+);
+
+select set_eq(
+  $$ select distinct action from public.audit_log
+     where entity_type = 'review_task' $$,
+  $$ values
+       ('review.task_resolved'::text),
+       ('review.task_rejected'::text),
+       ('review.task_retried'::text),
+       ('review.task_unsupported'::text) $$,
+  'review actions persist only the exact approved audit verbs'
 );
 
 select throws_ok(

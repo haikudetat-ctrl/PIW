@@ -2,19 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import type { Database } from "@/lib/database.types";
 import { createServerClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { writeAuditEntry } from "@/modules/audit/write-audit-entry";
-import { SupabaseOutboxRepository } from "@/modules/events/supabase-outbox-repository";
 import {
   applyReviewActionCore,
-  type RetryContext,
   type ReviewAction,
 } from "./review-action-service";
-
-type ReviewTaskRow =
-  Database["public"]["Tables"]["review_tasks"]["Row"];
 
 function notesFrom(formData: FormData): string | null {
   const value = formData.get("notes");
@@ -86,82 +79,6 @@ async function applyReviewAction(
           propertyId: resolution.property_id,
           nextAttempt: resolution.next_attempt ?? null,
         };
-      },
-      writeAudit: async (entry) => {
-        await writeAuditEntry(entry, service);
-      },
-      loadRetryContext: async (input): Promise<RetryContext> => {
-        const { data: task, error: taskError } = await service
-          .from("review_tasks")
-          .select(
-            "company_id, triggering_event_name, lead_id, property_id, pipeline_run_id",
-          )
-          .eq("id", input.reviewTaskId)
-          .eq("company_id", input.companyId)
-          .single();
-        if (taskError || !task) {
-          throw new Error("Failed to load retry review task");
-        }
-
-        const [{ data: pipeline }, { data: lead }, { data: address }] =
-          await Promise.all([
-            service
-              .from("pipeline_runs")
-              .select("company_id, correlation_id, lead_id, property_id")
-              .eq("id", task.pipeline_run_id)
-              .eq("company_id", input.companyId)
-              .single(),
-            service
-              .from("leads")
-              .select("company_id, submitted_address, property_id")
-              .eq("id", task.lead_id)
-              .eq("company_id", input.companyId)
-              .single(),
-            service
-              .from("property_addresses")
-              .select("canonical_address, latitude, longitude")
-              .eq("property_id", task.property_id)
-              .eq("company_id", input.companyId)
-              .order("created_at", { ascending: false })
-              .limit(1)
-              .maybeSingle(),
-          ]);
-
-        if (
-          !pipeline ||
-          !lead ||
-          pipeline.company_id !== input.companyId ||
-          lead.company_id !== input.companyId ||
-          pipeline.lead_id !== task.lead_id ||
-          pipeline.property_id !== task.property_id ||
-          lead.property_id !== task.property_id
-        ) {
-          throw new Error("Retry context failed company scope validation");
-        }
-
-        const triggeringEventName =
-          task.triggering_event_name as ReviewTaskRow["triggering_event_name"];
-        if (
-          triggeringEventName !== "property/address.validation_requested" &&
-          triggeringEventName !== "property/discovery_requested"
-        ) {
-          throw new Error("Unsupported retry event");
-        }
-
-        return {
-          triggeringEventName,
-          pipelineRunId: task.pipeline_run_id,
-          correlationId: pipeline.correlation_id,
-          leadId: task.lead_id,
-          propertyId: task.property_id,
-          submittedAddress: lead.submitted_address,
-          canonicalAddress: address?.canonical_address ?? null,
-          latitude: address?.latitude ?? null,
-          longitude: address?.longitude ?? null,
-        };
-      },
-      enqueueRetry: async (companyId, event) => {
-        await new SupabaseOutboxRepository(service).enqueue(event, companyId);
       },
     },
   );
