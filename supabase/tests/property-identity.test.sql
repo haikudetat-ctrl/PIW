@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(50);
+select plan(72);
 
 select has_table('public', 'property_addresses', 'property_addresses exists');
 select has_table('public', 'parcels', 'parcels exists');
@@ -441,6 +441,216 @@ select throws_ok(
   '23505',
   null,
   'same-attempt property-discovery audit actions are idempotent'
+);
+
+-- Review action fixtures exercise the database boundary directly. The server
+-- action uses this service-role-only RPC, so the function is responsible for
+-- locking the task and keeping every mutation inside the supplied company.
+insert into public.properties (id, company_id, resolution_status)
+values
+  ('90000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000001', 'review_required'),
+  ('90000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000001', 'resolved'),
+  ('90000000-0000-4000-8000-000000000003', '00000000-0000-4000-8000-000000000001', 'review_required'),
+  ('90000000-0000-4000-8000-000000000004', '00000000-0000-4000-8000-000000000001', 'review_required'),
+  ('90000000-0000-4000-8000-000000000005', '00000000-0000-4000-8000-000000000001', 'review_required'),
+  ('90000000-0000-4000-8000-000000000006', '00000000-0000-4000-8000-000000000001', 'review_required'),
+  ('90000000-0000-4000-8000-000000000007', '00000000-0000-4000-8000-000000000001', 'review_required'),
+  ('90000000-0000-4000-8000-000000000008', '00000000-0000-4000-8000-000000000001', 'review_required');
+
+insert into public.leads (
+  id, company_id, property_id, name, phone, email, submitted_address
+) values
+  ('91000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000001', '90000000-0000-4000-8000-000000000001', 'Resolve Lead', '555-0101', 'resolve@example.com', '1 Resolve Way'),
+  ('91000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000001', '90000000-0000-4000-8000-000000000003', 'Duplicate Lead', '555-0102', 'duplicate@example.com', '2 Duplicate Way'),
+  ('91000000-0000-4000-8000-000000000003', '00000000-0000-4000-8000-000000000001', '90000000-0000-4000-8000-000000000004', 'Reject Lead', '555-0103', 'reject@example.com', '3 Reject Way'),
+  ('91000000-0000-4000-8000-000000000004', '00000000-0000-4000-8000-000000000001', '90000000-0000-4000-8000-000000000005', 'Unsupported Lead', '555-0104', 'unsupported@example.com', '4 Unsupported Way'),
+  ('91000000-0000-4000-8000-000000000005', '00000000-0000-4000-8000-000000000001', '90000000-0000-4000-8000-000000000006', 'Address Retry Lead', '555-0105', 'address-retry@example.com', '5 Retry Way'),
+  ('91000000-0000-4000-8000-000000000006', '00000000-0000-4000-8000-000000000001', '90000000-0000-4000-8000-000000000007', 'Discovery Retry Lead', '555-0106', 'discovery-retry@example.com', '6 Retry Way'),
+  ('91000000-0000-4000-8000-000000000007', '00000000-0000-4000-8000-000000000001', '90000000-0000-4000-8000-000000000008', 'Parcel Resolve Lead', '555-0107', 'parcel-resolve@example.com', '7 Resolve Way');
+
+insert into public.pipeline_runs (
+  id, company_id, lead_id, property_id, correlation_id, pipeline_version,
+  status, finished_at
+) values
+  ('92000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000001', '91000000-0000-4000-8000-000000000001', '90000000-0000-4000-8000-000000000001', '93000000-0000-4000-8000-000000000001', 1, 'review_required', null),
+  ('92000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000001', '91000000-0000-4000-8000-000000000002', '90000000-0000-4000-8000-000000000003', '93000000-0000-4000-8000-000000000002', 1, 'review_required', null),
+  ('92000000-0000-4000-8000-000000000003', '00000000-0000-4000-8000-000000000001', '91000000-0000-4000-8000-000000000003', '90000000-0000-4000-8000-000000000004', '93000000-0000-4000-8000-000000000003', 1, 'review_required', null),
+  ('92000000-0000-4000-8000-000000000004', '00000000-0000-4000-8000-000000000001', '91000000-0000-4000-8000-000000000004', '90000000-0000-4000-8000-000000000005', '93000000-0000-4000-8000-000000000004', 1, 'review_required', null),
+  ('92000000-0000-4000-8000-000000000005', '00000000-0000-4000-8000-000000000001', '91000000-0000-4000-8000-000000000005', '90000000-0000-4000-8000-000000000006', '93000000-0000-4000-8000-000000000005', 1, 'review_required', now()),
+  ('92000000-0000-4000-8000-000000000006', '00000000-0000-4000-8000-000000000001', '91000000-0000-4000-8000-000000000006', '90000000-0000-4000-8000-000000000007', '93000000-0000-4000-8000-000000000006', 1, 'review_required', now()),
+  ('92000000-0000-4000-8000-000000000007', '00000000-0000-4000-8000-000000000001', '91000000-0000-4000-8000-000000000007', '90000000-0000-4000-8000-000000000008', '93000000-0000-4000-8000-000000000007', 1, 'review_required', null);
+
+insert into public.review_tasks (
+  id, company_id, pipeline_run_id, lead_id, property_id, reason,
+  triggering_event_name, candidate_data
+) values
+  ('94000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000001', '92000000-0000-4000-8000-000000000001', '91000000-0000-4000-8000-000000000001', '90000000-0000-4000-8000-000000000001', 'low_address_confidence', 'property/address.validation_requested', '{"result":{"canonicalAddress":"1 Resolve Way, NJ"}}'),
+  ('94000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000001', '92000000-0000-4000-8000-000000000002', '91000000-0000-4000-8000-000000000002', '90000000-0000-4000-8000-000000000003', 'duplicate_candidates', 'property/address.validation_requested', '{"candidatePropertyIds":["90000000-0000-4000-8000-000000000002"]}'),
+  ('94000000-0000-4000-8000-000000000003', '00000000-0000-4000-8000-000000000001', '92000000-0000-4000-8000-000000000003', '91000000-0000-4000-8000-000000000003', '90000000-0000-4000-8000-000000000004', 'low_address_confidence', 'property/address.validation_requested', '{}'),
+  ('94000000-0000-4000-8000-000000000004', '00000000-0000-4000-8000-000000000001', '92000000-0000-4000-8000-000000000004', '91000000-0000-4000-8000-000000000004', '90000000-0000-4000-8000-000000000005', 'unsupported_property_type', 'property/discovery_requested', '{}'),
+  ('94000000-0000-4000-8000-000000000005', '00000000-0000-4000-8000-000000000001', '92000000-0000-4000-8000-000000000005', '91000000-0000-4000-8000-000000000005', '90000000-0000-4000-8000-000000000006', 'low_address_confidence', 'property/address.validation_requested', '{}'),
+  ('94000000-0000-4000-8000-000000000006', '00000000-0000-4000-8000-000000000001', '92000000-0000-4000-8000-000000000006', '91000000-0000-4000-8000-000000000006', '90000000-0000-4000-8000-000000000007', 'multiple_parcels', 'property/discovery_requested', '{"candidates":[{"block":"10","lot":"20","qualifier":null,"pamsPin":"0101_10_20","gisPin":"gis-10-20","municipalityCode":"0101","municipalityName":"Test Township","county":"Mercer","propertyClass":"2","acreage":0.5,"yearBuilt":1998,"landValue":50000.125,"improvementValue":150000.505,"netValue":200000.63,"propertyLocation":"6 Retry Way","streetAddress":"6 Retry Way","buildingDescription":"1 Story","landDescription":"Residential","dwellingUnits":1,"geometry":null}]}'),
+  ('94000000-0000-4000-8000-000000000007', '00000000-0000-4000-8000-000000000001', '92000000-0000-4000-8000-000000000007', '91000000-0000-4000-8000-000000000007', '90000000-0000-4000-8000-000000000008', 'multiple_parcels', 'property/discovery_requested', '{"candidates":[{"block":"11","lot":"21","qualifier":null,"pamsPin":"0101_11_21","gisPin":"gis-11-21","municipalityCode":"0101","municipalityName":"Test Township","county":"Mercer","propertyClass":"2","acreage":0.75,"yearBuilt":2001,"landValue":50000.125,"improvementValue":150000.505,"netValue":200000.63,"propertyLocation":"7 Resolve Way","streetAddress":"7 Resolve Way","buildingDescription":"2 Story","landDescription":"Residential","dwellingUnits":1,"geometry":null}]}');
+
+select is(
+  (select new_status from public.resolve_review_task(
+    '00000000-0000-4000-8000-000000000001',
+    '94000000-0000-4000-8000-000000000001',
+    'resolve', null, null, 'accepted as submitted'
+  )),
+  'resolved'::public.review_task_status,
+  'resolve without a candidate closes the review task'
+);
+select is(
+  (select resolution_status from public.properties where id = '90000000-0000-4000-8000-000000000001'),
+  'resolved',
+  'resolve without a candidate marks the placeholder property resolved'
+);
+select is(
+  (select status from public.pipeline_runs where id = '92000000-0000-4000-8000-000000000001'),
+  'complete'::public.pipeline_status,
+  'resolve completes the linked pipeline'
+);
+select throws_ok(
+  $$ select public.resolve_review_task(
+       '00000000-0000-4000-8000-000000000001',
+       '94000000-0000-4000-8000-000000000001',
+       'reject', null, null, 'too late') $$,
+  null,
+  'Review task 94000000-0000-4000-8000-000000000001 is not open',
+  'a different second action on a closed task is rejected'
+);
+
+select is(
+  (select new_status from public.resolve_review_task(
+    '00000000-0000-4000-8000-000000000001',
+    '94000000-0000-4000-8000-000000000002',
+    'resolve', null, 0, 'merge duplicate'
+  )),
+  'resolved'::public.review_task_status,
+  'resolve can select a duplicate candidate'
+);
+select is(
+  (select merged_into_property_id from public.properties where id = '90000000-0000-4000-8000-000000000003'),
+  '90000000-0000-4000-8000-000000000002'::uuid,
+  'duplicate resolution records the canonical property'
+);
+select is(
+  (select property_id from public.leads where id = '91000000-0000-4000-8000-000000000002'),
+  '90000000-0000-4000-8000-000000000002'::uuid,
+  'duplicate resolution repoints the lead'
+);
+select is(
+  (select property_id from public.pipeline_runs where id = '92000000-0000-4000-8000-000000000002'),
+  '90000000-0000-4000-8000-000000000002'::uuid,
+  'duplicate resolution repoints the pipeline'
+);
+
+select is(
+  (select new_status from public.resolve_review_task(
+    '00000000-0000-4000-8000-000000000001',
+    '94000000-0000-4000-8000-000000000007',
+    'resolve', null, 0, 'select parcel'
+  )),
+  'resolved'::public.review_task_status,
+  'resolve can select a parcel candidate'
+);
+select is(
+  (select row(land_value_cents, improvement_value_cents, net_value_cents)
+   from public.parcels where property_id = '90000000-0000-4000-8000-000000000008'),
+  row(5000013::bigint, 15000051::bigint, 20000063::bigint),
+  'selected parcel dollar values are rounded to integer cents'
+);
+
+select is(
+  (select new_status from public.resolve_review_task(
+    '00000000-0000-4000-8000-000000000001',
+    '94000000-0000-4000-8000-000000000003',
+    'reject', null, null, 'invalid address'
+  )),
+  'rejected'::public.review_task_status,
+  'reject closes the task as rejected'
+);
+select is(
+  (select status from public.pipeline_runs where id = '92000000-0000-4000-8000-000000000003'),
+  'failed'::public.pipeline_status,
+  'reject fails the linked pipeline'
+);
+
+select is(
+  (select new_status from public.resolve_review_task(
+    '00000000-0000-4000-8000-000000000001',
+    '94000000-0000-4000-8000-000000000004',
+    'unsupported', null, null, 'outside supported property types'
+  )),
+  'unsupported'::public.review_task_status,
+  'unsupported closes the task as unsupported'
+);
+select is(
+  (select row(resolution_status, (select status from public.pipeline_runs where id = '92000000-0000-4000-8000-000000000004'))
+   from public.properties where id = '90000000-0000-4000-8000-000000000005'),
+  row('unsupported'::text, 'partial'::public.pipeline_status),
+  'unsupported marks the property unsupported and pipeline partial'
+);
+
+select is(
+  (select next_attempt from public.resolve_review_task(
+    '00000000-0000-4000-8000-000000000001',
+    '94000000-0000-4000-8000-000000000005',
+    'retry', null, null, 'try address again'
+  )),
+  2,
+  'address retry returns the next attempt'
+);
+select is(
+  (select row(status, retry_count) from public.review_tasks where id = '94000000-0000-4000-8000-000000000005'),
+  row('retried'::public.review_task_status, 1),
+  'address retry closes the task and increments its retry count once'
+);
+select is(
+  (select row(resolution_status, (select status from public.pipeline_runs where id = '92000000-0000-4000-8000-000000000005'))
+   from public.properties where id = '90000000-0000-4000-8000-000000000006'),
+  row('unresolved'::text, 'received'::public.pipeline_status),
+  'address retry resets property and pipeline before republishing'
+);
+select is(
+  (select next_attempt from public.resolve_review_task(
+    '00000000-0000-4000-8000-000000000001',
+    '94000000-0000-4000-8000-000000000005',
+    'retry', null, null, 'replayed request'
+  )),
+  2,
+  'replaying the same retry returns the same next attempt'
+);
+select is(
+  (select retry_count from public.review_tasks where id = '94000000-0000-4000-8000-000000000005'),
+  1,
+  'replaying the same retry does not increment again'
+);
+
+select is(
+  (select next_attempt from public.resolve_review_task(
+    '00000000-0000-4000-8000-000000000001',
+    '94000000-0000-4000-8000-000000000006',
+    'retry', null, null, 'try parcel discovery again'
+  )),
+  2,
+  'discovery retry returns the next attempt'
+);
+select is(
+  (select status from public.pipeline_runs where id = '92000000-0000-4000-8000-000000000006'),
+  'validating'::public.pipeline_status,
+  'discovery retry resets the pipeline to the discovery predecessor state'
+);
+
+select throws_ok(
+  $$ select public.resolve_review_task(
+       '00000000-0000-4000-8000-000000000002',
+       '94000000-0000-4000-8000-000000000006',
+       'resolve', null, 0, 'cross tenant') $$,
+  null,
+  'Review task 94000000-0000-4000-8000-000000000006 not found for company 00000000-0000-4000-8000-000000000002',
+  'review actions cannot cross company scope'
 );
 
 select * from finish();

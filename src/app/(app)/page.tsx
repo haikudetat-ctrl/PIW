@@ -8,7 +8,12 @@ const STUCK_THRESHOLD_MINUTES = 15;
 export default async function DashboardPage() {
   const supabase = await createServerClient();
 
-  const [{ data: leadRows }, { data: newLeads }, { data: stuckRuns }] = await Promise.all([
+  const [
+    { data: leadRows },
+    { data: newLeads },
+    { data: stuckRuns },
+    { count: reviewCount },
+  ] = await Promise.all([
     supabase.from("leads").select("stage"),
     supabase
       .from("leads")
@@ -21,6 +26,10 @@ export default async function DashboardPage() {
       .select("id, started_at, status")
       .neq("status", "complete")
       .lt("started_at", stuckSinceIso(STUCK_THRESHOLD_MINUTES)),
+    supabase
+      .from("review_tasks")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "open"),
   ]);
 
   const pipelineTotals = summarizePipelineTotals(leadRows ?? []);
@@ -58,7 +67,8 @@ export default async function DashboardPage() {
 
       <section aria-label="Review queue">
         <h2>Review queue</h2>
-        <p>0 items awaiting review</p>
+        <p>{reviewCount ?? 0} items awaiting review</p>
+        <Link href="/review">Open review queue</Link>
       </section>
 
       <section aria-label="Stuck enrichments">
