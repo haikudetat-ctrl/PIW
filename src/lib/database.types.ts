@@ -349,6 +349,211 @@ export type Database = {
           },
         ]
       }
+      job_inspections: {
+        Row: {
+          company_id: string
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          inspection_type: string
+          inspector_name: string | null
+          job_permit_id: string
+          result_notes: string | null
+          scheduled_at: string | null
+          status: Database["public"]["Enums"]["job_inspection_status"]
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          inspection_type: string
+          inspector_name?: string | null
+          job_permit_id: string
+          result_notes?: string | null
+          scheduled_at?: string | null
+          status?: Database["public"]["Enums"]["job_inspection_status"]
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          inspection_type?: string
+          inspector_name?: string | null
+          job_permit_id?: string
+          result_notes?: string | null
+          scheduled_at?: string | null
+          status?: Database["public"]["Enums"]["job_inspection_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_inspections_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_inspections_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "admin_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_inspections_job_permit_id_fkey"
+            columns: ["job_permit_id"]
+            isOneToOne: false
+            referencedRelation: "job_permits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      job_permits: {
+        Row: {
+          approved_at: string | null
+          company_id: string
+          created_at: string
+          created_by: string | null
+          expires_at: string | null
+          id: string
+          job_id: string
+          municipality: string | null
+          notes: string | null
+          permit_number: string | null
+          permit_type: string
+          status: Database["public"]["Enums"]["job_permit_status"]
+          submitted_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          approved_at?: string | null
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          job_id: string
+          municipality?: string | null
+          notes?: string | null
+          permit_number?: string | null
+          permit_type: string
+          status?: Database["public"]["Enums"]["job_permit_status"]
+          submitted_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          approved_at?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          job_id?: string
+          municipality?: string | null
+          notes?: string | null
+          permit_number?: string | null
+          permit_type?: string
+          status?: Database["public"]["Enums"]["job_permit_status"]
+          submitted_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_permits_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_permits_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "admin_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_permits_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      jobs: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          lead_id: string | null
+          notes: string | null
+          property_id: string
+          status: Database["public"]["Enums"]["job_status"]
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          lead_id?: string | null
+          notes?: string | null
+          property_id: string
+          status?: Database["public"]["Enums"]["job_status"]
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          lead_id?: string | null
+          notes?: string | null
+          property_id?: string
+          status?: Database["public"]["Enums"]["job_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jobs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "admin_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lead_stage_history: {
         Row: {
           changed_at: string
@@ -1651,6 +1856,21 @@ export type Database = {
         | "no_match"
         | "multiple_matches"
       interaction_type: "call" | "email" | "text" | "site_visit" | "note"
+      job_inspection_status:
+        | "scheduled"
+        | "passed"
+        | "failed"
+        | "cancelled"
+        | "rescheduled"
+      job_permit_status:
+        | "not_started"
+        | "pending_submission"
+        | "submitted"
+        | "under_review"
+        | "approved"
+        | "rejected"
+        | "expired"
+      job_status: "active" | "on_hold" | "complete" | "cancelled"
       lead_stage:
         | "new"
         | "contacting"
@@ -1832,6 +2052,23 @@ export const Constants = {
         "multiple_matches",
       ],
       interaction_type: ["call", "email", "text", "site_visit", "note"],
+      job_inspection_status: [
+        "scheduled",
+        "passed",
+        "failed",
+        "cancelled",
+        "rescheduled",
+      ],
+      job_permit_status: [
+        "not_started",
+        "pending_submission",
+        "submitted",
+        "under_review",
+        "approved",
+        "rejected",
+        "expired",
+      ],
+      job_status: ["active", "on_hold", "complete", "cancelled"],
       lead_stage: [
         "new",
         "contacting",
