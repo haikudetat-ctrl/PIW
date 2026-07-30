@@ -56,6 +56,11 @@ export const integrationEventReceivedDataSchema = z.object({
   eventType: z.string().min(1),
 });
 
+export const appointmentRepAssignedDataSchema = z.object({
+  appointmentId: uuidSchema,
+  repId: uuidSchema,
+});
+
 const leadSubmittedSchema = z.object({
   id: uuidSchema,
   name: z.literal("crm/lead.submitted"),
@@ -112,12 +117,25 @@ const integrationEventReceivedSchema = z.object({
   data: integrationEventReceivedDataSchema,
 });
 
+const appointmentRepAssignedSchema = z.object({
+  id: uuidSchema,
+  name: z.literal("appointments/rep.assigned"),
+  schemaVersion: z.literal(1),
+  correlationId: uuidSchema,
+  causationEventId: uuidSchema.optional(),
+  leadId: uuidSchema,
+  occurredAt: z.iso.datetime(),
+  idempotencyKey: z.string().min(1),
+  data: appointmentRepAssignedDataSchema,
+});
+
 export const eventEnvelopeSchema = z.discriminatedUnion("name", [
   diagnosticRequestedSchema,
   leadSubmittedSchema,
   addressValidationRequestedSchema,
   propertyDiscoveryRequestedSchema,
   integrationEventReceivedSchema,
+  appointmentRepAssignedSchema,
 ]);
 
 export type DomainEvent = z.infer<typeof eventEnvelopeSchema>;
@@ -175,6 +193,15 @@ type EventInput =
       data: z.infer<typeof integrationEventReceivedDataSchema>;
       now?: Date;
       id?: string;
+    }
+  | {
+      name: "appointments/rep.assigned";
+      correlationId: string;
+      leadId: string;
+      causationEventId?: string;
+      data: z.infer<typeof appointmentRepAssignedDataSchema>;
+      now?: Date;
+      id?: string;
     };
 
 const ATTEMPT_AWARE_EVENT_NAMES = new Set([
@@ -189,12 +216,16 @@ export function createEventEnvelope(input: EventInput): DomainEvent {
     : undefined;
   // integration/event.received has no pipeline run yet (it precedes lead
   // creation), so it keys on the integration event id instead.
-  const idempotencyKey =
-    input.name === "integration/event.received"
-      ? `${input.name}:${(input.data as { integrationEventId: string }).integrationEventId}`
-      : attempt
-        ? `${input.name}:${input.pipelineRunId}:${attempt}`
-        : `${input.name}:${input.pipelineRunId}`;
+  let idempotencyKey: string;
+  if (input.name === "integration/event.received") {
+    idempotencyKey = `${input.name}:${input.data.integrationEventId}`;
+  } else if (input.name === "appointments/rep.assigned") {
+    idempotencyKey = `${input.name}:${input.data.appointmentId}:${input.data.repId}`;
+  } else if (attempt) {
+    idempotencyKey = `${input.name}:${input.pipelineRunId}:${attempt}`;
+  } else {
+    idempotencyKey = `${input.name}:${input.pipelineRunId}`;
+  }
 
   return eventEnvelopeSchema.parse({
     ...input,

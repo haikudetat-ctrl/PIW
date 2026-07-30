@@ -18,6 +18,10 @@ type IntegrationEventReceivedData = Extract<
   DomainEvent,
   { name: "integration/event.received" }
 >;
+type AppointmentRepAssignedData = Extract<
+  DomainEvent,
+  { name: "appointments/rep.assigned" }
+>;
 
 export const diagnosticRequested = eventType("system/diagnostic.requested", {
   schema: staticSchema<DiagnosticRequestedData>(),
@@ -40,6 +44,10 @@ export const propertyDiscoveryRequested = eventType("property/discovery_requeste
 
 export const integrationEventReceived = eventType("integration/event.received", {
   schema: staticSchema<IntegrationEventReceivedData>(),
+});
+
+export const appointmentRepAssigned = eventType("appointments/rep.assigned", {
+  schema: staticSchema<AppointmentRepAssignedData>(),
 });
 
 export const inngest = new Inngest({

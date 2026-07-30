@@ -63,6 +63,30 @@ describe("crm/lead.submitted event", () => {
   });
 });
 
+describe("appointments/rep.assigned event", () => {
+  test("keys an assignment event by appointment and rep without a pipeline run", () => {
+    const event = createEventEnvelope({
+      name: "appointments/rep.assigned",
+      correlationId: "11111111-1111-4111-8111-111111111111",
+      leadId: "22222222-2222-4222-8222-222222222222",
+      data: {
+        appointmentId: "33333333-3333-4333-8333-333333333333",
+        repId: "44444444-4444-4444-8444-444444444444",
+      },
+      now: new Date("2026-07-30T12:00:00.000Z"),
+      id: "55555555-5555-4555-8555-555555555555",
+    });
+
+    expect(eventEnvelopeSchema.parse(event)).toMatchObject({
+      name: "appointments/rep.assigned",
+      leadId: "22222222-2222-4222-8222-222222222222",
+      idempotencyKey:
+        "appointments/rep.assigned:33333333-3333-4333-8333-333333333333:44444444-4444-4444-8444-444444444444",
+    });
+    expect("pipelineRunId" in event).toBe(false);
+  });
+});
+
 describe("property/address.validation_requested event", () => {
   test("defaults attempt to 1 with an attempt-suffixed idempotency key", () => {
     const event = createEventEnvelope({
