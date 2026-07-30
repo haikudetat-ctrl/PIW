@@ -31,6 +31,8 @@ jobs:
           INNGEST_EVENT_KEY: ci-event
           INNGEST_SIGNING_KEY: ci-signing
           PAID_PROVIDERS_ENABLED: "false"
+          INTEGRATIONS_LEADCONDUIT_ENABLED: "false"
+          INTEGRATIONS_CALLTOOLS_ENABLED: "false"
 
   database:
     runs-on: ubuntu-latest
