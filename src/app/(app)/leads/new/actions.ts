@@ -5,10 +5,11 @@ import { createServerClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { createEventEnvelope } from "@/domain/events";
 import { SupabaseOutboxRepository } from "@/modules/events/supabase-outbox-repository";
-import { leadIntakeInputSchema, submitLeadIntake } from "@/modules/leads/submit-lead-intake";
+import { submitLeadIntake } from "@/modules/leads/submit-lead-intake";
+import { parseLeadIntakeFormData } from "./lead-intake-form-data";
 
 export async function createLead(formData: FormData) {
-  const input = leadIntakeInputSchema.parse(Object.fromEntries(formData));
+  const input = parseLeadIntakeFormData(formData);
 
   const supabase = await createServerClient();
   const {
