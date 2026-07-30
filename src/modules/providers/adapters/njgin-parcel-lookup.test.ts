@@ -67,6 +67,15 @@ describe("parseNjginParcelResponse", () => {
     expect(candidates[1]).toMatchObject({ qualifier: "C0002" });
   });
 
+  test("normalizes a whitespace-only parcel qualifier to null", () => {
+    const candidates = parseNjginParcelResponse({
+      type: "FeatureCollection",
+      features: [feature({ PCLQCODE: " " })],
+    });
+
+    expect(candidates[0].qualifier).toBeNull();
+  });
+
   test("retains a valid multipart parcel geometry", () => {
     const multipartParcel = {
       ...feature(),

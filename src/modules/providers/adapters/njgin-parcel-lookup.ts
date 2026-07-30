@@ -50,6 +50,11 @@ function toRequiredString(value: unknown): string {
   return parsed;
 }
 
+function toNullableQualifier(value: unknown): string | null {
+  const parsed = toNullableString(value)?.trim();
+  return parsed ? parsed : null;
+}
+
 function toNullableNumber(value: unknown): number | null {
   if (value === null || value === undefined || value === "") return null;
   if (typeof value !== "number" && typeof value !== "string") throw new Error("invalid value");
@@ -124,7 +129,7 @@ function parseFeature(rawFeature: unknown): ParcelData {
   const parsedParcel = parcelDataSchema.safeParse({
     block: toRequiredString(properties.PCLBLOCK),
     lot: toRequiredString(properties.PCLLOT),
-    qualifier: toNullableString(properties.PCLQCODE),
+    qualifier: toNullableQualifier(properties.PCLQCODE),
     pamsPin: toNullableString(properties.PAMS_PIN),
     gisPin: toNullableString(properties.GIS_PIN),
     municipalityCode: toNullableString(properties.PCL_MUN),

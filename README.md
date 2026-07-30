@@ -8,14 +8,18 @@ PIW v1 supports New Jersey residential roofing and does not include weather
 or storm intelligence.
 
 Phase 2 adds lead intake, the pipeline board, the lead workspace, tasks,
-interactions, and in-app notifications. No enrichment pipeline runs yet — the
-CRM Writer completes each pipeline run immediately.
+interactions, and in-app notifications.
+
+Phase 3 adds live address validation (US Census Geocoder), NJ parcel discovery
+(NJGIN), duplicate property merging, and a minimal Review Queue for human
+escalation. Both provider integrations are free and require no API keys.
 
 ## Documentation
 
 - [Architecture design](docs/superpowers/specs/2026-07-29-property-intelligence-worker-architecture-design.md)
 - [Foundation implementation plan](docs/superpowers/plans/2026-07-29-piw-foundation-implementation.md)
 - [CRM implementation plan](docs/superpowers/plans/2026-07-29-piw-crm-implementation.md)
+- [Property Identity implementation plan](docs/superpowers/plans/2026-07-29-piw-property-identity-implementation.md)
 - [Local development runbook](docs/runbooks/local-development.md)
 - [Deployment runbook](docs/runbooks/deployment.md)
 
