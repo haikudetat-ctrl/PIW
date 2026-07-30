@@ -9,6 +9,9 @@ import {
   retryReviewTask,
 } from "./review-actions";
 import { ReviewSubmitButton } from "./review-submit-button";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { formatCurrency, formatDateTime, formatSource, humanize, sentenceCase } from "@/lib/format";
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -24,38 +27,13 @@ function number(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-function formatReason(reason: string): string {
-  return reason
-    .split("_")
-    .map((word) => word[0]?.toUpperCase() + word.slice(1))
-    .join(" ");
-}
-
-function formatSource(source: string): string {
-  const normalized = source.replaceAll("_", " ");
-  return (normalized[0]?.toUpperCase() + normalized.slice(1)).replace(
-    /^Njgin\b/,
-    "NJGIN",
-  );
-}
-
-function formatTimestamp(value: string): string {
-  return new Intl.DateTimeFormat("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZone: "America/New_York",
-  }).format(new Date(value));
-}
-
 function formatMoney(value: unknown): string | null {
   const amount = number(value);
-  return amount === null
-    ? null
-    : new Intl.NumberFormat("en-US", {
-        style: "currency",
-        currency: "USD",
-      }).format(amount);
+  return amount === null ? null : formatCurrency(amount * 100);
 }
+
+const textareaClasses =
+  "mt-1 block w-full rounded-md border border-border-strong bg-surface p-2 text-sm text-ink outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-60";
 
 type ParcelCandidate = {
   block: string;
@@ -128,10 +106,10 @@ function EvidenceItem({
   if (value === null || value === undefined || value === "") return null;
   return (
     <div>
-      <dt className="text-xs font-medium uppercase tracking-wide text-neutral-500">
+      <dt className="text-xs font-medium tracking-wide text-ink-subtle uppercase">
         {label}
       </dt>
-      <dd className="mt-0.5 text-sm">{value}</dd>
+      <dd className="mt-0.5 text-sm text-ink">{value}</dd>
     </div>
   );
 }
@@ -303,106 +281,56 @@ export default async function ReviewTaskPage({
       : "Reopens this property and pipeline, then queues a new property-discovery attempt.";
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
-      <Link
-        href="/review"
-        className="text-sm font-medium text-blue-700 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 dark:text-blue-300"
-      >
-        ← Review queue
-      </Link>
+    <main className="flex flex-col gap-6">
+      <div>
+        <Link href="/review" className="text-sm font-medium text-accent hover:underline">
+          ← Review queue
+        </Link>
+      </div>
 
-      <header className="mt-5 border-b border-neutral-200 pb-5 dark:border-neutral-800">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">
-              {formatReason(task.reason)}
-            </p>
-            <h1 className="mt-1 text-2xl font-semibold tracking-tight">
-              Review property match
-            </h1>
-            <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-300">
-              {task.leads?.name ?? "Unknown lead"} ·{" "}
-              {task.leads?.submitted_address ?? "No submitted address"}
-            </p>
-          </div>
-          <span
-            className={`rounded-full px-3 py-1 text-xs font-semibold ${
-              isOpen
-                ? "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200"
-                : "bg-neutral-200 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200"
-            }`}
-          >
-            {task.status}
-          </span>
+      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border pb-5">
+        <div>
+          <p className="text-xs font-semibold tracking-widest text-ink-subtle uppercase">
+            {humanize(task.reason)}
+          </p>
+          <h1 className="mt-1 text-2xl font-bold text-ink">Review property match</h1>
+          <p className="mt-2 text-sm text-ink-muted">
+            {task.leads?.name ?? "Unknown lead"} ·{" "}
+            {task.leads?.submitted_address ?? "No submitted address"}
+          </p>
         </div>
-      </header>
+        <Badge tone={isOpen ? "warning" : "neutral"}>{humanize(task.status)}</Badge>
+      </div>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="space-y-6">
-          <section aria-labelledby="candidate-evidence-heading">
-            <h2
-              id="candidate-evidence-heading"
-              className="text-lg font-semibold"
-            >
-              Candidate evidence
-            </h2>
-
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="flex flex-col gap-6">
+          <Card title="Candidate evidence" ariaLabel="Candidate evidence">
             {parcelCandidates.length > 0 ? (
-              <ol className="mt-3 space-y-3">
+              <ol className="flex flex-col gap-3">
                 {parcelCandidates.map((candidate, index) => (
                   <li
                     key={`${candidate.block}-${candidate.lot}-${index}`}
-                    className="rounded-lg border border-neutral-200 p-4 dark:border-neutral-800"
+                    className="rounded-lg border border-border p-4"
                   >
-                    <h3 className="font-medium">
+                    <h3 className="font-medium text-ink">
                       Block {candidate.block} · Lot {candidate.lot}
                     </h3>
                     <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
-                      <EvidenceItem
-                        label="Address"
-                        value={candidate.streetAddress}
-                      />
-                      <EvidenceItem
-                        label="Municipality"
-                        value={candidate.municipalityName}
-                      />
+                      <EvidenceItem label="Address" value={candidate.streetAddress} />
+                      <EvidenceItem label="Municipality" value={candidate.municipalityName} />
                       <EvidenceItem label="County" value={candidate.county} />
-                      <EvidenceItem
-                        label="Property class"
-                        value={candidate.propertyClass}
-                      />
-                      <EvidenceItem
-                        label="Qualifier"
-                        value={candidate.qualifier}
-                      />
-                      <EvidenceItem
-                        label="Acreage"
-                        value={candidate.acreage}
-                      />
-                      <EvidenceItem
-                        label="Year built"
-                        value={candidate.yearBuilt}
-                      />
-                      <EvidenceItem
-                        label="Land value"
-                        value={formatMoney(candidate.landValue)}
-                      />
+                      <EvidenceItem label="Property class" value={candidate.propertyClass} />
+                      <EvidenceItem label="Qualifier" value={candidate.qualifier} />
+                      <EvidenceItem label="Acreage" value={candidate.acreage} />
+                      <EvidenceItem label="Year built" value={candidate.yearBuilt} />
+                      <EvidenceItem label="Land value" value={formatMoney(candidate.landValue)} />
                       <EvidenceItem
                         label="Improvement value"
                         value={formatMoney(candidate.improvementValue)}
                       />
-                      <EvidenceItem
-                        label="Net value"
-                        value={formatMoney(candidate.netValue)}
-                      />
-                      <EvidenceItem
-                        label="Building"
-                        value={candidate.buildingDescription}
-                      />
-                      <EvidenceItem
-                        label="Units"
-                        value={candidate.dwellingUnits}
-                      />
+                      <EvidenceItem label="Net value" value={formatMoney(candidate.netValue)} />
+                      <EvidenceItem label="Building" value={candidate.buildingDescription} />
+                      <EvidenceItem label="Units" value={candidate.dwellingUnits} />
                     </dl>
                   </li>
                 ))}
@@ -410,18 +338,15 @@ export default async function ReviewTaskPage({
             ) : null}
 
             {duplicateIds.length > 0 ? (
-              <ol className="mt-3 space-y-3">
+              <ol className="flex flex-col gap-3">
                 {duplicateIds.map((propertyId, index) => {
                   const property = duplicatesById.get(propertyId);
                   const address = duplicateAddressesByProperty.get(propertyId);
                   const parcel = duplicateParcelsByProperty.get(propertyId);
                   return (
-                    <li
-                      key={propertyId}
-                      className="rounded-lg border border-neutral-200 p-4 dark:border-neutral-800"
-                    >
-                      <h3 className="font-medium">Candidate {index + 1}</h3>
-                      <p className="mt-1 text-sm">
+                    <li key={propertyId} className="rounded-lg border border-border p-4">
+                      <h3 className="font-medium text-ink">Candidate {index + 1}</h3>
+                      <p className="mt-1 text-sm text-ink-muted">
                         {address?.canonical_address ??
                           property?.canonical_address ??
                           "Canonical address unavailable"}
@@ -435,11 +360,7 @@ export default async function ReviewTaskPage({
                         />
                         <EvidenceItem
                           label="Parcel"
-                          value={
-                            parcel
-                              ? `Block ${parcel.block} · Lot ${parcel.lot}`
-                              : null
-                          }
+                          value={parcel ? `Block ${parcel.block} · Lot ${parcel.lot}` : null}
                         />
                       </dl>
                     </li>
@@ -449,14 +370,18 @@ export default async function ReviewTaskPage({
             ) : null}
 
             {addressResult ? (
-              <dl className="mt-3 grid grid-cols-2 gap-4 rounded-lg border border-neutral-200 p-4 dark:border-neutral-800 sm:grid-cols-3">
+              <dl className="grid grid-cols-2 gap-4 rounded-lg border border-border p-4 sm:grid-cols-3">
                 <EvidenceItem
                   label="Canonical address"
                   value={text(addressResult.canonicalAddress)}
                 />
                 <EvidenceItem
                   label="Match method"
-                  value={text(addressResult.matchMethod)?.replaceAll("_", " ")}
+                  value={
+                    text(addressResult.matchMethod)
+                      ? sentenceCase(text(addressResult.matchMethod)!)
+                      : null
+                  }
                 />
                 <EvidenceItem
                   label="Confidence"
@@ -466,91 +391,63 @@ export default async function ReviewTaskPage({
                       : `${number(addressResult.confidence)}%`
                   }
                 />
-                <EvidenceItem
-                  label="Municipality"
-                  value={text(addressResult.municipality)}
-                />
-                <EvidenceItem
-                  label="County"
-                  value={text(addressResult.county)}
-                />
+                <EvidenceItem label="Municipality" value={text(addressResult.municipality)} />
+                <EvidenceItem label="County" value={text(addressResult.county)} />
                 <EvidenceItem label="ZIP" value={text(addressResult.zip)} />
               </dl>
             ) : null}
 
-            {parcelCandidates.length === 0 &&
-            duplicateIds.length === 0 &&
-            !addressResult ? (
-              <p className="mt-3 rounded-lg border border-dashed border-neutral-300 p-5 text-sm text-neutral-600 dark:border-neutral-700 dark:text-neutral-400">
+            {parcelCandidates.length === 0 && duplicateIds.length === 0 && !addressResult ? (
+              <p className="rounded-lg border border-dashed border-border-strong p-5 text-sm text-ink-subtle">
                 No structured candidate evidence was attached to this task.
               </p>
             ) : null}
-          </section>
+          </Card>
 
-          <section aria-labelledby="provider-evidence-heading">
-            <h2
-              id="provider-evidence-heading"
-              className="text-lg font-semibold"
-            >
-              Provider evidence
-            </h2>
+          <Card title="Provider evidence" ariaLabel="Provider evidence">
             {providerRequests.length > 0 ? (
-              <ul className="mt-3 divide-y divide-neutral-200 rounded-lg border border-neutral-200 px-4 dark:divide-neutral-800 dark:border-neutral-800">
+              <ul className="flex flex-col divide-y divide-border">
                 {providerRequests.map((request) => {
-                  const retrievedAt =
-                    request.completed_at ?? request.requested_at;
+                  const retrievedAt = request.completed_at ?? request.requested_at;
                   return (
                     <li
                       key={request.id}
-                      className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-3 text-sm"
+                      className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2.5 text-sm first:pt-0 last:pb-0"
                     >
-                      <span className="font-medium">
+                      <span className="font-medium text-ink">
                         {formatSource(request.provider)}
                       </span>
-                      <span className="text-neutral-600 dark:text-neutral-400">
+                      <span className="text-ink-subtle">
                         Retrieved{" "}
-                        <time dateTime={retrievedAt}>
-                          {formatTimestamp(retrievedAt)}
-                        </time>
+                        <time dateTime={retrievedAt}>{formatDateTime(retrievedAt)}</time>
                       </span>
                     </li>
                   );
                 })}
               </ul>
             ) : (
-              <p className="mt-3 rounded-lg border border-dashed border-neutral-300 p-4 text-sm text-neutral-600 dark:border-neutral-700 dark:text-neutral-400">
+              <p className="text-sm text-ink-subtle">
                 Provider retrieval dates are unavailable for this task.
               </p>
             )}
-          </section>
+          </Card>
 
-          <section aria-labelledby="parcel-map-heading">
-            <h2 id="parcel-map-heading" className="text-lg font-semibold">
-              Map
-            </h2>
-            <div className="mt-3">
-              <ParcelMap candidates={mapCandidates} />
-            </div>
-            <p className="mt-2 text-xs text-neutral-600 dark:text-neutral-400">
+          <Card title="Map" ariaLabel="Map">
+            <ParcelMap candidates={mapCandidates} />
+            <p className="mt-2 text-xs text-ink-subtle">
               Parcel geometry is analytical and is not a legal survey.
             </p>
-          </section>
+          </Card>
         </div>
 
         <aside aria-label="Review actions">
-          <div className="space-y-4 lg:sticky lg:top-6">
-            <section className="rounded-lg border border-neutral-200 p-4 dark:border-neutral-800">
-              <h2 className="font-semibold">Resolve</h2>
-              <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-                {resolveConsequence}
-              </p>
-              <form
-                action={resolveReviewTask.bind(null, task.id)}
-                className="mt-4 space-y-4"
-              >
+          <div className="flex flex-col gap-4 lg:sticky lg:top-6">
+            <Card title="Resolve" ariaLabel="Resolve">
+              <p className="text-sm text-ink-subtle">{resolveConsequence}</p>
+              <form action={resolveReviewTask.bind(null, task.id)} className="mt-4 flex flex-col gap-4">
                 {selectableCandidates.length > 0 ? (
-                  <fieldset disabled={!isOpen} className="space-y-2">
-                    <legend className="text-sm font-medium">
+                  <fieldset disabled={!isOpen} className="flex flex-col gap-2">
+                    <legend className="text-sm font-medium text-ink-muted">
                       Selected candidate
                     </legend>
                     {selectableCandidates.map((candidate, index) => {
@@ -562,52 +459,30 @@ export default async function ReviewTaskPage({
                       return (
                         <label
                           key={typeof candidate === "string" ? candidate : index}
-                          className="flex min-h-11 cursor-pointer items-center gap-2 rounded-md border border-neutral-200 px-3 py-2 text-sm dark:border-neutral-700"
+                          className="flex min-h-11 cursor-pointer items-center gap-2 rounded-md border border-border px-3 py-2 text-sm text-ink"
                         >
-                          <input
-                            type="radio"
-                            name="selectedCandidateIndex"
-                            value={index}
-                          />
+                          <input type="radio" name="selectedCandidateIndex" value={index} />
                           {label}
                         </label>
                       );
                     })}
                   </fieldset>
                 ) : null}
-                <label className="block text-sm font-medium">
+                <label className="block text-sm font-medium text-ink-muted">
                   Notes
-                  <textarea
-                    name="notes"
-                    rows={3}
-                    disabled={!isOpen}
-                    className="mt-1 block w-full rounded-md border border-neutral-300 bg-transparent p-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-blue-600 disabled:opacity-60 dark:border-neutral-700"
-                  />
+                  <textarea name="notes" rows={3} disabled={!isOpen} className={textareaClasses} />
                 </label>
-                <ReviewSubmitButton disabled={!isOpen}>
-                  Resolve task
-                </ReviewSubmitButton>
+                <ReviewSubmitButton disabled={!isOpen}>Resolve task</ReviewSubmitButton>
               </form>
-            </section>
+            </Card>
 
-            <section className="rounded-lg border border-neutral-200 p-4 dark:border-neutral-800">
-              <h2 className="font-semibold">Other actions</h2>
-              <div className="mt-4 space-y-4">
-                <form
-                  action={retryReviewTask.bind(null, task.id)}
-                  className="space-y-2"
-                >
-                  <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                    {retryConsequence}
-                  </p>
-                  <label className="block text-sm font-medium">
+            <Card title="Other actions" ariaLabel="Other actions">
+              <div className="flex flex-col gap-4">
+                <form action={retryReviewTask.bind(null, task.id)} className="flex flex-col gap-2">
+                  <p className="text-sm text-ink-subtle">{retryConsequence}</p>
+                  <label className="block text-sm font-medium text-ink-muted">
                     Retry notes
-                    <textarea
-                      name="notes"
-                      rows={2}
-                      disabled={!isOpen}
-                      className="mt-1 block w-full rounded-md border border-neutral-300 bg-transparent p-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-blue-600 disabled:opacity-60 dark:border-neutral-700"
-                    />
+                    <textarea name="notes" rows={2} disabled={!isOpen} className={textareaClasses} />
                   </label>
                   <ReviewSubmitButton disabled={!isOpen} tone="neutral">
                     Retry worker
@@ -616,20 +491,15 @@ export default async function ReviewTaskPage({
 
                 <form
                   action={markReviewTaskUnsupported.bind(null, task.id)}
-                  className="space-y-2 border-t border-neutral-200 pt-4 dark:border-neutral-800"
+                  className="flex flex-col gap-2 border-t border-border pt-4"
                 >
-                  <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                    Marks the property unsupported and completes the pipeline
-                    with partial results.
+                  <p className="text-sm text-ink-subtle">
+                    Marks the property unsupported and completes the pipeline with partial
+                    results.
                   </p>
-                  <label className="block text-sm font-medium">
+                  <label className="block text-sm font-medium text-ink-muted">
                     Unsupported notes
-                    <textarea
-                      name="notes"
-                      rows={2}
-                      disabled={!isOpen}
-                      className="mt-1 block w-full rounded-md border border-neutral-300 bg-transparent p-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-blue-600 disabled:opacity-60 dark:border-neutral-700"
-                    />
+                    <textarea name="notes" rows={2} disabled={!isOpen} className={textareaClasses} />
                   </label>
                   <ReviewSubmitButton disabled={!isOpen} tone="neutral">
                     Mark unsupported
@@ -638,27 +508,22 @@ export default async function ReviewTaskPage({
 
                 <form
                   action={rejectReviewTask.bind(null, task.id)}
-                  className="space-y-2 border-t border-neutral-200 pt-4 dark:border-neutral-800"
+                  className="flex flex-col gap-2 border-t border-border pt-4"
                 >
-                  <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                    Closes this task and marks the pipeline failed without
-                    selecting a candidate.
+                  <p className="text-sm text-ink-subtle">
+                    Closes this task and marks the pipeline failed without selecting a
+                    candidate.
                   </p>
-                  <label className="block text-sm font-medium">
+                  <label className="block text-sm font-medium text-ink-muted">
                     Rejection notes
-                    <textarea
-                      name="notes"
-                      rows={2}
-                      disabled={!isOpen}
-                      className="mt-1 block w-full rounded-md border border-neutral-300 bg-transparent p-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-red-600 disabled:opacity-60 dark:border-neutral-700"
-                    />
+                    <textarea name="notes" rows={2} disabled={!isOpen} className={textareaClasses} />
                   </label>
                   <ReviewSubmitButton disabled={!isOpen} tone="danger">
                     Reject task
                   </ReviewSubmitButton>
                 </form>
               </div>
-            </section>
+            </Card>
           </div>
         </aside>
       </div>

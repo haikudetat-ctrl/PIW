@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { signIn } from "./actions";
+import { inputClasses, labelClasses, primaryButtonClasses } from "@/components/ui/form";
 
 type LoginState = { error?: string };
 
@@ -17,24 +18,35 @@ export function LoginForm() {
   );
 
   return (
-    <form action={formAction}>
-      <label>
+    <form action={formAction} className="flex flex-col gap-4">
+      <label className={labelClasses}>
         Email
-        <input type="email" name="email" autoComplete="username" required />
+        <input
+          type="email"
+          name="email"
+          autoComplete="username"
+          required
+          className={inputClasses}
+        />
       </label>
-      <label>
+      <label className={labelClasses}>
         Password
         <input
           type="password"
           name="password"
           autoComplete="current-password"
           required
+          className={inputClasses}
         />
       </label>
-      <button type="submit" disabled={pending}>
+      <button type="submit" disabled={pending} className={`${primaryButtonClasses} mt-2`}>
         Sign in
       </button>
-      {state.error ? <p role="alert">{state.error}</p> : null}
+      {state.error ? (
+        <p role="alert" className="text-sm text-danger">
+          {state.error}
+        </p>
+      ) : null}
     </form>
   );
 }

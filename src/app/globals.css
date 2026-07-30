@@ -1,26 +1,92 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Page surfaces */
+  --color-page: #f6f4ef;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f6f4ef;
+  --color-border: #e4e0d6;
+  --color-border-strong: #d3cec0;
+
+  /* Brand / ink */
+  --color-ink: #0f2a4a;
+  --color-ink-muted: #4a5568;
+  --color-ink-subtle: #8b93a1;
+
+  /* Accent */
+  --color-accent: #12325a;
+  --color-accent-hover: #0c2340;
+
+  /* Status */
+  --color-success: #1a7a4c;
+  --color-success-bg: #e9f5ee;
+  --color-warning: #b6761f;
+  --color-warning-bg: #fbf1de;
+  --color-danger: #b3261e;
+  --color-danger-bg: #fbeae9;
+  --color-info: #1d5fa8;
+  --color-info-bg: #e9f1fb;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-page: var(--color-page);
+  --color-surface: var(--color-surface);
+  --color-surface-muted: var(--color-surface-muted);
+  --color-border: var(--color-border);
+  --color-border-strong: var(--color-border-strong);
+  --color-ink: var(--color-ink);
+  --color-ink-muted: var(--color-ink-muted);
+  --color-ink-subtle: var(--color-ink-subtle);
+  --color-accent: var(--color-accent);
+  --color-accent-hover: var(--color-accent-hover);
+  --color-success: var(--color-success);
+  --color-success-bg: var(--color-success-bg);
+  --color-warning: var(--color-warning);
+  --color-warning-bg: var(--color-warning-bg);
+  --color-danger: var(--color-danger);
+  --color-danger-bg: var(--color-danger-bg);
+  --color-info: var(--color-info);
+  --color-info-bg: var(--color-info-bg);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+body {
+  background: var(--color-page);
+  color: var(--color-ink);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Baseline element resets so unstyled semantic markup (h1-h3, ul, dl, form
+   controls) doesn't fight the utility classes applied throughout the app. */
+h1,
+h2,
+h3,
+h4,
+p,
+dl,
+dd,
+ul {
+  margin: 0;
+}
+
+ul {
+  list-style: none;
+  padding: 0;
+}
+
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+a {
+  color: inherit;
 }

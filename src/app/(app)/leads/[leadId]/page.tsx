@@ -4,32 +4,17 @@ import { buildActivityTimeline } from "@/modules/leads/activity-timeline";
 import { InteractionList } from "./interaction-list";
 import { ParcelMap, type ParcelMapCandidate } from "./parcel-map";
 import { TaskList } from "./task-list";
+import { Card } from "@/components/ui/card";
+import { Badge, type BadgeTone } from "@/components/ui/badge";
+import { formatCurrency, formatDateTime, formatSource, humanize, sentenceCase } from "@/lib/format";
 
-function formatLabel(value: string | null | undefined): string {
-  if (!value) return "—";
-  const normalized = value.replaceAll("_", " ");
-  return normalized[0]?.toUpperCase() + normalized.slice(1);
-}
-
-function formatSource(value: string): string {
-  return formatLabel(value).replace(/^Njgin\b/, "NJGIN");
-}
-
-function formatCents(value: number | null): string {
-  if (value === null) return "—";
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-  }).format(value / 100);
-}
-
-function formatTimestamp(value: string): string {
-  return new Intl.DateTimeFormat("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZone: "America/New_York",
-  }).format(new Date(value));
-}
+const RESOLUTION_TONE: Record<string, BadgeTone> = {
+  resolved: "success",
+  unresolved: "neutral",
+  review_required: "warning",
+  duplicate: "info",
+  unsupported: "danger",
+};
 
 function EvidenceItem({
   label,
@@ -40,10 +25,10 @@ function EvidenceItem({
 }) {
   return (
     <div>
-      <dt className="text-xs font-medium uppercase tracking-wide text-neutral-500">
+      <dt className="text-xs font-medium tracking-wide text-ink-subtle uppercase">
         {label}
       </dt>
-      <dd className="mt-0.5 text-sm">{value ?? "—"}</dd>
+      <dd className="mt-0.5 text-sm text-ink">{value ?? "—"}</dd>
     </div>
   );
 }
@@ -161,170 +146,132 @@ export default async function LeadWorkspacePage({
     });
   }
 
+  const resolutionStatus = lead.properties?.resolution_status ?? "unresolved";
+
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
-      <header className="border-b border-neutral-200 pb-5 dark:border-neutral-800">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">
+    <main className="flex flex-col gap-6">
+      <div>
+        <p className="text-xs font-semibold tracking-widest text-ink-subtle uppercase">
           Lead workspace
         </p>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight">
-          {lead.name}
-        </h1>
-        <section
-          aria-label="Contact details"
-          className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm text-neutral-600 dark:text-neutral-300"
-        >
+        <h1 className="mt-1 text-2xl font-bold text-ink">{lead.name}</h1>
+        <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-ink-muted">
           <p>{lead.phone}</p>
           <p>{lead.email}</p>
-          <p>Stage: {formatLabel(lead.stage)}</p>
-        </section>
-      </header>
-
-      <section
-        aria-labelledby="property-profile-heading"
-        className="mt-6 rounded-lg border border-neutral-200 p-4 sm:p-5 dark:border-neutral-800"
-      >
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2
-              id="property-profile-heading"
-              className="text-lg font-semibold"
-            >
-              Property profile
-            </h2>
-            <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-300">
-              {lead.properties?.canonical_address ?? lead.submitted_address}
-            </p>
-          </div>
-          <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-800 dark:bg-blue-950 dark:text-blue-200">
-            {formatLabel(lead.properties?.resolution_status)}
-          </span>
+          <p>Stage: {humanize(lead.stage)}</p>
         </div>
+      </div>
 
-        <div className="mt-5 grid gap-5 lg:grid-cols-3">
+      <Card
+        title="Property profile"
+        ariaLabel="Property profile"
+        right={<Badge tone={RESOLUTION_TONE[resolutionStatus]}>{humanize(resolutionStatus)}</Badge>}
+      >
+        <p className="text-sm text-ink-muted">
+          {lead.properties?.canonical_address ?? lead.submitted_address}
+        </p>
+
+        <div className="mt-5 grid gap-6 lg:grid-cols-3">
           <section aria-labelledby="address-evidence-heading">
-            <h3 id="address-evidence-heading" className="font-medium">
+            <h3
+              id="address-evidence-heading"
+              className="text-xs font-semibold tracking-wider text-ink uppercase"
+            >
               Address evidence
             </h3>
             {address ? (
               <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">
-                <EvidenceItem
-                  label="Validated address"
-                  value={address.canonical_address}
-                />
-                <EvidenceItem
-                  label="Match method"
-                  value={formatLabel(address.match_method)}
-                />
-                <EvidenceItem
-                  label="Confidence"
-                  value={`${address.confidence}%`}
-                />
-                <EvidenceItem
-                  label="Municipality"
-                  value={address.municipality}
-                />
+                <EvidenceItem label="Validated address" value={address.canonical_address} />
+                <EvidenceItem label="Match method" value={sentenceCase(address.match_method)} />
+                <EvidenceItem label="Confidence" value={`${address.confidence}%`} />
+                <EvidenceItem label="Municipality" value={address.municipality} />
                 <EvidenceItem label="County" value={address.county} />
                 <EvidenceItem
                   label="State / ZIP"
-                  value={[address.state_code, address.zip]
-                    .filter(Boolean)
-                    .join(" ")}
+                  value={[address.state_code, address.zip].filter(Boolean).join(" ")}
                 />
                 <EvidenceItem
                   label="Observed"
                   value={
                     <time dateTime={address.created_at}>
-                      {formatTimestamp(address.created_at)}
+                      {formatDateTime(address.created_at)}
                     </time>
                   }
                 />
               </dl>
             ) : (
-              <p className="mt-3 text-sm text-neutral-600 dark:text-neutral-400">
+              <p className="mt-3 text-sm text-ink-subtle">
                 Address validation evidence is not yet available.
               </p>
             )}
           </section>
 
           <section aria-labelledby="parcel-evidence-heading">
-            <h3 id="parcel-evidence-heading" className="font-medium">
+            <h3
+              id="parcel-evidence-heading"
+              className="text-xs font-semibold tracking-wider text-ink uppercase"
+            >
               Parcel evidence
             </h3>
             {parcel ? (
               <>
-                <p className="mt-3 text-sm font-medium">
+                <p className="mt-3 text-sm font-medium text-ink">
                   Block {parcel.block} · Lot {parcel.lot}
                 </p>
                 <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">
                   <EvidenceItem label="Qualifier" value={parcel.qualifier} />
                   <EvidenceItem label="PAMS PIN" value={parcel.pams_pin} />
-                  <EvidenceItem
-                    label="Municipality"
-                    value={parcel.municipality_name}
-                  />
+                  <EvidenceItem label="Municipality" value={parcel.municipality_name} />
                   <EvidenceItem label="County" value={parcel.county} />
-                  <EvidenceItem
-                    label="Property class"
-                    value={parcel.property_class}
-                  />
+                  <EvidenceItem label="Property class" value={parcel.property_class} />
                   <EvidenceItem label="Acreage" value={parcel.acreage} />
                   <EvidenceItem label="Year built" value={parcel.year_built} />
-                  <EvidenceItem
-                    label="Land value"
-                    value={formatCents(parcel.land_value_cents)}
-                  />
+                  <EvidenceItem label="Land value" value={formatCurrency(parcel.land_value_cents)} />
                   <EvidenceItem
                     label="Improvement value"
-                    value={formatCents(parcel.improvement_value_cents)}
+                    value={formatCurrency(parcel.improvement_value_cents)}
                   />
-                  <EvidenceItem
-                    label="Net value"
-                    value={formatCents(parcel.net_value_cents)}
-                  />
-                  <EvidenceItem
-                    label="Building"
-                    value={parcel.building_description}
-                  />
+                  <EvidenceItem label="Net value" value={formatCurrency(parcel.net_value_cents)} />
+                  <EvidenceItem label="Building" value={parcel.building_description} />
                   <EvidenceItem label="Units" value={parcel.dwelling_units} />
                   <EvidenceItem
                     label="Observed"
                     value={
                       <time dateTime={parcel.created_at}>
-                        {formatTimestamp(parcel.created_at)}
+                        {formatDateTime(parcel.created_at)}
                       </time>
                     }
                   />
                 </dl>
               </>
             ) : (
-              <p className="mt-3 text-sm text-neutral-600 dark:text-neutral-400">
+              <p className="mt-3 text-sm text-ink-subtle">
                 Parcel details are not yet available.
               </p>
             )}
           </section>
 
           <section aria-labelledby="structure-evidence-heading">
-            <h3 id="structure-evidence-heading" className="font-medium">
+            <h3
+              id="structure-evidence-heading"
+              className="text-xs font-semibold tracking-wider text-ink uppercase"
+            >
               Structure evidence
             </h3>
             {structure ? (
               <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">
-                <EvidenceItem
-                  label="Source"
-                  value={formatSource(structure.source)}
-                />
+                <EvidenceItem label="Source" value={formatSource(structure.source)} />
                 <EvidenceItem
                   label="Observed"
                   value={
                     <time dateTime={structure.created_at}>
-                      {formatTimestamp(structure.created_at)}
+                      {formatDateTime(structure.created_at)}
                     </time>
                   }
                 />
               </dl>
             ) : (
-              <p className="mt-3 text-sm text-neutral-600 dark:text-neutral-400">
+              <p className="mt-3 text-sm text-ink-subtle">
                 Structure details are not yet available.
               </p>
             )}
@@ -332,11 +279,11 @@ export default async function LeadWorkspacePage({
         </div>
 
         {mapCandidates.length > 0 ? (
-          <section
-            aria-labelledby="property-map-heading"
-            className="mt-6 border-t border-neutral-200 pt-5 dark:border-neutral-800"
-          >
-            <h3 id="property-map-heading" className="font-medium">
+          <section aria-labelledby="property-map-heading" className="mt-6 border-t border-border pt-5">
+            <h3
+              id="property-map-heading"
+              className="text-xs font-semibold tracking-wider text-ink uppercase"
+            >
               Property map
             </h3>
             <div className="mt-3">
@@ -345,53 +292,44 @@ export default async function LeadWorkspacePage({
           </section>
         ) : null}
         {parcel ? (
-          <p
-            role="note"
-            className="mt-2 text-xs text-neutral-600 dark:text-neutral-400"
-          >
-            Parcel geometry and public-record data are analytical aids and are
-            not a legal survey, appraisal, or title report.
+          <p role="note" className="mt-3 text-xs text-ink-subtle">
+            Parcel geometry and public-record data are analytical aids and are not a legal
+            survey, appraisal, or title report.
           </p>
         ) : null}
-      </section>
+      </Card>
 
       {lead.notes ? (
-        <section
-          aria-label="Notes"
-          className="mt-6 rounded-lg border border-neutral-200 p-4 dark:border-neutral-800"
-        >
-          <h2 className="font-semibold">Notes</h2>
-          <p className="mt-2 text-sm">{lead.notes}</p>
-        </section>
+        <Card title="Notes" ariaLabel="Notes">
+          <p className="text-sm text-ink">{lead.notes}</p>
+        </Card>
       ) : null}
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2">
         <TaskList leadId={leadId} tasks={tasks ?? []} />
         <InteractionList leadId={leadId} interactions={interactions ?? []} />
       </div>
 
-      <section
-        aria-label="Activity"
-        className="mt-6 rounded-lg border border-neutral-200 p-4 dark:border-neutral-800"
-      >
-        <h2 className="font-semibold">Activity</h2>
+      <Card title="Activity" ariaLabel="Activity">
         {timeline.length > 0 ? (
-          <ul className="mt-3 space-y-2 text-sm">
+          <ul className="flex flex-col divide-y divide-border">
             {timeline.map((item, index) => (
-              <li key={index}>
-                {item.kind === "stage_change"
-                  ? `${item.fromStage ?? "—"} → ${item.toStage}`
-                  : `${item.interactionType}: ${item.summary}`}{" "}
-                ({item.occurredAt})
+              <li key={index} className="py-2 text-sm text-ink first:pt-0 last:pb-0">
+                <span>
+                  {item.kind === "stage_change"
+                    ? `${item.fromStage ? humanize(item.fromStage) : "—"} → ${humanize(item.toStage)}`
+                    : `${humanize(item.interactionType)}: ${item.summary}`}
+                </span>{" "}
+                <span className="text-ink-subtle">
+                  ({formatDateTime(item.occurredAt)})
+                </span>
               </li>
             ))}
           </ul>
         ) : (
-          <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
-            No activity has been recorded.
-          </p>
+          <p className="text-sm text-ink-subtle">No activity has been recorded.</p>
         )}
-      </section>
+      </Card>
     </main>
   );
 }

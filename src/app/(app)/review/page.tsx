@@ -1,12 +1,7 @@
 import Link from "next/link";
 import { createServerClient } from "@/lib/supabase/server";
-
-function reasonLabel(reason: string): string {
-  return reason
-    .split("_")
-    .map((word) => word[0]?.toUpperCase() + word.slice(1))
-    .join(" ");
-}
+import { Badge } from "@/components/ui/badge";
+import { humanize } from "@/lib/format";
 
 export default async function ReviewQueuePage() {
   const supabase = await createServerClient();
@@ -21,53 +16,45 @@ export default async function ReviewQueuePage() {
   if (error) throw new Error("Failed to load review queue");
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-3 border-b border-neutral-200 pb-5 dark:border-neutral-800">
+    <main className="flex flex-col gap-6">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">
+          <p className="text-xs font-semibold tracking-widest text-ink-subtle uppercase">
             Property identity
           </p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">
-            Review queue
-          </h1>
+          <h1 className="mt-1 text-2xl font-bold text-ink">Review queue</h1>
         </div>
-        <p className="text-sm text-neutral-600 dark:text-neutral-300">
-          {tasks?.length ?? 0} open
-        </p>
+        <p className="text-sm text-ink-muted">{tasks?.length ?? 0} open</p>
       </div>
 
       <section aria-label="Open review tasks">
         {(tasks ?? []).length === 0 ? (
-          <div className="rounded-lg border border-dashed border-neutral-300 px-5 py-12 text-center dark:border-neutral-700">
-            <h2 className="text-base font-medium">Queue is clear</h2>
-            <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
+          <div className="rounded-lg border border-dashed border-border-strong px-5 py-12 text-center">
+            <h2 className="text-base font-medium text-ink">Queue is clear</h2>
+            <p className="mt-1 text-sm text-ink-subtle">
               New address or parcel exceptions will appear here.
             </p>
           </div>
         ) : (
-          <ul className="divide-y divide-neutral-200 overflow-hidden rounded-lg border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800">
+          <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-surface">
             {(tasks ?? []).map((task) => (
               <li key={task.id}>
                 <Link
                   href={`/review/${task.id}`}
-                  className="grid gap-2 px-4 py-4 outline-none transition-colors hover:bg-neutral-50 focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-inset dark:hover:bg-neutral-900 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+                  className="grid gap-2 px-5 py-4 outline-none transition-colors hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
                 >
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium">
+                      <span className="font-medium text-ink">
                         {task.leads?.name ?? "Unknown lead"}
                       </span>
-                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-                        {reasonLabel(task.reason)}
-                      </span>
+                      <Badge tone="warning">{humanize(task.reason)}</Badge>
                     </div>
-                    <p className="mt-1 truncate text-sm text-neutral-600 dark:text-neutral-400">
+                    <p className="mt-1 truncate text-sm text-ink-subtle">
                       {task.leads?.submitted_address ?? "No submitted address"}
                     </p>
                   </div>
-                  <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
-                    Review
-                  </span>
+                  <span className="text-sm font-medium text-accent">Review</span>
                 </Link>
               </li>
             ))}
