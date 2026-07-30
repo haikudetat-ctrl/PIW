@@ -31,6 +31,22 @@ function formatReason(reason: string): string {
     .join(" ");
 }
 
+function formatSource(source: string): string {
+  const normalized = source.replaceAll("_", " ");
+  return (normalized[0]?.toUpperCase() + normalized.slice(1)).replace(
+    /^Njgin\b/,
+    "NJGIN",
+  );
+}
+
+function formatTimestamp(value: string): string {
+  return new Intl.DateTimeFormat("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "America/New_York",
+  }).format(new Date(value));
+}
+
 function formatMoney(value: unknown): string | null {
   const amount = number(value);
   return amount === null
@@ -141,15 +157,98 @@ export default async function ReviewTaskPage({
   const parcelCandidates = parcelCandidatesFrom(task.candidate_data);
   const duplicateIds = duplicateIdsFrom(task.candidate_data);
   const addressResult = addressResultFrom(task.candidate_data);
-  const { data: duplicateProperties } =
+  const noRows = Promise.resolve({ data: [], error: null });
+  const [
+    { data: duplicateProperties, error: duplicatePropertiesError },
+    { data: duplicateAddresses, error: duplicateAddressesError },
+    { data: duplicateParcels, error: duplicateParcelsError },
+    { data: taskProviderRequests, error: taskProviderRequestsError },
+  ] = await Promise.all([
     duplicateIds.length > 0
-      ? await supabase
+      ? supabase
           .from("properties")
           .select("id, canonical_address, municipality, county")
           .in("id", duplicateIds)
-      : { data: [] };
+      : noRows,
+    duplicateIds.length > 0
+      ? supabase
+          .from("property_addresses")
+          .select(
+            "property_id, canonical_address, latitude, longitude, provider_request_id, created_at",
+          )
+          .in("property_id", duplicateIds)
+          .order("created_at", { ascending: false })
+      : noRows,
+    duplicateIds.length > 0
+      ? supabase
+          .from("parcels")
+          .select(
+            "property_id, block, lot, geometry, provider_request_id, created_at",
+          )
+          .in("property_id", duplicateIds)
+          .eq("is_primary", true)
+      : noRows,
+    supabase
+      .from("provider_requests")
+      .select("id, provider, requested_at, completed_at")
+      .eq("pipeline_run_id", task.pipeline_run_id)
+      .order("requested_at", { ascending: false }),
+  ]);
+
+  if (
+    duplicatePropertiesError ||
+    duplicateAddressesError ||
+    duplicateParcelsError ||
+    taskProviderRequestsError
+  ) {
+    throw new Error("Failed to load review task evidence");
+  }
+
+  const duplicateProviderRequestIds = [
+    ...(duplicateAddresses ?? []),
+    ...(duplicateParcels ?? []),
+  ].flatMap((observation) =>
+    observation.provider_request_id ? [observation.provider_request_id] : [],
+  );
+  const {
+    data: duplicateProviderRequests,
+    error: duplicateProviderRequestsError,
+  } =
+    duplicateProviderRequestIds.length > 0
+      ? await supabase
+          .from("provider_requests")
+          .select("id, provider, requested_at, completed_at")
+          .in("id", duplicateProviderRequestIds)
+      : { data: [], error: null };
+  if (duplicateProviderRequestsError) {
+    throw new Error("Failed to load review task evidence");
+  }
+
   const duplicatesById = new Map(
     (duplicateProperties ?? []).map((property) => [property.id, property]),
+  );
+  const duplicateAddressesByProperty = new Map<
+    string,
+    NonNullable<typeof duplicateAddresses>[number]
+  >();
+  for (const address of duplicateAddresses ?? []) {
+    if (!duplicateAddressesByProperty.has(address.property_id)) {
+      duplicateAddressesByProperty.set(address.property_id, address);
+    }
+  }
+  const duplicateParcelsByProperty = new Map(
+    (duplicateParcels ?? []).map((parcel) => [parcel.property_id, parcel]),
+  );
+  const providerRequestsById = new Map(
+    [...(taskProviderRequests ?? []), ...(duplicateProviderRequests ?? [])].map(
+      (request) => [request.id, request],
+    ),
+  );
+  const providerRequests = Array.from(providerRequestsById.values()).sort(
+    (left, right) =>
+      (right.completed_at ?? right.requested_at).localeCompare(
+        left.completed_at ?? left.requested_at,
+      ),
   );
   const selectableCandidates =
     parcelCandidates.length > 0 ? parcelCandidates : duplicateIds;
@@ -170,7 +269,38 @@ export default async function ReviewTaskPage({
       longitude: number(addressResult.longitude),
     });
   }
+  duplicateIds.forEach((propertyId, index) => {
+    const property = duplicatesById.get(propertyId);
+    const address = duplicateAddressesByProperty.get(propertyId);
+    const parcel = duplicateParcelsByProperty.get(propertyId);
+    const canonicalAddress =
+      address?.canonical_address ??
+      property?.canonical_address ??
+      "Canonical address unavailable";
+    mapCandidates.push({
+      geometry: parcel?.geometry ?? null,
+      label: [
+        `Candidate ${index + 1}`,
+        canonicalAddress,
+        parcel ? `Block ${parcel.block} · Lot ${parcel.lot}` : null,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      latitude: address?.latitude,
+      longitude: address?.longitude,
+    });
+  });
   const isOpen = task.status === "open";
+  const resolveConsequence =
+    task.reason === "duplicate_candidates"
+      ? "Completes the pipeline; a selected candidate re-links this lead to that existing property."
+      : parcelCandidates.length > 0
+        ? "Resolves this property and completes the pipeline; a selected parcel is saved as primary."
+        : "Accepts this evidence, resolves the property, and completes the pipeline.";
+  const retryConsequence =
+    task.triggering_event_name === "property/address.validation_requested"
+      ? "Reopens this property and pipeline, then queues a new address-validation attempt."
+      : "Reopens this property and pipeline, then queues a new property-discovery attempt.";
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
@@ -283,6 +413,8 @@ export default async function ReviewTaskPage({
               <ol className="mt-3 space-y-3">
                 {duplicateIds.map((propertyId, index) => {
                   const property = duplicatesById.get(propertyId);
+                  const address = duplicateAddressesByProperty.get(propertyId);
+                  const parcel = duplicateParcelsByProperty.get(propertyId);
                   return (
                     <li
                       key={propertyId}
@@ -290,14 +422,26 @@ export default async function ReviewTaskPage({
                     >
                       <h3 className="font-medium">Candidate {index + 1}</h3>
                       <p className="mt-1 text-sm">
-                        {property?.canonical_address ??
+                        {address?.canonical_address ??
+                          property?.canonical_address ??
                           "Canonical address unavailable"}
                       </p>
-                      <p className="mt-1 text-xs text-neutral-500">
-                        {[property?.municipality, property?.county]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </p>
+                      <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">
+                        <EvidenceItem
+                          label="Municipality / County"
+                          value={[property?.municipality, property?.county]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        />
+                        <EvidenceItem
+                          label="Parcel"
+                          value={
+                            parcel
+                              ? `Block ${parcel.block} · Lot ${parcel.lot}`
+                              : null
+                          }
+                        />
+                      </dl>
                     </li>
                   );
                 })}
@@ -343,6 +487,43 @@ export default async function ReviewTaskPage({
             ) : null}
           </section>
 
+          <section aria-labelledby="provider-evidence-heading">
+            <h2
+              id="provider-evidence-heading"
+              className="text-lg font-semibold"
+            >
+              Provider evidence
+            </h2>
+            {providerRequests.length > 0 ? (
+              <ul className="mt-3 divide-y divide-neutral-200 rounded-lg border border-neutral-200 px-4 dark:divide-neutral-800 dark:border-neutral-800">
+                {providerRequests.map((request) => {
+                  const retrievedAt =
+                    request.completed_at ?? request.requested_at;
+                  return (
+                    <li
+                      key={request.id}
+                      className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-3 text-sm"
+                    >
+                      <span className="font-medium">
+                        {formatSource(request.provider)}
+                      </span>
+                      <span className="text-neutral-600 dark:text-neutral-400">
+                        Retrieved{" "}
+                        <time dateTime={retrievedAt}>
+                          {formatTimestamp(retrievedAt)}
+                        </time>
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className="mt-3 rounded-lg border border-dashed border-neutral-300 p-4 text-sm text-neutral-600 dark:border-neutral-700 dark:text-neutral-400">
+                Provider retrieval dates are unavailable for this task.
+              </p>
+            )}
+          </section>
+
           <section aria-labelledby="parcel-map-heading">
             <h2 id="parcel-map-heading" className="text-lg font-semibold">
               Map
@@ -361,7 +542,7 @@ export default async function ReviewTaskPage({
             <section className="rounded-lg border border-neutral-200 p-4 dark:border-neutral-800">
               <h2 className="font-semibold">Resolve</h2>
               <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-                Accept the placeholder or select the correct candidate.
+                {resolveConsequence}
               </p>
               <form
                 action={resolveReviewTask.bind(null, task.id)}
@@ -416,6 +597,9 @@ export default async function ReviewTaskPage({
                   action={retryReviewTask.bind(null, task.id)}
                   className="space-y-2"
                 >
+                  <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                    {retryConsequence}
+                  </p>
                   <label className="block text-sm font-medium">
                     Retry notes
                     <textarea
@@ -434,6 +618,10 @@ export default async function ReviewTaskPage({
                   action={markReviewTaskUnsupported.bind(null, task.id)}
                   className="space-y-2 border-t border-neutral-200 pt-4 dark:border-neutral-800"
                 >
+                  <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                    Marks the property unsupported and completes the pipeline
+                    with partial results.
+                  </p>
                   <label className="block text-sm font-medium">
                     Unsupported notes
                     <textarea
@@ -452,6 +640,10 @@ export default async function ReviewTaskPage({
                   action={rejectReviewTask.bind(null, task.id)}
                   className="space-y-2 border-t border-neutral-200 pt-4 dark:border-neutral-800"
                 >
+                  <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                    Closes this task and marks the pipeline failed without
+                    selecting a candidate.
+                  </p>
                   <label className="block text-sm font-medium">
                     Rejection notes
                     <textarea

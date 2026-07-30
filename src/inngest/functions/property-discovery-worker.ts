@@ -59,11 +59,13 @@ const propertyDiscoveryAttemptSchema = z.object({
       ]),
     }),
   ]),
+  providerRequestId: z.string().min(1),
 });
 
 export type PropertyDiscoveryAttempt = {
   evidence: ParcelEvidence;
   decision: ParcelResolutionDecision;
+  providerRequestId: string;
 };
 
 export interface PropertyDiscoveryWorkerRepository {
@@ -88,6 +90,7 @@ export interface PropertyDiscoveryWorkerRepository {
     pipelineRunId: string;
     correlationId: string;
     companyId: string;
+    attempt: number;
   }): Promise<ParcelEvidence>;
   loadWorkerAttempt(
     workerRunId: string,
@@ -96,6 +99,23 @@ export interface PropertyDiscoveryWorkerRepository {
     workerRunId: string;
     attempt: PropertyDiscoveryAttempt;
   }): Promise<PropertyDiscoveryAttempt>;
+  beginProviderRequest(input: {
+    pipelineRunId: string;
+    companyId: string;
+    workerRunId: string;
+    attempt: number;
+  }): Promise<{ providerRequestId: string }>;
+  completeProviderRequest(input: {
+    providerRequestId: string;
+    companyId: string;
+    evidence: ParcelEvidence;
+  }): Promise<void>;
+  failProviderRequest(input: {
+    providerRequestId: string;
+    companyId: string;
+    failureCode: "provider_execution_failed";
+    failureMetadata: { capability: "parcel.lookup"; attempt: number };
+  }): Promise<void>;
   recordProviderEvidence(input: {
     pipelineRunId: string;
     companyId: string;
@@ -124,6 +144,7 @@ export interface PropertyDiscoveryWorkerRepository {
     reason: ParcelReviewReason;
     candidateData: unknown;
     attempt: number;
+    workerRunId: string;
   }): Promise<void>;
   completePipelineRun(input: {
     pipelineRunId: string;
@@ -176,25 +197,47 @@ export async function runPropertyDiscovery(
 
   let attempt = await repository.loadWorkerAttempt(workerRun.id);
   if (attempt === null) {
-    const evidence = await repository.lookupParcels({
-      latitude: event.latitude,
-      longitude: event.longitude,
-      canonicalAddress: event.canonicalAddress,
+    const { providerRequestId } = await repository.beginProviderRequest({
       pipelineRunId: event.pipelineRunId,
-      correlationId: event.correlationId,
       companyId,
-    });
-    attempt = await repository.persistWorkerAttempt({
       workerRunId: workerRun.id,
-      attempt: {
-        evidence,
-        decision: decideParcelResolution(evidence.value),
-      },
+      attempt: event.attempt,
     });
+    try {
+      const evidence = await repository.lookupParcels({
+        latitude: event.latitude,
+        longitude: event.longitude,
+        canonicalAddress: event.canonicalAddress,
+        pipelineRunId: event.pipelineRunId,
+        correlationId: event.correlationId,
+        companyId,
+        attempt: event.attempt,
+      });
+      attempt = await repository.persistWorkerAttempt({
+        workerRunId: workerRun.id,
+        attempt: {
+          evidence,
+          decision: decideParcelResolution(evidence.value),
+          providerRequestId,
+        },
+      });
+    } catch (error) {
+      await repository.failProviderRequest({
+        providerRequestId,
+        companyId,
+        failureCode: "provider_execution_failed",
+        failureMetadata: {
+          capability: "parcel.lookup",
+          attempt: event.attempt,
+        },
+      });
+      throw error;
+    }
   }
 
-  const { providerRequestId } = await repository.recordProviderEvidence({
-    pipelineRunId: event.pipelineRunId,
+  const providerRequestId = attempt.providerRequestId;
+  await repository.completeProviderRequest({
+    providerRequestId,
     companyId,
     evidence: attempt.evidence,
   });
@@ -211,6 +254,7 @@ export async function runPropertyDiscovery(
       reason: decision.reason,
       candidateData: { candidates: attempt.evidence.value },
       attempt: event.attempt,
+      workerRunId: workerRun.id,
     });
     outcome = "review_required";
   } else {
@@ -416,16 +460,22 @@ export class SupabasePropertyDiscoveryWorkerRepository
     pipelineRunId: string;
     correlationId: string;
     companyId: string;
+    attempt: number;
   }) {
     const provider = this.providerRegistry.resolve(
       "parcel.lookup",
     ) as ProviderAdapter<
-      { lat: number; lng: number } | { address: string },
+      | { lat: number; lng: number; fallbackAddress?: string }
+      | { address: string },
       ParcelData[]
     >;
     const providerInput =
       input.latitude !== null && input.longitude !== null
-        ? { lat: input.latitude, lng: input.longitude }
+        ? {
+            lat: input.latitude,
+            lng: input.longitude,
+            fallbackAddress: input.canonicalAddress,
+          }
         : { address: input.canonicalAddress };
     const environment = parseServerEnv(process.env);
 
@@ -433,7 +483,7 @@ export class SupabasePropertyDiscoveryWorkerRepository
       companyId: input.companyId,
       pipelineRunId: input.pipelineRunId,
       correlationId: input.correlationId,
-      requestKey: `parcel.lookup:${input.pipelineRunId}`,
+      requestKey: `parcel.lookup:${input.pipelineRunId}:${input.attempt}`,
       deploymentEnvironment: environment.DEPLOYMENT_ENV,
     });
   }
@@ -481,6 +531,131 @@ export class SupabasePropertyDiscoveryWorkerRepository
       throw new Error("Failed to load persisted property-discovery attempt");
     }
     return existing;
+  }
+
+  async beginProviderRequest(input: {
+    pipelineRunId: string;
+    companyId: string;
+    workerRunId: string;
+    attempt: number;
+  }) {
+    const requestKey = `parcel.lookup:${input.pipelineRunId}:${input.attempt}`;
+    const { data: inserted, error: insertError } = await this.client
+      .from("provider_requests")
+      .insert({
+        company_id: input.companyId,
+        pipeline_run_id: input.pipelineRunId,
+        worker_run_id: input.workerRunId,
+        attempt: input.attempt,
+        capability: "parcel.lookup",
+        provider: "njgin_parcels_composite",
+        request_key: requestKey,
+        status: "requested",
+      })
+      .select("id")
+      .single();
+    if (!insertError && inserted) {
+      return { providerRequestId: inserted.id };
+    }
+    if (insertError?.code !== "23505") {
+      throw new Error("Failed to start parcel-lookup provider request");
+    }
+
+    const { data: existing, error: selectError } = await this.client
+      .from("provider_requests")
+      .select("id")
+      .eq("company_id", input.companyId)
+      .eq("request_key", requestKey)
+      .single();
+    if (selectError || !existing) {
+      throw new Error("Failed to load parcel-lookup provider request");
+    }
+    return { providerRequestId: existing.id };
+  }
+
+  async completeProviderRequest(input: {
+    providerRequestId: string;
+    companyId: string;
+    evidence: ParcelEvidence;
+  }) {
+    const { error: requestError } = await this.client
+      .from("provider_requests")
+      .update({
+        provider: input.evidence.provider,
+        status: "succeeded",
+        completed_at: input.evidence.retrievedAt,
+      })
+      .eq("id", input.providerRequestId)
+      .eq("company_id", input.companyId);
+    if (requestError) {
+      throw new Error("Failed to complete parcel-lookup provider request");
+    }
+
+    const { error: costError } = await this.client
+      .from("provider_cost_entries")
+      .upsert(
+        {
+          provider_request_id: input.providerRequestId,
+          estimated_cost_micros: input.evidence.estimatedCostMicros,
+          actual_cost_micros:
+            input.evidence.actualCostMicros ??
+            input.evidence.estimatedCostMicros,
+        },
+        { onConflict: "provider_request_id" },
+      );
+    if (costError) {
+      throw new Error("Failed to record parcel-lookup provider cost");
+    }
+
+    const { error: sourceError } = await this.client.from("source_records").upsert(
+      {
+        company_id: input.companyId,
+        provider: input.evidence.provider,
+        source_identifier: `${input.companyId}:${input.evidence.sourceIdentifier}`,
+        retrieved_at: input.evidence.retrievedAt,
+        raw_payload: input.evidence.value as unknown as Json,
+      },
+      {
+        onConflict: "provider,source_identifier,retrieved_at",
+        ignoreDuplicates: true,
+      },
+    );
+    if (sourceError) {
+      throw new Error("Failed to record parcel-lookup source");
+    }
+  }
+
+  async failProviderRequest(input: {
+    providerRequestId: string;
+    companyId: string;
+    failureCode: "provider_execution_failed";
+    failureMetadata: { capability: "parcel.lookup"; attempt: number };
+  }) {
+    const { error: requestError } = await this.client
+      .from("provider_requests")
+      .update({
+        status: "failed",
+        completed_at: new Date().toISOString(),
+      })
+      .eq("id", input.providerRequestId)
+      .eq("company_id", input.companyId);
+    if (requestError) {
+      throw new Error("Failed to close parcel-lookup provider request");
+    }
+
+    const { error: costError } = await this.client
+      .from("provider_cost_entries")
+      .upsert(
+        {
+          provider_request_id: input.providerRequestId,
+          estimated_cost_micros: 0,
+          actual_cost_micros: 0,
+        },
+        { onConflict: "provider_request_id" },
+      );
+    if (costError) {
+      throw new Error("Failed to record parcel-lookup provider cost");
+    }
   }
 
   async recordProviderEvidence(input: {
@@ -637,6 +812,7 @@ export class SupabasePropertyDiscoveryWorkerRepository
     reason: ParcelReviewReason;
     candidateData: unknown;
     attempt: number;
+    workerRunId: string;
   }) {
     const scope = await this.assertEventScope(input);
     if (scope.companyId !== input.companyId) throw new Error(SCOPE_ERROR);

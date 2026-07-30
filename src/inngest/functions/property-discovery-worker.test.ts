@@ -99,6 +99,11 @@ function makeRepository(
       attempts.set(workerRunId, attempt);
       return attempt;
     },
+    async beginProviderRequest() {
+      return { providerRequestId: "provider-request-1" };
+    },
+    async completeProviderRequest() {},
+    async failProviderRequest() {},
     async recordProviderEvidence() {
       return { providerRequestId: "provider-request-1" };
     },
@@ -193,6 +198,73 @@ test("a residential parcel resolves the property and completes its pipeline", as
   expect(state.audits).toBe(1);
 });
 
+test("provider lineage is opened before NJGIN and completed for the worker attempt", async () => {
+  const callOrder: string[] = [];
+  const beginProviderRequest = vi.fn(async (input) => {
+    callOrder.push("requested");
+    return { providerRequestId: `provider-request-${input.attempt}` };
+  });
+  const lookupParcels = vi.fn(async () => {
+    callOrder.push("execute");
+    return evidence();
+  });
+  const completeProviderRequest = vi.fn(async () => {
+    callOrder.push("succeeded");
+  });
+  const state = makeRepository({
+    beginProviderRequest,
+    lookupParcels,
+    completeProviderRequest,
+  });
+
+  await runPropertyDiscovery({ ...event, attempt: 2 }, state.repository);
+
+  expect(beginProviderRequest).toHaveBeenCalledWith({
+    pipelineRunId: event.pipelineRunId,
+    companyId: "99999999-9999-4999-8999-999999999999",
+    workerRunId: `property-discovery-worker:${event.pipelineRunId}:2`,
+    attempt: 2,
+  });
+  expect(lookupParcels).toHaveBeenCalledWith(
+    expect.objectContaining({ attempt: 2 }),
+  );
+  expect(completeProviderRequest).toHaveBeenCalledWith(
+    expect.objectContaining({
+      providerRequestId: "provider-request-2",
+      companyId: "99999999-9999-4999-8999-999999999999",
+      evidence: evidence(),
+    }),
+  );
+  expect(callOrder).toEqual(["requested", "execute", "succeeded"]);
+});
+
+test("failed NJGIN calls close the provider request with safe metadata", async () => {
+  const failProviderRequest = vi.fn();
+  const state = makeRepository({
+    lookupParcels: async () => {
+      throw new Error("private upstream body and host");
+    },
+    failProviderRequest,
+  });
+
+  await expect(runPropertyDiscovery(event, state.repository)).rejects.toThrow(
+    "private upstream body and host",
+  );
+
+  expect(failProviderRequest).toHaveBeenCalledWith({
+    providerRequestId: "provider-request-1",
+    companyId: "99999999-9999-4999-8999-999999999999",
+    failureCode: "provider_execution_failed",
+    failureMetadata: {
+      capability: "parcel.lookup",
+      attempt: 1,
+    },
+  });
+  expect(JSON.stringify(failProviderRequest.mock.calls)).not.toContain(
+    "private upstream",
+  );
+});
+
 test("no parcel candidates create review instead of resolving", async () => {
   const createReviewTask = vi.fn();
   const resolveProperty = vi.fn();
@@ -210,6 +282,7 @@ test("no parcel candidates create review instead of resolving", async () => {
     expect.objectContaining({
       reason: "unsupported_property_type",
       candidateData: { candidates: [] },
+      workerRunId: `property-discovery-worker:${event.pipelineRunId}:1`,
     }),
   );
   expect(resolveProperty).not.toHaveBeenCalled();
@@ -227,7 +300,10 @@ test("a retried discovery attempt preserves its lineage on the next review task"
   await runPropertyDiscovery({ ...event, attempt: 3 }, state.repository);
 
   expect(createReviewTask).toHaveBeenCalledWith(
-    expect.objectContaining({ attempt: 3 }),
+    expect.objectContaining({
+      attempt: 3,
+      workerRunId: `property-discovery-worker:${event.pipelineRunId}:3`,
+    }),
   );
 });
 

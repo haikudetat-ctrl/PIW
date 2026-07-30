@@ -171,4 +171,118 @@ describe("njginParcelLookupProvider", () => {
     expect(result.value[0]).not.toHaveProperty("ownerName");
     expect(result.estimatedCostMicros).toBe(0);
   });
+
+  test("falls back to an address search when the spatial point misses every parcel", async () => {
+    // The Census geocoder interpolates points along the street centerline
+    // (TIGER/Line), which commonly lands just outside the true parcel
+    // polygon. A spatial-only lookup would incorrectly treat a real,
+    // resolvable address as "no match".
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ type: "FeatureCollection", features: [] }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ type: "FeatureCollection", features: [feature()] }),
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await njginParcelLookupProvider.execute(
+      { lat: 40.22, lng: -74.76, fallbackAddress: "12 Birch St, Trenton, NJ" },
+      {
+        companyId: "company-1",
+        pipelineRunId: "run-1",
+        correlationId: "corr-1",
+        requestKey: "parcel.lookup:run-1",
+        deploymentEnvironment: "test",
+      },
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const [spatialUrl] = fetchMock.mock.calls[0];
+    const [addressUrl] = fetchMock.mock.calls[1];
+    expect(spatialUrl).toContain("geometryType=esriGeometryPoint");
+    expect(addressUrl).not.toContain("geometryType");
+    expect(addressUrl).toContain("12+BIRCH+ST");
+    expect(result.value).toHaveLength(1);
+  });
+
+  test("does not query twice when the spatial point already matches", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ type: "FeatureCollection", features: [feature()] }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await njginParcelLookupProvider.execute(
+      { lat: 40.22, lng: -74.76, fallbackAddress: "12 Birch St, Trenton, NJ" },
+      {
+        companyId: "company-1",
+        pipelineRunId: "run-1",
+        correlationId: "corr-1",
+        requestKey: "parcel.lookup:run-1",
+        deploymentEnvironment: "test",
+      },
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  test("the fallback query uses only the street segment of a full canonical address", async () => {
+    // NJGIN's PROP_LOC/ST_ADDRESS fields hold just the street (e.g.
+    // "8 LABARRE AVE"), never the full "street, city, state, zip" a
+    // geocoder returns — a LIKE match against the full string never hits.
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ type: "FeatureCollection", features: [] }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ type: "FeatureCollection", features: [feature()] }),
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await njginParcelLookupProvider.execute(
+      { lat: 40.22, lng: -74.76, fallbackAddress: "8 LABARRE AVE, TRENTON, NJ, 08618" },
+      {
+        companyId: "company-1",
+        pipelineRunId: "run-1",
+        correlationId: "corr-1",
+        requestKey: "parcel.lookup:run-1",
+        deploymentEnvironment: "test",
+      },
+    );
+
+    const [, addressUrl] = fetchMock.mock.calls.map((call) => call[0]);
+    const where = new URL(addressUrl).searchParams.get("where") ?? "";
+    expect(where).toContain("8 LABARRE AVE");
+    expect(where).not.toContain("TRENTON");
+    expect(where).not.toContain("08618");
+  });
+
+  test("does not fall back when no address is available to retry with", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ type: "FeatureCollection", features: [] }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await njginParcelLookupProvider.execute(
+      { lat: 40.22, lng: -74.76 },
+      {
+        companyId: "company-1",
+        pipelineRunId: "run-1",
+        correlationId: "corr-1",
+        requestKey: "parcel.lookup:run-1",
+        deploymentEnvironment: "test",
+      },
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.value).toHaveLength(0);
+  });
 });

@@ -4,6 +4,9 @@ import type { ProviderResult } from "@/modules/providers/contracts";
 import {
   runAddressValidation,
   SupabaseAddressValidationWorkerRepository,
+  type AddressClaimResult,
+  type AddressValidationAttempt,
+  type AddressValidationDecision,
   type AddressValidationWorkerRepository,
   type WorkerRunRecord,
 } from "./address-validation-worker";
@@ -34,6 +37,8 @@ function evidence(value: AddressValidationResult): ProviderResult<AddressValidat
 function makeRepository(overrides: Partial<AddressValidationWorkerRepository> = {}) {
   const workerRuns = new Map<string, WorkerRunRecord>();
   const addressWorkerRuns = new Set<string>();
+  const attempts = new Map<string, AddressValidationAttempt>();
+  const claims = new Map<string, AddressClaimResult>();
   const auditKeys = new Set<string>();
   let addressWrites = 0;
   let completions = 0;
@@ -61,6 +66,121 @@ function makeRepository(overrides: Partial<AddressValidationWorkerRepository> = 
     async validateAddress() {
       validations += 1;
       return evidence(VALIDATED_ADDRESS);
+    },
+    async loadWorkerAttempt(workerRunId) {
+      return attempts.get(workerRunId) ?? null;
+    },
+    async persistWorkerAttempt({ workerRunId, attempt }) {
+      const existing = attempts.get(workerRunId);
+      if (existing) return existing;
+      attempts.set(workerRunId, attempt);
+      return attempt;
+    },
+    async persistWorkerDecision({ workerRunId, decision }) {
+      const attempt = attempts.get(workerRunId);
+      if (!attempt) throw new Error("missing address attempt");
+      if (attempt.decision) return attempt;
+      const completedAttempt: AddressValidationAttempt = {
+        ...attempt,
+        decision: decision as AddressValidationDecision,
+      };
+      attempts.set(workerRunId, completedAttempt);
+      return completedAttempt;
+    },
+    async beginProviderRequest() {
+      return { providerRequestId: "provider-request-1" };
+    },
+    async completeProviderRequest() {},
+    async failProviderRequest() {},
+    async claimCanonicalAddress(input) {
+      const existingClaim = claims.get(input.workerRunId);
+      if (existingClaim) {
+        return { ...existingClaim, sideEffectsApplied: false };
+      }
+      const isNjExact =
+        input.result.confidence >= 95 &&
+        input.result.matchMethod === "exact_single_match" &&
+        input.result.stateCode === "NJ";
+      if (!isNjExact) {
+        await repository.recordPropertyAddress({
+          ...input,
+          propertyId: input.propertyId,
+        });
+        const claim: AddressClaimResult = {
+          outcome: "review_required",
+          observationPropertyId: input.propertyId,
+          canonicalPropertyId: null,
+          candidatePropertyIds: [],
+          sideEffectsApplied: true,
+        };
+        claims.set(input.workerRunId, claim);
+        return claim;
+      }
+
+      const candidates = await repository.findDuplicateCandidates({
+        excludePropertyId: input.propertyId,
+        companyId: input.companyId,
+        normalizedAddress: input.result.canonicalAddress ?? input.submittedAddress,
+        windowStartIso: "2026-01-30T00:00:00.000Z",
+      });
+      if (candidates.length === 1) {
+        const canonicalPropertyId = candidates[0].propertyId;
+        await repository.recordPropertyAddress({
+          ...input,
+          propertyId: canonicalPropertyId,
+        });
+        await repository.updateCanonicalPropertyFields({
+          propertyId: canonicalPropertyId,
+          companyId: input.companyId,
+          result: input.result,
+        });
+        await repository.mergeIntoCanonicalProperty({
+          placeholderPropertyId: input.propertyId,
+          canonicalPropertyId,
+          leadId: input.leadId,
+          pipelineRunId: input.pipelineRunId,
+          companyId: input.companyId,
+        });
+        const claim: AddressClaimResult = {
+          outcome: "merged",
+          observationPropertyId: canonicalPropertyId,
+          canonicalPropertyId,
+          candidatePropertyIds: [canonicalPropertyId],
+          sideEffectsApplied: true,
+        };
+        claims.set(input.workerRunId, claim);
+        return claim;
+      }
+
+      await repository.recordPropertyAddress({
+        ...input,
+        propertyId: input.propertyId,
+      });
+      await repository.updateCanonicalPropertyFields({
+        propertyId: input.propertyId,
+        companyId: input.companyId,
+        result: input.result,
+      });
+      if (candidates.length > 1) {
+        const claim: AddressClaimResult = {
+          outcome: "review_required",
+          observationPropertyId: input.propertyId,
+          canonicalPropertyId: null,
+          candidatePropertyIds: candidates.map((candidate) => candidate.propertyId),
+          sideEffectsApplied: true,
+        };
+        claims.set(input.workerRunId, claim);
+        return claim;
+      }
+      const claim: AddressClaimResult = {
+        outcome: "discovery_requested",
+        observationPropertyId: input.propertyId,
+        canonicalPropertyId: input.propertyId,
+        candidatePropertyIds: [],
+        sideEffectsApplied: true,
+      };
+      claims.set(input.workerRunId, claim);
+      return claim;
     },
     async recordProviderEvidence() {
       return { providerRequestId: "provider-request-1" };
@@ -138,6 +258,100 @@ test("normal validation records one observation and publishes discovery", async 
   expect(state.auditWrites).toBe(1);
 });
 
+test("provider lineage is opened before Census and completed for the worker attempt", async () => {
+  const callOrder: string[] = [];
+  const beginProviderRequest = vi.fn(async (input) => {
+    callOrder.push("requested");
+    return {
+      providerRequestId: `provider-request-${input.attempt}`,
+    };
+  });
+  const validateAddress = vi.fn(async () => {
+    callOrder.push("execute");
+    return evidence(VALIDATED_ADDRESS);
+  });
+  const completeProviderRequest = vi.fn(async () => {
+    callOrder.push("succeeded");
+  });
+  const state = makeRepository({
+    beginProviderRequest,
+    validateAddress,
+    completeProviderRequest,
+  });
+
+  await runAddressValidation({ ...event, attempt: 2 }, state.repository);
+
+  expect(beginProviderRequest).toHaveBeenCalledWith({
+    pipelineRunId: event.pipelineRunId,
+    companyId: "99999999-9999-4999-8999-999999999999",
+    workerRunId: `address-validation-worker:${event.pipelineRunId}:2`,
+    attempt: 2,
+  });
+  expect(validateAddress).toHaveBeenCalledWith(
+    expect.objectContaining({ attempt: 2 }),
+  );
+  expect(completeProviderRequest).toHaveBeenCalledWith(
+    expect.objectContaining({
+      providerRequestId: "provider-request-2",
+      companyId: "99999999-9999-4999-8999-999999999999",
+      evidence: evidence(VALIDATED_ADDRESS),
+    }),
+  );
+  expect(callOrder).toEqual(["requested", "execute", "succeeded"]);
+});
+
+test("failed Census calls close the provider request with safe metadata", async () => {
+  const failProviderRequest = vi.fn();
+  const state = makeRepository({
+    validateAddress: async () => {
+      throw new Error("secret upstream hostname and raw response");
+    },
+    failProviderRequest,
+  });
+
+  await expect(runAddressValidation(event, state.repository)).rejects.toThrow(
+    "secret upstream hostname and raw response",
+  );
+
+  expect(failProviderRequest).toHaveBeenCalledWith({
+    providerRequestId: "provider-request-1",
+    companyId: "99999999-9999-4999-8999-999999999999",
+    failureCode: "provider_execution_failed",
+    failureMetadata: {
+      capability: "address.validate",
+      attempt: 1,
+    },
+  });
+  expect(JSON.stringify(failProviderRequest.mock.calls)).not.toContain(
+    "secret upstream",
+  );
+});
+
+test("canonical address claiming is delegated to the transactional repository boundary", async () => {
+  const claimCanonicalAddress = vi.fn(async () => ({
+    outcome: "discovery_requested" as const,
+    observationPropertyId: event.propertyId,
+    canonicalPropertyId: event.propertyId,
+    candidatePropertyIds: [],
+    sideEffectsApplied: true,
+  }));
+  const state = makeRepository({ claimCanonicalAddress });
+
+  await runAddressValidation(event, state.repository);
+
+  expect(claimCanonicalAddress).toHaveBeenCalledWith({
+    pipelineRunId: event.pipelineRunId,
+    leadId: event.leadId,
+    propertyId: event.propertyId,
+    companyId: "99999999-9999-4999-8999-999999999999",
+    workerRunId: `address-validation-worker:${event.pipelineRunId}:1`,
+    providerRequestId: "provider-request-1",
+    submittedAddress: event.submittedAddress,
+    result: VALIDATED_ADDRESS,
+    attempt: 1,
+  });
+});
+
 test("low confidence records the observation and creates review instead of discovery", async () => {
   const lowConfidence = { ...VALIDATED_ADDRESS, canonicalAddress: null, confidence: 0 };
   const createReviewTask = vi.fn();
@@ -154,9 +368,40 @@ test("low confidence records the observation and creates review instead of disco
     expect.objectContaining({
       propertyId: event.propertyId,
       reason: "low_address_confidence",
+      workerRunId: `address-validation-worker:${event.pipelineRunId}:1`,
     }),
   );
   expect(state.addressWrites).toBe(1);
+  expect(publishDiscoveryRequested).not.toHaveBeenCalled();
+  expect(result.outcome).toBe("review_required");
+});
+
+test("exact matches without an explicit NJ state require review and never start discovery", async () => {
+  const outOfStateExactMatch = {
+    ...VALIDATED_ADDRESS,
+    canonicalAddress: "12 BIRCH ST, PHILADELPHIA, PA, 19103",
+    municipality: "PHILADELPHIA",
+    stateCode: null,
+  };
+  const createReviewTask = vi.fn();
+  const updateCanonicalPropertyFields = vi.fn();
+  const publishDiscoveryRequested = vi.fn();
+  const state = makeRepository({
+    validateAddress: async () => evidence(outOfStateExactMatch),
+    createReviewTask,
+    updateCanonicalPropertyFields,
+    publishDiscoveryRequested,
+  });
+
+  const result = await runAddressValidation(event, state.repository);
+
+  expect(createReviewTask).toHaveBeenCalledWith(
+    expect.objectContaining({
+      propertyId: event.propertyId,
+      reason: "low_address_confidence",
+    }),
+  );
+  expect(updateCanonicalPropertyFields).not.toHaveBeenCalled();
   expect(publishDiscoveryRequested).not.toHaveBeenCalled();
   expect(result.outcome).toBe("review_required");
 });
@@ -176,7 +421,10 @@ test("a retried address attempt preserves its lineage on the next review task", 
   await runAddressValidation({ ...event, attempt: 2 }, state.repository);
 
   expect(createReviewTask).toHaveBeenCalledWith(
-    expect.objectContaining({ attempt: 2 }),
+    expect.objectContaining({
+      attempt: 2,
+      workerRunId: `address-validation-worker:${event.pipelineRunId}:2`,
+    }),
   );
 });
 
@@ -255,6 +503,72 @@ test("replay resumes downstream work when the address observation already exists
   expect(result.outcome).toBe("discovery_requested");
   expect(state.completions).toBe(1);
   expect(state.auditWrites).toBe(1);
+});
+
+test("replay reuses the first address evidence when Census later returns a different match", async () => {
+  const laterNoMatch = {
+    ...VALIDATED_ADDRESS,
+    canonicalAddress: null,
+    latitude: null,
+    longitude: null,
+    municipality: null,
+    stateCode: null,
+    zip: null,
+    matchMethod: "no_match" as const,
+    confidence: 0,
+  };
+  const validateAddress = vi
+    .fn()
+    .mockResolvedValueOnce(evidence(VALIDATED_ADDRESS))
+    .mockResolvedValueOnce(evidence(laterNoMatch));
+  const publishDiscoveryRequested = vi
+    .fn()
+    .mockRejectedValueOnce(new Error("outbox unavailable"))
+    .mockResolvedValue(undefined);
+  const createReviewTask = vi.fn();
+  const state = makeRepository({
+    validateAddress,
+    publishDiscoveryRequested,
+    createReviewTask,
+  });
+
+  await expect(runAddressValidation(event, state.repository)).rejects.toThrow(
+    "outbox unavailable",
+  );
+  const replay = await runAddressValidation(event, state.repository);
+
+  expect(validateAddress).toHaveBeenCalledTimes(1);
+  expect(createReviewTask).not.toHaveBeenCalled();
+  expect(publishDiscoveryRequested).toHaveBeenCalledTimes(2);
+  expect(replay.outcome).toBe("discovery_requested");
+});
+
+test("replay reuses the first duplicate decision when candidates later change", async () => {
+  const canonicalPropertyId = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+  const findDuplicateCandidates = vi
+    .fn()
+    .mockResolvedValueOnce([])
+    .mockResolvedValueOnce([{ propertyId: canonicalPropertyId }]);
+  const publishDiscoveryRequested = vi
+    .fn()
+    .mockRejectedValueOnce(new Error("outbox unavailable"))
+    .mockResolvedValue(undefined);
+  const mergeIntoCanonicalProperty = vi.fn();
+  const state = makeRepository({
+    findDuplicateCandidates,
+    publishDiscoveryRequested,
+    mergeIntoCanonicalProperty,
+  });
+
+  await expect(runAddressValidation(event, state.repository)).rejects.toThrow(
+    "outbox unavailable",
+  );
+  const replay = await runAddressValidation(event, state.repository);
+
+  expect(findDuplicateCandidates).toHaveBeenCalledTimes(1);
+  expect(mergeIntoCanonicalProperty).not.toHaveBeenCalled();
+  expect(publishDiscoveryRequested).toHaveBeenCalledTimes(2);
+  expect(replay.outcome).toBe("discovery_requested");
 });
 
 test("audit failure leaves the run replayable until the audit succeeds", async () => {
@@ -401,6 +715,8 @@ test("existing provider request still backfills its missing source evidence", as
   expect(sourceUpsert).toHaveBeenCalledWith(
     expect.objectContaining({
       company_id: "99999999-9999-4999-8999-999999999999",
+      source_identifier:
+        "99999999-9999-4999-8999-999999999999:12 BIRCH ST, TRENTON, NJ, 08611",
       retrieved_at: "2026-07-29T12:00:00.000Z",
     }),
     {

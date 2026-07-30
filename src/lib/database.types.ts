@@ -760,6 +760,9 @@ export type Database = {
       }
       property_addresses: {
         Row: {
+          approval_review_task_id: string | null
+          approved_at: string | null
+          approved_by: string | null
           canonical_address: string | null
           company_id: string
           confidence: number
@@ -771,6 +774,7 @@ export type Database = {
           longitude: number | null
           match_method: Database["public"]["Enums"]["address_match_method"]
           municipality: string | null
+          normalized_address: string | null
           property_id: string
           provider_request_id: string | null
           state_code: string | null
@@ -779,6 +783,9 @@ export type Database = {
           zip: string | null
         }
         Insert: {
+          approval_review_task_id?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
           canonical_address?: string | null
           company_id: string
           confidence: number
@@ -790,6 +797,7 @@ export type Database = {
           longitude?: number | null
           match_method: Database["public"]["Enums"]["address_match_method"]
           municipality?: string | null
+          normalized_address?: string | null
           property_id: string
           provider_request_id?: string | null
           state_code?: string | null
@@ -798,6 +806,9 @@ export type Database = {
           zip?: string | null
         }
         Update: {
+          approval_review_task_id?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
           canonical_address?: string | null
           company_id?: string
           confidence?: number
@@ -809,6 +820,7 @@ export type Database = {
           longitude?: number | null
           match_method?: Database["public"]["Enums"]["address_match_method"]
           municipality?: string | null
+          normalized_address?: string | null
           property_id?: string
           provider_request_id?: string | null
           state_code?: string | null
@@ -817,6 +829,20 @@ export type Database = {
           zip?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "property_addresses_approval_review_task_id_fkey"
+            columns: ["approval_review_task_id"]
+            isOneToOne: false
+            referencedRelation: "review_tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_addresses_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "admin_profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "property_addresses_company_id_fkey"
             columns: ["company_id"]
@@ -884,37 +910,49 @@ export type Database = {
       }
       provider_requests: {
         Row: {
+          attempt: number
           capability: string
           company_id: string
           completed_at: string | null
+          error_code: string | null
+          error_message: string | null
           id: string
           pipeline_run_id: string | null
           provider: string
           request_key: string
           requested_at: string
           status: string
+          worker_run_id: string | null
         }
         Insert: {
+          attempt?: number
           capability: string
           company_id: string
           completed_at?: string | null
+          error_code?: string | null
+          error_message?: string | null
           id?: string
           pipeline_run_id?: string | null
           provider: string
           request_key: string
           requested_at?: string
           status: string
+          worker_run_id?: string | null
         }
         Update: {
+          attempt?: number
           capability?: string
           company_id?: string
           completed_at?: string | null
+          error_code?: string | null
+          error_message?: string | null
           id?: string
           pipeline_run_id?: string | null
           provider?: string
           request_key?: string
           requested_at?: string
           status?: string
+          worker_run_id?: string | null
         }
         Relationships: [
           {
@@ -929,6 +967,13 @@ export type Database = {
             columns: ["pipeline_run_id"]
             isOneToOne: false
             referencedRelation: "pipeline_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "provider_requests_worker_run_id_fkey"
+            columns: ["worker_run_id"]
+            isOneToOne: false
+            referencedRelation: "worker_runs"
             referencedColumns: ["id"]
           },
         ]
@@ -949,6 +994,7 @@ export type Database = {
           retry_count: number
           status: Database["public"]["Enums"]["review_task_status"]
           triggering_event_name: string
+          worker_run_id: string | null
         }
         Insert: {
           candidate_data?: Json
@@ -965,6 +1011,7 @@ export type Database = {
           retry_count?: number
           status?: Database["public"]["Enums"]["review_task_status"]
           triggering_event_name: string
+          worker_run_id?: string | null
         }
         Update: {
           candidate_data?: Json
@@ -981,6 +1028,7 @@ export type Database = {
           retry_count?: number
           status?: Database["public"]["Enums"]["review_task_status"]
           triggering_event_name?: string
+          worker_run_id?: string | null
         }
         Relationships: [
           {
@@ -1016,6 +1064,13 @@ export type Database = {
             columns: ["resolved_by"]
             isOneToOne: false
             referencedRelation: "admin_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_tasks_worker_run_id_fkey"
+            columns: ["worker_run_id"]
+            isOneToOne: false
+            referencedRelation: "worker_runs"
             referencedColumns: ["id"]
           },
         ]
@@ -1268,6 +1323,34 @@ export type Database = {
           payload: Json
         }[]
       }
+      claim_property_address: {
+        Args: {
+          p_attempt: number
+          p_canonical_address: string
+          p_company_id: string
+          p_confidence: number
+          p_county: string
+          p_latitude: number
+          p_lead_id: string
+          p_longitude: number
+          p_match_method: Database["public"]["Enums"]["address_match_method"]
+          p_municipality: string
+          p_pipeline_run_id: string
+          p_property_id: string
+          p_provider_request_id: string
+          p_state_code: string
+          p_submitted_address: string
+          p_worker_run_id: string
+          p_zip: string
+        }
+        Returns: {
+          candidate_property_ids: string[]
+          canonical_property_id: string
+          observation_property_id: string
+          outcome: string
+          side_effects_applied: boolean
+        }[]
+      }
       complete_outbox_event: {
         Args: { p_event_id: string }
         Returns: undefined
@@ -1277,9 +1360,32 @@ export type Database = {
         Args: { p_company_id: string; p_event: Json }
         Returns: string
       }
+      escalate_property_identity_review: {
+        Args: {
+          p_attempt: number
+          p_candidate_data: Json
+          p_company_id: string
+          p_lead_id: string
+          p_pipeline_run_id: string
+          p_property_id: string
+          p_reason: Database["public"]["Enums"]["review_task_reason"]
+          p_triggering_event_name: string
+          p_worker_run_id: string
+        }
+        Returns: {
+          created: boolean
+          review_task_id: string
+          side_effects_applied: boolean
+          status: Database["public"]["Enums"]["review_task_status"]
+        }[]
+      }
       fail_outbox_event: {
         Args: { p_error: string; p_event_id: string }
         Returns: undefined
+      }
+      normalize_property_address: {
+        Args: { p_address: string }
+        Returns: string
       }
       resolve_review_task: {
         Args: {
@@ -1559,3 +1665,4 @@ export const Constants = {
     },
   },
 } as const
+

@@ -29,7 +29,9 @@ const NJGIN_PARCEL_FIELDS = [
   "DWELL",
 ].join(",");
 
-type NjginLookupInput = { lat: number; lng: number } | { address: string };
+type NjginLookupInput =
+  | { lat: number; lng: number; fallbackAddress?: string }
+  | { address: string };
 type PolygonCoordinates = number[][][];
 type MultiPolygonCoordinates = PolygonCoordinates[];
 
@@ -169,23 +171,33 @@ export function parseNjginParcelResponse(raw: unknown): ParcelData[] {
   });
 }
 
-function buildWhereClause(input: NjginLookupInput): string {
-  if ("address" in input) {
-    const escaped = input.address.replace(/'/g, "''").toUpperCase();
-    return `PROP_LOC LIKE '%${escaped}%' OR ST_ADDRESS LIKE '%${escaped}%'`;
-  }
-
-  return "1=1";
+// NJGIN's PROP_LOC/ST_ADDRESS fields hold only the street segment (e.g.
+// "8 LABARRE AVE"), never the full "street, city, state, zip" string a
+// geocoder returns — so a LIKE match against the full canonical address
+// never matches. Both the Census geocoder's `matchedAddress` and this
+// app's stored `canonical_address` are comma-separated in that order, so
+// the street segment is everything before the first comma.
+function streetSegment(address: string): string {
+  const [street] = address.split(",");
+  return street.trim();
 }
 
-async function fetchNjginParcels(input: NjginLookupInput): Promise<unknown> {
+function addressWhereClause(address: string): string {
+  const escaped = streetSegment(address).replace(/'/g, "''").toUpperCase();
+  return `PROP_LOC LIKE '%${escaped}%' OR ST_ADDRESS LIKE '%${escaped}%'`;
+}
+
+async function fetchNjginQuery(params: {
+  where: string;
+  geometry?: { lat: number; lng: number };
+}): Promise<unknown> {
   const url = new URL(NJGIN_QUERY_URL);
   url.searchParams.set("outFields", NJGIN_PARCEL_FIELDS);
   url.searchParams.set("f", "geojson");
-  url.searchParams.set("where", buildWhereClause(input));
+  url.searchParams.set("where", params.where);
 
-  if ("lat" in input) {
-    url.searchParams.set("geometry", `${input.lng},${input.lat}`);
+  if (params.geometry) {
+    url.searchParams.set("geometry", `${params.geometry.lng},${params.geometry.lat}`);
     url.searchParams.set("geometryType", "esriGeometryPoint");
     url.searchParams.set("inSR", "4326");
     url.searchParams.set("spatialRel", "esriSpatialRelIntersects");
@@ -205,6 +217,37 @@ async function fetchNjginParcels(input: NjginLookupInput): Promise<unknown> {
   } catch {
     throw new Error("NJGIN parcel response is invalid");
   }
+}
+
+function isEmptyFeatureCollection(raw: unknown): boolean {
+  return (
+    isRecord(raw) &&
+    raw.type === "FeatureCollection" &&
+    Array.isArray(raw.features) &&
+    raw.features.length === 0
+  );
+}
+
+async function fetchNjginParcels(input: NjginLookupInput): Promise<unknown> {
+  if ("address" in input) {
+    return fetchNjginQuery({ where: addressWhereClause(input.address) });
+  }
+
+  const spatialResult = await fetchNjginQuery({
+    where: "1=1",
+    geometry: { lat: input.lat, lng: input.lng },
+  });
+
+  // The Census geocoder interpolates points along the street centerline
+  // (TIGER/Line), which commonly falls just outside the true parcel
+  // polygon. Retry with an attribute search before concluding "no match" —
+  // otherwise a systematic geocoding offset routes real addresses to
+  // manual review instead of resolving automatically.
+  if (isEmptyFeatureCollection(spatialResult) && input.fallbackAddress) {
+    return fetchNjginQuery({ where: addressWhereClause(input.fallbackAddress) });
+  }
+
+  return spatialResult;
 }
 
 export const njginParcelLookupProvider: ProviderAdapter<NjginLookupInput, ParcelData[]> = {
