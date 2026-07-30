@@ -46,6 +46,16 @@ export const propertyDiscoveryRequestedDataSchema = z.object({
   attempt: z.number().int().positive().default(1),
 });
 
+// Raised after a vendor webhook delivery is durably recorded in
+// integration_events, ahead of (and independent from) any lead or pipeline
+// existing yet — that's why leadId/propertyId/pipelineRunId are optional
+// here, unlike every other event.
+export const integrationEventReceivedDataSchema = z.object({
+  integrationEventId: uuidSchema,
+  sourceSystem: z.string().min(1),
+  eventType: z.string().min(1),
+});
+
 const leadSubmittedSchema = z.object({
   id: uuidSchema,
   name: z.literal("crm/lead.submitted"),
@@ -88,11 +98,26 @@ const propertyDiscoveryRequestedSchema = z.object({
   data: propertyDiscoveryRequestedDataSchema,
 });
 
+const integrationEventReceivedSchema = z.object({
+  id: uuidSchema,
+  name: z.literal("integration/event.received"),
+  schemaVersion: z.literal(1),
+  correlationId: uuidSchema,
+  causationEventId: uuidSchema.optional(),
+  leadId: uuidSchema.optional(),
+  propertyId: uuidSchema.optional(),
+  pipelineRunId: uuidSchema.optional(),
+  occurredAt: z.iso.datetime(),
+  idempotencyKey: z.string().min(1),
+  data: integrationEventReceivedDataSchema,
+});
+
 export const eventEnvelopeSchema = z.discriminatedUnion("name", [
   diagnosticRequestedSchema,
   leadSubmittedSchema,
   addressValidationRequestedSchema,
   propertyDiscoveryRequestedSchema,
+  integrationEventReceivedSchema,
 ]);
 
 export type DomainEvent = z.infer<typeof eventEnvelopeSchema>;
@@ -139,6 +164,17 @@ type EventInput =
       data: z.input<typeof propertyDiscoveryRequestedDataSchema>;
       now?: Date;
       id?: string;
+    }
+  | {
+      name: "integration/event.received";
+      correlationId: string;
+      pipelineRunId?: string;
+      leadId?: string;
+      propertyId?: string;
+      causationEventId?: string;
+      data: z.infer<typeof integrationEventReceivedDataSchema>;
+      now?: Date;
+      id?: string;
     };
 
 const ATTEMPT_AWARE_EVENT_NAMES = new Set([
@@ -151,9 +187,14 @@ export function createEventEnvelope(input: EventInput): DomainEvent {
   const attempt = ATTEMPT_AWARE_EVENT_NAMES.has(input.name)
     ? (input.data as { attempt?: number }).attempt ?? 1
     : undefined;
-  const idempotencyKey = attempt
-    ? `${input.name}:${input.pipelineRunId}:${attempt}`
-    : `${input.name}:${input.pipelineRunId}`;
+  // integration/event.received has no pipeline run yet (it precedes lead
+  // creation), so it keys on the integration event id instead.
+  const idempotencyKey =
+    input.name === "integration/event.received"
+      ? `${input.name}:${(input.data as { integrationEventId: string }).integrationEventId}`
+      : attempt
+        ? `${input.name}:${input.pipelineRunId}:${attempt}`
+        : `${input.name}:${input.pipelineRunId}`;
 
   return eventEnvelopeSchema.parse({
     ...input,

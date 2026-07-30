@@ -247,6 +247,53 @@ export type Database = {
           },
         ]
       }
+      integration_events: {
+        Row: {
+          company_id: string
+          error_category: string | null
+          event_type: string
+          id: string
+          idempotency_key: string
+          outcome: string
+          processed_at: string | null
+          raw_payload: Json
+          received_at: string
+          source_system: string
+        }
+        Insert: {
+          company_id: string
+          error_category?: string | null
+          event_type: string
+          id?: string
+          idempotency_key: string
+          outcome?: string
+          processed_at?: string | null
+          raw_payload?: Json
+          received_at?: string
+          source_system: string
+        }
+        Update: {
+          company_id?: string
+          error_category?: string | null
+          event_type?: string
+          id?: string
+          idempotency_key?: string
+          outcome?: string
+          processed_at?: string | null
+          raw_payload?: Json
+          received_at?: string
+          source_system?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integration_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       interactions: {
         Row: {
           company_id: string
@@ -359,45 +406,78 @@ export type Database = {
       }
       leads: {
         Row: {
+          campaign: string | null
           company_id: string
+          consent_reference: string | null
           created_at: string
           email: string
+          email_normalized: string | null
+          external_lead_id: string | null
           id: string
+          is_test: boolean
           name: string
           notes: string | null
+          original_lead_source: string | null
           phone: string
+          phone_e164: string | null
           property_id: string | null
           service_requested: string
+          source_account_id: string | null
+          source_record_id: string | null
+          source_system: string
           stage: Database["public"]["Enums"]["lead_stage"]
           submitted_address: string
+          trustedform_url: string | null
           updated_at: string
         }
         Insert: {
+          campaign?: string | null
           company_id: string
+          consent_reference?: string | null
           created_at?: string
           email: string
+          email_normalized?: string | null
+          external_lead_id?: string | null
           id?: string
+          is_test?: boolean
           name: string
           notes?: string | null
+          original_lead_source?: string | null
           phone: string
+          phone_e164?: string | null
           property_id?: string | null
           service_requested?: string
+          source_account_id?: string | null
+          source_record_id?: string | null
+          source_system?: string
           stage?: Database["public"]["Enums"]["lead_stage"]
           submitted_address: string
+          trustedform_url?: string | null
           updated_at?: string
         }
         Update: {
+          campaign?: string | null
           company_id?: string
+          consent_reference?: string | null
           created_at?: string
           email?: string
+          email_normalized?: string | null
+          external_lead_id?: string | null
           id?: string
+          is_test?: boolean
           name?: string
           notes?: string | null
+          original_lead_source?: string | null
           phone?: string
+          phone_e164?: string | null
           property_id?: string | null
           service_requested?: string
+          source_account_id?: string | null
+          source_record_id?: string | null
+          source_system?: string
           stage?: Database["public"]["Enums"]["lead_stage"]
           submitted_address?: string
+          trustedform_url?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -1171,6 +1251,47 @@ export type Database = {
           },
         ]
       }
+      suppression_list: {
+        Row: {
+          channel: string
+          company_id: string
+          created_at: string
+          email_normalized: string | null
+          id: string
+          phone_e164: string | null
+          reason: string
+          source_system: string
+        }
+        Insert: {
+          channel: string
+          company_id: string
+          created_at?: string
+          email_normalized?: string | null
+          id?: string
+          phone_e164?: string | null
+          reason: string
+          source_system: string
+        }
+        Update: {
+          channel?: string
+          company_id?: string
+          created_at?: string
+          email_normalized?: string | null
+          id?: string
+          phone_e164?: string | null
+          reason?: string
+          source_system?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "suppression_list_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tasks: {
         Row: {
           assigned_to: string | null
@@ -1241,6 +1362,50 @@ export type Database = {
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vendor_status_mappings: {
+        Row: {
+          canonical_field: string
+          canonical_value: string
+          company_id: string
+          created_at: string
+          id: string
+          is_active: boolean
+          mapping_version: number
+          raw_status: string
+          source_system: string
+        }
+        Insert: {
+          canonical_field: string
+          canonical_value: string
+          company_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          mapping_version?: number
+          raw_status: string
+          source_system: string
+        }
+        Update: {
+          canonical_field?: string
+          canonical_value?: string
+          company_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          mapping_version?: number
+          raw_status?: string
+          source_system?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_status_mappings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
@@ -1383,9 +1548,39 @@ export type Database = {
         Args: { p_error: string; p_event_id: string }
         Returns: undefined
       }
+      is_suppressed: {
+        Args: {
+          p_channel: string
+          p_company_id: string
+          p_email_normalized: string
+          p_phone_e164: string
+        }
+        Returns: boolean
+      }
+      mark_integration_event_processed: {
+        Args: {
+          p_error_category?: string
+          p_event_id: string
+          p_outcome: string
+        }
+        Returns: undefined
+      }
       normalize_property_address: {
         Args: { p_address: string }
         Returns: string
+      }
+      record_integration_event: {
+        Args: {
+          p_company_id: string
+          p_event_type: string
+          p_idempotency_key: string
+          p_raw_payload: Json
+          p_source_system: string
+        }
+        Returns: {
+          event_id: string
+          is_duplicate: boolean
+        }[]
       }
       resolve_review_task: {
         Args: {
@@ -1415,6 +1610,35 @@ export type Database = {
           p_submitted_address: string
         }
         Returns: {
+          lead_id: string
+          pipeline_run_id: string
+          property_id: string
+        }[]
+      }
+      submit_lead_intake_from_source: {
+        Args: {
+          p_campaign?: string
+          p_company_id: string
+          p_consent_reference?: string
+          p_correlation_id: string
+          p_email: string
+          p_email_normalized?: string
+          p_external_lead_id?: string
+          p_is_test?: boolean
+          p_name: string
+          p_notes: string
+          p_original_lead_source?: string
+          p_phone: string
+          p_phone_e164?: string
+          p_pipeline_version: number
+          p_source_account_id?: string
+          p_source_record_id?: string
+          p_source_system: string
+          p_submitted_address: string
+          p_trustedform_url?: string
+        }
+        Returns: {
+          is_duplicate: boolean
           lead_id: string
           pipeline_run_id: string
           property_id: string

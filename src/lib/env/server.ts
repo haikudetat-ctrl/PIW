@@ -12,6 +12,11 @@ const serverEnvSchema = z
     INNGEST_EVENT_KEY: z.string().min(1),
     INNGEST_SIGNING_KEY: z.string().min(1),
     PAID_PROVIDERS_ENABLED: booleanString,
+    INTEGRATIONS_LEADCONDUIT_ENABLED: booleanString,
+    INTEGRATIONS_CALLTOOLS_ENABLED: booleanString,
+    INTEGRATIONS_WEBHOOK_SHARED_SECRET: z.string().optional(),
+    LEADCONDUIT_API_KEY: z.string().optional(),
+    CALLTOOLS_API_KEY: z.string().optional(),
   })
   .superRefine((value, context) => {
     if (
