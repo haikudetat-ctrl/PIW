@@ -34,3 +34,101 @@ describe("domain event envelope", () => {
     ).toThrow();
   });
 });
+
+describe("crm/lead.submitted event", () => {
+  test("creates a versioned lead-submitted event", () => {
+    const event = createEventEnvelope({
+      name: "crm/lead.submitted",
+      correlationId: "11111111-1111-4111-8111-111111111111",
+      pipelineRunId: "22222222-2222-4222-8222-222222222222",
+      leadId: "55555555-5555-4555-8555-555555555555",
+      propertyId: "66666666-6666-4666-8666-666666666666",
+      data: {
+        leadId: "55555555-5555-4555-8555-555555555555",
+        propertyId: "66666666-6666-4666-8666-666666666666",
+        name: "Jordan Rivera",
+        phone: "555-010-1000",
+        email: "jordan@example.com",
+        submittedAddress: "12 Birch St, Trenton, NJ",
+        serviceRequested: "roofing",
+      },
+    });
+
+    expect(eventEnvelopeSchema.parse(event)).toMatchObject({
+      name: "crm/lead.submitted",
+      schemaVersion: 1,
+      leadId: "55555555-5555-4555-8555-555555555555",
+      propertyId: "66666666-6666-4666-8666-666666666666",
+    });
+  });
+});
+
+describe("property/address.validation_requested event", () => {
+  test("defaults attempt to 1 with an attempt-suffixed idempotency key", () => {
+    const event = createEventEnvelope({
+      name: "property/address.validation_requested",
+      correlationId: "11111111-1111-4111-8111-111111111111",
+      pipelineRunId: "22222222-2222-4222-8222-222222222222",
+      leadId: "55555555-5555-4555-8555-555555555555",
+      propertyId: "66666666-6666-4666-8666-666666666666",
+      data: {
+        leadId: "55555555-5555-4555-8555-555555555555",
+        propertyId: "66666666-6666-4666-8666-666666666666",
+        submittedAddress: "12 Birch St, Trenton, NJ",
+      },
+    });
+
+    expect(eventEnvelopeSchema.parse(event)).toMatchObject({
+      name: "property/address.validation_requested",
+      data: { attempt: 1 },
+      idempotencyKey:
+        "property/address.validation_requested:22222222-2222-4222-8222-222222222222:1",
+    });
+  });
+
+  test("a retried attempt produces a distinct idempotency key", () => {
+    const event = createEventEnvelope({
+      name: "property/address.validation_requested",
+      correlationId: "11111111-1111-4111-8111-111111111111",
+      pipelineRunId: "22222222-2222-4222-8222-222222222222",
+      leadId: "55555555-5555-4555-8555-555555555555",
+      propertyId: "66666666-6666-4666-8666-666666666666",
+      data: {
+        leadId: "55555555-5555-4555-8555-555555555555",
+        propertyId: "66666666-6666-4666-8666-666666666666",
+        submittedAddress: "12 Birch St, Trenton, NJ",
+        attempt: 2,
+      },
+    });
+
+    expect(event.idempotencyKey).toBe(
+      "property/address.validation_requested:22222222-2222-4222-8222-222222222222:2",
+    );
+  });
+});
+
+describe("property/discovery_requested event", () => {
+  test("creates a versioned discovery-requested event", () => {
+    const event = createEventEnvelope({
+      name: "property/discovery_requested",
+      correlationId: "11111111-1111-4111-8111-111111111111",
+      pipelineRunId: "22222222-2222-4222-8222-222222222222",
+      leadId: "55555555-5555-4555-8555-555555555555",
+      propertyId: "66666666-6666-4666-8666-666666666666",
+      data: {
+        leadId: "55555555-5555-4555-8555-555555555555",
+        propertyId: "66666666-6666-4666-8666-666666666666",
+        canonicalAddress: "12 BIRCH ST, TRENTON, NJ, 08611",
+        latitude: 40.22,
+        longitude: -74.76,
+        attempt: 1,
+      },
+    });
+
+    expect(eventEnvelopeSchema.parse(event)).toMatchObject({
+      name: "property/discovery_requested",
+      idempotencyKey:
+        "property/discovery_requested:22222222-2222-4222-8222-222222222222:1",
+    });
+  });
+});
