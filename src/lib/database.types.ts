@@ -7,31 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       admin_profiles: {
@@ -2400,8 +2375,8 @@ export type Database = {
           p_correlation_id: string
           p_disclosure_version: string
           p_email: string
-          p_ip_address: string
           p_google_place_id?: string
+          p_ip_address: string
           p_name: string
           p_phone: string
           p_pipeline_version: number
@@ -2618,9 +2593,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       address_match_method: [
@@ -2711,3 +2683,4 @@ export const Constants = {
     },
   },
 } as const
+
