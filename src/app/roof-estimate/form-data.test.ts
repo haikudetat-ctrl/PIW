@@ -10,6 +10,7 @@ function validFormData() {
     name: "Jordan Homeowner",
     phone: "609-555-0100",
     email: "jordan@example.com",
+    addressMode: "manual",
     addressLine1: "12 Birch Street",
     addressLine2: "",
     city: "Trenton",
@@ -33,5 +34,15 @@ describe("public roof estimate form", () => {
     expect(formatSubmittedAddress(parsePublicRoofEstimateFormData(validFormData()))).toBe(
       "12 Birch Street, Trenton, NJ, 08608",
     );
+  });
+
+  test("uses the selected Google address and retains its Place ID", () => {
+    const data = validFormData();
+    data.set("addressMode", "google");
+    data.set("googlePlaceId", "ChIJ-selected");
+    data.set("selectedAddress", "132 Windsor Ave, Haddon Township, NJ 08108, USA");
+    const parsed = parsePublicRoofEstimateFormData(data);
+    expect(parsed.googlePlaceId).toBe("ChIJ-selected");
+    expect(formatSubmittedAddress(parsed)).toBe("132 Windsor Ave, Haddon Township, NJ 08108, USA");
   });
 });

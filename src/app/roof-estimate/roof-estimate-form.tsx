@@ -3,15 +3,24 @@
 import { useActionState, useRef, useState } from "react";
 import { inputClasses, labelClasses, primaryButtonClasses, secondaryButtonClasses } from "@/components/ui/form";
 import { submitPublicRoofEstimate, type PublicRoofEstimateState } from "./actions";
+import { GoogleAddressAutocomplete } from "./google-address-autocomplete";
 
 const initialState: PublicRoofEstimateState = {};
 
-export function RoofEstimateForm() {
+export function RoofEstimateForm({ browserApiKey }: { browserApiKey?: string }) {
   const [step, setStep] = useState<1 | 2>(1);
+  const [manualAddress, setManualAddress] = useState(!browserApiKey);
+  const [selectedPlaceId, setSelectedPlaceId] = useState("");
+  const [selectedAddress, setSelectedAddress] = useState("");
+  const [addressError, setAddressError] = useState("");
   const addressFields = useRef<HTMLFieldSetElement>(null);
   const [state, action, pending] = useActionState(submitPublicRoofEstimate, initialState);
 
   function continueToContact() {
+    if (!manualAddress && !selectedPlaceId) {
+      setAddressError("Choose your property from Google’s suggestions.");
+      return;
+    }
     const invalidField = Array.from(
       addressFields.current?.querySelectorAll<
         HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
@@ -38,9 +47,31 @@ export function RoofEstimateForm() {
         <p className="text-sm leading-6 text-ink-muted">
           Enter the New Jersey service address. Google will match it to the closest covered building after you consent.
         </p>
+        <input type="hidden" name="addressMode" value={manualAddress ? "manual" : "google"} />
+        <input type="hidden" name="googlePlaceId" value={selectedPlaceId} />
+        <input type="hidden" name="selectedAddress" value={selectedAddress} />
+        {!manualAddress && browserApiKey ? (
+          <GoogleAddressAutocomplete
+            apiKey={browserApiKey}
+            onLoadError={() => setManualAddress(true)}
+            onSelect={({ placeId, address }) => {
+              setSelectedPlaceId(placeId);
+              setSelectedAddress(address);
+              setAddressError("");
+            }}
+          />
+        ) : null}
+        {addressError ? <p role="alert" className="text-sm text-danger">{addressError}</p> : null}
+        <button type="button" className="w-fit text-sm font-semibold text-accent underline underline-offset-4" onClick={() => {
+          setManualAddress((value) => !value);
+          setAddressError("");
+        }}>
+          {manualAddress && browserApiKey ? "Use Google address search" : "Can’t find it? Enter the address manually"}
+        </button>
+        <div className={manualAddress ? "grid gap-4" : "hidden"}>
         <label className={labelClasses}>
           Street address
-          <input name="addressLine1" autoComplete="address-line1" required className={inputClasses} placeholder="12 Birch Street" />
+          <input name="addressLine1" autoComplete="address-line1" required={manualAddress} className={inputClasses} placeholder="12 Birch Street" />
         </label>
         <label className={labelClasses}>
           Apartment, suite, or unit <span className="font-normal text-ink-subtle">(optional)</span>
@@ -48,7 +79,7 @@ export function RoofEstimateForm() {
         </label>
         <label className={labelClasses}>
           City
-          <input name="city" autoComplete="address-level2" required className={inputClasses} />
+          <input name="city" autoComplete="address-level2" required={manualAddress} className={inputClasses} />
         </label>
         <div className="grid grid-cols-[5rem_1fr] gap-3">
           <label className={labelClasses}>
@@ -57,8 +88,9 @@ export function RoofEstimateForm() {
           </label>
           <label className={labelClasses}>
             ZIP code
-            <input name="postalCode" autoComplete="postal-code" inputMode="numeric" pattern="[0-9]{5}(-[0-9]{4})?" required className={inputClasses} />
+            <input name="postalCode" autoComplete="postal-code" inputMode="numeric" pattern="[0-9]{5}(-[0-9]{4})?" required={manualAddress} className={inputClasses} />
           </label>
+        </div>
         </div>
         <button
           type="button"

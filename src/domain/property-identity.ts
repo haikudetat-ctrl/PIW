@@ -10,6 +10,7 @@ export const addressMatchMethodSchema = z.enum([
 
 export const addressValidationResultSchema = z.object({
   submittedAddress: z.string().min(1),
+  googlePlaceId: z.string().min(1).nullable().optional(),
   canonicalAddress: z.string().min(1).nullable(),
   latitude: z.number().min(-90).max(90).nullable(),
   longitude: z.number().min(-180).max(180).nullable(),

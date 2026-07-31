@@ -16,7 +16,7 @@ select has_function(
 );
 select has_function(
   'public', 'submit_roof_estimate_lead',
-  array['uuid','text','text','text','text','text','text','text','uuid','integer'],
+  array['uuid','text','text','text','text','text','text','text','uuid','integer','text'],
   'consented public estimate submission function exists'
 );
 
@@ -38,12 +38,12 @@ select function_privs_are(
 );
 select function_privs_are(
   'public', 'submit_roof_estimate_lead',
-  array['uuid','text','text','text','text','text','text','text','uuid','integer'],
+  array['uuid','text','text','text','text','text','text','text','uuid','integer','text'],
   'authenticated', array[]::text[], 'authenticated clients cannot bypass the server submission gate'
 );
 select function_privs_are(
   'public', 'submit_roof_estimate_lead',
-  array['uuid','text','text','text','text','text','text','text','uuid','integer'],
+  array['uuid','text','text','text','text','text','text','text','uuid','integer','text'],
   'service_role', array['EXECUTE'], 'service role owns estimate submission'
 );
 

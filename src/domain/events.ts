@@ -26,6 +26,7 @@ export const leadSubmittedDataSchema = z.object({
   phone: z.string().min(1),
   email: z.email(),
   submittedAddress: z.string().min(1),
+  googlePlaceId: z.string().min(1).optional(),
   serviceRequested: z.literal("roofing"),
   notes: z.string().optional(),
 });
@@ -34,6 +35,7 @@ export const addressValidationRequestedDataSchema = z.object({
   leadId: uuidSchema,
   propertyId: uuidSchema,
   submittedAddress: z.string().min(1),
+  googlePlaceId: z.string().min(1).optional(),
   attempt: z.number().int().positive().default(1),
 });
 

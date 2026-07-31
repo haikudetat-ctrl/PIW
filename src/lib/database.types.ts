@@ -1337,6 +1337,7 @@ export type Database = {
           confidence: number
           county: string | null
           created_at: string
+          google_place_id: string | null
           id: string
           latitude: number | null
           location: unknown
@@ -1360,6 +1361,7 @@ export type Database = {
           confidence: number
           county?: string | null
           created_at?: string
+          google_place_id?: string | null
           id?: string
           latitude?: number | null
           location?: unknown
@@ -1383,6 +1385,7 @@ export type Database = {
           confidence?: number
           county?: string | null
           created_at?: string
+          google_place_id?: string | null
           id?: string
           latitude?: number | null
           location?: unknown
@@ -1721,6 +1724,7 @@ export type Database = {
           company_id: string
           created_at: string
           failure_reason: string | null
+          google_place_id: string | null
           id: string
           lead_id: string
           price_per_square_high_cents: number
@@ -1741,6 +1745,7 @@ export type Database = {
           company_id: string
           created_at?: string
           failure_reason?: string | null
+          google_place_id?: string | null
           id?: string
           lead_id: string
           price_per_square_high_cents?: number
@@ -1761,6 +1766,7 @@ export type Database = {
           company_id?: string
           created_at?: string
           failure_reason?: string | null
+          google_place_id?: string | null
           id?: string
           lead_id?: string
           price_per_square_high_cents?: number
@@ -2395,6 +2401,7 @@ export type Database = {
           p_disclosure_version: string
           p_email: string
           p_ip_address: string
+          p_google_place_id?: string
           p_name: string
           p_phone: string
           p_pipeline_version: number
@@ -2704,4 +2711,3 @@ export const Constants = {
     },
   },
 } as const
-

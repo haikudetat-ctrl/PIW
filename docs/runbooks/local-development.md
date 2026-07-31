@@ -37,6 +37,7 @@ To exercise the public roof-estimate workflow, also set:
 ```dotenv
 PAID_PROVIDERS_ENABLED=true
 GOOGLE_MAPS_API_KEY=<server-side-key>
+GOOGLE_MAPS_BROWSER_API_KEY=<http-referrer-restricted-browser-key>
 ROOF_ESTIMATE_COMPANY_ID=00000000-0000-4000-8000-000000000001
 ESTIMATE_SMS_WEBHOOK_URL=<optional-test-webhook>
 ESTIMATE_EMAIL_WEBHOOK_URL=<optional-test-webhook>

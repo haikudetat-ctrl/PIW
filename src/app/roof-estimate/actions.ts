@@ -54,6 +54,7 @@ export async function submitPublicRoofEstimate(
       p_user_agent: requestHeaders.get("user-agent") ?? "",
       p_correlation_id: correlationId,
       p_pipeline_version: 2,
+      p_google_place_id: input.googlePlaceId ?? "",
     });
     if (
       error ||
@@ -78,6 +79,7 @@ export async function submitPublicRoofEstimate(
         phone: input.phone,
         email: input.email,
         submittedAddress: formatSubmittedAddress(input),
+        googlePlaceId: input.googlePlaceId,
         serviceRequested: "roofing",
       },
     });

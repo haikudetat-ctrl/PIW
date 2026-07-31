@@ -22,6 +22,7 @@ const serverEnvSchema = z
     LEADCONDUIT_API_KEY: z.string().optional(),
     CALLTOOLS_API_KEY: z.string().optional(),
     GOOGLE_MAPS_API_KEY: optionalString,
+    GOOGLE_MAPS_BROWSER_API_KEY: optionalString,
     ESTIMATE_SMS_WEBHOOK_URL: optionalUrl,
     ESTIMATE_EMAIL_WEBHOOK_URL: optionalUrl,
     ESTIMATE_DELIVERY_SHARED_SECRET: optionalString,

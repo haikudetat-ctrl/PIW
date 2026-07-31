@@ -10,6 +10,7 @@ class FakeCrmWriterRepository implements CrmWriterRepository {
   completions = 0;
   pipelineRunCompletions = 0;
   estimateConsent = true;
+  immediateCallTasks = 0;
 
   async upsertWorkerRunQueued(input: { idempotencyKey: string }): Promise<WorkerRunRecord> {
     const existing = this.runsByIdempotencyKey.get(input.idempotencyKey);
@@ -36,6 +37,10 @@ class FakeCrmWriterRepository implements CrmWriterRepository {
 
   async hasEstimateProcessingConsent(): Promise<boolean> {
     return this.estimateConsent;
+  }
+
+  async ensureImmediateEstimateCallTask(): Promise<void> {
+    this.immediateCallTasks = 1;
   }
 
   async completePipelineRun(): Promise<void> {
@@ -76,6 +81,7 @@ test("duplicate delivery publishes address validation exactly once and never com
   expect(repository.addressValidationPublishCount).toBe(1);
   expect(repository.pipelineRunCompletions).toBe(0);
   expect(repository.completions).toBe(1);
+  expect(repository.immediateCallTasks).toBe(1);
 });
 
 test("a lead without estimate consent is recorded but never sent to Google", async () => {
@@ -96,4 +102,5 @@ test("a lead without estimate consent is recorded but never sent to Google", asy
 
   expect(repository.addressValidationPublishCount).toBe(0);
   expect(repository.stageHistoryCount).toBe(1);
+  expect(repository.immediateCallTasks).toBe(0);
 });

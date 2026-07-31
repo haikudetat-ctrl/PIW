@@ -612,7 +612,7 @@ export class SupabaseRoofEstimateWorkerRepository
     const money = (cents: number) =>
       new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(cents / 100);
     const body = ready
-      ? `Hi ${input.name}, your preliminary New Jersey roof replacement range is ${money(input.estimate!.rangeLowCents)}–${money(input.estimate!.rangeHighCents)}. This is an early estimate, not a final quote. Reply or book an inspection for a confirmed proposal.`
+      ? `Hi ${input.name}, your preliminary New Jersey roof replacement range is ${money(input.estimate!.rangeLowCents)}–${money(input.estimate!.rangeHighCents)}. This is an early estimate, not a final quote. Includes data from Google Maps. Reply or book an inspection for a confirmed proposal.`
       : `Hi ${input.name}, we received your roof estimate request. We could not produce a reliable instant range, so our team will review the property and follow up.`;
     const rows = [
       {
