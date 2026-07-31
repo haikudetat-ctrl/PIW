@@ -26,6 +26,30 @@ describe("parseServerEnv", () => {
       }),
     ).toThrow("Paid providers cannot be enabled in preview or test");
   });
+
+  test("requires a Google key when live paid providers are enabled", () => {
+    expect(() =>
+      parseServerEnv({
+        ...base,
+        NODE_ENV: "production",
+        DEPLOYMENT_ENV: "production",
+        PAID_PROVIDERS_ENABLED: "true",
+      }),
+    ).toThrow("Google Maps API key is required");
+  });
+
+  test("treats blank optional estimate settings as unset", () => {
+    expect(
+      parseServerEnv({
+        ...base,
+        GOOGLE_MAPS_API_KEY: "",
+        ESTIMATE_SMS_WEBHOOK_URL: "",
+        ESTIMATE_EMAIL_WEBHOOK_URL: "",
+        ESTIMATE_DELIVERY_SHARED_SECRET: "",
+        ROOF_ESTIMATE_COMPANY_ID: "",
+      }).GOOGLE_MAPS_API_KEY,
+    ).toBeUndefined();
+  });
 });
 
 describe("parseClientEnv", () => {

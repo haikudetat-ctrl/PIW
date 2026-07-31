@@ -579,7 +579,7 @@ export class SupabaseAddressValidationWorkerRepository
         worker_run_id: input.workerRunId,
         attempt: input.attempt,
         capability: "address.validate",
-        provider: "census_geocoder",
+        provider: "google_geocoding",
         request_key: requestKey,
         status: "requested",
       })

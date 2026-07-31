@@ -7,6 +7,31 @@ export type Json =
   | Json[]
 
 export type Database = {
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       admin_profiles: {
@@ -302,6 +327,79 @@ export type Database = {
             columns: ["pipeline_run_id"]
             isOneToOne: false
             referencedRelation: "pipeline_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      estimate_deliveries: {
+        Row: {
+          channel: string
+          company_id: string
+          composed_body: string
+          composed_subject: string | null
+          created_at: string
+          destination: string
+          estimate_id: string
+          failure_reason: string | null
+          id: string
+          lead_id: string
+          scheduled_for: string
+          sent_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          channel: string
+          company_id: string
+          composed_body: string
+          composed_subject?: string | null
+          created_at?: string
+          destination: string
+          estimate_id: string
+          failure_reason?: string | null
+          id?: string
+          lead_id: string
+          scheduled_for?: string
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          channel?: string
+          company_id?: string
+          composed_body?: string
+          composed_subject?: string | null
+          created_at?: string
+          destination?: string
+          estimate_id?: string
+          failure_reason?: string | null
+          id?: string
+          lead_id?: string
+          scheduled_for?: string
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "estimate_deliveries_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "estimate_deliveries_estimate_id_fkey"
+            columns: ["estimate_id"]
+            isOneToOne: false
+            referencedRelation: "roof_estimates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "estimate_deliveries_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
             referencedColumns: ["id"]
           },
         ]
@@ -682,6 +780,60 @@ export type Database = {
             columns: ["property_id"]
             isOneToOne: false
             referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_consents: {
+        Row: {
+          company_id: string
+          consent_type: string
+          disclosure_version: string
+          granted: boolean
+          granted_at: string
+          id: string
+          ip_address: unknown
+          lead_id: string
+          source: string
+          user_agent: string | null
+        }
+        Insert: {
+          company_id: string
+          consent_type: string
+          disclosure_version: string
+          granted: boolean
+          granted_at?: string
+          id?: string
+          ip_address?: unknown
+          lead_id: string
+          source?: string
+          user_agent?: string | null
+        }
+        Update: {
+          company_id?: string
+          consent_type?: string
+          disclosure_version?: string
+          granted?: boolean
+          granted_at?: string
+          id?: string
+          ip_address?: unknown
+          lead_id?: string
+          source?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_consents_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_consents_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
             referencedColumns: ["id"]
           },
         ]
@@ -1395,6 +1547,30 @@ export type Database = {
           },
         ]
       }
+      provider_usage_monthly: {
+        Row: {
+          api_name: string
+          call_limit: number
+          period_start: string
+          reserved_count: number
+          updated_at: string
+        }
+        Insert: {
+          api_name: string
+          call_limit: number
+          period_start: string
+          reserved_count?: number
+          updated_at?: string
+        }
+        Update: {
+          api_name?: string
+          call_limit?: number
+          period_start?: string
+          reserved_count?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       reps: {
         Row: {
           bio: string | null
@@ -1535,6 +1711,182 @@ export type Database = {
             columns: ["worker_run_id"]
             isOneToOne: false
             referencedRelation: "worker_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      roof_estimates: {
+        Row: {
+          assumptions: Json
+          company_id: string
+          created_at: string
+          failure_reason: string | null
+          id: string
+          lead_id: string
+          price_per_square_high_cents: number
+          price_per_square_low_cents: number
+          pricing_version: string
+          property_id: string
+          public_token: string
+          range_high_cents: number | null
+          range_low_cents: number | null
+          roof_insight_id: string | null
+          roof_squares: number | null
+          status: string
+          total_roof_sqft: number | null
+          updated_at: string
+        }
+        Insert: {
+          assumptions?: Json
+          company_id: string
+          created_at?: string
+          failure_reason?: string | null
+          id?: string
+          lead_id: string
+          price_per_square_high_cents?: number
+          price_per_square_low_cents?: number
+          pricing_version?: string
+          property_id: string
+          public_token?: string
+          range_high_cents?: number | null
+          range_low_cents?: number | null
+          roof_insight_id?: string | null
+          roof_squares?: number | null
+          status?: string
+          total_roof_sqft?: number | null
+          updated_at?: string
+        }
+        Update: {
+          assumptions?: Json
+          company_id?: string
+          created_at?: string
+          failure_reason?: string | null
+          id?: string
+          lead_id?: string
+          price_per_square_high_cents?: number
+          price_per_square_low_cents?: number
+          pricing_version?: string
+          property_id?: string
+          public_token?: string
+          range_high_cents?: number | null
+          range_low_cents?: number | null
+          roof_insight_id?: string | null
+          roof_squares?: number | null
+          status?: string
+          total_roof_sqft?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "roof_estimates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "roof_estimates_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: true
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "roof_estimates_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "roof_estimates_roof_insight_id_fkey"
+            columns: ["roof_insight_id"]
+            isOneToOne: false
+            referencedRelation: "roof_insights"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      roof_insights: {
+        Row: {
+          building_name: string | null
+          cache_expires_at: string
+          company_id: string
+          created_at: string
+          google_place_id: string | null
+          id: string
+          imagery_date: string | null
+          imagery_quality: string | null
+          latitude: number | null
+          longitude: number | null
+          lookup_status: string
+          normalized_address: string
+          plane_count: number | null
+          property_id: string
+          provider: string
+          raw_response: Json | null
+          roof_segments: Json
+          source_retrieved_at: string
+          total_roof_sqft: number | null
+          updated_at: string
+        }
+        Insert: {
+          building_name?: string | null
+          cache_expires_at?: string
+          company_id: string
+          created_at?: string
+          google_place_id?: string | null
+          id?: string
+          imagery_date?: string | null
+          imagery_quality?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          lookup_status: string
+          normalized_address: string
+          plane_count?: number | null
+          property_id: string
+          provider?: string
+          raw_response?: Json | null
+          roof_segments?: Json
+          source_retrieved_at?: string
+          total_roof_sqft?: number | null
+          updated_at?: string
+        }
+        Update: {
+          building_name?: string | null
+          cache_expires_at?: string
+          company_id?: string
+          created_at?: string
+          google_place_id?: string | null
+          id?: string
+          imagery_date?: string | null
+          imagery_quality?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          lookup_status?: string
+          normalized_address?: string
+          plane_count?: number | null
+          property_id?: string
+          provider?: string
+          raw_response?: Json | null
+          roof_segments?: Json
+          source_retrieved_at?: string
+          total_roof_sqft?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "roof_insights_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "roof_insights_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
             referencedColumns: ["id"]
           },
         ]
@@ -1966,6 +2318,14 @@ export type Database = {
           is_duplicate: boolean
         }[]
       }
+      reserve_provider_usage: {
+        Args: { p_api_name: string; p_limit: number; p_period_start: string }
+        Returns: {
+          allowed: boolean
+          call_limit: number
+          reserved_count: number
+        }[]
+      }
       resolve_review_task: {
         Args: {
           p_action: string
@@ -2026,6 +2386,27 @@ export type Database = {
           lead_id: string
           pipeline_run_id: string
           property_id: string
+        }[]
+      }
+      submit_roof_estimate_lead: {
+        Args: {
+          p_company_id: string
+          p_correlation_id: string
+          p_disclosure_version: string
+          p_email: string
+          p_ip_address: string
+          p_name: string
+          p_phone: string
+          p_pipeline_version: number
+          p_submitted_address: string
+          p_user_agent: string
+        }
+        Returns: {
+          estimate_id: string
+          lead_id: string
+          pipeline_run_id: string
+          property_id: string
+          public_token: string
         }[]
       }
     }
@@ -2230,6 +2611,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       address_match_method: [

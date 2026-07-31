@@ -9,6 +9,7 @@ class FakeCrmWriterRepository implements CrmWriterRepository {
   private nextId = 1;
   completions = 0;
   pipelineRunCompletions = 0;
+  estimateConsent = true;
 
   async upsertWorkerRunQueued(input: { idempotencyKey: string }): Promise<WorkerRunRecord> {
     const existing = this.runsByIdempotencyKey.get(input.idempotencyKey);
@@ -31,6 +32,10 @@ class FakeCrmWriterRepository implements CrmWriterRepository {
 
   async createLeadSubmittedNotification(input: { correlationId: string }): Promise<void> {
     this.notificationCorrelationIds.add(input.correlationId);
+  }
+
+  async hasEstimateProcessingConsent(): Promise<boolean> {
+    return this.estimateConsent;
   }
 
   async completePipelineRun(): Promise<void> {
@@ -71,4 +76,24 @@ test("duplicate delivery publishes address validation exactly once and never com
   expect(repository.addressValidationPublishCount).toBe(1);
   expect(repository.pipelineRunCompletions).toBe(0);
   expect(repository.completions).toBe(1);
+});
+
+test("a lead without estimate consent is recorded but never sent to Google", async () => {
+  const repository = new FakeCrmWriterRepository();
+  repository.estimateConsent = false;
+
+  await writeCrmProjection(
+    {
+      id: "44444444-4444-4444-8444-444444444444",
+      pipelineRunId: "22222222-2222-4222-8222-222222222222",
+      correlationId: "11111111-1111-4111-8111-111111111111",
+      leadId: "66666666-6666-4666-8666-666666666666",
+      propertyId: "77777777-7777-4777-8777-777777777777",
+      submittedAddress: "12 Birch St, Trenton, NJ",
+    },
+    repository,
+  );
+
+  expect(repository.addressValidationPublishCount).toBe(0);
+  expect(repository.stageHistoryCount).toBe(1);
 });

@@ -1,9 +1,12 @@
 import { expect, test } from "vitest";
 import { createPropertyIdentityProviderRegistry } from "./property-identity-registry";
 
-test("resolves the free Census adapter for address validation and NJGIN for parcel lookup", () => {
+test("resolves Google as the paid address-validation provider", () => {
+  process.env.PAID_PROVIDERS_ENABLED = "true";
+  process.env.GOOGLE_MAPS_API_KEY = "test-key";
   const registry = createPropertyIdentityProviderRegistry();
 
-  expect(registry.resolve("address.validate").id).toBe("census-geocoder");
-  expect(registry.resolve("parcel.lookup").id).toBe("njgin-parcel-lookup");
+  expect(registry.resolve("address.validate").id).toBe("google-geocoding");
+  delete process.env.GOOGLE_MAPS_API_KEY;
+  process.env.PAID_PROVIDERS_ENABLED = "false";
 });

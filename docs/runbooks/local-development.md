@@ -32,6 +32,21 @@ INNGEST_DEV=1
 `INNGEST_EVENT_KEY` and `INNGEST_SIGNING_KEY` can be any non-empty string
 locally; they are not checked in dev mode.
 
+To exercise the public roof-estimate workflow, also set:
+
+```dotenv
+PAID_PROVIDERS_ENABLED=true
+GOOGLE_MAPS_API_KEY=<server-side-key>
+ROOF_ESTIMATE_COMPANY_ID=00000000-0000-4000-8000-000000000001
+ESTIMATE_SMS_WEBHOOK_URL=<optional-test-webhook>
+ESTIMATE_EMAIL_WEBHOOK_URL=<optional-test-webhook>
+ESTIMATE_DELIVERY_SHARED_SECRET=<optional-shared-secret>
+```
+
+The public form is `/roof-estimate`. Provider calls occur only after all three
+consents are recorded. If delivery webhooks are blank, composed SMS/email rows
+remain queued and can be inspected without sending externally.
+
 ## Run the app
 
 In separate terminals:
@@ -78,8 +93,8 @@ With the app, Supabase, and the Inngest dev server running, sign in and use
 the **Foundation diagnostics** panel's "Run diagnostic" button. It should
 report "Completed" with a correlation ID within a few seconds of the
 `publish-outbox` cron tick (every minute). The Inngest dev server dashboard
-(`http://localhost:8288`) shows both `process-diagnostic-event` and
-`publish-outbox` as discovered functions and shows the run.
+(`http://localhost:8288`) shows the diagnostic, address validation, Google roof
+estimate, delivery sender, and outbox functions as discovered functions.
 
 ## Notes
 

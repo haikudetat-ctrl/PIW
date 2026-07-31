@@ -4,9 +4,10 @@ import { publishOutbox } from "@/inngest/functions/publish-outbox";
 import { processDiagnosticEvent } from "@/inngest/functions/process-diagnostic-event";
 import { crmWriter } from "@/inngest/functions/crm-writer";
 import { addressValidationWorker } from "@/inngest/functions/address-validation-worker";
-import { propertyDiscoveryWorker } from "@/inngest/functions/property-discovery-worker";
+import { roofEstimateWorker } from "@/inngest/functions/roof-estimate-worker";
 import { processIntegrationEvent } from "@/inngest/functions/process-integration-event";
 import { repIntroSender } from "@/inngest/functions/rep-intro-sender";
+import { estimateDeliverySender } from "@/inngest/functions/estimate-delivery-sender";
 
 export const maxDuration = 300;
 
@@ -17,8 +18,9 @@ export const { GET, POST, PUT } = serve({
     processDiagnosticEvent,
     crmWriter,
     addressValidationWorker,
-    propertyDiscoveryWorker,
+    roofEstimateWorker,
     processIntegrationEvent,
     repIntroSender,
+    estimateDeliverySender,
   ],
 });

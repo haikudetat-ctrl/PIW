@@ -10,9 +10,15 @@ or storm intelligence.
 Phase 2 adds lead intake, the pipeline board, the lead workspace, tasks,
 interactions, and in-app notifications.
 
-Phase 3 adds live address validation (US Census Geocoder), NJ parcel discovery
-(NJGIN), duplicate property merging, and a minimal Review Queue for human
-escalation. Both provider integrations are free and require no API keys.
+The current estimate intake at `/roof-estimate` captures explicit processing,
+email, and SMS consent before PIW calls Google Geocoding and Google Solar
+Building Insights. Measurements are cached for 180 days, Solar calls are
+atomically capped at 9,500 per calendar month, and the result is priced at the
+configured New Jersey baseline of $500–$750 per roofing square. PIW stores the
+lead, evidence, estimate, and delivery state as the operational source of truth.
+
+The earlier Census/NJGIN runtime adapters have been retired. Their historical
+schema and records remain available for audit and older lead workspaces.
 
 ## Documentation
 
