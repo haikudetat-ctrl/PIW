@@ -15,7 +15,7 @@ export default function PublicRoofEstimatePage() {
           </ul>
         </section>
         <section className="rounded-2xl border border-border bg-surface p-6 shadow-[0_24px_70px_rgba(15,42,74,0.12)] sm:p-8">
-          <RoofEstimateForm />
+          <RoofEstimateForm browserApiKey={process.env.GOOGLE_MAPS_BROWSER_API_KEY} />
         </section>
       </div>
     </main>

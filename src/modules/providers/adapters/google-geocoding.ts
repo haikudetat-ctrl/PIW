@@ -47,6 +47,7 @@ export function parseGoogleGeocodingResponse(
   if (parsed.data.status === "ZERO_RESULTS" || parsed.data.results.length === 0) {
     return addressValidationResultSchema.parse({
       submittedAddress,
+      googlePlaceId: null,
       canonicalAddress: null,
       latitude: null,
       longitude: null,
@@ -64,6 +65,7 @@ export function parseGoogleGeocodingResponse(
   if (parsed.data.results.length > 1) {
     return addressValidationResultSchema.parse({
       submittedAddress,
+      googlePlaceId: null,
       canonicalAddress: null,
       latitude: null,
       longitude: null,
@@ -81,6 +83,7 @@ export function parseGoogleGeocodingResponse(
   const exact = !match.partial_match && match.geometry.location_type === "ROOFTOP";
   return addressValidationResultSchema.parse({
     submittedAddress,
+    googlePlaceId: match.place_id,
     canonicalAddress: match.formatted_address,
     latitude: match.geometry.location.lat,
     longitude: match.geometry.location.lng,
@@ -98,7 +101,7 @@ export function parseGoogleGeocodingResponse(
 export function createGoogleGeocodingProvider(input?: {
   apiKey?: string;
   enabled?: boolean;
-}): ProviderAdapter<{ submittedAddress: string }, AddressValidationResult> {
+}): ProviderAdapter<{ submittedAddress: string; googlePlaceId?: string }, AddressValidationResult> {
   const apiKey = input?.apiKey ?? process.env.GOOGLE_MAPS_API_KEY;
   return {
     id: "google-geocoding",
@@ -116,9 +119,12 @@ export function createGoogleGeocodingProvider(input?: {
       }
 
       const url = new URL("https://maps.googleapis.com/maps/api/geocode/json");
-      url.searchParams.set("address", request.submittedAddress);
-      url.searchParams.set("region", "us");
-      url.searchParams.set("components", "administrative_area:NJ|country:US");
+      if (request.googlePlaceId) {
+        url.searchParams.set("place_id", request.googlePlaceId);
+      } else {
+        url.searchParams.set("address", request.submittedAddress);
+        url.searchParams.set("region", "us");
+      }
       url.searchParams.set("key", apiKey);
 
       let response: Response;

@@ -60,10 +60,18 @@ signing keys, since that prefix ships the value to the browser bundle:
 | `INNGEST_SIGNING_KEY` | prod signing key | preview/dev signing key |
 | `PAID_PROVIDERS_ENABLED` | `true` to process consented estimates | `false` (enforced — preview cannot enable paid providers) |
 | `GOOGLE_MAPS_API_KEY` | server-restricted key with Geocoding and Solar API access | blank |
+| `GOOGLE_MAPS_BROWSER_API_KEY` | browser key restricted by HTTP referrer; Maps JavaScript API + Places API (New) only | preview-domain browser key or blank |
 | `ROOF_ESTIMATE_COMPANY_ID` | company UUID receiving public leads | preview company UUID if form testing is needed |
 | `ESTIMATE_SMS_WEBHOOK_URL` | approved SMS provider/automation webhook | test endpoint or blank |
 | `ESTIMATE_EMAIL_WEBHOOK_URL` | approved email provider/automation webhook | test endpoint or blank |
 | `ESTIMATE_DELIVERY_SHARED_SECRET` | bearer secret expected by both delivery webhooks | separate preview secret |
+
+Use separate Google keys. Restrict `GOOGLE_MAPS_API_KEY` by API to Geocoding
+and Solar and never expose it to the browser. Restrict
+`GOOGLE_MAPS_BROWSER_API_KEY` by HTTP referrer (for example,
+`https://piw-sepia.vercel.app/*`) and by API to Maps JavaScript API and Places
+API (New). The form falls back to manual address entry when the browser key is
+not configured or Google cannot load.
 
 ## 6. Connect GitHub to Vercel
 

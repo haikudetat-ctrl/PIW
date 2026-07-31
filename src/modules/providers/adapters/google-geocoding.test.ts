@@ -62,5 +62,25 @@ describe("Google Geocoding adapter", () => {
     expect(requestedUrl.searchParams.get("key")).toBe("secret");
     expect(result.provider).toBe("google_geocoding");
     expect(result.sourceIdentifier).toBe("ChIJ-test");
+    expect(requestedUrl.searchParams.has("components")).toBe(false);
+  });
+
+  test("geocodes a selected Google Place ID instead of re-parsing its label", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => FIXTURE });
+    vi.stubGlobal("fetch", fetchMock);
+    const provider = createGoogleGeocodingProvider({ apiKey: "secret", enabled: true });
+    await provider.execute(
+      { submittedAddress: "12 Birch St", googlePlaceId: "ChIJ-selected" },
+      {
+        companyId: "company",
+        pipelineRunId: "run",
+        correlationId: "correlation",
+        requestKey: "request",
+        deploymentEnvironment: "test",
+      },
+    );
+    const requestedUrl = new URL(fetchMock.mock.calls[0][0]);
+    expect(requestedUrl.searchParams.get("place_id")).toBe("ChIJ-selected");
+    expect(requestedUrl.searchParams.has("address")).toBe(false);
   });
 });

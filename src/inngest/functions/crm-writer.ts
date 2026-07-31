@@ -27,12 +27,14 @@ export interface CrmWriterRepository {
     correlationId: string;
   }): Promise<void>;
   hasEstimateProcessingConsent(leadId: string): Promise<boolean>;
+  ensureImmediateEstimateCallTask(leadId: string): Promise<void>;
   publishAddressValidationRequested(input: {
     leadId: string;
     propertyId: string;
     pipelineRunId: string;
     correlationId: string;
     submittedAddress: string;
+    googlePlaceId?: string;
   }): Promise<void>;
 }
 
@@ -43,6 +45,7 @@ type LeadSubmittedEventData = {
   leadId: string;
   propertyId: string;
   submittedAddress: string;
+  googlePlaceId?: string;
 };
 
 export async function writeCrmProjection(
@@ -61,12 +64,14 @@ export async function writeCrmProjection(
     correlationId: event.correlationId,
   });
   if (await repository.hasEstimateProcessingConsent(event.leadId)) {
+    await repository.ensureImmediateEstimateCallTask(event.leadId);
     await repository.publishAddressValidationRequested({
       leadId: event.leadId,
       propertyId: event.propertyId,
       pipelineRunId: event.pipelineRunId,
       correlationId: event.correlationId,
       submittedAddress: event.submittedAddress,
+      googlePlaceId: event.googlePlaceId,
     });
   }
 
@@ -168,12 +173,39 @@ class SupabaseCrmWriterRepository implements CrmWriterRepository {
     return data !== null;
   }
 
+  async ensureImmediateEstimateCallTask(leadId: string) {
+    const title = "Call new roof-estimate lead now";
+    const { data: lead, error: leadError } = await this.client
+      .from("leads")
+      .select("company_id, name, phone")
+      .eq("id", leadId)
+      .single();
+    if (leadError || !lead) throw new Error("Failed to load estimate lead for call task");
+    const { data: existing, error: existingError } = await this.client
+      .from("tasks")
+      .select("id")
+      .eq("lead_id", leadId)
+      .eq("title", title)
+      .maybeSingle();
+    if (existingError) throw new Error("Failed to check estimate call task");
+    if (existing) return;
+    const { error } = await this.client.from("tasks").insert({
+      company_id: lead.company_id,
+      lead_id: leadId,
+      title,
+      description: `Call ${lead.name} at ${lead.phone} while their estimate is processing.`,
+      due_at: new Date().toISOString(),
+    });
+    if (error && error.code !== "23505") throw new Error("Failed to create estimate call task");
+  }
+
   async publishAddressValidationRequested(input: {
     leadId: string;
     propertyId: string;
     pipelineRunId: string;
     correlationId: string;
     submittedAddress: string;
+    googlePlaceId?: string;
   }) {
     const { data: lead, error } = await this.client
       .from("leads")
@@ -194,6 +226,7 @@ class SupabaseCrmWriterRepository implements CrmWriterRepository {
         leadId: input.leadId,
         propertyId: input.propertyId,
         submittedAddress: input.submittedAddress,
+        googlePlaceId: input.googlePlaceId,
         attempt: 1,
       },
     });
@@ -231,6 +264,9 @@ export const crmWriter = inngest.createFunction(
     );
 
     if (hasEstimateConsent) {
+      await step.run("create-immediate-call-task", () =>
+        repository.ensureImmediateEstimateCallTask(event.data.leadId),
+      );
       await step.run("publish-address-validation-requested", () =>
         repository.publishAddressValidationRequested({
           leadId: event.data.leadId,
@@ -238,6 +274,7 @@ export const crmWriter = inngest.createFunction(
           pipelineRunId: event.data.pipelineRunId,
           correlationId: event.data.correlationId,
           submittedAddress: event.data.data.submittedAddress,
+          googlePlaceId: event.data.data.googlePlaceId,
         }),
       );
     }

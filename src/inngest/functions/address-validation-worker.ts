@@ -99,6 +99,7 @@ export interface AddressValidationWorkerRepository {
   startValidating(input: { pipelineRunId: string; companyId: string }): Promise<void>;
   validateAddress(input: {
     submittedAddress: string;
+    googlePlaceId?: string;
     pipelineRunId: string;
     correlationId: string;
     companyId: string;
@@ -211,6 +212,7 @@ type AddressValidationEventData = {
   leadId: string;
   propertyId: string;
   submittedAddress: string;
+  googlePlaceId?: string;
   attempt: number;
 };
 
@@ -246,6 +248,7 @@ export async function runAddressValidation(
     try {
       const evidence = await repository.validateAddress({
         submittedAddress: event.submittedAddress,
+        googlePlaceId: event.googlePlaceId,
         pipelineRunId: event.pipelineRunId,
         correlationId: event.correlationId,
         companyId,
@@ -463,6 +466,7 @@ export class SupabaseAddressValidationWorkerRepository
 
   async validateAddress(input: {
     submittedAddress: string;
+    googlePlaceId?: string;
     pipelineRunId: string;
     correlationId: string;
     companyId: string;
@@ -471,9 +475,9 @@ export class SupabaseAddressValidationWorkerRepository
     const environment = parseServerEnv(process.env);
     const provider = createPropertyIdentityProviderRegistry().resolve(
       "address.validate",
-    ) as ProviderAdapter<{ submittedAddress: string }, AddressValidationResult>;
+    ) as ProviderAdapter<{ submittedAddress: string; googlePlaceId?: string }, AddressValidationResult>;
     return provider.execute(
-      { submittedAddress: input.submittedAddress },
+      { submittedAddress: input.submittedAddress, googlePlaceId: input.googlePlaceId },
       {
         companyId: input.companyId,
         pipelineRunId: input.pipelineRunId,
@@ -729,6 +733,15 @@ export class SupabaseAddressValidationWorkerRepository
     });
     if (error || !data?.[0]) {
       throw new Error("Failed to claim canonical address");
+    }
+
+    if (input.result.googlePlaceId) {
+      const { error: placeIdError } = await this.client
+        .from("property_addresses")
+        .update({ google_place_id: input.result.googlePlaceId })
+        .eq("worker_run_id", input.workerRunId)
+        .eq("company_id", input.companyId);
+      if (placeIdError) throw new Error("Failed to store Google Place ID");
     }
 
     const claim = data[0];
@@ -1118,6 +1131,7 @@ export const addressValidationWorker = inngest.createFunction(
         leadId: envelope.data.leadId,
         propertyId: envelope.data.propertyId,
         submittedAddress: envelope.data.submittedAddress,
+        googlePlaceId: envelope.data.googlePlaceId,
         attempt: envelope.data.attempt,
       },
       new SupabaseAddressValidationWorkerRepository(),
