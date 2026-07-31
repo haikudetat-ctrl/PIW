@@ -38,6 +38,138 @@ export type Database = {
           },
         ]
       }
+      appointment_rep_intros: {
+        Row: {
+          appointment_id: string
+          company_id: string
+          composed_body: string
+          composed_subject: string
+          created_at: string
+          id: string
+          rep_id: string
+          scheduled_for: string
+          sent_at: string | null
+          status: Database["public"]["Enums"]["appointment_rep_intro_status"]
+        }
+        Insert: {
+          appointment_id: string
+          company_id: string
+          composed_body: string
+          composed_subject: string
+          created_at?: string
+          id?: string
+          rep_id: string
+          scheduled_for: string
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["appointment_rep_intro_status"]
+        }
+        Update: {
+          appointment_id?: string
+          company_id?: string
+          composed_body?: string
+          composed_subject?: string
+          created_at?: string
+          id?: string
+          rep_id?: string
+          scheduled_for?: string
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["appointment_rep_intro_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_rep_intros_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_rep_intros_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_rep_intros_rep_id_fkey"
+            columns: ["rep_id"]
+            isOneToOne: false
+            referencedRelation: "reps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      appointments: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string | null
+          duration_minutes: number | null
+          id: string
+          lead_id: string
+          notes: string | null
+          rep_id: string | null
+          scheduled_at: string
+          status: Database["public"]["Enums"]["appointment_status"]
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          duration_minutes?: number | null
+          id?: string
+          lead_id: string
+          notes?: string | null
+          rep_id?: string | null
+          scheduled_at: string
+          status?: Database["public"]["Enums"]["appointment_status"]
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          duration_minutes?: number | null
+          id?: string
+          lead_id?: string
+          notes?: string | null
+          rep_id?: string | null
+          scheduled_at?: string
+          status?: Database["public"]["Enums"]["appointment_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "admin_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_rep_id_fkey"
+            columns: ["rep_id"]
+            isOneToOne: false
+            referencedRelation: "reps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_log: {
         Row: {
           action: string
@@ -1263,6 +1395,53 @@ export type Database = {
           },
         ]
       }
+      reps: {
+        Row: {
+          bio: string | null
+          community_connection: string | null
+          company_id: string
+          created_at: string
+          credentials: string | null
+          id: string
+          is_active: boolean
+          name: string
+          photo_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          bio?: string | null
+          community_connection?: string | null
+          company_id: string
+          created_at?: string
+          credentials?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          photo_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          bio?: string | null
+          community_connection?: string | null
+          company_id?: string
+          created_at?: string
+          credentials?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          photo_url?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reps_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       review_tasks: {
         Row: {
           candidate_data: Json
@@ -1855,6 +2034,13 @@ export type Database = {
         | "exact_single_match"
         | "no_match"
         | "multiple_matches"
+      appointment_rep_intro_status: "queued" | "sent" | "failed"
+      appointment_status:
+        | "scheduled"
+        | "confirmed"
+        | "completed"
+        | "cancelled"
+        | "no_show"
       interaction_type: "call" | "email" | "text" | "site_visit" | "note"
       job_inspection_status:
         | "scheduled"
@@ -2050,6 +2236,14 @@ export const Constants = {
         "exact_single_match",
         "no_match",
         "multiple_matches",
+      ],
+      appointment_rep_intro_status: ["queued", "sent", "failed"],
+      appointment_status: [
+        "scheduled",
+        "confirmed",
+        "completed",
+        "cancelled",
+        "no_show",
       ],
       interaction_type: ["call", "email", "text", "site_visit", "note"],
       job_inspection_status: [

@@ -23,7 +23,25 @@ vi.mock("react-leaflet", () => ({
       {children}
     </div>
   ),
-  TileLayer: () => null,
+  TileLayer: ({
+    attribution,
+    maxNativeZoom,
+    maxZoom,
+    url,
+  }: {
+    attribution: string;
+    maxNativeZoom: number;
+    maxZoom: number;
+    url: string;
+  }) => (
+    <div
+      data-testid="tile-layer"
+      data-attribution={attribution}
+      data-max-native-zoom={maxNativeZoom}
+      data-max-zoom={maxZoom}
+      data-url={url}
+    />
+  ),
   GeoJSON: ({
     data,
     children,
@@ -124,6 +142,40 @@ test("renders and fits a Polygon boundary", async () => {
   ).toBeInTheDocument();
 });
 
+test("uses NJGIN aerial imagery and identifies its capture date", async () => {
+  render(
+    <ParcelMap
+      candidates={[
+        {
+          geometry: null,
+          label: "12 Birch Street",
+          latitude: 40.22,
+          longitude: -74.77,
+        },
+      ]}
+    />,
+  );
+
+  await waitFor(() =>
+    expect(screen.getByTestId("tile-layer")).toBeInTheDocument(),
+  );
+  expect(screen.getByTestId("tile-layer")).toHaveAttribute(
+    "data-url",
+    "https://maps.nj.gov/arcgis/rest/services/Basemap/Orthos_Natural_2020_NJ_WM/MapServer/tile/{z}/{y}/{x}",
+  );
+  expect(screen.getByTestId("tile-layer")).toHaveAttribute(
+    "data-max-native-zoom",
+    "23",
+  );
+  expect(screen.getByTestId("tile-layer")).toHaveAttribute(
+    "data-attribution",
+    expect.stringContaining("NJ Office of GIS"),
+  );
+  expect(
+    screen.getByText(/NJGIN aerial imagery was captured in 2020/i),
+  ).toBeInTheDocument();
+});
+
 test("renders and fits every part of a MultiPolygon boundary", async () => {
   render(
     <ParcelMap
@@ -198,7 +250,7 @@ test("renders and fits an address point without zooming past street level", asyn
   );
   expect(screen.getByTestId("leaflet-map")).toHaveAttribute(
     "data-max-zoom",
-    "18",
+    "20",
   );
 });
 

@@ -18,6 +18,11 @@ type MapBounds = [
   northEast: [latitude: number, longitude: number],
 ];
 
+export const NJGIN_AERIAL_TILE_URL =
+  "https://maps.nj.gov/arcgis/rest/services/Basemap/Orthos_Natural_2020_NJ_WM/MapServer/tile/{z}/{y}/{x}";
+export const NJGIN_AERIAL_ATTRIBUTION =
+  'Aerial imagery &copy; <a href="https://www.nj.gov/njgin/edata/imagery/">NJ Office of GIS</a> (2020)';
+
 function isGeometry(value: unknown): value is GeoJSON.Geometry {
   if (!value || typeof value !== "object") return false;
   const type = (value as { type?: unknown }).type;
@@ -176,13 +181,15 @@ export function ParcelMap({
     >
       <MapContainer
         bounds={bounds!}
-        boundsOptions={{ padding: [24, 24], maxZoom: 18 }}
+        boundsOptions={{ padding: [24, 24], maxZoom: 20 }}
         scrollWheelZoom={false}
         className="h-80 w-full"
       >
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution={NJGIN_AERIAL_ATTRIBUTION}
+          maxNativeZoom={23}
+          maxZoom={23}
+          url={NJGIN_AERIAL_TILE_URL}
         />
         {visibleCandidates.map((candidate, index) => (
           <Fragment key={`${candidate.label}-${index}`}>
@@ -191,7 +198,7 @@ export function ParcelMap({
                 data={candidate.geometry}
                 style={{
                   color: index === 0 ? "#1d4ed8" : "#b45309",
-                  fillOpacity: 0.2,
+                  fillOpacity: 0.08,
                   weight: 3,
                 }}
               >
@@ -212,6 +219,10 @@ export function ParcelMap({
           </Fragment>
         ))}
       </MapContainer>
+      <p className="border-t border-neutral-200 bg-amber-50 px-3 py-2 text-xs text-amber-950 dark:border-neutral-800 dark:bg-amber-950/30 dark:text-amber-100">
+        NJGIN aerial imagery was captured in 2020. Verify current roof conditions
+        before using it for an estimate.
+      </p>
       <ul
         aria-label="Mapped candidates"
         className="grid gap-2 border-t border-neutral-200 bg-white p-3 text-sm sm:grid-cols-2 dark:border-neutral-800 dark:bg-neutral-950"

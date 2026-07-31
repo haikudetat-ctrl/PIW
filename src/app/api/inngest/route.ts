@@ -6,6 +6,7 @@ import { crmWriter } from "@/inngest/functions/crm-writer";
 import { addressValidationWorker } from "@/inngest/functions/address-validation-worker";
 import { propertyDiscoveryWorker } from "@/inngest/functions/property-discovery-worker";
 import { processIntegrationEvent } from "@/inngest/functions/process-integration-event";
+import { repIntroSender } from "@/inngest/functions/rep-intro-sender";
 
 export const maxDuration = 300;
 
@@ -18,5 +19,6 @@ export const { GET, POST, PUT } = serve({
     addressValidationWorker,
     propertyDiscoveryWorker,
     processIntegrationEvent,
+    repIntroSender,
   ],
 });
