@@ -58,7 +58,12 @@ signing keys, since that prefix ships the value to the browser bundle:
 | `SUPABASE_SERVICE_ROLE_KEY` | prod service role key | preview service role key |
 | `INNGEST_EVENT_KEY` | prod event key | preview/dev event key |
 | `INNGEST_SIGNING_KEY` | prod signing key | preview/dev signing key |
-| `PAID_PROVIDERS_ENABLED` | `false` until a provider is wired up | `false` (enforced — preview cannot enable paid providers) |
+| `PAID_PROVIDERS_ENABLED` | `true` to process consented estimates | `false` (enforced — preview cannot enable paid providers) |
+| `GOOGLE_MAPS_API_KEY` | server-restricted key with Geocoding and Solar API access | blank |
+| `ROOF_ESTIMATE_COMPANY_ID` | company UUID receiving public leads | preview company UUID if form testing is needed |
+| `ESTIMATE_SMS_WEBHOOK_URL` | approved SMS provider/automation webhook | test endpoint or blank |
+| `ESTIMATE_EMAIL_WEBHOOK_URL` | approved email provider/automation webhook | test endpoint or blank |
+| `ESTIMATE_DELIVERY_SHARED_SECRET` | bearer secret expected by both delivery webhooks | separate preview secret |
 
 ## 6. Connect GitHub to Vercel
 
@@ -74,7 +79,8 @@ In GitHub branch protection for `main`, require both the `application` and
 ## 8. Deploy and verify Inngest sync
 
 After the first deploy, confirm Inngest's dashboard shows the app synced and
-both `process-diagnostic-event` and `publish-outbox` registered. If it does
+includes `address-validation-worker`, `roof-estimate-worker`,
+`estimate-delivery-sender`, and `publish-outbox`. If it does
 not sync automatically, trigger a manual sync from the Inngest dashboard
 against `https://<your-domain>/api/inngest`.
 
@@ -84,6 +90,11 @@ Sign in as the provisioned admin and use the **Foundation diagnostics**
 panel's "Run diagnostic" button. Confirm it reports "Completed" with a
 correlation ID, and record that correlation ID as the first verified
 production (or preview) run.
+
+Before opening public estimate traffic, set a Google Cloud budget alert and
+keep the Solar API project quota at or below the intended ceiling. PIW's
+database reservation gate stops new Building Insights requests after 9,500 in
+the calendar month; cached addresses do not consume another reservation.
 
 ## 10. Verify backups and recovery ownership
 

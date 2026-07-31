@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { parseClientEnv } from "@/lib/env/client";
 
-const PUBLIC_PATHS = ["/login", "/auth/callback"];
+const PUBLIC_PATHS = ["/login", "/auth/callback", "/roof-estimate"];
 
 export async function middleware(request: NextRequest) {
   // API routes authenticate themselves (Supabase session or Inngest signing

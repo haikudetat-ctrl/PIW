@@ -26,6 +26,7 @@ export interface CrmWriterRepository {
     leadId: string;
     correlationId: string;
   }): Promise<void>;
+  hasEstimateProcessingConsent(leadId: string): Promise<boolean>;
   publishAddressValidationRequested(input: {
     leadId: string;
     propertyId: string;
@@ -59,13 +60,15 @@ export async function writeCrmProjection(
     leadId: event.leadId,
     correlationId: event.correlationId,
   });
-  await repository.publishAddressValidationRequested({
-    leadId: event.leadId,
-    propertyId: event.propertyId,
-    pipelineRunId: event.pipelineRunId,
-    correlationId: event.correlationId,
-    submittedAddress: event.submittedAddress,
-  });
+  if (await repository.hasEstimateProcessingConsent(event.leadId)) {
+    await repository.publishAddressValidationRequested({
+      leadId: event.leadId,
+      propertyId: event.propertyId,
+      pipelineRunId: event.pipelineRunId,
+      correlationId: event.correlationId,
+      submittedAddress: event.submittedAddress,
+    });
+  }
 
   if (workerRun.status !== "completed") {
     await repository.markWorkerRunCompleted(workerRun.id);
@@ -153,6 +156,18 @@ class SupabaseCrmWriterRepository implements CrmWriterRepository {
     }
   }
 
+  async hasEstimateProcessingConsent(leadId: string) {
+    const { data, error } = await this.client
+      .from("lead_consents")
+      .select("id")
+      .eq("lead_id", leadId)
+      .eq("consent_type", "estimate_processing")
+      .eq("granted", true)
+      .maybeSingle();
+    if (error) throw new Error("Failed to verify estimate-processing consent");
+    return data !== null;
+  }
+
   async publishAddressValidationRequested(input: {
     leadId: string;
     propertyId: string;
@@ -211,15 +226,21 @@ export const crmWriter = inngest.createFunction(
       }),
     );
 
-    await step.run("publish-address-validation-requested", () =>
-      repository.publishAddressValidationRequested({
-        leadId: event.data.leadId,
-        propertyId: event.data.propertyId,
-        pipelineRunId: event.data.pipelineRunId,
-        correlationId: event.data.correlationId,
-        submittedAddress: event.data.data.submittedAddress,
-      }),
+    const hasEstimateConsent = await step.run("verify-estimate-consent", () =>
+      repository.hasEstimateProcessingConsent(event.data.leadId),
     );
+
+    if (hasEstimateConsent) {
+      await step.run("publish-address-validation-requested", () =>
+        repository.publishAddressValidationRequested({
+          leadId: event.data.leadId,
+          propertyId: event.data.propertyId,
+          pipelineRunId: event.data.pipelineRunId,
+          correlationId: event.data.correlationId,
+          submittedAddress: event.data.data.submittedAddress,
+        }),
+      );
+    }
 
     await step.run("record-worker-completion", async () => {
       if (workerRun.status !== "completed") {

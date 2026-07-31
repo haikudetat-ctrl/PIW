@@ -61,6 +61,8 @@ export default async function LeadWorkspacePage({
     { data: address, error: addressError },
     { data: parcel, error: parcelError },
     { data: structure, error: structureError },
+    { data: estimate, error: estimateError },
+    { data: deliveries, error: deliveriesError },
   ] = await Promise.all([
     supabase
       .from("lead_stage_history")
@@ -110,12 +112,24 @@ export default async function LeadWorkspacePage({
           .eq("is_primary", true)
           .maybeSingle()
       : noProperty,
+    supabase
+      .from("roof_estimates")
+      .select("status, total_roof_sqft, roof_squares, range_low_cents, range_high_cents, pricing_version, failure_reason, updated_at")
+      .eq("company_id", companyId)
+      .eq("lead_id", leadId)
+      .maybeSingle(),
+    supabase
+      .from("estimate_deliveries")
+      .select("channel, destination, status, sent_at, failure_reason")
+      .eq("company_id", companyId)
+      .eq("lead_id", leadId)
+      .order("channel"),
   ]);
 
   if (stageHistoryError || interactionsError || tasksError) {
     throw new Error("Failed to load lead workspace");
   }
-  if (addressError || parcelError || structureError) {
+  if (addressError || parcelError || structureError || estimateError || deliveriesError) {
     throw new Error("Failed to load property profile");
   }
 
@@ -161,6 +175,51 @@ export default async function LeadWorkspacePage({
           <p>Stage: {humanize(lead.stage)}</p>
         </div>
       </div>
+
+      {estimate ? (
+        <Card
+          title="Preliminary roof estimate"
+          ariaLabel="Preliminary roof estimate"
+          right={
+            <Badge tone={estimate.status === "ready" ? "success" : estimate.status === "pending" ? "info" : "warning"}>
+              {humanize(estimate.status)}
+            </Badge>
+          }
+        >
+          {estimate.status === "ready" ? (
+            <>
+              <p className="text-2xl font-bold text-ink">
+                {formatCurrency(estimate.range_low_cents)}–{formatCurrency(estimate.range_high_cents)}
+              </p>
+              <p className="mt-1 text-sm text-ink-muted">
+                {Number(estimate.roof_squares).toFixed(1)} roofing squares · {Math.round(Number(estimate.total_roof_sqft)).toLocaleString()} sq ft · NJ average pricing
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-ink-muted">
+              {estimate.failure_reason ?? "Google roof measurement is still processing."}
+            </p>
+          )}
+          <dl className="mt-5 grid gap-3 border-t border-border pt-4 sm:grid-cols-2">
+            {(deliveries ?? []).map((delivery) => (
+                <EvidenceItem
+                  key={delivery.channel}
+                label={`${delivery.channel} delivery`}
+                value={
+                  <span>
+                    {humanize(delivery.status)} · {delivery.destination}
+                    {delivery.sent_at ? ` · ${formatDateTime(delivery.sent_at)}` : ""}
+                    {delivery.failure_reason ? ` · ${delivery.failure_reason}` : ""}
+                  </span>
+                }
+              />
+            ))}
+          </dl>
+          <p role="note" className="mt-4 text-xs text-ink-subtle">
+            Preliminary range only. Confirm measurements, materials, access, decking, and permits before quoting.
+          </p>
+        </Card>
+      ) : null}
 
       <Card
         title="Property profile"
