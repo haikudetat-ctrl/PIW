@@ -49,6 +49,7 @@ export type Database = {
           entity_type: string
           id: number
           metadata: Json
+          worker_run_id: string | null
         }
         Insert: {
           action: string
@@ -60,6 +61,7 @@ export type Database = {
           entity_type: string
           id?: never
           metadata?: Json
+          worker_run_id?: string | null
         }
         Update: {
           action?: string
@@ -71,6 +73,7 @@ export type Database = {
           entity_type?: string
           id?: never
           metadata?: Json
+          worker_run_id?: string | null
         }
         Relationships: [
           {
@@ -78,6 +81,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_log_worker_run_id_fkey"
+            columns: ["worker_run_id"]
+            isOneToOne: false
+            referencedRelation: "worker_runs"
             referencedColumns: ["id"]
           },
         ]
@@ -524,6 +534,115 @@ export type Database = {
           },
         ]
       }
+      parcels: {
+        Row: {
+          acreage: number | null
+          block: string
+          building_description: string | null
+          company_id: string
+          county: string | null
+          created_at: string
+          dwelling_units: number | null
+          geometry: unknown
+          gis_pin: string | null
+          id: string
+          improvement_value_cents: number | null
+          is_primary: boolean
+          land_description: string | null
+          land_value_cents: number | null
+          lot: string
+          municipality_code: string | null
+          municipality_name: string | null
+          net_value_cents: number | null
+          pams_pin: string | null
+          property_class: string | null
+          property_id: string
+          property_location: string | null
+          provider_request_id: string | null
+          qualifier: string | null
+          street_address: string | null
+          year_built: number | null
+        }
+        Insert: {
+          acreage?: number | null
+          block: string
+          building_description?: string | null
+          company_id: string
+          county?: string | null
+          created_at?: string
+          dwelling_units?: number | null
+          geometry?: unknown
+          gis_pin?: string | null
+          id?: string
+          improvement_value_cents?: number | null
+          is_primary?: boolean
+          land_description?: string | null
+          land_value_cents?: number | null
+          lot: string
+          municipality_code?: string | null
+          municipality_name?: string | null
+          net_value_cents?: number | null
+          pams_pin?: string | null
+          property_class?: string | null
+          property_id: string
+          property_location?: string | null
+          provider_request_id?: string | null
+          qualifier?: string | null
+          street_address?: string | null
+          year_built?: number | null
+        }
+        Update: {
+          acreage?: number | null
+          block?: string
+          building_description?: string | null
+          company_id?: string
+          county?: string | null
+          created_at?: string
+          dwelling_units?: number | null
+          geometry?: unknown
+          gis_pin?: string | null
+          id?: string
+          improvement_value_cents?: number | null
+          is_primary?: boolean
+          land_description?: string | null
+          land_value_cents?: number | null
+          lot?: string
+          municipality_code?: string | null
+          municipality_name?: string | null
+          net_value_cents?: number | null
+          pams_pin?: string | null
+          property_class?: string | null
+          property_id?: string
+          property_location?: string | null
+          provider_request_id?: string | null
+          qualifier?: string | null
+          street_address?: string | null
+          year_built?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "parcels_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "parcels_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "parcels_provider_request_id_fkey"
+            columns: ["provider_request_id"]
+            isOneToOne: false
+            referencedRelation: "provider_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pipeline_runs: {
         Row: {
           company_id: string
@@ -590,6 +709,7 @@ export type Database = {
           created_at: string
           id: string
           location: unknown
+          merged_into_property_id: string | null
           municipality: string | null
           resolution_status: string
           state_code: string
@@ -602,6 +722,7 @@ export type Database = {
           created_at?: string
           id?: string
           location?: unknown
+          merged_into_property_id?: string | null
           municipality?: string | null
           resolution_status?: string
           state_code?: string
@@ -614,6 +735,7 @@ export type Database = {
           created_at?: string
           id?: string
           location?: unknown
+          merged_into_property_id?: string | null
           municipality?: string | null
           resolution_status?: string
           state_code?: string
@@ -625,6 +747,128 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "properties_merged_into_property_id_fkey"
+            columns: ["merged_into_property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      property_addresses: {
+        Row: {
+          approval_review_task_id: string | null
+          approved_at: string | null
+          approved_by: string | null
+          canonical_address: string | null
+          company_id: string
+          confidence: number
+          county: string | null
+          created_at: string
+          id: string
+          latitude: number | null
+          location: unknown
+          longitude: number | null
+          match_method: Database["public"]["Enums"]["address_match_method"]
+          municipality: string | null
+          normalized_address: string | null
+          property_id: string
+          provider_request_id: string | null
+          state_code: string | null
+          submitted_address: string
+          worker_run_id: string
+          zip: string | null
+        }
+        Insert: {
+          approval_review_task_id?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          canonical_address?: string | null
+          company_id: string
+          confidence: number
+          county?: string | null
+          created_at?: string
+          id?: string
+          latitude?: number | null
+          location?: unknown
+          longitude?: number | null
+          match_method: Database["public"]["Enums"]["address_match_method"]
+          municipality?: string | null
+          normalized_address?: string | null
+          property_id: string
+          provider_request_id?: string | null
+          state_code?: string | null
+          submitted_address: string
+          worker_run_id: string
+          zip?: string | null
+        }
+        Update: {
+          approval_review_task_id?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          canonical_address?: string | null
+          company_id?: string
+          confidence?: number
+          county?: string | null
+          created_at?: string
+          id?: string
+          latitude?: number | null
+          location?: unknown
+          longitude?: number | null
+          match_method?: Database["public"]["Enums"]["address_match_method"]
+          municipality?: string | null
+          normalized_address?: string | null
+          property_id?: string
+          provider_request_id?: string | null
+          state_code?: string | null
+          submitted_address?: string
+          worker_run_id?: string
+          zip?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_addresses_approval_review_task_id_fkey"
+            columns: ["approval_review_task_id"]
+            isOneToOne: false
+            referencedRelation: "review_tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_addresses_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "admin_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_addresses_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_addresses_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_addresses_provider_request_id_fkey"
+            columns: ["provider_request_id"]
+            isOneToOne: false
+            referencedRelation: "provider_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_addresses_worker_run_id_fkey"
+            columns: ["worker_run_id"]
+            isOneToOne: true
+            referencedRelation: "worker_runs"
             referencedColumns: ["id"]
           },
         ]
@@ -666,37 +910,49 @@ export type Database = {
       }
       provider_requests: {
         Row: {
+          attempt: number
           capability: string
           company_id: string
           completed_at: string | null
+          error_code: string | null
+          error_message: string | null
           id: string
           pipeline_run_id: string | null
           provider: string
           request_key: string
           requested_at: string
           status: string
+          worker_run_id: string | null
         }
         Insert: {
+          attempt?: number
           capability: string
           company_id: string
           completed_at?: string | null
+          error_code?: string | null
+          error_message?: string | null
           id?: string
           pipeline_run_id?: string | null
           provider: string
           request_key: string
           requested_at?: string
           status: string
+          worker_run_id?: string | null
         }
         Update: {
+          attempt?: number
           capability?: string
           company_id?: string
           completed_at?: string | null
+          error_code?: string | null
+          error_message?: string | null
           id?: string
           pipeline_run_id?: string | null
           provider?: string
           request_key?: string
           requested_at?: string
           status?: string
+          worker_run_id?: string | null
         }
         Relationships: [
           {
@@ -711,6 +967,110 @@ export type Database = {
             columns: ["pipeline_run_id"]
             isOneToOne: false
             referencedRelation: "pipeline_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "provider_requests_worker_run_id_fkey"
+            columns: ["worker_run_id"]
+            isOneToOne: false
+            referencedRelation: "worker_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      review_tasks: {
+        Row: {
+          candidate_data: Json
+          company_id: string
+          created_at: string
+          id: string
+          lead_id: string
+          pipeline_run_id: string
+          property_id: string
+          reason: Database["public"]["Enums"]["review_task_reason"]
+          resolution_notes: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          retry_count: number
+          status: Database["public"]["Enums"]["review_task_status"]
+          triggering_event_name: string
+          worker_run_id: string | null
+        }
+        Insert: {
+          candidate_data?: Json
+          company_id: string
+          created_at?: string
+          id?: string
+          lead_id: string
+          pipeline_run_id: string
+          property_id: string
+          reason: Database["public"]["Enums"]["review_task_reason"]
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          retry_count?: number
+          status?: Database["public"]["Enums"]["review_task_status"]
+          triggering_event_name: string
+          worker_run_id?: string | null
+        }
+        Update: {
+          candidate_data?: Json
+          company_id?: string
+          created_at?: string
+          id?: string
+          lead_id?: string
+          pipeline_run_id?: string
+          property_id?: string
+          reason?: Database["public"]["Enums"]["review_task_reason"]
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          retry_count?: number
+          status?: Database["public"]["Enums"]["review_task_status"]
+          triggering_event_name?: string
+          worker_run_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "review_tasks_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_tasks_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_tasks_pipeline_run_id_fkey"
+            columns: ["pipeline_run_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_tasks_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_tasks_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "admin_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_tasks_worker_run_id_fkey"
+            columns: ["worker_run_id"]
+            isOneToOne: false
+            referencedRelation: "worker_runs"
             referencedColumns: ["id"]
           },
         ]
@@ -752,6 +1112,61 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      structures: {
+        Row: {
+          company_id: string
+          created_at: string
+          footprint_geometry: unknown
+          id: string
+          is_primary: boolean
+          parcel_id: string | null
+          property_id: string
+          source: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          footprint_geometry?: unknown
+          id?: string
+          is_primary?: boolean
+          parcel_id?: string | null
+          property_id: string
+          source: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          footprint_geometry?: unknown
+          id?: string
+          is_primary?: boolean
+          parcel_id?: string | null
+          property_id?: string
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "structures_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "structures_parcel_id_fkey"
+            columns: ["parcel_id"]
+            isOneToOne: false
+            referencedRelation: "parcels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "structures_property_id_fkey"
+            columns: ["property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
             referencedColumns: ["id"]
           },
         ]
@@ -908,6 +1323,34 @@ export type Database = {
           payload: Json
         }[]
       }
+      claim_property_address: {
+        Args: {
+          p_attempt: number
+          p_canonical_address: string
+          p_company_id: string
+          p_confidence: number
+          p_county: string
+          p_latitude: number
+          p_lead_id: string
+          p_longitude: number
+          p_match_method: Database["public"]["Enums"]["address_match_method"]
+          p_municipality: string
+          p_pipeline_run_id: string
+          p_property_id: string
+          p_provider_request_id: string
+          p_state_code: string
+          p_submitted_address: string
+          p_worker_run_id: string
+          p_zip: string
+        }
+        Returns: {
+          candidate_property_ids: string[]
+          canonical_property_id: string
+          observation_property_id: string
+          outcome: string
+          side_effects_applied: boolean
+        }[]
+      }
       complete_outbox_event: {
         Args: { p_event_id: string }
         Returns: undefined
@@ -917,9 +1360,48 @@ export type Database = {
         Args: { p_company_id: string; p_event: Json }
         Returns: string
       }
+      escalate_property_identity_review: {
+        Args: {
+          p_attempt: number
+          p_candidate_data: Json
+          p_company_id: string
+          p_lead_id: string
+          p_pipeline_run_id: string
+          p_property_id: string
+          p_reason: Database["public"]["Enums"]["review_task_reason"]
+          p_triggering_event_name: string
+          p_worker_run_id: string
+        }
+        Returns: {
+          created: boolean
+          review_task_id: string
+          side_effects_applied: boolean
+          status: Database["public"]["Enums"]["review_task_status"]
+        }[]
+      }
       fail_outbox_event: {
         Args: { p_error: string; p_event_id: string }
         Returns: undefined
+      }
+      normalize_property_address: {
+        Args: { p_address: string }
+        Returns: string
+      }
+      resolve_review_task: {
+        Args: {
+          p_action: string
+          p_admin_id: string
+          p_company_id: string
+          p_notes: string
+          p_review_task_id: string
+          p_selected_candidate_index: number
+        }
+        Returns: {
+          new_status: Database["public"]["Enums"]["review_task_status"]
+          next_attempt: number
+          pipeline_run_id: string
+          property_id: string
+        }[]
       }
       submit_lead_intake: {
         Args: {
@@ -940,6 +1422,10 @@ export type Database = {
       }
     }
     Enums: {
+      address_match_method:
+        | "exact_single_match"
+        | "no_match"
+        | "multiple_matches"
       interaction_type: "call" | "email" | "text" | "site_visit" | "note"
       lead_stage:
         | "new"
@@ -968,6 +1454,19 @@ export type Database = {
         | "partial"
         | "review_required"
         | "failed"
+      review_task_reason:
+        | "low_address_confidence"
+        | "duplicate_candidates"
+        | "multiple_parcels"
+        | "condo_ambiguity"
+        | "commercial_property"
+        | "unsupported_property_type"
+      review_task_status:
+        | "open"
+        | "resolved"
+        | "rejected"
+        | "retried"
+        | "unsupported"
       task_status: "open" | "complete" | "cancelled"
       worker_status:
         | "queued"
@@ -1103,6 +1602,11 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      address_match_method: [
+        "exact_single_match",
+        "no_match",
+        "multiple_matches",
+      ],
       interaction_type: ["call", "email", "text", "site_visit", "note"],
       lead_stage: [
         "new",
@@ -1133,6 +1637,21 @@ export const Constants = {
         "partial",
         "review_required",
         "failed",
+      ],
+      review_task_reason: [
+        "low_address_confidence",
+        "duplicate_candidates",
+        "multiple_parcels",
+        "condo_ambiguity",
+        "commercial_property",
+        "unsupported_property_type",
+      ],
+      review_task_status: [
+        "open",
+        "resolved",
+        "rejected",
+        "retried",
+        "unsupported",
       ],
       task_status: ["open", "complete", "cancelled"],
       worker_status: [

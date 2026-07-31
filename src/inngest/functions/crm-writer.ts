@@ -1,7 +1,9 @@
 import "server-only";
+import { createEventEnvelope } from "@/domain/events";
 import { inngest, leadSubmitted } from "@/inngest/client";
 import { createServiceClient } from "@/lib/supabase/service";
 import { writeAuditEntry } from "@/modules/audit/write-audit-entry";
+import { SupabaseOutboxRepository } from "@/modules/events/supabase-outbox-repository";
 
 export type WorkerRunStatus =
   | "queued"
@@ -24,7 +26,13 @@ export interface CrmWriterRepository {
     leadId: string;
     correlationId: string;
   }): Promise<void>;
-  completePipelineRun(pipelineRunId: string): Promise<void>;
+  publishAddressValidationRequested(input: {
+    leadId: string;
+    propertyId: string;
+    pipelineRunId: string;
+    correlationId: string;
+    submittedAddress: string;
+  }): Promise<void>;
 }
 
 type LeadSubmittedEventData = {
@@ -32,6 +40,8 @@ type LeadSubmittedEventData = {
   pipelineRunId: string;
   correlationId: string;
   leadId: string;
+  propertyId: string;
+  submittedAddress: string;
 };
 
 export async function writeCrmProjection(
@@ -49,7 +59,13 @@ export async function writeCrmProjection(
     leadId: event.leadId,
     correlationId: event.correlationId,
   });
-  await repository.completePipelineRun(event.pipelineRunId);
+  await repository.publishAddressValidationRequested({
+    leadId: event.leadId,
+    propertyId: event.propertyId,
+    pipelineRunId: event.pipelineRunId,
+    correlationId: event.correlationId,
+    submittedAddress: event.submittedAddress,
+  });
 
   if (workerRun.status !== "completed") {
     await repository.markWorkerRunCompleted(workerRun.id);
@@ -137,12 +153,38 @@ class SupabaseCrmWriterRepository implements CrmWriterRepository {
     }
   }
 
-  async completePipelineRun(pipelineRunId: string) {
-    await this.client
-      .from("pipeline_runs")
-      .update({ status: "complete", finished_at: new Date().toISOString() })
-      .eq("id", pipelineRunId)
-      .neq("status", "complete");
+  async publishAddressValidationRequested(input: {
+    leadId: string;
+    propertyId: string;
+    pipelineRunId: string;
+    correlationId: string;
+    submittedAddress: string;
+  }) {
+    const { data: lead, error } = await this.client
+      .from("leads")
+      .select("company_id")
+      .eq("id", input.leadId)
+      .single();
+    if (error || !lead) {
+      throw new Error("Failed to load lead for address validation trigger");
+    }
+
+    const event = createEventEnvelope({
+      name: "property/address.validation_requested",
+      correlationId: input.correlationId,
+      pipelineRunId: input.pipelineRunId,
+      leadId: input.leadId,
+      propertyId: input.propertyId,
+      data: {
+        leadId: input.leadId,
+        propertyId: input.propertyId,
+        submittedAddress: input.submittedAddress,
+        attempt: 1,
+      },
+    });
+
+    const outbox = new SupabaseOutboxRepository(this.client);
+    await outbox.enqueue(event, lead.company_id);
   }
 }
 
@@ -169,8 +211,14 @@ export const crmWriter = inngest.createFunction(
       }),
     );
 
-    await step.run("complete-pipeline-run", () =>
-      repository.completePipelineRun(event.data.pipelineRunId),
+    await step.run("publish-address-validation-requested", () =>
+      repository.publishAddressValidationRequested({
+        leadId: event.data.leadId,
+        propertyId: event.data.propertyId,
+        pipelineRunId: event.data.pipelineRunId,
+        correlationId: event.data.correlationId,
+        submittedAddress: event.data.data.submittedAddress,
+      }),
     );
 
     await step.run("record-worker-completion", async () => {

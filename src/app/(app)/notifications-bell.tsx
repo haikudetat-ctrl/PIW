@@ -9,5 +9,18 @@ export async function NotificationsBell() {
     .select("id", { count: "exact", head: true })
     .is("read_at", null);
 
-  return <Link href="/notifications">{formatNotificationBadge(count ?? 0)}</Link>;
+  const unread = count ?? 0;
+
+  return (
+    <Link
+      href="/notifications"
+      className={`inline-flex items-center rounded-full px-3 py-1.5 text-sm font-medium transition ${
+        unread > 0
+          ? "bg-warning-bg text-warning hover:bg-warning-bg/80"
+          : "text-ink-muted hover:text-ink"
+      }`}
+    >
+      {formatNotificationBadge(unread)}
+    </Link>
+  );
 }

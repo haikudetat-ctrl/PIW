@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Card } from "@/components/ui/card";
 
 type DiagnosticStatus = "idle" | "running" | "completed" | "failed";
 
@@ -32,21 +33,33 @@ export function FoundationDiagnostics() {
           : "Not run yet";
 
   return (
-    <section aria-label="Foundation diagnostics">
-      <h2>Foundation diagnostics</h2>
-      <dl>
-        <dt>Authentication</dt>
-        <dd>OK</dd>
-        <dt>Database</dt>
-        <dd>Connected</dd>
-        <dt>Event relay</dt>
-        <dd>Configured</dd>
-        <dt>Last diagnostic</dt>
-        <dd>{lastDiagnosticLabel}</dd>
+    <Card title="Foundation diagnostics" ariaLabel="Foundation diagnostics">
+      <dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
+        <div>
+          <dt className="text-xs text-ink-subtle uppercase">Authentication</dt>
+          <dd className="mt-0.5 text-sm font-medium text-ink">OK</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-ink-subtle uppercase">Database</dt>
+          <dd className="mt-0.5 text-sm font-medium text-ink">Connected</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-ink-subtle uppercase">Event relay</dt>
+          <dd className="mt-0.5 text-sm font-medium text-ink">Configured</dd>
+        </div>
+        <div>
+          <dt className="text-xs text-ink-subtle uppercase">Last diagnostic</dt>
+          <dd className="mt-0.5 text-sm font-medium text-ink">{lastDiagnosticLabel}</dd>
+        </div>
       </dl>
-      <button type="button" onClick={runDiagnostic} disabled={status === "running"}>
+      <button
+        type="button"
+        onClick={runDiagnostic}
+        disabled={status === "running"}
+        className="mt-4 rounded-md border border-border-strong px-3 py-1.5 text-sm font-medium text-ink transition hover:border-accent hover:text-accent disabled:opacity-60"
+      >
         Run diagnostic
       </button>
-    </section>
+    </Card>
   );
 }

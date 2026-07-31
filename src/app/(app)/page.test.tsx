@@ -40,6 +40,15 @@ vi.mock("@/lib/supabase/server", () => ({
           })),
         };
       }
+      if (table === "review_tasks") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() =>
+              Promise.resolve({ count: 2, data: null, error: null }),
+            ),
+          })),
+        };
+      }
       throw new Error(`Unexpected table ${table}`);
     }),
   })),
@@ -52,5 +61,9 @@ test("shows new leads, pipeline totals, and a link to the pipeline board", async
   expect(screen.getByRole("heading", { name: "Property Intelligence Worker" })).toBeInTheDocument();
   expect(screen.getByText("Jordan Rivera")).toBeInTheDocument();
   expect(screen.getByText("View pipeline board")).toBeInTheDocument();
-  expect(screen.getByText("0 items awaiting review")).toBeInTheDocument();
+  expect(screen.getByText("2 items awaiting review")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Open review queue" })).toHaveAttribute(
+    "href",
+    "/review",
+  );
 });

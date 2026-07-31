@@ -47,8 +47,11 @@ Then run the full local gate:
 npm run verify
 ```
 
-`verify` runs lint, typecheck, unit tests, the pgTAP database suite, and a
-production build in sequence and exits non-zero on the first failure.
+`verify` runs lint, typecheck, unit tests, the pgTAP database suite, local
+Supabase integration tests, and a production build in sequence and exits
+non-zero on the first failure. Integration tests obtain ephemeral local
+credentials from `supabase status`; they do not require hosted-project
+secrets.
 
 ## Create a local admin
 

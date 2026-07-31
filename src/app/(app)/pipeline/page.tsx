@@ -9,8 +9,13 @@ export default async function PipelinePage() {
     .order("created_at", { ascending: false });
 
   return (
-    <main>
-      <h1>Pipeline</h1>
+    <main className="flex flex-col gap-6">
+      <div>
+        <h1 className="text-2xl font-bold text-ink">Pipeline</h1>
+        <p className="mt-1 text-sm text-ink-subtle">
+          {(leads ?? []).length} leads across the commercial pipeline
+        </p>
+      </div>
       <PipelineBoard leads={leads ?? []} />
     </main>
   );

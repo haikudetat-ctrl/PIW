@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { createLead } from "./actions";
+import { inputClasses, labelClasses, primaryButtonClasses } from "@/components/ui/form";
 
 type LeadIntakeState = { error?: string };
 const initialState: LeadIntakeState = {};
@@ -16,31 +17,35 @@ export function LeadIntakeForm() {
   );
 
   return (
-    <form action={formAction}>
-      <label>
+    <form action={formAction} className="flex flex-col gap-4">
+      <label className={labelClasses}>
         Name
-        <input name="name" required />
+        <input name="name" required className={inputClasses} />
       </label>
-      <label>
+      <label className={labelClasses}>
         Phone
-        <input name="phone" type="tel" required />
+        <input name="phone" type="tel" required className={inputClasses} />
       </label>
-      <label>
+      <label className={labelClasses}>
         Email
-        <input name="email" type="email" required />
+        <input name="email" type="email" required className={inputClasses} />
       </label>
-      <label>
+      <label className={labelClasses}>
         Property address
-        <input name="submittedAddress" required />
+        <input name="submittedAddress" required className={inputClasses} />
       </label>
-      <label>
+      <label className={labelClasses}>
         Notes
-        <textarea name="notes" />
+        <textarea name="notes" rows={3} className={inputClasses} />
       </label>
-      <button type="submit" disabled={pending}>
+      <button type="submit" disabled={pending} className={`${primaryButtonClasses} mt-2`}>
         Submit lead
       </button>
-      {state.error ? <p role="alert">{state.error}</p> : null}
+      {state.error ? (
+        <p role="alert" className="text-sm text-danger">
+          {state.error}
+        </p>
+      ) : null}
     </form>
   );
 }
