@@ -10,6 +10,7 @@ import { addressValidationRequested, inngest } from "@/inngest/client";
 import { parseServerEnv } from "@/lib/env/server";
 import type { Database, Json } from "@/lib/database.types";
 import { createServiceClient } from "@/lib/supabase/service";
+import { enqueueAndPublishEvent } from "@/modules/events/enqueue-and-publish-event";
 import { SupabaseOutboxRepository } from "@/modules/events/supabase-outbox-repository";
 import type {
   ProviderAdapter,
@@ -1126,7 +1127,12 @@ export class SupabaseAddressValidationWorkerRepository
         attempt: input.attempt,
       },
     });
-    await new SupabaseOutboxRepository(this.client).enqueue(event, input.companyId);
+    await enqueueAndPublishEvent({
+      repository: new SupabaseOutboxRepository(this.client),
+      event,
+      companyId: input.companyId,
+      send: (outbound) => inngest.send(outbound),
+    });
   }
 
   async continueRoofEstimateAfterMerge(input: {
