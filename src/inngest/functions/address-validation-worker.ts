@@ -185,6 +185,12 @@ export interface AddressValidationWorkerRepository {
     attempt: number;
     workerRunId: string;
   }): Promise<void>;
+  continueRoofEstimateAfterMerge(input: {
+    leadId: string;
+    pipelineRunId: string;
+    companyId: string;
+    canonicalPropertyId: string;
+  }): Promise<boolean>;
   publishDiscoveryRequested(input: {
     leadId: string;
     propertyId: string;
@@ -312,7 +318,31 @@ export async function runAddressValidation(
     });
     outcome = "review_required";
   } else if (claim.outcome === "merged") {
-    outcome = "merged";
+    const canonicalPropertyId = claim.canonicalPropertyId;
+    const continueRoofEstimate =
+      canonicalPropertyId !== null &&
+      (await repository.continueRoofEstimateAfterMerge({
+        leadId: event.leadId,
+        pipelineRunId: event.pipelineRunId,
+        companyId,
+        canonicalPropertyId,
+      }));
+    if (continueRoofEstimate && canonicalPropertyId) {
+      await repository.publishDiscoveryRequested({
+        leadId: event.leadId,
+        propertyId: canonicalPropertyId,
+        pipelineRunId: event.pipelineRunId,
+        companyId,
+        correlationId: event.correlationId,
+        canonicalAddress: result.canonicalAddress ?? event.submittedAddress,
+        latitude: result.latitude,
+        longitude: result.longitude,
+        attempt: 1,
+      });
+      outcome = "discovery_requested";
+    } else {
+      outcome = "merged";
+    }
   } else {
     await repository.publishDiscoveryRequested({
       leadId: event.leadId,
@@ -1097,6 +1127,48 @@ export class SupabaseAddressValidationWorkerRepository
       },
     });
     await new SupabaseOutboxRepository(this.client).enqueue(event, input.companyId);
+  }
+
+  async continueRoofEstimateAfterMerge(input: {
+    leadId: string;
+    pipelineRunId: string;
+    companyId: string;
+    canonicalPropertyId: string;
+  }) {
+    const { data: estimate, error: estimateLookupError } = await this.client
+      .from("roof_estimates")
+      .select("id")
+      .eq("lead_id", input.leadId)
+      .eq("company_id", input.companyId)
+      .maybeSingle();
+    if (estimateLookupError) {
+      throw new Error("Failed to check merged roof estimate");
+    }
+    if (!estimate) return false;
+
+    const { error: estimateUpdateError } = await this.client
+      .from("roof_estimates")
+      .update({ property_id: input.canonicalPropertyId })
+      .eq("id", estimate.id)
+      .eq("company_id", input.companyId);
+    if (estimateUpdateError) {
+      throw new Error("Failed to attach merged roof estimate");
+    }
+
+    const { error: pipelineUpdateError } = await this.client
+      .from("pipeline_runs")
+      .update({
+        property_id: input.canonicalPropertyId,
+        status: "validating",
+        finished_at: null,
+      })
+      .eq("id", input.pipelineRunId)
+      .eq("company_id", input.companyId)
+      .eq("lead_id", input.leadId);
+    if (pipelineUpdateError) {
+      throw new Error("Failed to continue merged roof estimate");
+    }
+    return true;
   }
 
   async writeAudit(input: {
