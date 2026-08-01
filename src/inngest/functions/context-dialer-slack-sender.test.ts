@@ -78,4 +78,24 @@ describe("Context Dialer Slack sender", () => {
       "Slack Context Dialer webhook and base URL are not configured",
     );
   });
+
+  it("contains a malformed optional webhook to Slack delivery", async () => {
+    const repo = repository();
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockRejectedValue(new TypeError("Failed to parse URL"));
+
+    await expect(
+      sendQueuedContextDialers(
+        repo,
+        {
+          webhookUrl: "not-a-valid-webhook-url",
+          baseUrl: "https://piw.example.com",
+        },
+        fetcher,
+      ),
+    ).resolves.toEqual([{ id: "delivery-1", outcome: "failed" }]);
+    expect(repo.markFailed).toHaveBeenCalledWith(delivery, "Failed to parse URL");
+    expect(repo.markSent).not.toHaveBeenCalled();
+  });
 });
