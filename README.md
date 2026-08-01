@@ -4,6 +4,18 @@ Property Intelligence Worker — a Next.js application, on Supabase/PostGIS and
 Inngest, that gives a single New Jersey residential roofing company a
 property-first CRM and intelligence platform.
 
+## Repository layout
+
+- `src`, `supabase` — the PIW vendor dashboard and operational database.
+- `apps/website` — a standalone Next.js campaign website with a secure
+  form-to-webhook proxy that preserves Meta attribution.
+- `n8n/workflows` — credential-free workflow exports promoted through PRs.
+- `infrastructure/n8n` — the production-shaped n8n, Postgres, and Caddy stack
+  used independently by staging and production.
+
+This keeps the website, dashboard, and automation lifecycle separate without
+moving the already-deployed dashboard out of the repository root.
+
 PIW v1 supports New Jersey residential roofing and does not include weather
 or storm intelligence.
 
@@ -42,3 +54,26 @@ npm run verify
 
 See the [local development runbook](docs/runbooks/local-development.md) for
 the full bootstrap procedure, including creating a local admin.
+
+Run the website independently with:
+
+```bash
+cd apps/website
+npm ci
+cp .env.example .env.local
+npm run dev
+```
+
+The website requires `INTAKE_WEBHOOK_URL`; its optional
+`INTAKE_WEBHOOK_SHARED_SECRET` is server-only. The complete dashboard variable
+list, with deliberately blank values, is maintained in `.env.example`.
+
+## Promotion and deployment
+
+All changes start on a feature branch. CI must pass on a PR before merge to
+`main`. Vercel creates PR previews and deploys `main` to production. Workflow
+exports follow the same staging → PR → production path; secrets and n8n
+credentials are never committed.
+
+See the [deployment runbook](docs/runbooks/deployment.md) and the
+[Rake environment runbook](docs/runbooks/rake-environments.md).

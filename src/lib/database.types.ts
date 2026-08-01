@@ -38,6 +38,42 @@ export type Database = {
           },
         ]
       }
+      ai_content_cache: {
+        Row: {
+          approval_status: string
+          content_type: string
+          context_key: string
+          created_at: string
+          embedding: string | null
+          generated_text: string
+          id: string
+          last_used_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          approval_status?: string
+          content_type: string
+          context_key: string
+          created_at?: string
+          embedding?: string | null
+          generated_text: string
+          id?: string
+          last_used_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          approval_status?: string
+          content_type?: string
+          context_key?: string
+          created_at?: string
+          embedding?: string | null
+          generated_text?: string
+          id?: string
+          last_used_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       appointment_rep_intros: {
         Row: {
           appointment_id: string
@@ -2357,6 +2393,21 @@ export type Database = {
           p_phone_e164: string
         }
         Returns: boolean
+      }
+      lookup_ai_content_cache: {
+        Args: {
+          p_content_type: string
+          p_context_key: string
+          p_query_embedding?: string
+          p_similarity_threshold?: number
+        }
+        Returns: {
+          context_key: string
+          generated_text: string
+          id: string
+          match_type: string
+          similarity: number
+        }[]
       }
       mark_integration_event_processed: {
         Args: {

@@ -1,9 +1,8 @@
 # Deployment runbook
 
 Procedure for standing up the PIW foundation in Supabase, Inngest, and
-Vercel. All of these steps are performed by a human with access to the
-relevant accounts — none of them can be automated by an agent without that
-access.
+Vercel. Account-level changes require an authenticated operator or connector;
+the checked-in migrations and CI gates remain the source of truth.
 
 ## 1. Create Supabase projects
 
@@ -83,8 +82,8 @@ to match `package.json`'s `engines.node`.
 
 ## 7. Require CI before merging
 
-In GitHub branch protection for `main`, require both the `application` and
-`database` jobs from `.github/workflows/ci.yml` to pass before merging.
+In GitHub branch protection for `main`, require the `website`, `application`,
+and `database` jobs from `.github/workflows/ci.yml` to pass before merging.
 
 ## 8. Deploy and verify Inngest sync
 

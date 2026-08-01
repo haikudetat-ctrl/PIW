@@ -1,0 +1,34 @@
+name: Deployment alerts
+
+on:
+  deployment_status:
+
+permissions:
+  contents: read
+
+jobs:
+  slack:
+    if: ${{ github.event.deployment_status.state == 'success' || github.event.deployment_status.state == 'failure' || github.event.deployment_status.state == 'error' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify Slack
+        env:
+          SLACK_DEPLOY_WEBHOOK_URL: ${{ secrets.SLACK_DEPLOY_WEBHOOK_URL }}
+          DEPLOY_STATE: ${{ github.event.deployment_status.state }}
+          DEPLOY_ENVIRONMENT: ${{ github.event.deployment.environment }}
+          DEPLOY_URL: ${{ github.event.deployment_status.environment_url }}
+          REPOSITORY: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          test -n "$SLACK_DEPLOY_WEBHOOK_URL"
+          payload=$(jq -n \
+            --arg state "$DEPLOY_STATE" \
+            --arg environment "$DEPLOY_ENVIRONMENT" \
+            --arg url "$DEPLOY_URL" \
+            --arg repo "$REPOSITORY" \
+            --arg sha "$SHA" \
+            '{text: ("Vercel deploy " + $state + " — " + $repo + " (" + $environment + ")\n" + $url + "\nCommit: " + $sha)}')
+          curl --fail-with-body --retry 2 \
+            -H 'Content-Type: application/json' \
+            --data "$payload" \
+            "$SLACK_DEPLOY_WEBHOOK_URL"
