@@ -3,8 +3,10 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createEventEnvelope } from "@/domain/events";
+import { inngest } from "@/inngest/client";
 import { parseServerEnv } from "@/lib/env/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { enqueueAndPublishEvent } from "@/modules/events/enqueue-and-publish-event";
 import { SupabaseOutboxRepository } from "@/modules/events/supabase-outbox-repository";
 import {
   formatSubmittedAddress,
@@ -83,7 +85,12 @@ export async function submitPublicRoofEstimate(
         serviceRequested: "roofing",
       },
     });
-    await new SupabaseOutboxRepository(service).enqueue(event, companyId);
+    await enqueueAndPublishEvent({
+      repository: new SupabaseOutboxRepository(service),
+      event,
+      companyId,
+      send: (outbound) => inngest.send(outbound),
+    });
     redirect(`/roof-estimate/${created.public_token}`);
   } catch (error) {
     if (error && typeof error === "object" && "digest" in error) throw error;

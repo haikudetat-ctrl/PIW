@@ -14,12 +14,13 @@ export class OutboxPersistenceError extends Error {
 export class SupabaseOutboxRepository implements OutboxRepository {
   constructor(private readonly client: SupabaseClient<Database>) {}
 
-  async enqueue(event: DomainEvent, companyId: string): Promise<void> {
-    const { error } = await this.client.rpc("enqueue_domain_event", {
+  async enqueue(event: DomainEvent, companyId: string): Promise<string> {
+    const { data, error } = await this.client.rpc("enqueue_domain_event", {
       p_company_id: companyId,
       p_event: event,
     });
-    if (error) throw new OutboxPersistenceError("enqueue");
+    if (error || !data) throw new OutboxPersistenceError("enqueue");
+    return data;
   }
 
   async claimBatch(limit: number, claimedBy: string): Promise<PendingOutboxEvent[]> {

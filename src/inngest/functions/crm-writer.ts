@@ -3,6 +3,7 @@ import { createEventEnvelope } from "@/domain/events";
 import { inngest, leadSubmitted } from "@/inngest/client";
 import { createServiceClient } from "@/lib/supabase/service";
 import { writeAuditEntry } from "@/modules/audit/write-audit-entry";
+import { enqueueAndPublishEvent } from "@/modules/events/enqueue-and-publish-event";
 import { SupabaseOutboxRepository } from "@/modules/events/supabase-outbox-repository";
 
 export type WorkerRunStatus =
@@ -231,8 +232,12 @@ class SupabaseCrmWriterRepository implements CrmWriterRepository {
       },
     });
 
-    const outbox = new SupabaseOutboxRepository(this.client);
-    await outbox.enqueue(event, lead.company_id);
+    await enqueueAndPublishEvent({
+      repository: new SupabaseOutboxRepository(this.client),
+      event,
+      companyId: lead.company_id,
+      send: (outbound) => inngest.send(outbound),
+    });
   }
 }
 
