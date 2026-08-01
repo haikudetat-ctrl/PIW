@@ -11,7 +11,7 @@ Phase 2 adds lead intake, the pipeline board, the lead workspace, tasks,
 interactions, and in-app notifications.
 
 The current estimate intake at `/roof-estimate` captures explicit processing,
-email, and SMS consent before PIW calls Google Geocoding and Google Solar
+email, and SMS consent before PIW calls Google Places and Google Solar
 Building Insights. Measurements are cached for 180 days, Solar calls are
 atomically capped at 9,500 per calendar month, and the result is priced at the
 configured New Jersey baseline of $500–$750 per roofing square. PIW stores the

@@ -182,9 +182,8 @@ select throws_ok(
 );
 
 select is(
-  (select count(*) from public.review_tasks
-   where reason = 'low_address_confidence'),
-  0::bigint,
+  'low_address_confidence' = any(enum_range(null::public.review_task_reason)::text[]),
+  true,
   'review_task_reason accepts low_address_confidence as a valid enum member'
 );
 select function_privs_are(
