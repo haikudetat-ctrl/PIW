@@ -242,6 +242,80 @@ export type Database = {
         }
         Relationships: []
       }
+      context_dialer_deliveries: {
+        Row: {
+          attempt_count: number
+          company_id: string
+          created_at: string
+          estimate_id: string | null
+          failure_reason: string | null
+          id: string
+          lead_id: string
+          pipeline_run_id: string
+          scheduled_for: string
+          sent_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempt_count?: number
+          company_id: string
+          created_at?: string
+          estimate_id?: string | null
+          failure_reason?: string | null
+          id?: string
+          lead_id: string
+          pipeline_run_id: string
+          scheduled_for?: string
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempt_count?: number
+          company_id?: string
+          created_at?: string
+          estimate_id?: string | null
+          failure_reason?: string | null
+          id?: string
+          lead_id?: string
+          pipeline_run_id?: string
+          scheduled_for?: string
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "context_dialer_deliveries_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "context_dialer_deliveries_estimate_id_fkey"
+            columns: ["estimate_id"]
+            isOneToOne: false
+            referencedRelation: "roof_estimates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "context_dialer_deliveries_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "context_dialer_deliveries_pipeline_run_id_fkey"
+            columns: ["pipeline_run_id"]
+            isOneToOne: true
+            referencedRelation: "pipeline_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       domain_events: {
         Row: {
           causation_event_id: string | null

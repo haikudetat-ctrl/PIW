@@ -62,6 +62,7 @@ function repository(overrides: Record<string, unknown> = {}) {
     failProviderRequest: vi.fn(async () => undefined),
     finalizeEstimate: vi.fn(async () => undefined),
     queueDeliveries: vi.fn(async () => undefined),
+    queueContextDialer: vi.fn(async () => undefined),
     completePipeline: vi.fn(async () => undefined),
     markWorkerRunCompleted: vi.fn(async () => undefined),
     ...overrides,
@@ -86,6 +87,12 @@ describe("runRoofEstimate", () => {
         }),
       }),
     );
+    expect(repo.queueContextDialer).toHaveBeenCalledWith({
+      estimateId: "estimate-1",
+      companyId: "company-1",
+      leadId: "lead-1",
+      pipelineRunId: "run-1",
+    });
   });
 
   it("stops before the provider call when the 9,500-call reservation is full", async () => {
@@ -101,6 +108,7 @@ describe("runRoofEstimate", () => {
     expect(repo.queueDeliveries).toHaveBeenCalledWith(
       expect.objectContaining({ status: "quota_exhausted" }),
     );
+    expect(repo.queueContextDialer).toHaveBeenCalledOnce();
   });
 
   it("measures, persists, prices, and queues both-channel content", async () => {
@@ -116,6 +124,7 @@ describe("runRoofEstimate", () => {
     }));
     expect(repo.persistInsight).toHaveBeenCalledOnce();
     expect(repo.completePipeline).toHaveBeenCalledOnce();
+    expect(repo.queueContextDialer).toHaveBeenCalledOnce();
     expect(repo.markWorkerRunCompleted).toHaveBeenCalledWith("worker-1");
   });
 });

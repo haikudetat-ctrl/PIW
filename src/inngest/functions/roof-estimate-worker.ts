@@ -112,6 +112,12 @@ export interface RoofEstimateWorkerRepository {
     status: "ready" | "no_coverage" | "quota_exhausted" | "failed";
     estimate?: ReturnType<typeof calculatePreliminaryRoofEstimate>;
   }): Promise<void>;
+  queueContextDialer(input: {
+    estimateId: string;
+    companyId: string;
+    leadId: string;
+    pipelineRunId: string;
+  }): Promise<void>;
   completePipeline(input: {
     pipelineRunId: string;
     propertyId: string;
@@ -178,6 +184,12 @@ export async function runRoofEstimate(
         email: scope.email,
         status: "quota_exhausted",
       });
+      await repository.queueContextDialer({
+        estimateId: scope.estimateId,
+        companyId: scope.companyId,
+        leadId: event.leadId,
+        pipelineRunId: event.pipelineRunId,
+      });
       await repository.completePipeline({
         pipelineRunId: event.pipelineRunId,
         propertyId: event.propertyId,
@@ -225,6 +237,12 @@ export async function runRoofEstimate(
         status: "failed",
         failureReason: error instanceof Error ? error.message : "Roof lookup failed",
       });
+      await repository.queueContextDialer({
+        estimateId: scope.estimateId,
+        companyId: scope.companyId,
+        leadId: event.leadId,
+        pipelineRunId: event.pipelineRunId,
+      });
       throw error;
     }
   }
@@ -252,6 +270,12 @@ export async function runRoofEstimate(
     email: scope.email,
     status,
     estimate,
+  });
+  await repository.queueContextDialer({
+    estimateId: scope.estimateId,
+    companyId: scope.companyId,
+    leadId: event.leadId,
+    pipelineRunId: event.pipelineRunId,
   });
   await repository.completePipeline({
     pipelineRunId: event.pipelineRunId,
@@ -639,6 +663,26 @@ export class SupabaseRoofEstimateWorkerRepository
       .from("estimate_deliveries")
       .upsert(rows, { onConflict: "estimate_id,channel", ignoreDuplicates: true });
     if (error) throw new Error("Failed to queue estimate deliveries");
+  }
+
+  async queueContextDialer(input: {
+    estimateId: string;
+    companyId: string;
+    leadId: string;
+    pipelineRunId: string;
+  }) {
+    const { error } = await this.client
+      .from("context_dialer_deliveries")
+      .upsert(
+        {
+          company_id: input.companyId,
+          pipeline_run_id: input.pipelineRunId,
+          lead_id: input.leadId,
+          estimate_id: input.estimateId,
+        },
+        { onConflict: "pipeline_run_id", ignoreDuplicates: true },
+      );
+    if (error) throw new Error("Failed to queue Context Dialer handoff");
   }
 
   async completePipeline(input: {
