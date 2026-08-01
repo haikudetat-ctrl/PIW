@@ -1,0 +1,39 @@
+{
+  "name": "Slack - workflow execution failure",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "4ac4882d-3be0-4ee4-88ba-31d8fbc69cbe",
+      "name": "Execution Error",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SLACK_ALERT_WEBHOOK_URL }}",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ text: `:rotating_light: n8n execution failed in ${$env.N8N_HOST}\\nWorkflow: ${$json.workflow?.name || 'unknown'}\\nExecution: ${$json.execution?.id || 'unknown'}\\nError: ${$json.execution?.error?.message || $json.error?.message || 'unknown error'}` }) }}",
+        "options": {}
+      },
+      "id": "15f16b97-f0c5-408d-bc99-812c83c356c0",
+      "name": "Notify Slack",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [260, 0]
+    }
+  ],
+  "connections": {
+    "Execution Error": {
+      "main": [[{"node": "Notify Slack", "type": "main", "index": 0}]]
+    }
+  },
+  "active": false,
+  "settings": {"executionOrder": "v1"},
+  "versionId": "d3a26390-cfe0-4edc-b662-f094fffa6f51",
+  "meta": {"templateCredsSetupCompleted": true},
+  "tags": []
+}

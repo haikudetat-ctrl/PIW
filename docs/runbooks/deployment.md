@@ -1,9 +1,8 @@
 # Deployment runbook
 
 Procedure for standing up the PIW foundation in Supabase, Inngest, and
-Vercel. All of these steps are performed by a human with access to the
-relevant accounts — none of them can be automated by an agent without that
-access.
+Vercel. Account-level changes require an authenticated operator or connector;
+the checked-in migrations and CI gates remain the source of truth.
 
 ## 1. Create Supabase projects
 
@@ -66,6 +65,14 @@ signing keys, since that prefix ships the value to the browser bundle:
 | `ESTIMATE_EMAIL_WEBHOOK_URL` | approved email provider/automation webhook | test endpoint or blank |
 | `ESTIMATE_DELIVERY_SHARED_SECRET` | bearer secret expected by both delivery webhooks | separate preview secret |
 | `SLACK_CONTEXT_DIALER_WEBHOOK_URL` | incoming webhook for the dedicated Context Dialer channel | separate QA channel webhook or blank |
+| `COST_INTELLIGENCE_ENABLED` | `true` after billing collectors and Slack are configured | `false` |
+| `COST_MONTHLY_BUDGET_USD` | `1500` | `1500` |
+| `SLACK_COST_DIGEST_WEBHOOK_URL` | incoming webhook for `#rake-ops-alerts` | blank |
+| `VERCEL_API_TOKEN` / `VERCEL_TEAM_ID` | team billing-read credentials | blank |
+| `DIGITALOCEAN_TOKEN` | token scoped to `billing:read` and `droplet:read` | blank |
+| `GOOGLE_CLOUD_SERVICE_ACCOUNT_JSON` | BigQuery billing-export reader | blank |
+| `GOOGLE_CLOUD_BILLING_PROJECT_ID` / `GOOGLE_CLOUD_BILLING_TABLE` | billing export query target | blank |
+| `SUPABASE_COST_CONFIG_JSON` / `COST_RESOURCE_MAP_JSON` | scoped rate card and resource inventory | blank |
 | `CONTEXT_DIALER_BASE_URL` | stable application origin, such as `https://piw-sepia.vercel.app` | preview origin when Slack QA is enabled |
 
 Use separate Google keys. Restrict `GOOGLE_MAPS_API_KEY` to Places API (New),
@@ -83,8 +90,8 @@ to match `package.json`'s `engines.node`.
 
 ## 7. Require CI before merging
 
-In GitHub branch protection for `main`, require both the `application` and
-`database` jobs from `.github/workflows/ci.yml` to pass before merging.
+In GitHub branch protection for `main`, require the `website`, `application`,
+and `database` jobs from `.github/workflows/ci.yml` to pass before merging.
 
 ## 8. Deploy and verify Inngest sync
 

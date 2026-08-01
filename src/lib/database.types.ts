@@ -38,6 +38,42 @@ export type Database = {
           },
         ]
       }
+      ai_content_cache: {
+        Row: {
+          approval_status: string
+          content_type: string
+          context_key: string
+          created_at: string
+          embedding: string | null
+          generated_text: string
+          id: string
+          last_used_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          approval_status?: string
+          content_type: string
+          context_key: string
+          created_at?: string
+          embedding?: string | null
+          generated_text: string
+          id?: string
+          last_used_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          approval_status?: string
+          content_type?: string
+          context_key?: string
+          created_at?: string
+          embedding?: string | null
+          generated_text?: string
+          id?: string
+          last_used_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       appointment_rep_intros: {
         Row: {
           appointment_id: string
@@ -315,6 +351,236 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      cost_budget_targets: {
+        Row: {
+          budget_micros: number
+          created_at: string
+          currency: string
+          period_start: string
+          timezone: string
+          updated_at: string
+        }
+        Insert: {
+          budget_micros?: number
+          created_at?: string
+          currency?: string
+          period_start: string
+          timezone?: string
+          updated_at?: string
+        }
+        Update: {
+          budget_micros?: number
+          created_at?: string
+          currency?: string
+          period_start?: string
+          timezone?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      cost_collection_runs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          id: string
+          period_start: string
+          provider_status: Json
+          scheduled_for: string
+          slack_error: string | null
+          slack_status: string
+          slot_key: string
+          started_at: string
+          status: string
+          warnings: Json
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          period_start: string
+          provider_status?: Json
+          scheduled_for: string
+          slack_error?: string | null
+          slack_status?: string
+          slot_key: string
+          started_at?: string
+          status?: string
+          warnings?: Json
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          period_start?: string
+          provider_status?: Json
+          scheduled_for?: string
+          slack_error?: string | null
+          slack_status?: string
+          slot_key?: string
+          started_at?: string
+          status?: string
+          warnings?: Json
+        }
+        Relationships: []
+      }
+      cost_line_items: {
+        Row: {
+          allocation_bucket: string
+          amount_micros: number
+          collection_run_id: string
+          confidence: string
+          cost_kind: string
+          created_at: string
+          currency: string
+          environment: string
+          free_limit: number | null
+          id: string
+          metadata: Json
+          provider: string
+          resource_key: string | null
+          service: string
+          source_key: string
+          source_timestamp: string
+          source_url: string | null
+          usage_quantity: number | null
+          usage_unit: string | null
+        }
+        Insert: {
+          allocation_bucket?: string
+          amount_micros?: number
+          collection_run_id: string
+          confidence: string
+          cost_kind: string
+          created_at?: string
+          currency?: string
+          environment?: string
+          free_limit?: number | null
+          id?: string
+          metadata?: Json
+          provider: string
+          resource_key?: string | null
+          service: string
+          source_key: string
+          source_timestamp: string
+          source_url?: string | null
+          usage_quantity?: number | null
+          usage_unit?: string | null
+        }
+        Update: {
+          allocation_bucket?: string
+          amount_micros?: number
+          collection_run_id?: string
+          confidence?: string
+          cost_kind?: string
+          created_at?: string
+          currency?: string
+          environment?: string
+          free_limit?: number | null
+          id?: string
+          metadata?: Json
+          provider?: string
+          resource_key?: string | null
+          service?: string
+          source_key?: string
+          source_timestamp?: string
+          source_url?: string | null
+          usage_quantity?: number | null
+          usage_unit?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cost_line_items_collection_run_id_fkey"
+            columns: ["collection_run_id"]
+            isOneToOne: false
+            referencedRelation: "cost_collection_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cost_rate_cards: {
+        Row: {
+          created_at: string
+          currency: string
+          effective_from: string
+          effective_to: string | null
+          free_limit: number | null
+          id: string
+          metadata: Json
+          provider: string
+          service: string
+          source_url: string
+          unit: string
+          unit_price_micros: number
+        }
+        Insert: {
+          created_at?: string
+          currency?: string
+          effective_from: string
+          effective_to?: string | null
+          free_limit?: number | null
+          id?: string
+          metadata?: Json
+          provider: string
+          service: string
+          source_url: string
+          unit: string
+          unit_price_micros?: number
+        }
+        Update: {
+          created_at?: string
+          currency?: string
+          effective_from?: string
+          effective_to?: string | null
+          free_limit?: number | null
+          id?: string
+          metadata?: Json
+          provider?: string
+          service?: string
+          source_url?: string
+          unit?: string
+          unit_price_micros?: number
+        }
+        Relationships: []
+      }
+      cost_resource_inventory: {
+        Row: {
+          active: boolean
+          allocation_bucket: string
+          created_at: string
+          display_name: string
+          environment: string
+          id: string
+          metadata: Json
+          provider: string
+          resource_key: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          allocation_bucket?: string
+          created_at?: string
+          display_name: string
+          environment?: string
+          id?: string
+          metadata?: Json
+          provider: string
+          resource_key: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          allocation_bucket?: string
+          created_at?: string
+          display_name?: string
+          environment?: string
+          id?: string
+          metadata?: Json
+          provider?: string
+          resource_key?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       domain_events: {
         Row: {
@@ -2357,6 +2623,21 @@ export type Database = {
           p_phone_e164: string
         }
         Returns: boolean
+      }
+      lookup_ai_content_cache: {
+        Args: {
+          p_content_type: string
+          p_context_key: string
+          p_query_embedding?: string
+          p_similarity_threshold?: number
+        }
+        Returns: {
+          context_key: string
+          generated_text: string
+          id: string
+          match_type: string
+          similarity: number
+        }[]
       }
       mark_integration_event_processed: {
         Args: {

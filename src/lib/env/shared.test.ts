@@ -14,7 +14,10 @@ const base = {
 
 describe("parseServerEnv", () => {
   test("disables paid providers by default", () => {
-    expect(parseServerEnv(base).PAID_PROVIDERS_ENABLED).toBe(false);
+    const environment = parseServerEnv(base);
+    expect(environment.PAID_PROVIDERS_ENABLED).toBe(false);
+    expect(environment.COST_INTELLIGENCE_ENABLED).toBe(false);
+    expect(environment.COST_MONTHLY_BUDGET_USD).toBe(1500);
   });
 
   test("rejects paid providers in preview", () => {
