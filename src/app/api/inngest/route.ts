@@ -9,6 +9,7 @@ import { processIntegrationEvent } from "@/inngest/functions/process-integration
 import { repIntroSender } from "@/inngest/functions/rep-intro-sender";
 import { estimateDeliverySender } from "@/inngest/functions/estimate-delivery-sender";
 import { contextDialerSlackSender } from "@/inngest/functions/context-dialer-slack-sender";
+import { costIntelligenceDigest } from "@/inngest/functions/cost-intelligence-digest";
 
 export const maxDuration = 300;
 
@@ -24,5 +25,6 @@ export const { GET, POST, PUT } = serve({
     repIntroSender,
     estimateDeliverySender,
     contextDialerSlackSender,
+    costIntelligenceDigest,
   ],
 });

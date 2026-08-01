@@ -35,6 +35,17 @@ const serverEnvSchema = z
     VERCEL_PROJECT_PRODUCTION_URL: optionalString,
     VERCEL_URL: optionalString,
     ROOF_ESTIMATE_COMPANY_ID: optionalUuid,
+    COST_INTELLIGENCE_ENABLED: booleanString,
+    COST_MONTHLY_BUDGET_USD: z.coerce.number().positive().default(1500),
+    SLACK_COST_DIGEST_WEBHOOK_URL: optionalString,
+    VERCEL_API_TOKEN: optionalString,
+    VERCEL_TEAM_ID: optionalString,
+    DIGITALOCEAN_TOKEN: optionalString,
+    GOOGLE_CLOUD_SERVICE_ACCOUNT_JSON: optionalString,
+    GOOGLE_CLOUD_BILLING_PROJECT_ID: optionalString,
+    GOOGLE_CLOUD_BILLING_TABLE: optionalString,
+    SUPABASE_COST_CONFIG_JSON: optionalString,
+    COST_RESOURCE_MAP_JSON: optionalString,
   })
   .superRefine((value, context) => {
     if (
