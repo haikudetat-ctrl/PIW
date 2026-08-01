@@ -26,7 +26,11 @@ const serverEnvSchema = z
     ESTIMATE_SMS_WEBHOOK_URL: optionalUrl,
     ESTIMATE_EMAIL_WEBHOOK_URL: optionalUrl,
     ESTIMATE_DELIVERY_SHARED_SECRET: optionalString,
-    SLACK_CONTEXT_DIALER_WEBHOOK_URL: optionalUrl,
+    // Slack is an optional downstream notification. Keep its value isolated
+    // from core environment validation so a malformed webhook cannot prevent
+    // lead intake, Supabase access, or Google enrichment. The Slack sender
+    // owns delivery validation and records a failed handoff when fetch rejects.
+    SLACK_CONTEXT_DIALER_WEBHOOK_URL: optionalString,
     CONTEXT_DIALER_BASE_URL: optionalUrl,
     ROOF_ESTIMATE_COMPANY_ID: optionalUuid,
   })

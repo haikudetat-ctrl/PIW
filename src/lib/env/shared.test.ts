@@ -61,6 +61,16 @@ describe("parseServerEnv", () => {
       }),
     ).toThrow("Slack Context Dialer delivery requires a stable application URL");
   });
+
+  test("does not let malformed optional Slack configuration block core services", () => {
+    expect(
+      parseServerEnv({
+        ...base,
+        SLACK_CONTEXT_DIALER_WEBHOOK_URL: "not-a-valid-webhook-url",
+        CONTEXT_DIALER_BASE_URL: "https://piw.example.com",
+      }).SLACK_CONTEXT_DIALER_WEBHOOK_URL,
+    ).toBe("not-a-valid-webhook-url");
+  });
 });
 
 describe("parseClientEnv", () => {
