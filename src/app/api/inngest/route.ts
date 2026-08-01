@@ -8,6 +8,7 @@ import { roofEstimateWorker } from "@/inngest/functions/roof-estimate-worker";
 import { processIntegrationEvent } from "@/inngest/functions/process-integration-event";
 import { repIntroSender } from "@/inngest/functions/rep-intro-sender";
 import { estimateDeliverySender } from "@/inngest/functions/estimate-delivery-sender";
+import { contextDialerSlackSender } from "@/inngest/functions/context-dialer-slack-sender";
 
 export const maxDuration = 300;
 
@@ -22,5 +23,6 @@ export const { GET, POST, PUT } = serve({
     processIntegrationEvent,
     repIntroSender,
     estimateDeliverySender,
+    contextDialerSlackSender,
   ],
 });

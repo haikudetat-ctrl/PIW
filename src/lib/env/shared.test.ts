@@ -46,9 +46,20 @@ describe("parseServerEnv", () => {
         ESTIMATE_SMS_WEBHOOK_URL: "",
         ESTIMATE_EMAIL_WEBHOOK_URL: "",
         ESTIMATE_DELIVERY_SHARED_SECRET: "",
+        SLACK_CONTEXT_DIALER_WEBHOOK_URL: "",
+        CONTEXT_DIALER_BASE_URL: "",
         ROOF_ESTIMATE_COMPANY_ID: "",
       }).GOOGLE_MAPS_API_KEY,
     ).toBeUndefined();
+  });
+
+  test("requires a stable Context Dialer URL when Slack delivery is enabled", () => {
+    expect(() =>
+      parseServerEnv({
+        ...base,
+        SLACK_CONTEXT_DIALER_WEBHOOK_URL: "https://hooks.slack.com/services/test",
+      }),
+    ).toThrow("Slack Context Dialer delivery requires a stable application URL");
   });
 });
 

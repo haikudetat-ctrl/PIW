@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createServerClient } from "@/lib/supabase/server";
 import { buildActivityTimeline } from "@/modules/leads/activity-timeline";
@@ -164,16 +165,24 @@ export default async function LeadWorkspacePage({
 
   return (
     <main className="flex flex-col gap-6">
-      <div>
-        <p className="text-xs font-semibold tracking-widest text-ink-subtle uppercase">
-          Lead workspace
-        </p>
-        <h1 className="mt-1 text-2xl font-bold text-ink">{lead.name}</h1>
-        <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-ink-muted">
-          <p>{lead.phone}</p>
-          <p>{lead.email}</p>
-          <p>Stage: {humanize(lead.stage)}</p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold tracking-widest text-ink-subtle uppercase">
+            Lead workspace
+          </p>
+          <h1 className="mt-1 text-2xl font-bold text-ink">{lead.name}</h1>
+          <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-ink-muted">
+            <p>{lead.phone}</p>
+            <p>{lead.email}</p>
+            <p>Stage: {humanize(lead.stage)}</p>
+          </div>
         </div>
+        <Link
+          href={`/leads/${lead.id}/dialer`}
+          className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover"
+        >
+          Open Context Dialer
+        </Link>
       </div>
 
       {estimate ? (
