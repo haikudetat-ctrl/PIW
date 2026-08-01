@@ -197,6 +197,9 @@ function makeRepository(overrides: Partial<AddressValidationWorkerRepository> = 
     },
     async mergeIntoCanonicalProperty() {},
     async createReviewTask() {},
+    async continueRoofEstimateAfterMerge() {
+      return false;
+    },
     async publishDiscoveryRequested() {},
     async writeAudit(input) {
       const key = `${input.action}:${input.propertyId}:${input.correlationId}:${input.workerRunId}`;
@@ -454,6 +457,34 @@ test("duplicate match attaches the observation to canonical property and complet
   });
   expect(publishDiscoveryRequested).not.toHaveBeenCalled();
   expect(result.outcome).toBe("merged");
+});
+
+test("duplicate roof-estimate lead continues discovery on the canonical property", async () => {
+  const canonicalPropertyId = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+  const continueRoofEstimateAfterMerge = vi.fn(async () => true);
+  const publishDiscoveryRequested = vi.fn();
+  const state = makeRepository({
+    findDuplicateCandidates: async () => [{ propertyId: canonicalPropertyId }],
+    continueRoofEstimateAfterMerge,
+    publishDiscoveryRequested,
+  });
+
+  const result = await runAddressValidation(event, state.repository);
+
+  expect(continueRoofEstimateAfterMerge).toHaveBeenCalledWith({
+    leadId: event.leadId,
+    pipelineRunId: event.pipelineRunId,
+    companyId: "99999999-9999-4999-8999-999999999999",
+    canonicalPropertyId,
+  });
+  expect(publishDiscoveryRequested).toHaveBeenCalledWith(
+    expect.objectContaining({
+      leadId: event.leadId,
+      pipelineRunId: event.pipelineRunId,
+      propertyId: canonicalPropertyId,
+    }),
+  );
+  expect(result.outcome).toBe("discovery_requested");
 });
 
 test("completed replay returns before provider calls or writes", async () => {
