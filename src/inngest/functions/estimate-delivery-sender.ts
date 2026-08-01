@@ -69,7 +69,14 @@ export async function sendQueuedEstimateDeliveries(
   for (const delivery of deliveries) {
     try {
       const result = await dispatchEstimateDelivery(delivery, config, fetcher);
-      if (result.outcome === "sent") await repository.markSent(delivery.id);
+      if (result.outcome === "sent") {
+        await repository.markSent(delivery.id);
+      } else {
+        await repository.markFailed(
+          delivery.id,
+          `${delivery.channel.toUpperCase()} delivery webhook is not configured`,
+        );
+      }
       results.push({ id: delivery.id, channel: delivery.channel, ...result });
     } catch (error) {
       const reason = error instanceof Error ? error.message : "Delivery failed";

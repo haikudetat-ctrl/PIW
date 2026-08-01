@@ -25,6 +25,22 @@ describe("estimate delivery sender", () => {
     expect(fetcher).not.toHaveBeenCalled();
   });
 
+  it("marks an unconfigured delivery terminal instead of leaving it queued", async () => {
+    const failures: string[] = [];
+    const repository: EstimateDeliveryRepository = {
+      listQueued: async () => [delivery],
+      markSent: async () => undefined,
+      markFailed: async (_id, reason) => { failures.push(reason); },
+    };
+
+    const results = await sendQueuedEstimateDeliveries(repository, {});
+
+    expect(results).toEqual([
+      { id: "delivery-1", channel: "sms", outcome: "not_configured" },
+    ]);
+    expect(failures).toEqual(["SMS delivery webhook is not configured"]);
+  });
+
   it("posts only the consented delivery payload and marks success", async () => {
     const sent: string[] = [];
     const failed: string[] = [];
