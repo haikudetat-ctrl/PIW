@@ -2,6 +2,7 @@
 
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { ZodError } from "zod";
 import { createEventEnvelope } from "@/domain/events";
 import { inngest } from "@/inngest/client";
 import { parseServerEnv } from "@/lib/env/server";
@@ -94,6 +95,18 @@ export async function submitPublicRoofEstimate(
     redirect(`/roof-estimate/${created.public_token}`);
   } catch (error) {
     if (error && typeof error === "object" && "digest" in error) throw error;
+    console.error("Roof estimate submission failed", {
+      error:
+        error instanceof ZodError
+          ? error.issues.map((issue) => ({
+              path: issue.path.join("."),
+              code: issue.code,
+              message: issue.message,
+            }))
+          : error instanceof Error
+            ? error.message
+            : "Unknown submission error",
+    });
     return { error: "We could not start the estimate right now. Please try again." };
   }
 }
