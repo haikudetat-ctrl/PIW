@@ -5,6 +5,7 @@ import {
   googleSolarInsightSchema,
   type GoogleSolarInsight,
 } from "@/domain/roof-estimate";
+import { propertyDiscoveryRequestedDataSchema } from "@/domain/events";
 import { inngest, propertyDiscoveryRequested } from "@/inngest/client";
 import type { Database, Json } from "@/lib/database.types";
 import { parseServerEnv } from "@/lib/env/server";
@@ -456,8 +457,8 @@ export class SupabaseRoofEstimateWorkerRepository
       { latitude: input.latitude, longitude: input.longitude },
       {
         companyId: input.companyId,
-        pipelineRunId: input.pipelineRunId,
-        correlationId: input.correlationId,
+        pipelineRunId: input?.pipelineRunId,
+        correlationId: input?.correlationId,
         requestKey: `roof.measurement:${input.pipelineRunId}:${input.attempt}`,
         deploymentEnvironment: environment.DEPLOYMENT_ENV,
       },
@@ -676,24 +677,24 @@ export const roofEstimateWorker = inngest.createFunction(
   { id: "roof-estimate-worker", triggers: { event: propertyDiscoveryRequested } },
   async ({ event }) => {
     const startedAt = Date.now();
-    const input: RoofEstimateEvent = {
-      id: event.data.id,
-      pipelineRunId: event.data.pipelineRunId,
-      correlationId: event.data.correlationId,
-      leadId: event.data.leadId,
-      propertyId: event.data.propertyId,
-      canonicalAddress: event.data.data.canonicalAddress,
-      latitude: event.data.data.latitude,
-      longitude: event.data.data.longitude,
-      attempt: event.data.data.attempt,
-    };
+    let input: RoofEstimateEvent | undefined;
     console.log(JSON.stringify({
       level: "info",
-      message: "Roof estimate worker started",
-      pipelineRunId: input.pipelineRunId,
-      correlationId: input.correlationId,
+      message: "Roof estimate event received",
+      eventId: event.id,
+      dataKeys:
+        event.data && typeof event.data === "object"
+          ? Object.keys(event.data).sort()
+          : [],
     }));
     try {
+      input = await resolveRoofEstimateEvent(event.id, event.data);
+      console.log(JSON.stringify({
+        level: "info",
+        message: "Roof estimate worker started",
+        pipelineRunId: input?.pipelineRunId,
+        correlationId: input?.correlationId,
+      }));
       const result = await runRoofEstimate(
         input,
         new SupabaseRoofEstimateWorkerRepository(),
@@ -710,8 +711,8 @@ export const roofEstimateWorker = inngest.createFunction(
       console.error(JSON.stringify({
         level: "error",
         message: "Roof estimate worker failed",
-        pipelineRunId: input.pipelineRunId,
-        correlationId: input.correlationId,
+        pipelineRunId: input?.pipelineRunId,
+        correlationId: input?.correlationId,
         error: error instanceof Error ? error.message : String(error),
         durationMs: Date.now() - startedAt,
       }));
@@ -719,3 +720,61 @@ export const roofEstimateWorker = inngest.createFunction(
     }
   },
 );
+
+async function resolveRoofEstimateEvent(
+  inngestEventId: string,
+  raw: unknown,
+): Promise<RoofEstimateEvent> {
+  if (
+    raw &&
+    typeof raw === "object" &&
+    "pipelineRunId" in raw &&
+    "correlationId" in raw &&
+    "data" in raw
+  ) {
+    const envelope = raw as {
+      id: string;
+      pipelineRunId: string;
+      correlationId: string;
+      leadId: string;
+      propertyId: string;
+      data: unknown;
+    };
+    const data = propertyDiscoveryRequestedDataSchema.parse(envelope.data);
+    return {
+      id: envelope.id,
+      pipelineRunId: envelope.pipelineRunId,
+      correlationId: envelope.correlationId,
+      leadId: envelope.leadId,
+      propertyId: envelope.propertyId,
+      canonicalAddress: data.canonicalAddress,
+      latitude: data.latitude,
+      longitude: data.longitude,
+      attempt: data.attempt,
+    };
+  }
+
+  const data = propertyDiscoveryRequestedDataSchema.parse(raw);
+  const client = createServiceClient();
+  const { data: run, error } = await client
+    .from("pipeline_runs")
+    .select("id, correlation_id, property_id")
+    .eq("lead_id", data.leadId)
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .single();
+  if (error || !run?.property_id) {
+    throw new Error("Unable to reconstruct roof-estimate pipeline scope");
+  }
+  return {
+    id: inngestEventId,
+    pipelineRunId: run.id,
+    correlationId: run.correlation_id,
+    leadId: data.leadId,
+    propertyId: run.property_id,
+    canonicalAddress: data.canonicalAddress,
+    latitude: data.latitude,
+    longitude: data.longitude,
+    attempt: data.attempt,
+  };
+}
