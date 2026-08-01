@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   buildContextDialerSlackPayload,
+  resolveContextDialerBaseUrl,
   sendQueuedContextDialers,
   type ContextDialerDelivery,
   type ContextDialerSlackRepository,
@@ -39,6 +40,23 @@ function repository() {
 }
 
 describe("Context Dialer Slack sender", () => {
+  it("prefers Vercel's stable production domain over a stale manual URL", () => {
+    expect(resolveContextDialerBaseUrl({
+      CONTEXT_DIALER_BASE_URL: "https://docs.slack.dev",
+      VERCEL_PROJECT_PRODUCTION_URL: "piw-sepia.vercel.app",
+      VERCEL_URL: "piw-git-preview.vercel.app",
+    })).toBe("https://piw-sepia.vercel.app");
+  });
+
+  it("rejects Slack documentation and workspace hosts as application URLs", () => {
+    expect(resolveContextDialerBaseUrl({
+      CONTEXT_DIALER_BASE_URL: "https://docs.slack.dev",
+    })).toBeUndefined();
+    expect(resolveContextDialerBaseUrl({
+      CONTEXT_DIALER_BASE_URL: "https://two-stack.slack.com",
+    })).toBeUndefined();
+  });
+
   it("builds a concise lead card with a stable Context Dialer link", () => {
     const payload = buildContextDialerSlackPayload(summary, "https://piw.example.com");
     expect(payload.text).toContain("Alex & Casey");

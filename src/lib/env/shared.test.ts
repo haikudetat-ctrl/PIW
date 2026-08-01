@@ -53,13 +53,14 @@ describe("parseServerEnv", () => {
     ).toBeUndefined();
   });
 
-  test("requires a stable Context Dialer URL when Slack delivery is enabled", () => {
-    expect(() =>
+  test("allows Vercel's system domain to supply the Context Dialer URL", () => {
+    expect(
       parseServerEnv({
         ...base,
         SLACK_CONTEXT_DIALER_WEBHOOK_URL: "https://hooks.slack.com/services/test",
-      }),
-    ).toThrow("Slack Context Dialer delivery requires a stable application URL");
+        VERCEL_PROJECT_PRODUCTION_URL: "piw-sepia.vercel.app",
+      }).VERCEL_PROJECT_PRODUCTION_URL,
+    ).toBe("piw-sepia.vercel.app");
   });
 
   test("does not let malformed optional Slack configuration block core services", () => {

@@ -37,6 +37,39 @@ type SlackConfig = {
   baseUrl?: string;
 };
 
+type ContextDialerUrlEnvironment = {
+  CONTEXT_DIALER_BASE_URL?: string;
+  VERCEL_PROJECT_PRODUCTION_URL?: string;
+  VERCEL_URL?: string;
+};
+
+function asHttpsUrl(value?: string) {
+  if (!value) return undefined;
+  const candidate = value.includes("://") ? value : `https://${value}`;
+  try {
+    const url = new URL(candidate);
+    if (url.protocol !== "https:" && url.protocol !== "http:") return undefined;
+    if (
+      url.hostname === "docs.slack.dev" ||
+      url.hostname === "slack.com" ||
+      url.hostname.endsWith(".slack.com")
+    ) return undefined;
+    return url.origin;
+  } catch {
+    return undefined;
+  }
+}
+
+export function resolveContextDialerBaseUrl(
+  environment: ContextDialerUrlEnvironment,
+) {
+  return (
+    asHttpsUrl(environment.VERCEL_PROJECT_PRODUCTION_URL) ??
+    asHttpsUrl(environment.CONTEXT_DIALER_BASE_URL) ??
+    asHttpsUrl(environment.VERCEL_URL)
+  );
+}
+
 function escapeSlack(value: string) {
   return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 }
@@ -248,7 +281,7 @@ export const contextDialerSlackSender = inngest.createFunction(
       const environment = parseServerEnv(process.env);
       return sendQueuedContextDialers(new SupabaseContextDialerSlackRepository(), {
         webhookUrl: environment.SLACK_CONTEXT_DIALER_WEBHOOK_URL,
-        baseUrl: environment.CONTEXT_DIALER_BASE_URL,
+        baseUrl: resolveContextDialerBaseUrl(environment),
       });
     }),
 );

@@ -1783,6 +1783,7 @@ export type Database = {
           public_token: string
           range_high_cents: number | null
           range_low_cents: number | null
+          reused_from_estimate_id: string | null
           roof_insight_id: string | null
           roof_squares: number | null
           status: string
@@ -1804,6 +1805,7 @@ export type Database = {
           public_token?: string
           range_high_cents?: number | null
           range_low_cents?: number | null
+          reused_from_estimate_id?: string | null
           roof_insight_id?: string | null
           roof_squares?: number | null
           status?: string
@@ -1825,6 +1827,7 @@ export type Database = {
           public_token?: string
           range_high_cents?: number | null
           range_low_cents?: number | null
+          reused_from_estimate_id?: string | null
           roof_insight_id?: string | null
           roof_squares?: number | null
           status?: string
@@ -1851,6 +1854,13 @@ export type Database = {
             columns: ["property_id"]
             isOneToOne: false
             referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "roof_estimates_reused_from_estimate_id_fkey"
+            columns: ["reused_from_estimate_id"]
+            isOneToOne: false
+            referencedRelation: "roof_estimates"
             referencedColumns: ["id"]
           },
           {

@@ -47,6 +47,8 @@ function repository(overrides: Record<string, unknown> = {}) {
     })),
     upsertWorkerRunQueued: vi.fn(async () => ({ id: "worker-1", status: "queued" })),
     startEstimating: vi.fn(async () => undefined),
+    findReusableEstimate: vi.fn(async () => null),
+    reuseEstimate: vi.fn(async () => undefined),
     findCachedInsight: vi.fn(async () => null),
     beginProviderRequest: vi.fn(async () => ({ providerRequestId: "request-1" })),
     markProviderCacheHit: vi.fn(async () => undefined),
@@ -70,6 +72,43 @@ function repository(overrides: Record<string, unknown> = {}) {
 }
 
 describe("runRoofEstimate", () => {
+  it("reuses the latest ready quote for the canonical property without calling Google", async () => {
+    const reusable = {
+      sourceEstimateId: "estimate-original",
+      roofInsightId: "insight-original",
+      totalRoofSqft: 2_500,
+      assumptions: { market: "New Jersey average" },
+      estimate: {
+        roofSquares: 25,
+        rangeLowCents: 1_250_000,
+        rangeHighCents: 1_875_000,
+        pricePerSquareLowCents: 50_000,
+        pricePerSquareHighCents: 75_000,
+        pricingVersion: "nj-asphalt-v1",
+      },
+    };
+    const repo = repository({ findReusableEstimate: vi.fn(async () => reusable) });
+
+    await expect(runRoofEstimate(event, repo)).resolves.toEqual({
+      outcome: "reused_ready_quote",
+      workerRunId: "worker-1",
+      sourceEstimateId: "estimate-original",
+    });
+    expect(repo.reuseEstimate).toHaveBeenCalledWith({
+      estimateId: "estimate-1",
+      companyId: "company-1",
+      reusable,
+    });
+    expect(repo.beginProviderRequest).not.toHaveBeenCalled();
+    expect(repo.reserveSolarCall).not.toHaveBeenCalled();
+    expect(repo.measureRoof).not.toHaveBeenCalled();
+    expect(repo.queueDeliveries).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "ready", estimate: reusable.estimate }),
+    );
+    expect(repo.queueContextDialer).toHaveBeenCalledOnce();
+    expect(repo.completePipeline).toHaveBeenCalledOnce();
+  });
+
   it("reuses cached measurements without consuming the monthly Solar budget", async () => {
     const repo = repository({ findCachedInsight: vi.fn(async () => record) });
     await expect(runRoofEstimate(event, repo)).resolves.toEqual({

@@ -37,6 +37,14 @@ type EstimateScope = {
 
 type WorkerRunRecord = { id: string; status: string };
 
+export type ReusableRoofEstimate = {
+  sourceEstimateId: string;
+  roofInsightId: string | null;
+  totalRoofSqft: number;
+  assumptions: Json;
+  estimate: ReturnType<typeof calculatePreliminaryRoofEstimate>;
+};
+
 export type RoofInsightRecord = {
   id: string;
   insight: GoogleSolarInsight;
@@ -50,6 +58,16 @@ export interface RoofEstimateWorkerRepository {
     idempotencyKey: string;
   }): Promise<WorkerRunRecord>;
   startEstimating(input: { pipelineRunId: string; companyId: string }): Promise<void>;
+  findReusableEstimate(input: {
+    companyId: string;
+    propertyId: string;
+    estimateId: string;
+  }): Promise<ReusableRoofEstimate | null>;
+  reuseEstimate(input: {
+    estimateId: string;
+    companyId: string;
+    reusable: ReusableRoofEstimate;
+  }): Promise<void>;
   findCachedInsight(input: {
     companyId: string;
     normalizedAddress: string;
@@ -143,6 +161,46 @@ export async function runRoofEstimate(
     pipelineRunId: event.pipelineRunId,
     companyId: scope.companyId,
   });
+
+  const reusable = await repository.findReusableEstimate({
+    companyId: scope.companyId,
+    propertyId: event.propertyId,
+    estimateId: scope.estimateId,
+  });
+  if (reusable) {
+    await repository.reuseEstimate({
+      estimateId: scope.estimateId,
+      companyId: scope.companyId,
+      reusable,
+    });
+    await repository.queueDeliveries({
+      estimateId: scope.estimateId,
+      companyId: scope.companyId,
+      leadId: event.leadId,
+      name: scope.name,
+      phone: scope.phone,
+      email: scope.email,
+      status: "ready",
+      estimate: reusable.estimate,
+    });
+    await repository.queueContextDialer({
+      estimateId: scope.estimateId,
+      companyId: scope.companyId,
+      leadId: event.leadId,
+      pipelineRunId: event.pipelineRunId,
+    });
+    await repository.completePipeline({
+      pipelineRunId: event.pipelineRunId,
+      propertyId: event.propertyId,
+      companyId: scope.companyId,
+    });
+    await repository.markWorkerRunCompleted(workerRun.id);
+    return {
+      outcome: "reused_ready_quote" as const,
+      workerRunId: workerRun.id,
+      sourceEstimateId: reusable.sourceEstimateId,
+    };
+  }
 
   const normalizedAddress = normalizeAddressForMatching(event.canonicalAddress);
   const { providerRequestId } = await repository.beginProviderRequest({
@@ -378,6 +436,83 @@ export class SupabaseRoofEstimateWorkerRepository
       .eq("company_id", input.companyId)
       .in("status", ["validating", "enriching", "estimating"]);
     if (error) throw new Error("Failed to start roof estimation");
+  }
+
+  async findReusableEstimate(input: {
+    companyId: string;
+    propertyId: string;
+    estimateId: string;
+  }): Promise<ReusableRoofEstimate | null> {
+    const { data, error } = await this.client
+      .from("roof_estimates")
+      .select("id, roof_insight_id, total_roof_sqft, roof_squares, price_per_square_low_cents, price_per_square_high_cents, range_low_cents, range_high_cents, pricing_version, assumptions")
+      .eq("company_id", input.companyId)
+      .eq("property_id", input.propertyId)
+      .eq("status", "ready")
+      .neq("id", input.estimateId)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw new Error("Failed to find reusable roof estimate");
+    if (
+      !data ||
+      data.total_roof_sqft === null ||
+      data.roof_squares === null ||
+      data.range_low_cents === null ||
+      data.range_high_cents === null
+    ) return null;
+    return {
+      sourceEstimateId: data.id,
+      roofInsightId: data.roof_insight_id,
+      totalRoofSqft: Number(data.total_roof_sqft),
+      assumptions: data.assumptions,
+      estimate: {
+        roofSquares: Number(data.roof_squares),
+        rangeLowCents: data.range_low_cents,
+        rangeHighCents: data.range_high_cents,
+        pricePerSquareLowCents: data.price_per_square_low_cents,
+        pricePerSquareHighCents: data.price_per_square_high_cents,
+        pricingVersion: data.pricing_version,
+      },
+    };
+  }
+
+  async reuseEstimate(input: {
+    estimateId: string;
+    companyId: string;
+    reusable: ReusableRoofEstimate;
+  }) {
+    const priorAssumptions =
+      input.reusable.assumptions &&
+      typeof input.reusable.assumptions === "object" &&
+      !Array.isArray(input.reusable.assumptions)
+        ? input.reusable.assumptions
+        : {};
+    const { error } = await this.client
+      .from("roof_estimates")
+      .update({
+        reused_from_estimate_id: input.reusable.sourceEstimateId,
+        roof_insight_id: input.reusable.roofInsightId,
+        status: "ready",
+        total_roof_sqft: input.reusable.totalRoofSqft,
+        roof_squares: input.reusable.estimate.roofSquares,
+        price_per_square_low_cents: input.reusable.estimate.pricePerSquareLowCents,
+        price_per_square_high_cents: input.reusable.estimate.pricePerSquareHighCents,
+        range_low_cents: input.reusable.estimate.rangeLowCents,
+        range_high_cents: input.reusable.estimate.rangeHighCents,
+        pricing_version: input.reusable.estimate.pricingVersion,
+        assumptions: {
+          ...priorAssumptions,
+          reusedFromEstimateId: input.reusable.sourceEstimateId,
+          reusedAt: new Date().toISOString(),
+        },
+        failure_reason: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", input.estimateId)
+      .eq("company_id", input.companyId)
+      .eq("status", "pending");
+    if (error) throw new Error("Failed to reuse stored roof estimate");
   }
 
   async findCachedInsight(input: { companyId: string; normalizedAddress: string }) {
