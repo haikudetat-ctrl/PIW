@@ -14,45 +14,89 @@ type Brand = {
   testimonial: { quote: string; author: string; source: string };
 };
 
-export function EstimateWaitExperience({ brand, manualReview = false }: { brand: Brand; manualReview?: boolean }) {
+export function EstimateWaitExperience({
+  brand,
+  manualReview = false,
+}: {
+  brand: Brand;
+  manualReview?: boolean;
+}) {
   const [panel, setPanel] = useState(0);
+
   useEffect(() => {
-    const interval = window.setInterval(() => setPanel((current) => (current + 1) % 3), 7_000);
+    const interval = window.setInterval(
+      () => setPanel((current) => (current + 1) % 2),
+      6_500,
+    );
     return () => window.clearInterval(interval);
   }, []);
 
-  const panels = [
-    <div key="process" className="grid gap-4 text-left">
-      <p className="text-xs font-bold tracking-[0.16em] text-accent uppercase">What’s happening now</p>
-      <ol className="grid gap-3 text-sm text-ink-muted">
-        <li className="flex gap-3"><span className="grid size-6 shrink-0 place-items-center rounded-full bg-success-bg font-bold text-success">✓</span><span>Your request and contact permissions are saved.</span></li>
-        <li className="flex gap-3"><span className="grid size-6 shrink-0 place-items-center rounded-full bg-info-bg font-bold text-info">2</span><span>{manualReview ? "A roofing professional is checking the address and building match." : "Google is matching the building and measuring its roof planes."}</span></li>
-        <li className="flex gap-3"><span className="grid size-6 shrink-0 place-items-center rounded-full bg-surface-muted font-bold text-ink-subtle">3</span><span>We apply the New Jersey price range and send the result by text and email.</span></li>
-      </ol>
-    </div>,
-    <div key="trust" className="grid gap-4 text-left">
-      <p className="text-xs font-bold tracking-[0.16em] text-accent uppercase">A local team you can reach</p>
-      <p className="text-lg font-semibold text-ink">{brand.name}</p>
-      <p className="text-sm leading-6 text-ink-muted">Google lists the Galloway-based company at {brand.googleRating} stars from {brand.googleReviewCount} reviews.</p>
-      <div className="flex flex-wrap gap-3">
-        <a href={brand.phoneHref} className="rounded-lg bg-accent px-4 py-2.5 text-sm font-bold text-white">Call {brand.phoneDisplay}</a>
-        <a href={brand.websiteUrl} target="_blank" rel="noreferrer" className="rounded-lg border border-border-strong px-4 py-2.5 text-sm font-bold text-accent">Visit company website</a>
-      </div>
-      <a href={brand.googleListingUrl} target="_blank" rel="noreferrer" className="text-xs text-ink-subtle underline underline-offset-4">Google rating snapshot viewed {brand.googleSnapshotDate}</a>
-    </div>,
-    <figure key="review" className="grid gap-4 text-left">
-      <p className="text-xs font-bold tracking-[0.16em] text-accent uppercase">Homeowner feedback</p>
-      <blockquote className="text-xl font-semibold leading-8 text-ink">“{brand.testimonial.quote}”</blockquote>
-      <figcaption className="text-sm text-ink-muted">{brand.testimonial.author} · {brand.testimonial.source}</figcaption>
-      <a href={brand.googleListingUrl} target="_blank" rel="noreferrer" className="text-xs text-ink-subtle underline underline-offset-4">Read reviews on Google</a>
-    </figure>,
-  ];
-
   return (
-    <div className="mt-8 rounded-xl border border-border bg-surface-muted p-5 sm:p-6">
-      <div className="min-h-52">{panels[panel]}</div>
-      <div className="mt-5 flex justify-center gap-2" aria-label={`Trust story ${panel + 1} of 3`}>
-        {[0, 1, 2].map((item) => <button key={item} type="button" aria-label={`Show story ${item + 1}`} onClick={() => setPanel(item)} className={`size-2.5 rounded-full ${item === panel ? "bg-accent" : "bg-border-strong"}`} />)}
+    <div className="mt-auto pt-10">
+      <div className="grid grid-cols-[1rem_1fr] gap-x-4 gap-y-5 text-sm">
+        <span className="mt-0.5 grid size-4 place-items-center rounded-full bg-cyan-700 text-[10px] font-bold text-white dark:bg-cyan-300 dark:text-slate-950">1</span>
+        <div>
+          <p className="font-semibold">Request secured</p>
+          <p className="mt-1 text-slate-500 dark:text-slate-400">Your details and permissions are saved.</p>
+        </div>
+        <span className="estimate-status-pulse mt-0.5 size-4 rounded-full border-4 border-cyan-100 bg-cyan-700 dark:border-cyan-900 dark:bg-cyan-300" />
+        <div>
+          <p className="font-semibold">{manualReview ? "Property review" : "Roof measurement"}</p>
+          <p className="mt-1 text-slate-500 dark:text-slate-400">
+            {manualReview ? "A roofing professional is checking the building match." : "Google is calculating the roof surface."}
+          </p>
+        </div>
+        <span className="mt-0.5 grid size-4 place-items-center rounded-full bg-slate-200 text-[10px] font-bold text-slate-600 dark:bg-slate-700 dark:text-slate-300">3</span>
+        <div>
+          <p className="font-semibold text-slate-500 dark:text-slate-400">Range and follow-up</p>
+          <p className="mt-1 text-slate-500 dark:text-slate-400">The result is sent by text and email.</p>
+        </div>
+      </div>
+
+      <div key={panel} className="estimate-reveal mt-8 rounded-2xl bg-slate-100 p-5 dark:bg-slate-800/70">
+        {panel === 0 ? (
+          <figure>
+            <blockquote className="line-clamp-3 text-base font-medium leading-7 text-slate-800 dark:text-slate-100">
+              “{brand.testimonial.quote}”
+            </blockquote>
+            <figcaption className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+              {brand.testimonial.author}, {brand.testimonial.source}
+            </figcaption>
+          </figure>
+        ) : (
+          <div>
+            <p className="text-base font-semibold text-slate-800 dark:text-slate-100">
+              {brand.googleRating} stars from {brand.googleReviewCount} Google reviews
+            </p>
+            <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
+              {brand.name} serves homeowners across New Jersey with a team you can reach directly.
+            </p>
+            <a
+              href={brand.googleListingUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-3 inline-block text-sm font-semibold text-cyan-700 underline decoration-cyan-700/30 underline-offset-4 dark:text-cyan-300"
+            >
+              Read customer reviews
+            </a>
+          </div>
+        )}
+      </div>
+
+      <div className="mt-4 flex gap-2" aria-label={`Trust story ${panel + 1} of 2`}>
+        {[0, 1].map((item) => (
+          <button
+            key={item}
+            type="button"
+            aria-label={`Show trust story ${item + 1}`}
+            onClick={() => setPanel(item)}
+            className={`h-1.5 rounded-full transition-all ${
+              item === panel
+                ? "w-8 bg-cyan-700 dark:bg-cyan-300"
+                : "w-4 bg-slate-300 dark:bg-slate-700"
+            }`}
+          />
+        ))}
       </div>
     </div>
   );

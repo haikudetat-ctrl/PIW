@@ -32,6 +32,8 @@ const serverEnvSchema = z
     // owns delivery validation and records a failed handoff when fetch rejects.
     SLACK_CONTEXT_DIALER_WEBHOOK_URL: optionalString,
     CONTEXT_DIALER_BASE_URL: optionalUrl,
+    VERCEL_PROJECT_PRODUCTION_URL: optionalString,
+    VERCEL_URL: optionalString,
     ROOF_ESTIMATE_COMPANY_ID: optionalUuid,
   })
   .superRefine((value, context) => {
@@ -60,16 +62,6 @@ const serverEnvSchema = z
         code: "custom",
         path: ["ESTIMATE_DELIVERY_SHARED_SECRET"],
         message: "Estimate delivery webhooks require a shared secret",
-      });
-    }
-    if (
-      value.SLACK_CONTEXT_DIALER_WEBHOOK_URL &&
-      !value.CONTEXT_DIALER_BASE_URL
-    ) {
-      context.addIssue({
-        code: "custom",
-        path: ["CONTEXT_DIALER_BASE_URL"],
-        message: "Slack Context Dialer delivery requires a stable application URL",
       });
     }
   });

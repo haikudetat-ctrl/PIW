@@ -2,13 +2,21 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(26);
+select plan(28);
 
 select has_table('public', 'lead_consents', 'lead_consents exists');
 select has_table('public', 'provider_usage_monthly', 'provider usage counter exists');
 select has_table('public', 'roof_insights', 'Google roof insight cache exists');
 select has_table('public', 'roof_estimates', 'roof estimates exists');
 select has_table('public', 'estimate_deliveries', 'estimate deliveries exists');
+select has_column(
+  'public', 'roof_estimates', 'reused_from_estimate_id',
+  'roof estimate quote reuse records its source estimate'
+);
+select has_index(
+  'public', 'roof_estimates', 'roof_estimates_reusable_quote_idx',
+  'ready quotes have a property reuse lookup index'
+);
 
 select has_function(
   'public', 'reserve_provider_usage', array['text', 'date', 'integer'],
