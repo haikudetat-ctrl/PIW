@@ -20,7 +20,10 @@ jobs:
           REPOSITORY: ${{ github.repository }}
           SHA: ${{ github.sha }}
         run: |
-          test -n "$SLACK_DEPLOY_WEBHOOK_URL"
+          if [ -z "$SLACK_DEPLOY_WEBHOOK_URL" ]; then
+            echo "::notice::SLACK_DEPLOY_WEBHOOK_URL is not configured; skipping deploy alert"
+            exit 0
+          fi
           payload=$(jq -n \
             --arg state "$DEPLOY_STATE" \
             --arg environment "$DEPLOY_ENVIRONMENT" \
