@@ -674,21 +674,48 @@ export class SupabaseRoofEstimateWorkerRepository
 
 export const roofEstimateWorker = inngest.createFunction(
   { id: "roof-estimate-worker", triggers: { event: propertyDiscoveryRequested } },
-  async ({ event, step }) =>
-    step.run("run-google-roof-estimate", () =>
-      runRoofEstimate(
-        {
-          id: event.data.id,
-          pipelineRunId: event.data.pipelineRunId,
-          correlationId: event.data.correlationId,
-          leadId: event.data.leadId,
-          propertyId: event.data.propertyId,
-          canonicalAddress: event.data.data.canonicalAddress,
-          latitude: event.data.data.latitude,
-          longitude: event.data.data.longitude,
-          attempt: event.data.data.attempt,
-        },
+  async ({ event }) => {
+    const startedAt = Date.now();
+    const input: RoofEstimateEvent = {
+      id: event.data.id,
+      pipelineRunId: event.data.pipelineRunId,
+      correlationId: event.data.correlationId,
+      leadId: event.data.leadId,
+      propertyId: event.data.propertyId,
+      canonicalAddress: event.data.data.canonicalAddress,
+      latitude: event.data.data.latitude,
+      longitude: event.data.data.longitude,
+      attempt: event.data.data.attempt,
+    };
+    console.log(JSON.stringify({
+      level: "info",
+      message: "Roof estimate worker started",
+      pipelineRunId: input.pipelineRunId,
+      correlationId: input.correlationId,
+    }));
+    try {
+      const result = await runRoofEstimate(
+        input,
         new SupabaseRoofEstimateWorkerRepository(),
-      ),
-    ),
+      );
+      console.log(JSON.stringify({
+        level: "info",
+        message: "Roof estimate worker completed",
+        pipelineRunId: input.pipelineRunId,
+        outcome: result.outcome,
+        durationMs: Date.now() - startedAt,
+      }));
+      return result;
+    } catch (error) {
+      console.error(JSON.stringify({
+        level: "error",
+        message: "Roof estimate worker failed",
+        pipelineRunId: input.pipelineRunId,
+        correlationId: input.correlationId,
+        error: error instanceof Error ? error.message : String(error),
+        durationMs: Date.now() - startedAt,
+      }));
+      throw error;
+    }
+  },
 );
