@@ -6,7 +6,7 @@ test("resolves Google as the paid address-validation provider", () => {
   process.env.GOOGLE_MAPS_API_KEY = "test-key";
   const registry = createPropertyIdentityProviderRegistry();
 
-  expect(registry.resolve("address.validate").id).toBe("google-geocoding");
+  expect(registry.resolve("address.validate").id).toBe("google-places");
   delete process.env.GOOGLE_MAPS_API_KEY;
   process.env.PAID_PROVIDERS_ENABLED = "false";
 });

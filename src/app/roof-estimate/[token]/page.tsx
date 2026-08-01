@@ -26,7 +26,9 @@ export default async function RoofEstimateResultPage({ params }: { params: Promi
     .maybeSingle();
   const pipelineTerminal = pipeline && ["complete", "partial", "review_required", "failed"].includes(pipeline.status);
   const pending = estimate.status === "pending" && !pipelineTerminal;
-  const manualReview = estimate.status === "pending" && pipeline?.status === "review_required";
+  const manualReview =
+    estimate.status === "review_required" ||
+    (estimate.status === "pending" && pipeline?.status === "review_required");
   const ready = estimate.status === "ready" && estimate.range_low_cents !== null && estimate.range_high_cents !== null;
 
   return (

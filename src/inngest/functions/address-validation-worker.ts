@@ -583,7 +583,7 @@ export class SupabaseAddressValidationWorkerRepository
         worker_run_id: input.workerRunId,
         attempt: input.attempt,
         capability: "address.validate",
-        provider: "google_geocoding",
+        provider: "google_places",
         request_key: requestKey,
         status: "requested",
       })
@@ -1053,6 +1053,18 @@ export class SupabaseAddressValidationWorkerRepository
       .eq("id", input.pipelineRunId)
       .eq("company_id", input.companyId);
     if (runError) throw new Error("Failed to mark pipeline for review");
+
+    const { error: estimateError } = await this.client
+      .from("roof_estimates")
+      .update({
+        status: "review_required",
+        failure_reason: "Address match requires manual review",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("lead_id", input.leadId)
+      .eq("company_id", input.companyId)
+      .eq("status", "pending");
+    if (estimateError) throw new Error("Failed to mark roof estimate for review");
   }
 
   async publishDiscoveryRequested(input: {
