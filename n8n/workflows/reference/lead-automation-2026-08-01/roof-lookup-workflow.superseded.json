@@ -1,0 +1,455 @@
+{
+  "name": "Roof Quote Lookup - Google Solar API",
+  "nodes": [
+    {
+      "id": "n1",
+      "name": "Roof Quote Lead Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 300],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "roof-quote-lead",
+        "responseMode": "lastNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "n2",
+      "name": "Has Consent?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [220, 300],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict" },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "cond-consent",
+              "leftValue": "={{ $json.body.consent_to_contact }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true", "singleValue": true }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n3",
+      "name": "No Consent - Standard Lead Flow",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [440, 460],
+      "parameters": {
+        "notes": "Lead continues through existing Lead Support enrichment/qualify/sequence flow without a roof lookup."
+      }
+    },
+    {
+      "id": "n4",
+      "name": "Normalize Address & Build Cache Key",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 300],
+      "parameters": {
+        "jsCode": "const b = $json.body ?? $json;\nconst parts = [b.address_line1, b.city, b.state, b.zip]\n  .filter(Boolean)\n  .map(s => String(s).trim().toLowerCase());\nconst normalized_address = parts.join(', ');\n\nreturn [{\n  json: {\n    ...b,\n    normalized_address\n  }\n}];"
+      }
+    },
+    {
+      "id": "n5",
+      "name": "Check Roof Lookup Cache",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [660, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/roof_lookups",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "normalized_address", "value": "=eq.{{ $json.normalized_address }}" },
+            { "name": "select", "value": "*" }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n6",
+      "name": "Cache Hit?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [880, 300],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "loose" },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "cond-cache-hit",
+              "leftValue": "={{ $json.length }}",
+              "rightValue": 0,
+              "operator": { "type": "number", "operation": "gt" }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n23",
+      "name": "Use Cached Row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 220],
+      "parameters": {
+        "jsCode": "const row = $json[0];\nconst lead = $('Normalize Address & Build Cache Key').item.json;\nreturn [{\n  json: {\n    ...lead,\n    ...row,\n    api_call_made: false\n  }\n}];"
+      }
+    },
+    {
+      "id": "n7",
+      "name": "Get Monthly Quota Counter",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1100, 400],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/api_usage_counters",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "api_name", "value": "=eq.google_solar_building_insights" },
+            { "name": "period", "value": "=eq.{{ $now.format('yyyy-MM') }}" },
+            { "name": "select", "value": "*" }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n8",
+      "name": "Under Quota?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1320, 400],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "loose" },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "cond-under-quota",
+              "leftValue": "={{ $json.length ? $json[0].call_count : 0 }}",
+              "rightValue": 9500,
+              "operator": { "type": "number", "operation": "lt" }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n9",
+      "name": "Mark Quota Exhausted",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1540, 520],
+      "parameters": {
+        "jsCode": "const lead = $('Normalize Address & Build Cache Key').item.json;\nreturn [{\n  json: {\n    ...lead,\n    lookup_status: 'quota_exhausted',\n    api_call_made: false\n  }\n}];"
+      }
+    },
+    {
+      "id": "n10",
+      "name": "Upsert Lookup (quota_exhausted)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1760, 520],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/roof_lookups",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Prefer", "value": "resolution=merge-duplicates,return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { normalized_address: $json.normalized_address, lookup_status: $json.lookup_status, api_call_made: false } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "n11",
+      "name": "Geocode Address",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1540, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "https://maps.googleapis.com/maps/api/geocode/json",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "address", "value": "={{ $json.normalized_address }}" },
+            { "name": "key", "value": "={{ $env.GOOGLE_MAPS_API_KEY }}" }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n12",
+      "name": "Call Google Solar API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1760, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "https://solar.googleapis.com/v1/buildingInsights:findClosest",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "location.latitude", "value": "={{ $json.results[0].geometry.location.lat }}" },
+            { "name": "location.longitude", "value": "={{ $json.results[0].geometry.location.lng }}" },
+            { "name": "key", "value": "={{ $env.GOOGLE_MAPS_API_KEY }}" }
+          ]
+        },
+        "options": {
+          "response": { "response": { "neverError": true } }
+        }
+      }
+    },
+    {
+      "id": "n13",
+      "name": "Roof Data Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1980, 300],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "loose" },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "cond-has-segments",
+              "leftValue": "={{ $json.solarPotential?.roofSegmentStats?.length || 0 }}",
+              "rightValue": 0,
+              "operator": { "type": "number", "operation": "gt" }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n14",
+      "name": "Mark No Coverage",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2200, 460],
+      "parameters": {
+        "jsCode": "const lead = $('Normalize Address & Build Cache Key').item.json;\nreturn [{\n  json: {\n    ...lead,\n    lookup_status: 'no_coverage',\n    api_call_made: true\n  }\n}];"
+      }
+    },
+    {
+      "id": "n15",
+      "name": "Upsert Lookup (no_coverage)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2420, 460],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/roof_lookups",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Prefer", "value": "resolution=merge-duplicates,return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { normalized_address: $json.normalized_address, lookup_status: $json.lookup_status, api_call_made: true } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "n16",
+      "name": "Parse Segments & Compute Sqft/Planes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2200, 300],
+      "parameters": {
+        "jsCode": "const solar = $json;\nconst lead = $('Normalize Address & Build Cache Key').item.json;\n\nconst segments = (solar.solarPotential?.roofSegmentStats || []).map(seg => ({\n  pitch_degrees: seg.pitchDegrees,\n  azimuth_degrees: seg.azimuthDegrees,\n  area_sqft: seg.stats?.areaMeters2 ? seg.stats.areaMeters2 * 10.7639 : null\n}));\n\nconst total_footprint_sqft = segments.reduce((sum, s) => sum + (s.area_sqft || 0), 0);\n// NOTE: verify against a live response whether Google's per-segment area is\n// already slope-corrected. If it's flat footprint instead, apply:\n// area / cos(pitch_degrees * Math.PI / 180) per segment before summing.\nconst total_adjusted_sqft = total_footprint_sqft;\n\nreturn [{\n  json: {\n    ...lead,\n    lookup_status: 'success',\n    api_call_made: true,\n    roof_segments: segments,\n    plane_count: segments.length,\n    total_footprint_sqft,\n    total_adjusted_sqft,\n    pitch_source: 'api',\n    imagery_date: solar.imageryDate\n      ? `${solar.imageryDate.year}-${String(solar.imageryDate.month).padStart(2, '0')}-${String(solar.imageryDate.day).padStart(2, '0')}`\n      : null,\n    imagery_quality: solar.imageryQuality || null\n  }\n}];"
+      }
+    },
+    {
+      "id": "n17",
+      "name": "Upsert Lookup (success)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2420, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/roof_lookups",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Prefer", "value": "resolution=merge-duplicates,return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "n18",
+      "name": "Increment Quota Counter",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2640, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/rpc/increment_api_usage_counter",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { p_api_name: 'google_solar_building_insights', p_period: $now.format('yyyy-MM') } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "n19",
+      "name": "Compute Quote Range",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2860, 300],
+      "parameters": {
+        "jsCode": "// Works whether we arrived via cache hit or a fresh API call\nconst source = $json.total_adjusted_sqft !== undefined\n  ? $json\n  : $('Parse Segments & Compute Sqft/Planes').item.json;\n\n// TODO: replace with actual pricing model\nconst sqft = source.total_adjusted_sqft || 0;\nconst squares = sqft / 100;\nconst planeCount = source.plane_count || 1;\nconst complexityMultiplier = 1 + Math.max(0, planeCount - 4) * 0.03;\n\nconst pricePerSquareLow = 450;\nconst pricePerSquareHigh = 650;\n\nreturn [{\n  json: {\n    ...source,\n    quote_range_low: Math.round(squares * pricePerSquareLow * complexityMultiplier),\n    quote_range_high: Math.round(squares * pricePerSquareHigh * complexityMultiplier)\n  }\n}];"
+      }
+    },
+    {
+      "id": "n20",
+      "name": "Update Lead Record",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3080, 300],
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/leads",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "id", "value": "=eq.{{ $json.lead_id }}" }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Prefer", "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { roof_lookup_id: $json.id, quote_range_low: $json.quote_range_low, quote_range_high: $json.quote_range_high, quote_range_sent_at: $now.toISO() } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "n21",
+      "name": "Send Quote Range Message",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [3300, 300],
+      "parameters": {
+        "notes": "Wire to existing GHL/Twilio/email step: send quote range + booking link for the down-to-the-penny estimate."
+      }
+    },
+    {
+      "id": "n22",
+      "name": "Send Fallback Message + Alert Sales",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2200, 640],
+      "parameters": {
+        "notes": "Wire to existing GHL/Twilio/email step for the warm 'we'll follow up' message, plus a Slack/internal task alert flagging this lead for the manual/assisted roof trace."
+      }
+    }
+  ],
+  "connections": {
+    "Roof Quote Lead Webhook": { "main": [[{ "node": "Has Consent?", "type": "main", "index": 0 }]] },
+    "Has Consent?": {
+      "main": [
+        [{ "node": "Normalize Address & Build Cache Key", "type": "main", "index": 0 }],
+        [{ "node": "No Consent - Standard Lead Flow", "type": "main", "index": 0 }]
+      ]
+    },
+    "Normalize Address & Build Cache Key": { "main": [[{ "node": "Check Roof Lookup Cache", "type": "main", "index": 0 }]] },
+    "Check Roof Lookup Cache": { "main": [[{ "node": "Cache Hit?", "type": "main", "index": 0 }]] },
+    "Cache Hit?": {
+      "main": [
+        [{ "node": "Use Cached Row", "type": "main", "index": 0 }],
+        [{ "node": "Get Monthly Quota Counter", "type": "main", "index": 0 }]
+      ]
+    },
+    "Use Cached Row": { "main": [[{ "node": "Compute Quote Range", "type": "main", "index": 0 }]] },
+    "Get Monthly Quota Counter": { "main": [[{ "node": "Under Quota?", "type": "main", "index": 0 }]] },
+    "Under Quota?": {
+      "main": [
+        [{ "node": "Geocode Address", "type": "main", "index": 0 }],
+        [{ "node": "Mark Quota Exhausted", "type": "main", "index": 0 }]
+      ]
+    },
+    "Mark Quota Exhausted": { "main": [[{ "node": "Upsert Lookup (quota_exhausted)", "type": "main", "index": 0 }]] },
+    "Upsert Lookup (quota_exhausted)": { "main": [[{ "node": "Send Fallback Message + Alert Sales", "type": "main", "index": 0 }]] },
+    "Geocode Address": { "main": [[{ "node": "Call Google Solar API", "type": "main", "index": 0 }]] },
+    "Call Google Solar API": { "main": [[{ "node": "Roof Data Found?", "type": "main", "index": 0 }]] },
+    "Roof Data Found?": {
+      "main": [
+        [{ "node": "Parse Segments & Compute Sqft/Planes", "type": "main", "index": 0 }],
+        [{ "node": "Mark No Coverage", "type": "main", "index": 0 }]
+      ]
+    },
+    "Mark No Coverage": { "main": [[{ "node": "Upsert Lookup (no_coverage)", "type": "main", "index": 0 }]] },
+    "Upsert Lookup (no_coverage)": { "main": [[{ "node": "Send Fallback Message + Alert Sales", "type": "main", "index": 0 }]] },
+    "Parse Segments & Compute Sqft/Planes": { "main": [[{ "node": "Upsert Lookup (success)", "type": "main", "index": 0 }]] },
+    "Upsert Lookup (success)": { "main": [[{ "node": "Increment Quota Counter", "type": "main", "index": 0 }]] },
+    "Increment Quota Counter": { "main": [[{ "node": "Compute Quote Range", "type": "main", "index": 0 }]] },
+    "Compute Quote Range": { "main": [[{ "node": "Update Lead Record", "type": "main", "index": 0 }]] },
+    "Update Lead Record": { "main": [[{ "node": "Send Quote Range Message", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "meta": { "instanceId": "roof-lookup-sketch" }
+}

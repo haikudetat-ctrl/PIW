@@ -1,0 +1,36 @@
+-- Meta Conversions API feedback loop: attribution capture + event log
+
+-- Attribution fields captured at lead intake. fbclid/fbp/fbc/client_ip/
+-- client_user_agent only populate for leads that came through a website
+-- form with the Meta Pixel present; native Meta Lead Ads leads instead
+-- carry meta_lead_id (Meta already knows those came from their platform).
+alter table leads
+  add column if not exists fbclid text,
+  add column if not exists fbp text,
+  add column if not exists fbc text,
+  add column if not exists meta_lead_id text,
+  add column if not exists client_ip_address text,
+  add column if not exists client_user_agent text,
+  add column if not exists contract_value numeric,
+  add column if not exists final_invoiced_value numeric;
+
+-- log of every event sent to Meta: audit trail + lets you track match
+-- quality / delivery success over time instead of trusting Events Manager alone
+create table if not exists meta_conversion_events (
+  id uuid primary key default gen_random_uuid(),
+  lead_id uuid not null references leads(id),
+  event_name text not null,        -- 'Purchase', 'JobCompleted', etc.
+  event_id text not null,          -- dedup key sent to Meta
+  event_time timestamptz not null,
+  value numeric,
+  currency text not null default 'USD',
+  meta_response_status int,
+  meta_response_body jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists meta_conversion_events_lead_id_idx
+  on meta_conversion_events (lead_id);
+
+create unique index if not exists meta_conversion_events_event_id_idx
+  on meta_conversion_events (event_id);

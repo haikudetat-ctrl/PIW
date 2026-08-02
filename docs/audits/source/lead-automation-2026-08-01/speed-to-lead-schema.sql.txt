@@ -1,0 +1,46 @@
+-- Speed-to-lead: first-contact tracking + SLA escalation support
+
+alter table leads
+  add column if not exists first_contact_attempted_at timestamptz,
+  add column if not exists first_contact_channel text check (
+    first_contact_channel in ('sms', 'call', 'sms+call')
+  ),
+  add column if not exists contacted_at timestamptz,
+  add column if not exists time_to_first_contact_seconds int,
+  add column if not exists speed_to_lead_status text check (
+    speed_to_lead_status in ('pending', 'attempted', 'queued_after_hours', 'contacted', 'escalated')
+  ) default 'pending';
+
+-- assumes leads.created_at already exists (lead intake timestamp)
+
+-- event-level log: one row per SMS/call/escalation, feeds an
+-- "avg time to first contact" KPI on the owner dashboard
+create table if not exists speed_to_lead_events (
+  id uuid primary key default gen_random_uuid(),
+  lead_id uuid not null references leads(id),
+  event_type text not null check (
+    event_type in ('sms_sent', 'call_queued', 'escalated', 'contacted')
+  ),
+  channel text,
+  occurred_at timestamptz not null default now(),
+  metadata jsonb
+);
+
+create index if not exists speed_to_lead_events_lead_id_idx
+  on speed_to_lead_events (lead_id);
+
+-- auto-compute time-to-first-contact whenever contacted_at is first set
+create or replace function set_time_to_first_contact()
+returns trigger as $$
+begin
+  if new.contacted_at is not null and old.contacted_at is null then
+    new.time_to_first_contact_seconds := extract(epoch from (new.contacted_at - new.created_at));
+  end if;
+  return new;
+end;
+$$ language plpgsql;
+
+drop trigger if exists leads_set_time_to_first_contact on leads;
+create trigger leads_set_time_to_first_contact
+  before update on leads
+  for each row execute function set_time_to_first_contact();

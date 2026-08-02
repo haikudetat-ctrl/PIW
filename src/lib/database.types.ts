@@ -1211,14 +1211,23 @@ export type Database = {
       leads: {
         Row: {
           campaign: string | null
+          client_ip_address: unknown
+          client_user_agent: string | null
           company_id: string
           consent_reference: string | null
+          contacted_at: string | null
           created_at: string
           email: string
           email_normalized: string | null
           external_lead_id: string | null
+          fbc: string | null
+          fbclid: string | null
+          fbp: string | null
+          first_contact_attempted_at: string | null
+          first_contact_channel: string | null
           id: string
           is_test: boolean
+          meta_lead_id: string | null
           name: string
           notes: string | null
           original_lead_source: string | null
@@ -1229,21 +1238,32 @@ export type Database = {
           source_account_id: string | null
           source_record_id: string | null
           source_system: string
+          speed_to_lead_status: string
           stage: Database["public"]["Enums"]["lead_stage"]
           submitted_address: string
+          time_to_first_contact_seconds: number | null
           trustedform_url: string | null
           updated_at: string
         }
         Insert: {
           campaign?: string | null
+          client_ip_address?: unknown
+          client_user_agent?: string | null
           company_id: string
           consent_reference?: string | null
+          contacted_at?: string | null
           created_at?: string
           email: string
           email_normalized?: string | null
           external_lead_id?: string | null
+          fbc?: string | null
+          fbclid?: string | null
+          fbp?: string | null
+          first_contact_attempted_at?: string | null
+          first_contact_channel?: string | null
           id?: string
           is_test?: boolean
+          meta_lead_id?: string | null
           name: string
           notes?: string | null
           original_lead_source?: string | null
@@ -1254,21 +1274,32 @@ export type Database = {
           source_account_id?: string | null
           source_record_id?: string | null
           source_system?: string
+          speed_to_lead_status?: string
           stage?: Database["public"]["Enums"]["lead_stage"]
           submitted_address: string
+          time_to_first_contact_seconds?: number | null
           trustedform_url?: string | null
           updated_at?: string
         }
         Update: {
           campaign?: string | null
+          client_ip_address?: unknown
+          client_user_agent?: string | null
           company_id?: string
           consent_reference?: string | null
+          contacted_at?: string | null
           created_at?: string
           email?: string
           email_normalized?: string | null
           external_lead_id?: string | null
+          fbc?: string | null
+          fbclid?: string | null
+          fbp?: string | null
+          first_contact_attempted_at?: string | null
+          first_contact_channel?: string | null
           id?: string
           is_test?: boolean
+          meta_lead_id?: string | null
           name?: string
           notes?: string | null
           original_lead_source?: string | null
@@ -1279,8 +1310,10 @@ export type Database = {
           source_account_id?: string | null
           source_record_id?: string | null
           source_system?: string
+          speed_to_lead_status?: string
           stage?: Database["public"]["Enums"]["lead_stage"]
           submitted_address?: string
+          time_to_first_contact_seconds?: number | null
           trustedform_url?: string | null
           updated_at?: string
         }
@@ -1297,6 +1330,53 @@ export type Database = {
             columns: ["property_id"]
             isOneToOne: false
             referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meta_conversion_events: {
+        Row: {
+          created_at: string
+          currency: string
+          event_id: string
+          event_name: string
+          event_time: string
+          id: string
+          lead_id: string
+          meta_response_body: Json | null
+          meta_response_status: number | null
+          value: number | null
+        }
+        Insert: {
+          created_at?: string
+          currency?: string
+          event_id: string
+          event_name: string
+          event_time: string
+          id?: string
+          lead_id: string
+          meta_response_body?: Json | null
+          meta_response_status?: number | null
+          value?: number | null
+        }
+        Update: {
+          created_at?: string
+          currency?: string
+          event_id?: string
+          event_name?: string
+          event_time?: string
+          id?: string
+          lead_id?: string
+          meta_response_body?: Json | null
+          meta_response_status?: number | null
+          value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_conversion_events_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
             referencedColumns: ["id"]
           },
         ]
@@ -2259,6 +2339,41 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      speed_to_lead_events: {
+        Row: {
+          channel: string | null
+          event_type: string
+          id: string
+          lead_id: string
+          metadata: Json
+          occurred_at: string
+        }
+        Insert: {
+          channel?: string | null
+          event_type: string
+          id?: string
+          lead_id: string
+          metadata?: Json
+          occurred_at?: string
+        }
+        Update: {
+          channel?: string | null
+          event_type?: string
+          id?: string
+          lead_id?: string
+          metadata?: Json
+          occurred_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "speed_to_lead_events_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
             referencedColumns: ["id"]
           },
         ]
