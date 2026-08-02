@@ -1,0 +1,446 @@
+{
+  "name": "Speed to Lead",
+  "nodes": [
+    {
+      "id": "n1",
+      "name": "New Lead - Speed to Lead",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 300],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "speed-to-lead",
+        "responseMode": "lastNode",
+        "options": {},
+        "notes": "Trigger this directly off raw lead insert (Supabase Database Webhook on INSERT to leads, or LeadConduit posting here). Must fire in parallel with the enrichment/qualification workflow, not after it."
+      }
+    },
+    {
+      "id": "n2",
+      "name": "Has Consent?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [220, 300],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict" },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "cond-consent",
+              "leftValue": "={{ $json.body.consent_to_contact }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true", "singleValue": true }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n3",
+      "name": "No Consent - Skip Auto Outreach",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [440, 460],
+      "parameters": {
+        "notes": "Lead still gets created/enriched normally; it just doesn't get the automated SMS/call attempt."
+      }
+    },
+    {
+      "id": "n4",
+      "name": "Check Business Hours",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 300],
+      "parameters": {
+        "jsCode": "// Adjust the timezone to your actual company timezone\nconst local = $now.setZone('America/Chicago');\nconst isBusinessDay = local.weekday !== 7; // Luxon: 1=Mon ... 7=Sun; excludes Sunday only, adjust if you're also closed Saturdays\nconst isBusinessHour = local.hour >= 8 && local.hour < 19;\n\nreturn [{\n  json: {\n    ...$json.body,\n    within_business_hours: isBusinessDay && isBusinessHour\n  }\n}];"
+      }
+    },
+    {
+      "id": "n5",
+      "name": "Within Business Hours?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [660, 300],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict" },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "cond-business-hours",
+              "leftValue": "={{ $json.within_business_hours }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true", "singleValue": true }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n6",
+      "name": "Send Immediate SMS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 200],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.twilio.com/2010-04-01/Accounts/{{ $env.TWILIO_ACCOUNT_SID }}/Messages.json",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Basic {{ Buffer.from($env.TWILIO_ACCOUNT_SID + ':' + $env.TWILIO_AUTH_TOKEN).toString('base64') }}" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "To", "value": "={{ $json.phone }}" },
+            { "name": "From", "value": "={{ $env.TWILIO_FROM_NUMBER }}" },
+            { "name": "Body", "value": "=Hi {{ $json.first_name }}, thanks for reaching out to All Season! A team member will be calling you shortly. Want to grab a specific time instead? {{ $env.BOOKING_LINK_BASE }}?lead={{ $json.lead_id }}" }
+          ]
+        },
+        "options": {},
+        "notes": "Swap for the CallTools messaging API if that's the actual SMS channel rather than Twilio direct."
+      }
+    },
+    {
+      "id": "n7",
+      "name": "Queue Priority Call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.calltools.com/v1/calls",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "={{ $env.CALLTOOLS_API_KEY }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { phone: $json.phone, lead_id: $json.lead_id, priority: 'high', queue_id: $env.CALLTOOLS_QUEUE_ID } }}",
+        "options": {},
+        "notes": "CONFIRM against developers.calltools.com — endpoint path and payload shape are placeholders, not verified against a live CallTools account."
+      }
+    },
+    {
+      "id": "n8",
+      "name": "Log SMS Sent Event",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1100, 200],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/speed_to_lead_events",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { lead_id: $('Check Business Hours').item.json.lead_id, event_type: 'sms_sent', channel: 'sms' } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "n9",
+      "name": "Log Call Queued Event",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1100, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/speed_to_lead_events",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { lead_id: $('Check Business Hours').item.json.lead_id, event_type: 'call_queued', channel: 'call' } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "n10",
+      "name": "Update Lead - Attempted",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1320, 250],
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/leads",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "id", "value": "=eq.{{ $('Check Business Hours').item.json.lead_id }}" }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { first_contact_attempted_at: $now.toISO(), first_contact_channel: 'sms+call', speed_to_lead_status: 'attempted' } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "n11",
+      "name": "Wait 5 Minutes",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1540, 250],
+      "parameters": {
+        "amount": 5,
+        "unit": "minutes"
+      }
+    },
+    {
+      "id": "n12",
+      "name": "Check Contact Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1760, 250],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/leads",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "id", "value": "=eq.{{ $('Check Business Hours').item.json.lead_id }}" },
+            { "name": "select", "value": "id,contacted_at" }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n13",
+      "name": "Still Uncontacted?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1980, 250],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "loose" },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "cond-uncontacted",
+              "leftValue": "={{ $json[0].contacted_at }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "empty" }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n14",
+      "name": "Update Lead - Escalated",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2200, 150],
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/leads",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "id", "value": "=eq.{{ $('Check Business Hours').item.json.lead_id }}" }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { speed_to_lead_status: 'escalated' } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "n15",
+      "name": "Log Escalated Event",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2420, 150],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/speed_to_lead_events",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { lead_id: $('Check Business Hours').item.json.lead_id, event_type: 'escalated' } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "n16",
+      "name": "Slack Alert - Unworked Lead",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2640, 150],
+      "parameters": {
+        "notes": "Wire to a Slack webhook/manager channel: 'Lead {{ lead_id }} unworked 5 min after first contact attempt.'"
+      }
+    },
+    {
+      "id": "n17",
+      "name": "Contacted - No Action Needed",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [2200, 350],
+      "parameters": {}
+    },
+    {
+      "id": "n18",
+      "name": "Send After-Hours SMS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [880, 460],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.twilio.com/2010-04-01/Accounts/{{ $env.TWILIO_ACCOUNT_SID }}/Messages.json",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Basic {{ Buffer.from($env.TWILIO_ACCOUNT_SID + ':' + $env.TWILIO_AUTH_TOKEN).toString('base64') }}" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "To", "value": "={{ $json.phone }}" },
+            { "name": "From", "value": "={{ $env.TWILIO_FROM_NUMBER }}" },
+            { "name": "Body", "value": "=Hi {{ $json.first_name }}, thanks for reaching out to All Season! Our team is out for the evening but you're first on the list — we'll call you first thing tomorrow." }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n19",
+      "name": "Log After-Hours SMS Event",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1100, 460],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/speed_to_lead_events",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { lead_id: $('Check Business Hours').item.json.lead_id, event_type: 'sms_sent', channel: 'sms', metadata: { after_hours: true } } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "n20",
+      "name": "Update Lead - Queued After Hours",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1320, 460],
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/leads",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "id", "value": "=eq.{{ $('Check Business Hours').item.json.lead_id }}" }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { speed_to_lead_status: 'queued_after_hours' } }}",
+        "options": {},
+        "notes": "A separate scheduled 'morning priority dial' workflow (Cron trigger, e.g. 8:01am) should pull everyone with speed_to_lead_status = 'queued_after_hours' and queue them first. Not built here."
+      }
+    }
+  ],
+  "connections": {
+    "New Lead - Speed to Lead": { "main": [[{ "node": "Has Consent?", "type": "main", "index": 0 }]] },
+    "Has Consent?": {
+      "main": [
+        [{ "node": "Check Business Hours", "type": "main", "index": 0 }],
+        [{ "node": "No Consent - Skip Auto Outreach", "type": "main", "index": 0 }]
+      ]
+    },
+    "Check Business Hours": { "main": [[{ "node": "Within Business Hours?", "type": "main", "index": 0 }]] },
+    "Within Business Hours?": {
+      "main": [
+        [{ "node": "Send Immediate SMS", "type": "main", "index": 0 }, { "node": "Queue Priority Call", "type": "main", "index": 0 }],
+        [{ "node": "Send After-Hours SMS", "type": "main", "index": 0 }]
+      ]
+    },
+    "Send Immediate SMS": { "main": [[{ "node": "Log SMS Sent Event", "type": "main", "index": 0 }]] },
+    "Queue Priority Call": { "main": [[{ "node": "Log Call Queued Event", "type": "main", "index": 0 }]] },
+    "Log SMS Sent Event": { "main": [[{ "node": "Update Lead - Attempted", "type": "main", "index": 0 }]] },
+    "Log Call Queued Event": { "main": [[{ "node": "Update Lead - Attempted", "type": "main", "index": 0 }]] },
+    "Update Lead - Attempted": { "main": [[{ "node": "Wait 5 Minutes", "type": "main", "index": 0 }]] },
+    "Wait 5 Minutes": { "main": [[{ "node": "Check Contact Status", "type": "main", "index": 0 }]] },
+    "Check Contact Status": { "main": [[{ "node": "Still Uncontacted?", "type": "main", "index": 0 }]] },
+    "Still Uncontacted?": {
+      "main": [
+        [{ "node": "Update Lead - Escalated", "type": "main", "index": 0 }],
+        [{ "node": "Contacted - No Action Needed", "type": "main", "index": 0 }]
+      ]
+    },
+    "Update Lead - Escalated": { "main": [[{ "node": "Log Escalated Event", "type": "main", "index": 0 }]] },
+    "Log Escalated Event": { "main": [[{ "node": "Slack Alert - Unworked Lead", "type": "main", "index": 0 }]] },
+    "Send After-Hours SMS": { "main": [[{ "node": "Log After-Hours SMS Event", "type": "main", "index": 0 }]] },
+    "Log After-Hours SMS Event": { "main": [[{ "node": "Update Lead - Queued After Hours", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "meta": { "instanceId": "speed-to-lead-sketch" }
+}

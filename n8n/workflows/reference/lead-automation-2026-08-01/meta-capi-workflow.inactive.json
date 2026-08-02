@@ -1,0 +1,219 @@
+{
+  "name": "Meta Conversions API Feedback Loop",
+  "nodes": [
+    {
+      "id": "n1",
+      "name": "Contract Signed",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 200],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "meta-capi-contract-signed",
+        "responseMode": "lastNode",
+        "options": {},
+        "notes": "Call this from the e-signature-complete step in Sales Support. Payload: { lead_id, contract_value, signed_at }"
+      }
+    },
+    {
+      "id": "n2",
+      "name": "Job Completed",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 400],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "meta-capi-job-completed",
+        "responseMode": "lastNode",
+        "options": {},
+        "notes": "Call this from the job-completion trigger in Production Support (same moment the review app fires). Payload: { lead_id, final_invoiced_value, completed_at }"
+      }
+    },
+    {
+      "id": "n3",
+      "name": "Normalize Purchase Event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 200],
+      "parameters": {
+        "jsCode": "const b = $json.body ?? $json;\nreturn [{\n  json: {\n    lead_id: b.lead_id,\n    event_name: 'Purchase',\n    event_time: b.signed_at,\n    value: b.contract_value\n  }\n}];"
+      }
+    },
+    {
+      "id": "n4",
+      "name": "Normalize JobCompleted Event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 400],
+      "parameters": {
+        "jsCode": "const b = $json.body ?? $json;\nreturn [{\n  json: {\n    lead_id: b.lead_id,\n    event_name: 'JobCompleted',\n    event_time: b.completed_at,\n    value: b.final_invoiced_value\n  }\n}];"
+      }
+    },
+    {
+      "id": "n5",
+      "name": "Fetch Lead Attribution Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/leads",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "id", "value": "=eq.{{ $json.lead_id }}" },
+            { "name": "select", "value": "email,phone,fbclid,fbp,fbc,meta_lead_id,client_ip_address,client_user_agent" }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n6",
+      "name": "Merge Event Data & Normalize PII",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 300],
+      "parameters": {
+        "jsCode": "let eventData;\ntry { eventData = $('Normalize Purchase Event').item.json; } catch (e) {}\nif (!eventData) {\n  try { eventData = $('Normalize JobCompleted Event').item.json; } catch (e) {}\n}\n\nconst lead = Array.isArray($json) ? $json[0] : $json;\n\nconst normalized_email = lead.email ? String(lead.email).trim().toLowerCase() : null;\nconst normalized_phone = lead.phone\n  ? '1' + String(lead.phone).replace(/\\D/g, '').replace(/^1/, '')\n  : null;\n\nreturn [{\n  json: {\n    ...eventData,\n    lead,\n    normalized_email,\n    normalized_phone\n  }\n}];"
+      }
+    },
+    {
+      "id": "n7",
+      "name": "Hash PII & Assemble Meta CAPI Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [880, 300],
+      "parameters": {
+        "jsCode": "// Requires the n8n instance to allow the built-in 'crypto' module in Code nodes\n// (NODE_FUNCTION_ALLOW_BUILTIN=crypto, or equivalent for your n8n version).\nconst crypto = require('crypto');\nconst hash = (v) => (v ? crypto.createHash('sha256').update(v).digest('hex') : undefined);\n\nconst em = hash($json.normalized_email);\nconst ph = hash($json.normalized_phone);\n\nconst eventTimeUnix = Math.floor(new Date($json.event_time).getTime() / 1000);\nconst eventId = `${$json.lead_id}-${$json.event_name}`;\n\nconst payload = {\n  data: [\n    {\n      event_name: $json.event_name,\n      event_time: eventTimeUnix,\n      event_id: eventId,\n      action_source: 'system_generated',\n      user_data: {\n        em: em ? [em] : undefined,\n        ph: ph ? [ph] : undefined,\n        external_id: $json.lead_id,\n        fbc: $json.lead.fbc || undefined,\n        fbp: $json.lead.fbp || undefined,\n        client_ip_address: $json.lead.client_ip_address || undefined,\n        client_user_agent: $json.lead.client_user_agent || undefined\n      },\n      custom_data: {\n        value: $json.value,\n        currency: 'USD'\n      }\n    }\n  ]\n};\n\nif ($env.META_TEST_EVENT_CODE) {\n  payload.test_event_code = $env.META_TEST_EVENT_CODE;\n}\n\nreturn [{\n  json: {\n    ...$json,\n    event_id: eventId,\n    capi_payload: payload\n  }\n}];"
+      }
+    },
+    {
+      "id": "n8",
+      "name": "Send to Meta Conversions API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1100, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/{{ $env.META_API_VERSION }}/{{ $env.META_PIXEL_ID }}/events",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "access_token", "value": "={{ $env.META_CAPI_ACCESS_TOKEN }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.capi_payload }}",
+        "options": {
+          "response": { "response": { "neverError": true } }
+        },
+        "notes": "META_API_VERSION is an env var (e.g. v23.0) rather than hardcoded — check developers.facebook.com/docs/graph-api/changelog for the current version before going live."
+      }
+    },
+    {
+      "id": "n9",
+      "name": "Meta API Success?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1320, 300],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "loose" },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "cond-capi-success",
+              "leftValue": "={{ $json.events_received }}",
+              "rightValue": 0,
+              "operator": { "type": "number", "operation": "gt" }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "n10",
+      "name": "Log Event Success",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1540, 200],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/meta_conversion_events",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { lead_id: $('Hash PII & Assemble Meta CAPI Payload').item.json.lead_id, event_name: $('Hash PII & Assemble Meta CAPI Payload').item.json.event_name, event_id: $('Hash PII & Assemble Meta CAPI Payload').item.json.event_id, event_time: $('Hash PII & Assemble Meta CAPI Payload').item.json.event_time, value: $('Hash PII & Assemble Meta CAPI Payload').item.json.value, meta_response_status: 200, meta_response_body: $json } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "n11",
+      "name": "Log Event Failure",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1540, 400],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/meta_conversion_events",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { lead_id: $('Hash PII & Assemble Meta CAPI Payload').item.json.lead_id, event_name: $('Hash PII & Assemble Meta CAPI Payload').item.json.event_name, event_id: $('Hash PII & Assemble Meta CAPI Payload').item.json.event_id, event_time: $('Hash PII & Assemble Meta CAPI Payload').item.json.event_time, value: $('Hash PII & Assemble Meta CAPI Payload').item.json.value, meta_response_status: 400, meta_response_body: $json } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "n12",
+      "name": "Slack Alert - CAPI Send Failed",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1760, 400],
+      "parameters": {
+        "notes": "Wire to a Slack webhook: 'Meta CAPI event {{ event_name }} for lead {{ lead_id }} failed to send.'"
+      }
+    }
+  ],
+  "connections": {
+    "Contract Signed": { "main": [[{ "node": "Normalize Purchase Event", "type": "main", "index": 0 }]] },
+    "Job Completed": { "main": [[{ "node": "Normalize JobCompleted Event", "type": "main", "index": 0 }]] },
+    "Normalize Purchase Event": { "main": [[{ "node": "Fetch Lead Attribution Data", "type": "main", "index": 0 }]] },
+    "Normalize JobCompleted Event": { "main": [[{ "node": "Fetch Lead Attribution Data", "type": "main", "index": 0 }]] },
+    "Fetch Lead Attribution Data": { "main": [[{ "node": "Merge Event Data & Normalize PII", "type": "main", "index": 0 }]] },
+    "Merge Event Data & Normalize PII": { "main": [[{ "node": "Hash PII & Assemble Meta CAPI Payload", "type": "main", "index": 0 }]] },
+    "Hash PII & Assemble Meta CAPI Payload": { "main": [[{ "node": "Send to Meta Conversions API", "type": "main", "index": 0 }]] },
+    "Send to Meta Conversions API": { "main": [[{ "node": "Meta API Success?", "type": "main", "index": 0 }]] },
+    "Meta API Success?": {
+      "main": [
+        [{ "node": "Log Event Success", "type": "main", "index": 0 }],
+        [{ "node": "Log Event Failure", "type": "main", "index": 0 }]
+      ]
+    },
+    "Log Event Failure": { "main": [[{ "node": "Slack Alert - CAPI Send Failed", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "meta": { "instanceId": "meta-capi-sketch" }
+}
