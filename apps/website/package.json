@@ -8,7 +8,8 @@
     "build": "next build",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "generate:service-areas": "node scripts/generate-service-areas.mjs"
   },
   "dependencies": {
     "next": "16.2.12",

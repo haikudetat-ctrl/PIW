@@ -1,0 +1,24 @@
+# All Season Solar — robots.txt
+# Standard crawlers welcome across the full site.
+
+User-agent: *
+Allow: /
+
+# Answer-engine / AI crawlers explicitly welcomed (site is optimized for
+# AI/LLM-driven discovery — see /llms.txt for a structured summary).
+User-agent: GPTBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: CCBot
+Allow: /
+
+Sitemap: https://allseasonsolar.net/sitemap.xml
