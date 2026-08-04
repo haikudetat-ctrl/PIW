@@ -17,9 +17,24 @@ const serverEnvSchema = z
     INNGEST_SIGNING_KEY: z.string().min(1),
     PAID_PROVIDERS_ENABLED: booleanString,
     INTEGRATIONS_LEADCONDUIT_ENABLED: booleanString,
+    LEADCONDUIT_FILTER_CAVEAT_ACTIVE: z.enum(["true", "false"]).default("true")
+      .transform((value) => value === "true"),
+    INTEGRATIONS_LEADMASTER_ENABLED: booleanString,
+    INTEGRATIONS_JOBNIMBUS_ENABLED: booleanString,
     INTEGRATIONS_CALLTOOLS_ENABLED: booleanString,
     INTEGRATIONS_WEBHOOK_SHARED_SECRET: z.string().optional(),
     LEADCONDUIT_API_KEY: z.string().optional(),
+    LEADCONDUIT_BASE_URL: optionalUrl,
+    LEADMASTER_ACCESS_TOKEN: optionalString,
+    LEADMASTER_BASE_URL: optionalUrl,
+    LEADMASTER_WORKGROUPS: optionalString,
+    LEADMASTER_LOOKBACK_MINUTES: z.coerce.number().int().positive().default(1440),
+    JOBNIMBUS_API_KEY: optionalString,
+    JOBNIMBUS_BASE_URL: optionalUrl,
+    JOBNIMBUS_CONTACTS_PATH: optionalString,
+    JOBNIMBUS_JOBS_PATH: optionalString,
+    JOBNIMBUS_INCLUDE_SOLD_VALUE: booleanString,
+    ACCESS_ROUTE_COMPANY_ID: optionalUuid,
     CALLTOOLS_API_KEY: z.string().optional(),
     GOOGLE_MAPS_API_KEY: optionalString,
     GOOGLE_MAPS_BROWSER_API_KEY: optionalString,
@@ -64,6 +79,20 @@ const serverEnvSchema = z
         path: ["GOOGLE_MAPS_API_KEY"],
         message: "Google Maps API key is required when paid providers are enabled",
       });
+    }
+    const readIntegrations = [
+      [value.INTEGRATIONS_LEADCONDUIT_ENABLED, value.LEADCONDUIT_API_KEY, "LEADCONDUIT_API_KEY"],
+      [value.INTEGRATIONS_LEADMASTER_ENABLED, value.LEADMASTER_ACCESS_TOKEN, "LEADMASTER_ACCESS_TOKEN"],
+      [value.INTEGRATIONS_JOBNIMBUS_ENABLED, value.JOBNIMBUS_API_KEY, "JOBNIMBUS_API_KEY"],
+    ] as const;
+    for (const [enabled, credential, path] of readIntegrations) {
+      if (enabled && !credential) {
+        context.addIssue({
+          code: "custom",
+          path: [path],
+          message: `${path} is required when its read integration is enabled`,
+        });
+      }
     }
     if (
       (value.ESTIMATE_SMS_WEBHOOK_URL || value.ESTIMATE_EMAIL_WEBHOOK_URL) &&
