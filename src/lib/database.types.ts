@@ -839,6 +839,62 @@ export type Database = {
           },
         ]
       }
+      integration_sync_runs: {
+        Row: {
+          business_timezone: string
+          company_id: string
+          error_category: string | null
+          finished_at: string | null
+          id: string
+          metadata: Json
+          next_cursor: string | null
+          outcome: string
+          records_seen: number
+          records_written: number
+          source_system: string
+          started_at: string
+          sync_key: string
+        }
+        Insert: {
+          business_timezone?: string
+          company_id: string
+          error_category?: string | null
+          finished_at?: string | null
+          id?: string
+          metadata?: Json
+          next_cursor?: string | null
+          outcome?: string
+          records_seen?: number
+          records_written?: number
+          source_system: string
+          started_at?: string
+          sync_key: string
+        }
+        Update: {
+          business_timezone?: string
+          company_id?: string
+          error_category?: string | null
+          finished_at?: string | null
+          id?: string
+          metadata?: Json
+          next_cursor?: string | null
+          outcome?: string
+          records_seen?: number
+          records_written?: number
+          source_system?: string
+          started_at?: string
+          sync_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integration_sync_runs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       interactions: {
         Row: {
           company_id: string
@@ -1034,6 +1090,124 @@ export type Database = {
           },
         ]
       }
+      jobnimbus_contacts: {
+        Row: {
+          company_id: string
+          contact_id: string
+          display_name: string | null
+          email_normalized: string | null
+          external_lead_id: string | null
+          id: string
+          ingested_at: string
+          phone_normalized: string | null
+          raw_payload: Json
+          status: string | null
+          vendor_created_at: string | null
+          vendor_updated_at: string | null
+        }
+        Insert: {
+          company_id: string
+          contact_id: string
+          display_name?: string | null
+          email_normalized?: string | null
+          external_lead_id?: string | null
+          id?: string
+          ingested_at?: string
+          phone_normalized?: string | null
+          raw_payload: Json
+          status?: string | null
+          vendor_created_at?: string | null
+          vendor_updated_at?: string | null
+        }
+        Update: {
+          company_id?: string
+          contact_id?: string
+          display_name?: string | null
+          email_normalized?: string | null
+          external_lead_id?: string | null
+          id?: string
+          ingested_at?: string
+          phone_normalized?: string | null
+          raw_payload?: Json
+          status?: string | null
+          vendor_created_at?: string | null
+          vendor_updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jobnimbus_contacts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      jobnimbus_jobs: {
+        Row: {
+          appointment_at: string | null
+          appointment_status: string | null
+          company_id: string
+          contact_id: string | null
+          external_lead_id: string | null
+          id: string
+          ingested_at: string
+          job_id: string
+          raw_payload: Json
+          reengagement_triggered: boolean
+          sold_value: number | null
+          source_system: string
+          stage: string | null
+          status: string | null
+          vendor_created_at: string | null
+          vendor_updated_at: string | null
+        }
+        Insert: {
+          appointment_at?: string | null
+          appointment_status?: string | null
+          company_id: string
+          contact_id?: string | null
+          external_lead_id?: string | null
+          id?: string
+          ingested_at?: string
+          job_id: string
+          raw_payload: Json
+          reengagement_triggered?: boolean
+          sold_value?: number | null
+          source_system?: string
+          stage?: string | null
+          status?: string | null
+          vendor_created_at?: string | null
+          vendor_updated_at?: string | null
+        }
+        Update: {
+          appointment_at?: string | null
+          appointment_status?: string | null
+          company_id?: string
+          contact_id?: string | null
+          external_lead_id?: string | null
+          id?: string
+          ingested_at?: string
+          job_id?: string
+          raw_payload?: Json
+          reengagement_triggered?: boolean
+          sold_value?: number | null
+          source_system?: string
+          stage?: string | null
+          status?: string | null
+          vendor_created_at?: string | null
+          vendor_updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jobnimbus_jobs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       jobs: {
         Row: {
           company_id: string
@@ -1204,6 +1378,242 @@ export type Database = {
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leadconduit_events: {
+        Row: {
+          company_id: string
+          email_normalized: string | null
+          event_id: string
+          event_type: string
+          external_lead_id: string | null
+          flow_id: string | null
+          id: string
+          ingested_at: string
+          is_test: boolean
+          lead_id: string | null
+          occurred_at: string
+          outcome: string | null
+          phone_normalized: string | null
+          raw_payload: Json
+          raw_status: string | null
+          source_id: string | null
+          source_name: string | null
+        }
+        Insert: {
+          company_id: string
+          email_normalized?: string | null
+          event_id: string
+          event_type: string
+          external_lead_id?: string | null
+          flow_id?: string | null
+          id?: string
+          ingested_at?: string
+          is_test?: boolean
+          lead_id?: string | null
+          occurred_at: string
+          outcome?: string | null
+          phone_normalized?: string | null
+          raw_payload: Json
+          raw_status?: string | null
+          source_id?: string | null
+          source_name?: string | null
+        }
+        Update: {
+          company_id?: string
+          email_normalized?: string | null
+          event_id?: string
+          event_type?: string
+          external_lead_id?: string | null
+          flow_id?: string | null
+          id?: string
+          ingested_at?: string
+          is_test?: boolean
+          lead_id?: string | null
+          occurred_at?: string
+          outcome?: string | null
+          phone_normalized?: string | null
+          raw_payload?: Json
+          raw_status?: string | null
+          source_id?: string | null
+          source_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leadconduit_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leadconduit_flows: {
+        Row: {
+          company_id: string
+          destination_ids: string[]
+          enabled: boolean
+          field_ids: string[]
+          flow_id: string
+          id: string
+          ingested_at: string
+          name: string
+          raw_payload: Json
+          source_ids: string[]
+          vendor_created_at: string | null
+          vendor_updated_at: string | null
+        }
+        Insert: {
+          company_id: string
+          destination_ids?: string[]
+          enabled?: boolean
+          field_ids?: string[]
+          flow_id: string
+          id?: string
+          ingested_at?: string
+          name: string
+          raw_payload: Json
+          source_ids?: string[]
+          vendor_created_at?: string | null
+          vendor_updated_at?: string | null
+        }
+        Update: {
+          company_id?: string
+          destination_ids?: string[]
+          enabled?: boolean
+          field_ids?: string[]
+          flow_id?: string
+          id?: string
+          ingested_at?: string
+          name?: string
+          raw_payload?: Json
+          source_ids?: string[]
+          vendor_created_at?: string | null
+          vendor_updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leadconduit_flows_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leadmaster_custom_fields: {
+        Row: {
+          company_id: string
+          field_id: string
+          field_type: string | null
+          id: string
+          ingested_at: string
+          label: string
+          raw_payload: Json
+          workgroup: string
+        }
+        Insert: {
+          company_id: string
+          field_id: string
+          field_type?: string | null
+          id?: string
+          ingested_at?: string
+          label: string
+          raw_payload: Json
+          workgroup?: string
+        }
+        Update: {
+          company_id?: string
+          field_id?: string
+          field_type?: string | null
+          id?: string
+          ingested_at?: string
+          label?: string
+          raw_payload?: Json
+          workgroup?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leadmaster_custom_fields_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leadmaster_records: {
+        Row: {
+          company_id: string
+          disposition: string | null
+          email_normalized: string | null
+          entered_at: string
+          external_lead_id: string | null
+          id: string
+          ingested_at: string
+          lead_source: string | null
+          opportunity_id: string | null
+          opportunity_stage: string | null
+          opportunity_status: string | null
+          opportunity_value: number | null
+          phone_normalized: string | null
+          raw_payload: Json
+          recdno: string | null
+          record_id: string
+          record_kind: string
+          vendor_updated_at: string | null
+          workgroup: string | null
+        }
+        Insert: {
+          company_id: string
+          disposition?: string | null
+          email_normalized?: string | null
+          entered_at: string
+          external_lead_id?: string | null
+          id?: string
+          ingested_at?: string
+          lead_source?: string | null
+          opportunity_id?: string | null
+          opportunity_stage?: string | null
+          opportunity_status?: string | null
+          opportunity_value?: number | null
+          phone_normalized?: string | null
+          raw_payload: Json
+          recdno?: string | null
+          record_id: string
+          record_kind: string
+          vendor_updated_at?: string | null
+          workgroup?: string | null
+        }
+        Update: {
+          company_id?: string
+          disposition?: string | null
+          email_normalized?: string | null
+          entered_at?: string
+          external_lead_id?: string | null
+          id?: string
+          ingested_at?: string
+          lead_source?: string | null
+          opportunity_id?: string | null
+          opportunity_stage?: string | null
+          opportunity_status?: string | null
+          opportunity_value?: number | null
+          phone_normalized?: string | null
+          raw_payload?: Json
+          recdno?: string | null
+          record_id?: string
+          record_kind?: string
+          vendor_updated_at?: string | null
+          workgroup?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leadmaster_records_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
@@ -2556,6 +2966,8 @@ export type Database = {
           created_at: string
           id: string
           is_active: boolean
+          mapping_basis: string
+          mapping_notes: string | null
           mapping_version: number
           raw_status: string
           source_system: string
@@ -2567,6 +2979,8 @@ export type Database = {
           created_at?: string
           id?: string
           is_active?: boolean
+          mapping_basis?: string
+          mapping_notes?: string | null
           mapping_version?: number
           raw_status: string
           source_system: string
@@ -2578,6 +2992,8 @@ export type Database = {
           created_at?: string
           id?: string
           is_active?: boolean
+          mapping_basis?: string
+          mapping_notes?: string | null
           mapping_version?: number
           raw_status?: string
           source_system?: string
@@ -2647,7 +3063,71 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      jobnimbus_reengagement_blind_spots: {
+        Row: {
+          appointment_at: string | null
+          appointment_status: string | null
+          company_id: string | null
+          contact_id: string | null
+          dashboard_state: string | null
+          display_name: string | null
+          job_id: string | null
+          job_stage: string | null
+          job_status: string | null
+          vendor_updated_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jobnimbus_jobs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reconciled_lead_routes: {
+        Row: {
+          appointment_at: string | null
+          company_id: string | null
+          flow_id: string | null
+          jobnimbus_appointment_status: string | null
+          jobnimbus_canonical_status: string | null
+          jobnimbus_contact_id: string | null
+          jobnimbus_job_id: string | null
+          jobnimbus_mapping_basis: string | null
+          jobnimbus_match_method: string | null
+          jobnimbus_stage: string | null
+          jobnimbus_status: string | null
+          lead_entered_at: string | null
+          lead_source: string | null
+          leadconduit_canonical_status: string | null
+          leadconduit_event_id: string | null
+          leadconduit_lead_id: string | null
+          leadconduit_mapping_basis: string | null
+          leadconduit_outcome: string | null
+          leadconduit_status: string | null
+          leadmaster_canonical_status: string | null
+          leadmaster_disposition: string | null
+          leadmaster_entered_at: string | null
+          leadmaster_mapping_basis: string | null
+          leadmaster_match_method: string | null
+          leadmaster_opportunity_stage: string | null
+          leadmaster_opportunity_status: string | null
+          leadmaster_recdno: string | null
+          leadmaster_record_id: string | null
+          sold_value: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leadconduit_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       change_lead_stage: {

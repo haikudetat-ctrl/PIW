@@ -1,7 +1,12 @@
 import "server-only";
 import { parseServerEnv } from "@/lib/env/server";
 
-export const INTEGRATION_VENDORS = ["leadconduit", "calltools"] as const;
+export const INTEGRATION_VENDORS = [
+  "leadconduit",
+  "leadmaster",
+  "jobnimbus",
+  "calltools",
+] as const;
 export type IntegrationVendor = (typeof INTEGRATION_VENDORS)[number];
 
 export function isIntegrationVendor(value: string): value is IntegrationVendor {
@@ -19,6 +24,10 @@ export function isIntegrationEnabled(
   switch (vendor) {
     case "leadconduit":
       return env.INTEGRATIONS_LEADCONDUIT_ENABLED;
+    case "leadmaster":
+      return env.INTEGRATIONS_LEADMASTER_ENABLED;
+    case "jobnimbus":
+      return env.INTEGRATIONS_JOBNIMBUS_ENABLED;
     case "calltools":
       return env.INTEGRATIONS_CALLTOOLS_ENABLED;
   }
