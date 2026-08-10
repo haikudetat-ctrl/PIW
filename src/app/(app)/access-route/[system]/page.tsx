@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { humanize } from "@/lib/format";
 import { createServerClient } from "@/lib/supabase/server";
+import { JobNimbusConnectionPanel } from "./jobnimbus-connection-panel";
 
 const SYSTEMS = ["leadconduit", "leadmaster", "jobnimbus"] as const;
 type System = typeof SYSTEMS[number];
@@ -39,6 +40,7 @@ export default async function AccessRouteSystemPage({ params }: { params: Promis
         <h1 className="mt-2 text-2xl font-bold text-ink">{humanize(system)} records</h1>
         <p className="mt-1 text-sm text-ink-subtle">Latest 100 normalized read-only records. Raw vendor status is intentionally preserved.</p>
       </div>
+      {system === "jobnimbus" ? <JobNimbusConnectionPanel /> : null}
       <Card title={`${humanize(system)} drill-down`} ariaLabel={`${humanize(system)} records`}>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[42rem] text-left text-sm">

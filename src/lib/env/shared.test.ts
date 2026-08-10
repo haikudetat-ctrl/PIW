@@ -21,7 +21,14 @@ describe("parseServerEnv", () => {
     expect(environment.INTEGRATIONS_LEADMASTER_ENABLED).toBe(false);
     expect(environment.INTEGRATIONS_JOBNIMBUS_ENABLED).toBe(false);
     expect(environment.INTEGRATIONS_CALLTOOLS_ENABLED).toBe(false);
+    expect(environment.JOBNIMBUS_PAGE_LIMIT).toBe(50);
+    expect(environment.JOBNIMBUS_MAX_PAGES).toBe(1);
     expect(environment.COST_MONTHLY_BUDGET_USD).toBe(1500);
+  });
+
+  test("rejects JobNimbus import limits above their safety bounds", () => {
+    expect(() => parseServerEnv({ ...base, JOBNIMBUS_PAGE_LIMIT: "501" })).toThrow();
+    expect(() => parseServerEnv({ ...base, JOBNIMBUS_MAX_PAGES: "26" })).toThrow();
   });
 
   test("rejects paid providers in preview", () => {

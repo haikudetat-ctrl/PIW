@@ -27,6 +27,8 @@ type ReadEnvironment = Pick<ServerEnv,
   | "JOBNIMBUS_CONTACTS_PATH"
   | "JOBNIMBUS_JOBS_PATH"
   | "JOBNIMBUS_INCLUDE_SOLD_VALUE"
+  | "JOBNIMBUS_PAGE_LIMIT"
+  | "JOBNIMBUS_MAX_PAGES"
 >;
 
 type RunResult = {
@@ -192,6 +194,8 @@ export async function runAccessRouteSync(input: {
           baseUrl: env.JOBNIMBUS_BASE_URL,
           contactsPath: env.JOBNIMBUS_CONTACTS_PATH,
           jobsPath: env.JOBNIMBUS_JOBS_PATH,
+          pageLimit: env.JOBNIMBUS_PAGE_LIMIT,
+          maxPages: env.JOBNIMBUS_MAX_PAGES,
           fetcher: input.fetcher,
         });
         const [contacts, jobs] = await Promise.all([client.contacts(), client.jobs()]);

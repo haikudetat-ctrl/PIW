@@ -1,6 +1,6 @@
 import type { JsonRecord } from "./contracts";
 import { asArray } from "./normalize";
-import { basicAuth, getJson } from "./http";
+import { basicAuth, categoryForStatus, getJson } from "./http";
 
 const PAGE_LIMIT = 500;
 const MAX_PAGES = 25;
@@ -15,14 +15,18 @@ async function offsetPages(input: {
   path: string;
   headers?: HeadersInit;
   query?: Record<string, string>;
+  pageLimit?: number;
+  maxPages?: number;
   fetcher?: typeof fetch;
 }): Promise<JsonRecord[]> {
   const all: JsonRecord[] = [];
-  for (let page = 0; page < MAX_PAGES; page += 1) {
+  const pageLimit = input.pageLimit ?? PAGE_LIMIT;
+  const maxPages = input.maxPages ?? MAX_PAGES;
+  for (let page = 0; page < maxPages; page += 1) {
     const url = endpoint(input.baseUrl, input.path);
     Object.entries(input.query ?? {}).forEach(([key, value]) => url.searchParams.set(key, value));
-    url.searchParams.set("limit", String(PAGE_LIMIT));
-    url.searchParams.set("offset", String(page * PAGE_LIMIT));
+    url.searchParams.set("limit", String(pageLimit));
+    url.searchParams.set("offset", String(page * pageLimit));
     const rows = asArray(await getJson({
       vendor: input.vendor,
       url,
@@ -30,7 +34,7 @@ async function offsetPages(input: {
       fetcher: input.fetcher,
     }));
     all.push(...rows);
-    if (rows.length < PAGE_LIMIT) break;
+    if (rows.length < pageLimit) break;
   }
   return all;
 }
@@ -125,6 +129,8 @@ export class JobNimbusReadClient {
     baseUrl?: string;
     contactsPath?: string;
     jobsPath?: string;
+    pageLimit?: number;
+    maxPages?: number;
     fetcher?: typeof fetch;
   }) {}
 
@@ -134,6 +140,8 @@ export class JobNimbusReadClient {
       baseUrl: this.config.baseUrl ?? "https://api.jobnimbus.com",
       path,
       headers: { Authorization: `Bearer ${this.config.apiKey}` },
+      pageLimit: this.config.pageLimit,
+      maxPages: this.config.maxPages,
       fetcher: this.config.fetcher,
     });
   }
@@ -145,4 +153,81 @@ export class JobNimbusReadClient {
   jobs(): Promise<JsonRecord[]> {
     return this.pages(this.config.jobsPath ?? "/api1/jobs");
   }
+
+  private async probeResource(
+    resource: "contacts" | "jobs",
+    path: string,
+  ): Promise<JobNimbusProbeResult> {
+    const url = endpoint(this.config.baseUrl ?? "https://api.jobnimbus.com", path);
+    url.searchParams.set("limit", "1");
+    url.searchParams.set("offset", "0");
+    const fetcher = this.config.fetcher ?? fetch;
+
+    try {
+      const response = await fetcher(url, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${this.config.apiKey}`,
+        },
+        cache: "no-store",
+      });
+      if (!response.ok) {
+        return {
+          resource,
+          ok: false,
+          status: response.status,
+          recordCount: 0,
+          fieldNames: [],
+          errorCategory: categoryForStatus(response.status),
+        };
+      }
+
+      try {
+        const rows = asArray(await response.json());
+        return {
+          resource,
+          ok: true,
+          status: response.status,
+          recordCount: rows.length,
+          fieldNames: Object.keys(rows[0] ?? {}).sort(),
+        };
+      } catch {
+        return {
+          resource,
+          ok: false,
+          status: response.status,
+          recordCount: 0,
+          fieldNames: [],
+          errorCategory: "invalid_response",
+        };
+      }
+    } catch {
+      return {
+        resource,
+        ok: false,
+        status: 0,
+        recordCount: 0,
+        fieldNames: [],
+        errorCategory: "upstream",
+      };
+    }
+  }
+
+  async probe(): Promise<{ contacts: JobNimbusProbeResult; jobs: JobNimbusProbeResult }> {
+    const [contacts, jobs] = await Promise.all([
+      this.probeResource("contacts", this.config.contactsPath ?? "/api1/contacts"),
+      this.probeResource("jobs", this.config.jobsPath ?? "/api1/jobs"),
+    ]);
+    return { contacts, jobs };
+  }
 }
+
+export type JobNimbusProbeResult = {
+  resource: "contacts" | "jobs";
+  ok: boolean;
+  status: number;
+  recordCount: number;
+  fieldNames: string[];
+  errorCategory?: "authentication" | "authorization" | "rate_limit" | "upstream" | "invalid_response";
+};
