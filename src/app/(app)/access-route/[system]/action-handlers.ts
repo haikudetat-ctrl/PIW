@@ -31,9 +31,11 @@ export function createJobNimbusActionHandlers(dependencies: JobNimbusActionDepen
 
   return {
     async testConnection(
-      _previous: JobNimbusActionState,
-      _formData: FormData,
+      previous: JobNimbusActionState,
+      formData: FormData,
     ): Promise<JobNimbusActionState> {
+      void previous;
+      void formData;
       const companyId = await requireCompanyId();
       if (!companyId) {
         return { status: "failed", message: "Administrator access is required." };
@@ -46,9 +48,11 @@ export function createJobNimbusActionHandlers(dependencies: JobNimbusActionDepen
     },
 
     async importSample(
-      _previous: JobNimbusActionState,
-      _formData: FormData,
+      previous: JobNimbusActionState,
+      formData: FormData,
     ): Promise<JobNimbusActionState> {
+      void previous;
+      void formData;
       const companyId = await requireCompanyId();
       if (!companyId) {
         return { status: "failed", message: "Administrator access is required." };

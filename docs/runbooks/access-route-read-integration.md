@@ -70,7 +70,7 @@ The authenticated JobNimbus drill-down at `/access-route/jobnimbus` provides a d
 5. Only after both probes pass, select **Import limited sample** once. The server repeats both probes before importing, binds all records to the signed-in administrator's company, and enforces the configured page and record caps.
 6. Record only the sync-run identifier, outcome, counts, and timestamps. Verify that the control tenant has no new JobNimbus rows.
 
-If either probe fails, do not import. Record the endpoint, HTTP status, and sanitized error category (`authentication`, `authorization`, `rate_limit`, `upstream`, or `network`) without copying response bodies into logs or tickets.
+If either probe fails, do not import. Record the endpoint, HTTP status, and sanitized error category (`authentication`, `authorization`, `rate_limit`, `upstream`, or `invalid_response`) without copying response bodies into logs or tickets.
 
 ## Status mapping and reconciliation
 
