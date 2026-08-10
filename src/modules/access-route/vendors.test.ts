@@ -46,6 +46,7 @@ describe("read-only vendor clients", () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse([
       { id: "1" },
       { id: "2" },
+      { id: "3" },
     ]));
     const client = new JobNimbusReadClient({
       apiKey: "key",
@@ -57,8 +58,12 @@ describe("read-only vendor clients", () => {
     expect(await client.contacts()).toHaveLength(2);
     expect(fetcher).toHaveBeenCalledTimes(1);
     const url = new URL(String(fetcher.mock.calls[0][0]));
-    expect(url.searchParams.get("limit")).toBe("2");
-    expect(url.searchParams.get("offset")).toBe("0");
+    expect(url.origin).toBe("https://app.jobnimbus.com");
+    expect(url.pathname).toBe("/api1/contacts");
+    expect(url.searchParams.get("size")).toBe("2");
+    expect(url.searchParams.get("from")).toBe("0");
+    expect(url.searchParams.has("limit")).toBe(false);
+    expect(url.searchParams.has("offset")).toBe(false);
   });
 
   it("reports only JobNimbus response status, count, and field names", async () => {
@@ -93,11 +98,18 @@ describe("read-only vendor clients", () => {
 
     for (const [requestUrl, init] of fetcher.mock.calls) {
       const url = new URL(String(requestUrl));
-      expect(url.searchParams.get("limit")).toBe("1");
-      expect(url.searchParams.get("offset")).toBe("0");
+      expect(url.origin).toBe("https://app.jobnimbus.com");
+      expect(url.searchParams.get("size")).toBe("1");
+      expect(url.searchParams.get("from")).toBe("0");
+      expect(url.searchParams.has("limit")).toBe(false);
+      expect(url.searchParams.has("offset")).toBe(false);
       expect(init?.method).toBe("GET");
       expect(new Headers(init?.headers).get("Authorization")).toBe("Bearer key");
     }
+    expect(fetcher.mock.calls.map(([requestUrl]) => new URL(String(requestUrl)).pathname).sort()).toEqual([
+      "/api1/contacts",
+      "/api1/jobs",
+    ]);
   });
 
   it.each([
