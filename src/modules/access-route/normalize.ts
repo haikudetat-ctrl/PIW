@@ -110,6 +110,12 @@ function redactedRecord(record: JsonRecord): JsonRecord {
   return redactSecrets(record) as JsonRecord;
 }
 
+function jobNimbusPrimaryContactId(record: JsonRecord): string | null {
+  const primary = asRecord(lookup(record, "primary"));
+  if (!primary || readString(primary, "type")?.toLowerCase() !== "contact") return null;
+  return readString(primary, "id", "jnid", "recid");
+}
+
 function redactUnapprovedJobNimbusFinancials(value: unknown, includeSoldValue: boolean): unknown {
   if (Array.isArray(value)) return value.map((item) => redactUnapprovedJobNimbusFinancials(item, includeSoldValue));
   const record = asRecord(value);
@@ -252,9 +258,9 @@ export function normalizeJobNimbusContact(
   return {
     company_id: companyId,
     contact_id: contactId,
-    external_lead_id: readString(record, "external_lead_id", "externalId", "lead_id"),
+    external_lead_id: readString(record, "external_lead_id", "external_id", "externalId", "lead_id"),
     display_name: readString(record, "display_name", "name") ?? (`${first} ${last}`.trim() || null),
-    status: readString(record, "status", "status_name", "stage"),
+    status: readString(record, "status_name", "status", "stage"),
     phone_normalized: normalizePhone(readString(record, "mobile_phone", "phone", "phone_number")),
     email_normalized: normalizeEmail(readString(record, "email", "email_address")),
     vendor_created_at: toIso(lookup(record, "created_at")) ?? toIso(lookup(record, "date_created")),
@@ -275,10 +281,11 @@ export function normalizeJobNimbusJob(
   return {
     company_id: companyId,
     job_id: jobId,
-    contact_id: readString(record, "contact_id", "contactId", "primary_contact_id", "customer_id"),
+    contact_id: readString(record, "contact_id", "contactId", "primary_contact_id", "customer_id")
+      ?? jobNimbusPrimaryContactId(record),
     external_lead_id: readString(record, "external_lead_id", "externalId", "lead_id"),
     source_system: "jobnimbus",
-    status: readString(record, "status", "status_name"),
+    status: readString(record, "status_name", "status"),
     stage: readString(record, "stage", "stage_name", "board_stage"),
     appointment_status: readString(record, "appointment_status", "appointmentStatus", "appointment.status"),
     appointment_at: toIso(lookup(record, "appointment_at"))
