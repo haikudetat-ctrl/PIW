@@ -11,7 +11,7 @@ const now = new Date("2026-08-10T17:00:00.000Z");
 const environment: JobNimbusEnvironment = {
   INTEGRATIONS_JOBNIMBUS_ENABLED: false,
   JOBNIMBUS_API_KEY: "server-only-key",
-  JOBNIMBUS_BASE_URL: "https://api.jobnimbus.com",
+  JOBNIMBUS_BASE_URL: "https://app.jobnimbus.com",
   JOBNIMBUS_CONTACTS_PATH: "/api1/contacts",
   JOBNIMBUS_JOBS_PATH: "/api1/jobs",
   JOBNIMBUS_INCLUDE_SOLD_VALUE: false,
@@ -137,9 +137,9 @@ describe("importJobNimbusCanary", () => {
     }));
     const importUrls = fetcher.mock.calls
       .map(([input]) => new URL(String(input)))
-      .filter((url) => url.searchParams.get("limit") !== "1");
+      .filter((url) => url.searchParams.get("size") !== "1");
     expect(importUrls).toHaveLength(2);
-    expect(importUrls.every((url) => url.searchParams.get("limit") === "2")).toBe(true);
-    expect(importUrls.every((url) => url.searchParams.get("offset") === "0")).toBe(true);
+    expect(importUrls.every((url) => url.searchParams.get("size") === "2")).toBe(true);
+    expect(importUrls.every((url) => url.searchParams.get("from") === "0")).toBe(true);
   });
 });

@@ -134,16 +134,26 @@ export class JobNimbusReadClient {
     fetcher?: typeof fetch;
   }) {}
 
-  private pages(path: string): Promise<JsonRecord[]> {
-    return offsetPages({
-      vendor: "jobnimbus",
-      baseUrl: this.config.baseUrl ?? "https://api.jobnimbus.com",
-      path,
-      headers: { Authorization: `Bearer ${this.config.apiKey}` },
-      pageLimit: this.config.pageLimit,
-      maxPages: this.config.maxPages,
-      fetcher: this.config.fetcher,
-    });
+  private async pages(path: string): Promise<JsonRecord[]> {
+    const all: JsonRecord[] = [];
+    const pageLimit = this.config.pageLimit ?? PAGE_LIMIT;
+    const maxPages = this.config.maxPages ?? MAX_PAGES;
+
+    for (let page = 0; page < maxPages; page += 1) {
+      const url = endpoint(this.config.baseUrl ?? "https://app.jobnimbus.com", path);
+      url.searchParams.set("size", String(pageLimit));
+      url.searchParams.set("from", String(page * pageLimit));
+      const rows = asArray(await getJson({
+        vendor: "jobnimbus",
+        url,
+        headers: { Authorization: `Bearer ${this.config.apiKey}` },
+        fetcher: this.config.fetcher,
+      }));
+      all.push(...rows.slice(0, pageLimit));
+      if (rows.length < pageLimit) break;
+    }
+
+    return all.slice(0, pageLimit * maxPages);
   }
 
   contacts(): Promise<JsonRecord[]> {
@@ -158,9 +168,9 @@ export class JobNimbusReadClient {
     resource: "contacts" | "jobs",
     path: string,
   ): Promise<JobNimbusProbeResult> {
-    const url = endpoint(this.config.baseUrl ?? "https://api.jobnimbus.com", path);
-    url.searchParams.set("limit", "1");
-    url.searchParams.set("offset", "0");
+    const url = endpoint(this.config.baseUrl ?? "https://app.jobnimbus.com", path);
+    url.searchParams.set("size", "1");
+    url.searchParams.set("from", "0");
     const fetcher = this.config.fetcher ?? fetch;
 
     try {

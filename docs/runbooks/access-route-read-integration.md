@@ -37,7 +37,7 @@ LeadMaster:
 JobNimbus:
 
 - `JOBNIMBUS_API_KEY` from a View + Export/Reports-only Access Profile.
-- `JOBNIMBUS_BASE_URL=https://api.jobnimbus.com`
+- `JOBNIMBUS_BASE_URL=https://app.jobnimbus.com`
 - `JOBNIMBUS_CONTACTS_PATH=/api1/contacts`
 - `JOBNIMBUS_JOBS_PATH=/api1/jobs`
 - `JOBNIMBUS_PAGE_LIMIT=50`
