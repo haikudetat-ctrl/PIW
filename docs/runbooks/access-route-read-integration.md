@@ -40,8 +40,10 @@ JobNimbus:
 - `JOBNIMBUS_BASE_URL=https://api.jobnimbus.com`
 - `JOBNIMBUS_CONTACTS_PATH=/api1/contacts`
 - `JOBNIMBUS_JOBS_PATH=/api1/jobs`
+- `JOBNIMBUS_PAGE_LIMIT=50`
+- `JOBNIMBUS_MAX_PAGES=1`
 - `JOBNIMBUS_INCLUDE_SOLD_VALUE=false` unless the business owner explicitly approves that field.
-- Confirm both paths against the granted account before setting `INTEGRATIONS_JOBNIMBUS_ENABLED=true`. JobNimbus’s current public Platform documentation exposes Bearer authentication but does not list contacts/jobs in its visible service registry, so the paths are deliberately configurable.
+- Keep `INTEGRATIONS_JOBNIMBUS_ENABLED=false` during the staging canary. Confirm both paths against the granted account before any later decision to enable scheduled ingestion. JobNimbus’s current public Platform documentation exposes Bearer authentication but does not list contacts/jobs in its visible service registry, so the paths are deliberately configurable.
 
 Do not grant Delete, billing/settings, or cost/margin permissions. Cost, margin, profit, and commission fields are redacted defensively if a mis-scoped profile returns them. `sold_value` remains null unless its dedicated approval flag is enabled.
 
@@ -56,6 +58,19 @@ Do not grant Delete, billing/settings, or cost/margin permissions. Cost, margin,
 7. For JobNimbus, verify that the access profile can read contacts and jobs and that no write endpoint is permitted. Confirm whether appointment status is present on the returned job record for this account; map any custom appointment field before relying on the no-show panel.
 8. Enable only that vendor, observe the first `integration_sync_runs` row, and inspect record counts plus a small sample of normalized records.
 9. Repeat for the next vendor.
+
+## JobNimbus staging canary
+
+The authenticated JobNimbus drill-down at `/access-route/jobnimbus` provides a deliberately separate staging path. It does not depend on `INTEGRATIONS_JOBNIMBUS_ENABLED` and never writes to JobNimbus.
+
+1. Confirm the API key and the JobNimbus paths are set in the staging deployment only.
+2. Confirm `INTEGRATIONS_JOBNIMBUS_ENABLED=false`, `JOBNIMBUS_PAGE_LIMIT=50`, `JOBNIMBUS_MAX_PAGES=1`, and `JOBNIMBUS_INCLUDE_SOLD_VALUE=false`.
+3. Sign in as a staging administrator and select **Test JobNimbus connection**.
+4. Verify that both contacts and jobs report a successful HTTP status. The result intentionally shows only status, record count, and field names; it never displays customer values.
+5. Only after both probes pass, select **Import limited sample** once. The server repeats both probes before importing, binds all records to the signed-in administrator's company, and enforces the configured page and record caps.
+6. Record only the sync-run identifier, outcome, counts, and timestamps. Verify that the control tenant has no new JobNimbus rows.
+
+If either probe fails, do not import. Record the endpoint, HTTP status, and sanitized error category (`authentication`, `authorization`, `rate_limit`, `upstream`, or `network`) without copying response bodies into logs or tickets.
 
 ## Status mapping and reconciliation
 
