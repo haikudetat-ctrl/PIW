@@ -17,6 +17,10 @@ describe("parseServerEnv", () => {
     const environment = parseServerEnv(base);
     expect(environment.PAID_PROVIDERS_ENABLED).toBe(false);
     expect(environment.COST_INTELLIGENCE_ENABLED).toBe(false);
+    expect(environment.INTEGRATIONS_LEADCONDUIT_ENABLED).toBe(false);
+    expect(environment.INTEGRATIONS_LEADMASTER_ENABLED).toBe(false);
+    expect(environment.INTEGRATIONS_JOBNIMBUS_ENABLED).toBe(false);
+    expect(environment.INTEGRATIONS_CALLTOOLS_ENABLED).toBe(false);
     expect(environment.COST_MONTHLY_BUDGET_USD).toBe(1500);
   });
 
