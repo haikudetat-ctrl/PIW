@@ -11,7 +11,7 @@ export class VendorReadError extends Error {
   }
 }
 
-function categoryForStatus(status: number): VendorReadError["category"] {
+export function categoryForStatus(status: number): VendorReadError["category"] {
   if (status === 401) return "authentication";
   if (status === 403) return "authorization";
   if (status === 429) return "rate_limit";
