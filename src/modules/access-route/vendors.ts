@@ -15,14 +15,18 @@ async function offsetPages(input: {
   path: string;
   headers?: HeadersInit;
   query?: Record<string, string>;
+  pageLimit?: number;
+  maxPages?: number;
   fetcher?: typeof fetch;
 }): Promise<JsonRecord[]> {
   const all: JsonRecord[] = [];
-  for (let page = 0; page < MAX_PAGES; page += 1) {
+  const pageLimit = input.pageLimit ?? PAGE_LIMIT;
+  const maxPages = input.maxPages ?? MAX_PAGES;
+  for (let page = 0; page < maxPages; page += 1) {
     const url = endpoint(input.baseUrl, input.path);
     Object.entries(input.query ?? {}).forEach(([key, value]) => url.searchParams.set(key, value));
-    url.searchParams.set("limit", String(PAGE_LIMIT));
-    url.searchParams.set("offset", String(page * PAGE_LIMIT));
+    url.searchParams.set("limit", String(pageLimit));
+    url.searchParams.set("offset", String(page * pageLimit));
     const rows = asArray(await getJson({
       vendor: input.vendor,
       url,
@@ -30,7 +34,7 @@ async function offsetPages(input: {
       fetcher: input.fetcher,
     }));
     all.push(...rows);
-    if (rows.length < PAGE_LIMIT) break;
+    if (rows.length < pageLimit) break;
   }
   return all;
 }
@@ -125,6 +129,8 @@ export class JobNimbusReadClient {
     baseUrl?: string;
     contactsPath?: string;
     jobsPath?: string;
+    pageLimit?: number;
+    maxPages?: number;
     fetcher?: typeof fetch;
   }) {}
 
@@ -134,6 +140,8 @@ export class JobNimbusReadClient {
       baseUrl: this.config.baseUrl ?? "https://api.jobnimbus.com",
       path,
       headers: { Authorization: `Bearer ${this.config.apiKey}` },
+      pageLimit: this.config.pageLimit,
+      maxPages: this.config.maxPages,
       fetcher: this.config.fetcher,
     });
   }

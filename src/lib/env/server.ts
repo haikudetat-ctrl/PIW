@@ -34,6 +34,8 @@ const serverEnvSchema = z
     JOBNIMBUS_CONTACTS_PATH: optionalString,
     JOBNIMBUS_JOBS_PATH: optionalString,
     JOBNIMBUS_INCLUDE_SOLD_VALUE: booleanString,
+    JOBNIMBUS_PAGE_LIMIT: z.coerce.number().int().positive().max(500).default(50),
+    JOBNIMBUS_MAX_PAGES: z.coerce.number().int().positive().max(25).default(1),
     ACCESS_ROUTE_COMPANY_ID: optionalUuid,
     CALLTOOLS_API_KEY: z.string().optional(),
     GOOGLE_MAPS_API_KEY: optionalString,
