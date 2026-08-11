@@ -3,7 +3,9 @@ import { notFound } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { humanize } from "@/lib/format";
 import { createServerClient } from "@/lib/supabase/server";
+import { leadConduitProbeFromMetadata } from "@/modules/access-route/leadconduit-shadow-import";
 import { JobNimbusConnectionPanel } from "./jobnimbus-connection-panel";
+import { LeadConduitConnectionPanel } from "./leadconduit-connection-panel";
 
 const SYSTEMS = ["leadconduit", "leadmaster", "jobnimbus"] as const;
 type System = typeof SYSTEMS[number];
@@ -20,6 +22,18 @@ export default async function AccessRouteSystemPage({ params }: { params: Promis
   const { system } = await params;
   if (!isSystem(system)) notFound();
   const supabase = await createServerClient();
+
+  const persistedLeadConduitProbe = system === "leadconduit"
+    ? (await supabase
+        .from("integration_sync_runs")
+        .select("metadata")
+        .eq("source_system", "leadconduit")
+        .like("sync_key", "leadconduit:probe:%")
+        .order("started_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()).data?.metadata
+    : null;
+  const initialLeadConduitProbe = leadConduitProbeFromMetadata(persistedLeadConduitProbe);
 
   const rows = system === "leadconduit"
     ? (await supabase.from("leadconduit_events").select("event_id, flow_id, source_name, event_type, outcome, occurred_at").order("occurred_at", { ascending: false }).limit(100)).data?.map((row) => [row.event_id, row.source_name ?? row.flow_id, row.event_type, row.outcome, row.occurred_at])
@@ -40,6 +54,9 @@ export default async function AccessRouteSystemPage({ params }: { params: Promis
         <h1 className="mt-2 text-2xl font-bold text-ink">{humanize(system)} records</h1>
         <p className="mt-1 text-sm text-ink-subtle">Latest 100 normalized read-only records. Raw vendor status is intentionally preserved.</p>
       </div>
+      {system === "leadconduit" ? (
+        <LeadConduitConnectionPanel initialProbe={initialLeadConduitProbe ?? undefined} />
+      ) : null}
       {system === "jobnimbus" ? <JobNimbusConnectionPanel /> : null}
       <Card title={`${humanize(system)} drill-down`} ariaLabel={`${humanize(system)} records`}>
         <div className="overflow-x-auto">
