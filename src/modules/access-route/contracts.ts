@@ -46,7 +46,7 @@ export type LeadConduitFlowRow = {
 export type LeadConduitEventRow = {
   company_id: string;
   event_id: string;
-  flow_id: string | null;
+  flow_id: string;
   source_id: string | null;
   source_name: string | null;
   lead_id: string | null;
@@ -57,9 +57,86 @@ export type LeadConduitEventRow = {
   phone_normalized: string | null;
   email_normalized: string | null;
   raw_status: string | null;
+  step_id: string | null;
+  step_name: string | null;
+  rule_id: string | null;
+  rule_name: string | null;
+  rule_scope: string | null;
+  rule_scope_id: string | null;
+  reason_category: string | null;
+  lead_name: string | null;
+  submitted_phone: string | null;
+  submitted_email: string | null;
+  submitted_address: string | null;
+  campaign: string | null;
+  consent_reference: string | null;
+  trustedform_url: string | null;
+  attribution: JsonRecord;
   raw_payload: JsonRecord;
   is_test: boolean;
+  ingestion_channels: Array<"webhook" | "poll">;
+  first_observed_at: string;
+  webhook_received_at: string | null;
+  poll_observed_at: string | null;
+  processing_status: "observed" | "pending" | "processed" | "failed" | "not_applicable";
+  piw_lead_id: string | null;
+  processing_error_category: LeadConduitOperationalErrorCategory | null;
+  processing_attempts: number;
+  processing_claimed_at: string | null;
+  processing_claimed_by: string | null;
+  processing_next_attempt_at: string | null;
   ingested_at: string;
+};
+
+export type LeadConduitSourceMetadataRow = {
+  company_id: string;
+  flow_id: string;
+  source_id: string;
+  source_name: string | null;
+  field_names: string[];
+  acceptance_metadata: JsonRecord;
+  raw_payload: JsonRecord;
+  observed_at: string;
+};
+
+export type LeadConduitFlowStepRow = {
+  company_id: string;
+  flow_id: string;
+  step_id: string;
+  step_type: string;
+  step_name: string | null;
+  step_order: number;
+  enabled: boolean;
+  outcome: string | null;
+  observed_at: string;
+};
+
+export type LeadConduitRuleScope = "flow_acceptance" | "source_acceptance" | "filter_step";
+
+export type LeadConduitFlowRuleRow = {
+  company_id: string;
+  flow_id: string;
+  rule_scope: LeadConduitRuleScope;
+  rule_scope_id: string;
+  rule_id: string;
+  rule_name: string | null;
+  lhv: string;
+  operator: string;
+  observed_at: string;
+};
+
+export type LeadConduitEventBatch = {
+  companyId: string;
+  flowId: string;
+  channel: "webhook" | "poll";
+  observedAt: string;
+  rows: LeadConduitEventRow[];
+};
+
+export type LeadConduitSnapshotBatch<T> = {
+  companyId: string;
+  flowId: string;
+  rows: T[];
 };
 
 export type LeadMasterRecordRow = {
@@ -142,8 +219,17 @@ export interface AccessRouteRepository {
     errorCategory?: string | null;
     metadata?: JsonRecord;
   }): Promise<void>;
-  upsertLeadConduitFlows(rows: LeadConduitFlowRow[]): Promise<number>;
-  upsertLeadConduitEvents(rows: LeadConduitEventRow[]): Promise<number>;
+  upsertLeadConduitFlows(input: LeadConduitSnapshotBatch<LeadConduitFlowRow>): Promise<number>;
+  upsertLeadConduitEvents(input: LeadConduitEventBatch): Promise<number>;
+  upsertLeadConduitSourceMetadata?(
+    input: LeadConduitSnapshotBatch<LeadConduitSourceMetadataRow>,
+  ): Promise<number>;
+  upsertLeadConduitFlowSteps?(
+    input: LeadConduitSnapshotBatch<LeadConduitFlowStepRow>,
+  ): Promise<number>;
+  upsertLeadConduitFlowRules?(
+    input: LeadConduitSnapshotBatch<LeadConduitFlowRuleRow>,
+  ): Promise<number>;
   upsertLeadMasterRecords(rows: LeadMasterRecordRow[]): Promise<number>;
   upsertLeadMasterCustomFields(rows: LeadMasterCustomFieldRow[]): Promise<number>;
   upsertJobNimbusContacts(rows: JobNimbusContactRow[]): Promise<number>;

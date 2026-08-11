@@ -4,9 +4,32 @@ import type {
   JsonRecord,
   LeadConduitEventRow,
   LeadConduitFlowRow,
+  LeadConduitFlowRuleRow,
+  LeadConduitFlowStepRow,
+  LeadConduitRuleScope,
+  LeadConduitSourceMetadataRow,
   LeadMasterCustomFieldRow,
   LeadMasterRecordRow,
 } from "./contracts";
+
+type LeadConduitTrustedFlowContext = {
+  companyId: string;
+  flowId: string;
+  observedAt: string;
+};
+
+type LeadConduitEventContext = LeadConduitTrustedFlowContext & {
+  channel: "webhook" | "poll";
+};
+
+type LeadConduitSourceContext = LeadConduitTrustedFlowContext & {
+  sourceId: string;
+};
+
+type LeadConduitRuleContext = LeadConduitTrustedFlowContext & {
+  ruleScope: LeadConduitRuleScope;
+  ruleScopeId: string;
+};
 
 export function asRecord(value: unknown): JsonRecord | null {
   return value !== null && typeof value === "object" && !Array.isArray(value)
@@ -101,7 +124,7 @@ export function redactSecrets(value: unknown): unknown {
   const record = asRecord(value);
   if (!record) return value;
   return Object.fromEntries(Object.entries(record).map(([key, child]) => {
-    const sensitive = /(api.?key|access.?token|authorization|password|secret)/i.test(key);
+    const sensitive = /(api.?key|token|authorization|password|secret|credential|private.?key)/i.test(key);
     return [key, sensitive ? "[REDACTED]" : redactSecrets(child)];
   }));
 }
@@ -134,17 +157,16 @@ function stringIds(value: unknown): string[] {
 
 export function normalizeLeadConduitFlow(
   record: JsonRecord,
-  companyId: string,
-  ingestedAt: string,
+  context: LeadConduitTrustedFlowContext,
 ): LeadConduitFlowRow | null {
   const flowId = readString(record, "id");
-  if (!flowId) return null;
+  if (!flowId || flowId !== context.flowId) return null;
   const fields = Array.isArray(record.fields)
     ? record.fields.filter((field): field is string => typeof field === "string")
     : [];
   return {
-    company_id: companyId,
-    flow_id: flowId,
+    company_id: context.companyId,
+    flow_id: context.flowId,
     name: readString(record, "name") ?? "Unnamed flow",
     enabled: readBoolean(record, "enabled") ?? false,
     source_ids: stringIds(record.sources),
@@ -153,36 +175,163 @@ export function normalizeLeadConduitFlow(
     raw_payload: redactedRecord(record),
     vendor_created_at: toIso(record.created_at),
     vendor_updated_at: toIso(record.updated_at),
-    ingested_at: ingestedAt,
+    ingested_at: context.observedAt,
   };
+}
+
+function leadConduitPayloadFlowId(record: JsonRecord, vars: JsonRecord): string | null {
+  return readString(record, "flow_id", "flow.id") ?? readString(vars, "flow.id");
+}
+
+function leadConduitFieldNames(record: JsonRecord): string[] {
+  if (!Array.isArray(record.fields)) return [];
+  const names = record.fields.flatMap((field) => {
+    if (typeof field === "string" && field.trim()) return [field.trim()];
+    const fieldRecord = asRecord(field);
+    const name = fieldRecord ? readString(fieldRecord, "name", "label", "id") : null;
+    return name ? [name] : [];
+  });
+  return [...new Set(names)].sort();
+}
+
+function leadConduitLeadName(vars: JsonRecord): string | null {
+  const fullName = readString(vars, "lead.name", "lead.full_name");
+  if (fullName) return fullName;
+  const firstName = readString(vars, "lead.first_name") ?? "";
+  const lastName = readString(vars, "lead.last_name") ?? "";
+  return `${firstName} ${lastName}`.trim() || null;
+}
+
+function leadConduitRuleScope(value: string | null): LeadConduitRuleScope | null {
+  return value === "flow_acceptance" || value === "source_acceptance" || value === "filter_step"
+    ? value
+    : null;
+}
+
+function compactRecord(entries: Array<[string, unknown]>): JsonRecord {
+  return Object.fromEntries(entries.filter(([, value]) => value !== null && value !== undefined));
 }
 
 export function normalizeLeadConduitEvent(
   record: JsonRecord,
-  companyId: string,
-  ingestedAt: string,
+  context: LeadConduitEventContext,
 ): LeadConduitEventRow | null {
   const eventId = readString(record, "id");
   if (!eventId) return null;
   const vars = asRecord(record.vars) ?? {};
+  const payloadFlowId = leadConduitPayloadFlowId(record, vars);
+  if (payloadFlowId && payloadFlowId !== context.flowId) return null;
   const startTimestamp = lookup(record, "start_timestamp");
+  const externalLeadId = readString(vars, "lead.external_id");
+  const submittedPhone = readString(vars, "lead.phone_1", "lead.phone", "lead.phone_number");
+  const submittedEmail = readString(vars, "lead.email");
   return {
-    company_id: companyId,
+    company_id: context.companyId,
     event_id: eventId,
-    flow_id: readString(record, "flow_id") ?? readString(vars, "flow.id"),
+    flow_id: context.flowId,
     source_id: readString(record, "source_id") ?? readString(vars, "source.id"),
     source_name: readString(record, "source_name") ?? readString(vars, "source.name"),
     lead_id: readString(record, "lead_id") ?? readString(vars, "lead.id", "submission.id"),
     event_type: readString(record, "type") ?? "unknown",
-    occurred_at: toIso(startTimestamp, ingestedAt) ?? ingestedAt,
+    occurred_at: toIso(startTimestamp, context.observedAt) ?? context.observedAt,
     outcome: readString(record, "outcome"),
-    external_lead_id: readString(vars, "lead.external_lead_id", "lead.lead_id", "lead.id"),
-    phone_normalized: normalizePhone(readString(vars, "lead.phone_1", "lead.phone", "lead.phone_number")),
-    email_normalized: normalizeEmail(readString(vars, "lead.email")),
+    external_lead_id: externalLeadId,
+    phone_normalized: normalizePhone(submittedPhone),
+    email_normalized: normalizeEmail(submittedEmail),
     raw_status: readString(vars, "lead.status", "lead.disposition") ?? readString(record, "outcome"),
+    step_id: readString(record, "step_id", "step.id") ?? readString(vars, "step.id"),
+    step_name: readString(record, "step_name", "step.name") ?? readString(vars, "step.name"),
+    rule_id: readString(record, "rule_id", "rule.id") ?? readString(vars, "rule.id"),
+    rule_name: readString(record, "rule_name", "rule.name") ?? readString(vars, "rule.name"),
+    rule_scope: leadConduitRuleScope(
+      readString(record, "rule_scope", "rule.scope") ?? readString(vars, "rule.scope"),
+    ),
+    rule_scope_id: readString(record, "rule_scope_id", "rule.scope_id")
+      ?? readString(vars, "rule.scope_id"),
+    reason_category: readString(record, "reason_category", "reason.category", "reason.code")
+      ?? readString(vars, "reason.category", "reason.code"),
+    lead_name: leadConduitLeadName(vars),
+    submitted_phone: submittedPhone,
+    submitted_email: submittedEmail,
+    submitted_address: readString(vars, "lead.address", "lead.submitted_address"),
+    campaign: readString(vars, "lead.campaign", "campaign.name"),
+    consent_reference: readString(vars, "lead.consent_reference", "lead.consent"),
+    trustedform_url: readString(vars, "lead.trustedform_url", "lead.trustedform_cert_url"),
+    attribution: compactRecord([["lead_external_id", externalLeadId]]),
     raw_payload: redactedRecord(record),
     is_test: readBoolean(record, "is_test") ?? readBoolean(vars, "lead.is_test", "submission.test") ?? false,
-    ingested_at: ingestedAt,
+    ingestion_channels: [context.channel],
+    first_observed_at: context.observedAt,
+    webhook_received_at: context.channel === "webhook" ? context.observedAt : null,
+    poll_observed_at: context.channel === "poll" ? context.observedAt : null,
+    processing_status: "observed",
+    piw_lead_id: null,
+    processing_error_category: null,
+    processing_attempts: 0,
+    processing_claimed_at: null,
+    processing_claimed_by: null,
+    processing_next_attempt_at: null,
+    ingested_at: context.observedAt,
+  };
+}
+
+export function normalizeLeadConduitSourceMetadata(
+  record: JsonRecord,
+  context: LeadConduitSourceContext,
+): LeadConduitSourceMetadataRow {
+  const acceptance = asRecord(record.acceptance)
+    ?? asRecord(record.acceptance_metadata)
+    ?? {};
+  return {
+    company_id: context.companyId,
+    flow_id: context.flowId,
+    source_id: context.sourceId,
+    source_name: readString(record, "name", "source_name"),
+    field_names: leadConduitFieldNames(record),
+    acceptance_metadata: redactedRecord(acceptance),
+    raw_payload: redactedRecord(record),
+    observed_at: context.observedAt,
+  };
+}
+
+export function normalizeLeadConduitFlowStep(
+  record: JsonRecord,
+  context: LeadConduitTrustedFlowContext,
+): LeadConduitFlowStepRow | null {
+  const stepId = readString(record, "id", "step_id");
+  const stepType = readString(record, "type", "step_type");
+  if (!stepId || !stepType) return null;
+  return {
+    company_id: context.companyId,
+    flow_id: context.flowId,
+    step_id: stepId,
+    step_type: stepType,
+    step_name: readString(record, "name", "step_name"),
+    step_order: readNumber(record, "order", "step_order") ?? 0,
+    enabled: readBoolean(record, "enabled") ?? true,
+    outcome: readString(record, "outcome"),
+    observed_at: context.observedAt,
+  };
+}
+
+export function normalizeLeadConduitFlowRule(
+  record: JsonRecord,
+  context: LeadConduitRuleContext,
+): LeadConduitFlowRuleRow | null {
+  const ruleId = readString(record, "id", "rule_id");
+  const lhv = readString(record, "lhv", "left_hand_value");
+  const operator = readString(record, "op", "operator");
+  if (!ruleId || !lhv || !operator) return null;
+  return {
+    company_id: context.companyId,
+    flow_id: context.flowId,
+    rule_scope: context.ruleScope,
+    rule_scope_id: context.ruleScopeId,
+    rule_id: ruleId,
+    rule_name: readString(record, "name", "rule_name"),
+    lhv,
+    operator,
+    observed_at: context.observedAt,
   };
 }
 

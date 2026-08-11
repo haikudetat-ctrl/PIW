@@ -1384,65 +1384,258 @@ export type Database = {
       }
       leadconduit_events: {
         Row: {
+          attribution: Json
+          campaign: string | null
           company_id: string
+          consent_reference: string | null
           email_normalized: string | null
           event_id: string
           event_type: string
           external_lead_id: string | null
+          first_observed_at: string
           flow_id: string | null
           id: string
           ingested_at: string
+          ingestion_channels: string[]
           is_test: boolean
           lead_id: string | null
+          lead_name: string | null
           occurred_at: string
           outcome: string | null
           phone_normalized: string | null
+          piw_lead_id: string | null
+          poll_observed_at: string | null
+          processing_attempts: number
+          processing_claimed_at: string | null
+          processing_claimed_by: string | null
+          processing_error_category: string | null
+          processing_next_attempt_at: string | null
+          processing_status: string
           raw_payload: Json
           raw_status: string | null
+          reason_category: string | null
+          rule_id: string | null
+          rule_name: string | null
+          rule_scope: string | null
+          rule_scope_id: string | null
           source_id: string | null
           source_name: string | null
+          step_id: string | null
+          step_name: string | null
+          submitted_address: string | null
+          submitted_email: string | null
+          submitted_phone: string | null
+          trustedform_url: string | null
+          webhook_received_at: string | null
         }
         Insert: {
+          attribution?: Json
+          campaign?: string | null
           company_id: string
+          consent_reference?: string | null
           email_normalized?: string | null
           event_id: string
           event_type: string
           external_lead_id?: string | null
+          first_observed_at: string
           flow_id?: string | null
           id?: string
           ingested_at?: string
+          ingestion_channels?: string[]
           is_test?: boolean
           lead_id?: string | null
+          lead_name?: string | null
           occurred_at: string
           outcome?: string | null
           phone_normalized?: string | null
+          piw_lead_id?: string | null
+          poll_observed_at?: string | null
+          processing_attempts?: number
+          processing_claimed_at?: string | null
+          processing_claimed_by?: string | null
+          processing_error_category?: string | null
+          processing_next_attempt_at?: string | null
+          processing_status?: string
           raw_payload: Json
           raw_status?: string | null
+          reason_category?: string | null
+          rule_id?: string | null
+          rule_name?: string | null
+          rule_scope?: string | null
+          rule_scope_id?: string | null
           source_id?: string | null
           source_name?: string | null
+          step_id?: string | null
+          step_name?: string | null
+          submitted_address?: string | null
+          submitted_email?: string | null
+          submitted_phone?: string | null
+          trustedform_url?: string | null
+          webhook_received_at?: string | null
         }
         Update: {
+          attribution?: Json
+          campaign?: string | null
           company_id?: string
+          consent_reference?: string | null
           email_normalized?: string | null
           event_id?: string
           event_type?: string
           external_lead_id?: string | null
+          first_observed_at?: string
           flow_id?: string | null
           id?: string
           ingested_at?: string
+          ingestion_channels?: string[]
           is_test?: boolean
           lead_id?: string | null
+          lead_name?: string | null
           occurred_at?: string
           outcome?: string | null
           phone_normalized?: string | null
+          piw_lead_id?: string | null
+          poll_observed_at?: string | null
+          processing_attempts?: number
+          processing_claimed_at?: string | null
+          processing_claimed_by?: string | null
+          processing_error_category?: string | null
+          processing_next_attempt_at?: string | null
+          processing_status?: string
           raw_payload?: Json
           raw_status?: string | null
+          reason_category?: string | null
+          rule_id?: string | null
+          rule_name?: string | null
+          rule_scope?: string | null
+          rule_scope_id?: string | null
           source_id?: string | null
           source_name?: string | null
+          step_id?: string | null
+          step_name?: string | null
+          submitted_address?: string | null
+          submitted_email?: string | null
+          submitted_phone?: string | null
+          trustedform_url?: string | null
+          webhook_received_at?: string | null
         }
         Relationships: [
           {
             foreignKeyName: "leadconduit_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leadconduit_events_company_piw_lead_fkey"
+            columns: ["company_id", "piw_lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["company_id", "id"]
+          },
+        ]
+      }
+      leadconduit_flow_rules: {
+        Row: {
+          company_id: string
+          flow_id: string
+          id: string
+          lhv: string
+          observed_at: string
+          operator: string
+          rule_id: string
+          rule_name: string | null
+          rule_scope: string
+          rule_scope_id: string
+        }
+        Insert: {
+          company_id: string
+          flow_id: string
+          id?: string
+          lhv: string
+          observed_at: string
+          operator: string
+          rule_id: string
+          rule_name?: string | null
+          rule_scope: string
+          rule_scope_id: string
+        }
+        Update: {
+          company_id?: string
+          flow_id?: string
+          id?: string
+          lhv?: string
+          observed_at?: string
+          operator?: string
+          rule_id?: string
+          rule_name?: string | null
+          rule_scope?: string
+          rule_scope_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leadconduit_flow_rules_company_flow_fkey"
+            columns: ["company_id", "flow_id"]
+            isOneToOne: false
+            referencedRelation: "leadconduit_flows"
+            referencedColumns: ["company_id", "flow_id"]
+          },
+          {
+            foreignKeyName: "leadconduit_flow_rules_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leadconduit_flow_steps: {
+        Row: {
+          company_id: string
+          enabled: boolean
+          flow_id: string
+          id: string
+          observed_at: string
+          outcome: string | null
+          step_id: string
+          step_name: string | null
+          step_order: number
+          step_type: string
+        }
+        Insert: {
+          company_id: string
+          enabled: boolean
+          flow_id: string
+          id?: string
+          observed_at: string
+          outcome?: string | null
+          step_id: string
+          step_name?: string | null
+          step_order: number
+          step_type: string
+        }
+        Update: {
+          company_id?: string
+          enabled?: boolean
+          flow_id?: string
+          id?: string
+          observed_at?: string
+          outcome?: string | null
+          step_id?: string
+          step_name?: string | null
+          step_order?: number
+          step_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leadconduit_flow_steps_company_flow_fkey"
+            columns: ["company_id", "flow_id"]
+            isOneToOne: false
+            referencedRelation: "leadconduit_flows"
+            referencedColumns: ["company_id", "flow_id"]
+          },
+          {
+            foreignKeyName: "leadconduit_flow_steps_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
@@ -1496,6 +1689,57 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "leadconduit_flows_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leadconduit_source_metadata: {
+        Row: {
+          acceptance_metadata: Json
+          company_id: string
+          field_names: string[]
+          flow_id: string
+          id: string
+          observed_at: string
+          raw_payload: Json
+          source_id: string
+          source_name: string | null
+        }
+        Insert: {
+          acceptance_metadata?: Json
+          company_id: string
+          field_names?: string[]
+          flow_id: string
+          id?: string
+          observed_at: string
+          raw_payload?: Json
+          source_id: string
+          source_name?: string | null
+        }
+        Update: {
+          acceptance_metadata?: Json
+          company_id?: string
+          field_names?: string[]
+          flow_id?: string
+          id?: string
+          observed_at?: string
+          raw_payload?: Json
+          source_id?: string
+          source_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leadconduit_source_metadata_company_flow_fkey"
+            columns: ["company_id", "flow_id"]
+            isOneToOne: false
+            referencedRelation: "leadconduit_flows"
+            referencedColumns: ["company_id", "flow_id"]
+          },
+          {
+            foreignKeyName: "leadconduit_source_metadata_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
@@ -3350,6 +3594,15 @@ export type Database = {
           property_id: string
           public_token: string
         }[]
+      }
+      upsert_leadconduit_event_batch: {
+        Args: {
+          p_channel: string
+          p_company_id: string
+          p_events: Json
+          p_observed_at: string
+        }
+        Returns: number
       }
     }
     Enums: {

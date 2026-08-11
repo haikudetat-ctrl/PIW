@@ -5,8 +5,13 @@ import type {
   AccessRouteRepository,
   JobNimbusContactRow,
   JobNimbusJobRow,
+  LeadConduitEventBatch,
   LeadConduitEventRow,
   LeadConduitFlowRow,
+  LeadConduitFlowRuleRow,
+  LeadConduitFlowStepRow,
+  LeadConduitSnapshotBatch,
+  LeadConduitSourceMetadataRow,
   LeadMasterCustomFieldRow,
   LeadMasterRecordRow,
   VendorSystem,
@@ -14,6 +19,48 @@ import type {
 
 function json(value: Record<string, unknown>): Json {
   return value as Json;
+}
+
+function assertTrustedLeadConduitBatch<T extends { company_id: string; flow_id: string }>(
+  input: LeadConduitSnapshotBatch<T>,
+): void {
+  if (input.rows.some((row) => row.company_id !== input.companyId || row.flow_id !== input.flowId)) {
+    throw new Error("LeadConduit tenant or flow mismatch");
+  }
+}
+
+function eventPayload(row: LeadConduitEventRow, trustedFlowId: string): Json {
+  return json({
+    event_id: row.event_id,
+    flow_id: trustedFlowId,
+    source_id: row.source_id,
+    source_name: row.source_name,
+    lead_id: row.lead_id,
+    event_type: row.event_type,
+    occurred_at: row.occurred_at,
+    outcome: row.outcome,
+    external_lead_id: row.external_lead_id,
+    phone_normalized: row.phone_normalized,
+    email_normalized: row.email_normalized,
+    raw_status: row.raw_status,
+    step_id: row.step_id,
+    step_name: row.step_name,
+    rule_id: row.rule_id,
+    rule_name: row.rule_name,
+    rule_scope: row.rule_scope,
+    rule_scope_id: row.rule_scope_id,
+    reason_category: row.reason_category,
+    lead_name: row.lead_name,
+    submitted_phone: row.submitted_phone,
+    submitted_email: row.submitted_email,
+    submitted_address: row.submitted_address,
+    campaign: row.campaign,
+    consent_reference: row.consent_reference,
+    trustedform_url: row.trustedform_url,
+    attribution: row.attribution,
+    raw_payload: row.raw_payload,
+    is_test: row.is_test,
+  });
 }
 
 export class SupabaseAccessRouteRepository implements AccessRouteRepository {
@@ -92,24 +139,71 @@ export class SupabaseAccessRouteRepository implements AccessRouteRepository {
     if (error) throw new Error("Failed to finish access-route sync run");
   }
 
-  async upsertLeadConduitFlows(rows: LeadConduitFlowRow[]): Promise<number> {
-    if (!rows.length) return 0;
+  async upsertLeadConduitFlows(input: LeadConduitSnapshotBatch<LeadConduitFlowRow>): Promise<number> {
+    if (!input.rows.length) return 0;
+    assertTrustedLeadConduitBatch(input);
     const { error } = await this.client.from("leadconduit_flows").upsert(
-      rows.map((row) => ({ ...row, raw_payload: json(row.raw_payload) })),
+      input.rows.map((row) => ({ ...row, raw_payload: json(row.raw_payload) })),
       { onConflict: "company_id,flow_id" },
     );
     if (error) throw new Error("Failed to persist LeadConduit flows");
-    return rows.length;
+    return input.rows.length;
   }
 
-  async upsertLeadConduitEvents(rows: LeadConduitEventRow[]): Promise<number> {
-    if (!rows.length) return 0;
-    const { error } = await this.client.from("leadconduit_events").upsert(
-      rows.map((row) => ({ ...row, raw_payload: json(row.raw_payload) })),
-      { onConflict: "company_id,event_id" },
-    );
+  async upsertLeadConduitEvents(input: LeadConduitEventBatch): Promise<number> {
+    if (!input.rows.length) return 0;
+    assertTrustedLeadConduitBatch(input);
+    const { data, error } = await this.client.rpc("upsert_leadconduit_event_batch", {
+      p_company_id: input.companyId,
+      p_events: input.rows.map((row) => eventPayload(row, input.flowId)),
+      p_channel: input.channel,
+      p_observed_at: input.observedAt,
+    });
     if (error) throw new Error("Failed to persist LeadConduit events");
-    return rows.length;
+    return data;
+  }
+
+  async upsertLeadConduitSourceMetadata(
+    input: LeadConduitSnapshotBatch<LeadConduitSourceMetadataRow>,
+  ): Promise<number> {
+    if (!input.rows.length) return 0;
+    assertTrustedLeadConduitBatch(input);
+    const { error } = await this.client.from("leadconduit_source_metadata").upsert(
+      input.rows.map((row) => ({
+        ...row,
+        acceptance_metadata: json(row.acceptance_metadata),
+        raw_payload: json(row.raw_payload),
+      })),
+      { onConflict: "company_id,flow_id,source_id" },
+    );
+    if (error) throw new Error("Failed to persist LeadConduit source metadata");
+    return input.rows.length;
+  }
+
+  async upsertLeadConduitFlowSteps(
+    input: LeadConduitSnapshotBatch<LeadConduitFlowStepRow>,
+  ): Promise<number> {
+    if (!input.rows.length) return 0;
+    assertTrustedLeadConduitBatch(input);
+    const { error } = await this.client.from("leadconduit_flow_steps").upsert(
+      input.rows,
+      { onConflict: "company_id,flow_id,step_id" },
+    );
+    if (error) throw new Error("Failed to persist LeadConduit flow steps");
+    return input.rows.length;
+  }
+
+  async upsertLeadConduitFlowRules(
+    input: LeadConduitSnapshotBatch<LeadConduitFlowRuleRow>,
+  ): Promise<number> {
+    if (!input.rows.length) return 0;
+    assertTrustedLeadConduitBatch(input);
+    const { error } = await this.client.from("leadconduit_flow_rules").upsert(
+      input.rows,
+      { onConflict: "company_id,flow_id,rule_scope,rule_scope_id,rule_id" },
+    );
+    if (error) throw new Error("Failed to persist LeadConduit flow rules");
+    return input.rows.length;
   }
 
   async upsertLeadMasterRecords(rows: LeadMasterRecordRow[]): Promise<number> {
