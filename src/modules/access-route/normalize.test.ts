@@ -159,6 +159,40 @@ describe("access route normalization", () => {
     });
   });
 
+  it.each([
+    ["missing", undefined],
+    ["non-numeric", "seventh"],
+    ["fractional", 1.5],
+    ["negative", -1],
+  ])("rejects a flow step with %s order instead of inventing policy behavior", (_label, order) => {
+    expect(normalizeLeadConduitFlowStep({
+      id: "step-incomplete",
+      type: "filter",
+      enabled: true,
+      ...(order === undefined ? {} : { order }),
+    }, {
+      companyId: COMPANY,
+      flowId: "roofing-flow-exact",
+      observedAt: NOW,
+    })).toBeNull();
+  });
+
+  it.each([
+    ["missing", undefined],
+    ["malformed", "yes"],
+  ])("rejects a flow step with %s enabled state instead of assuming it is enabled", (_label, enabled) => {
+    expect(normalizeLeadConduitFlowStep({
+      id: "step-incomplete",
+      type: "filter",
+      order: 1,
+      ...(enabled === undefined ? {} : { enabled }),
+    }, {
+      companyId: COMPANY,
+      flowId: "roofing-flow-exact",
+      observedAt: NOW,
+    })).toBeNull();
+  });
+
   it("uses trusted rule scope identity and preserves typed policy operands", () => {
     expect(normalizeLeadConduitFlowRule({
       id: "rule-exact",

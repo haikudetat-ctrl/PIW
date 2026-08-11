@@ -300,15 +300,24 @@ export function normalizeLeadConduitFlowStep(
 ): LeadConduitFlowStepRow | null {
   const stepId = readString(record, "id", "step_id");
   const stepType = readString(record, "type", "step_type");
-  if (!stepId || !stepType) return null;
+  const stepOrder = readNumber(record, "order", "step_order");
+  const enabled = readBoolean(record, "enabled");
+  if (
+    !stepId
+    || !stepType
+    || stepOrder === null
+    || !Number.isInteger(stepOrder)
+    || stepOrder < 0
+    || enabled === null
+  ) return null;
   return {
     company_id: context.companyId,
     flow_id: context.flowId,
     step_id: stepId,
     step_type: stepType,
     step_name: readString(record, "name", "step_name"),
-    step_order: readNumber(record, "order", "step_order") ?? 0,
-    enabled: readBoolean(record, "enabled") ?? true,
+    step_order: stepOrder,
+    enabled,
     outcome: readString(record, "outcome"),
     observed_at: context.observedAt,
   };
