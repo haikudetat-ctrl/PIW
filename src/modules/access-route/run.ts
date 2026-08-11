@@ -4,20 +4,15 @@ import { VendorReadError } from "./http";
 import {
   normalizeJobNimbusContact,
   normalizeJobNimbusJob,
-  normalizeLeadConduitEvent,
-  normalizeLeadConduitFlow,
   normalizeLeadMasterCustomField,
   normalizeLeadMasterRecord,
 } from "./normalize";
-import { JobNimbusReadClient, LeadConduitReadClient, LeadMasterReadClient } from "./vendors";
+import { JobNimbusReadClient, LeadMasterReadClient } from "./vendors";
 
 type ReadEnvironment = Pick<ServerEnv,
   | "ACCESS_ROUTE_COMPANY_ID"
-  | "INTEGRATIONS_LEADCONDUIT_ENABLED"
   | "INTEGRATIONS_LEADMASTER_ENABLED"
   | "INTEGRATIONS_JOBNIMBUS_ENABLED"
-  | "LEADCONDUIT_API_KEY"
-  | "LEADCONDUIT_BASE_URL"
   | "LEADMASTER_ACCESS_TOKEN"
   | "LEADMASTER_BASE_URL"
   | "LEADMASTER_WORKGROUPS"
@@ -96,44 +91,11 @@ export async function runAccessRouteSync(input: {
 }): Promise<{ enabled: boolean; results: RunResult[] }> {
   const now = input.now ?? new Date();
   const env = input.environment;
-  const enabled = env.INTEGRATIONS_LEADCONDUIT_ENABLED
-    || env.INTEGRATIONS_LEADMASTER_ENABLED
+  const enabled = env.INTEGRATIONS_LEADMASTER_ENABLED
     || env.INTEGRATIONS_JOBNIMBUS_ENABLED;
   if (!enabled) return { enabled: false, results: [] };
   const companyId = await input.repository.getCompanyId(env.ACCESS_ROUTE_COMPANY_ID);
   const tasks: Promise<RunResult>[] = [];
-
-  if (env.INTEGRATIONS_LEADCONDUIT_ENABLED && env.LEADCONDUIT_API_KEY) {
-    tasks.push(executeVendor({
-      vendor: "leadconduit",
-      companyId,
-      now,
-      repository: input.repository,
-      task: async () => {
-        const client = new LeadConduitReadClient({
-          apiKey: env.LEADCONDUIT_API_KEY!,
-          baseUrl: env.LEADCONDUIT_BASE_URL,
-          fetcher: input.fetcher,
-        });
-        const cursor = await input.repository.getLastCursor(companyId, "leadconduit");
-        const start = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString();
-        const [flows, events] = await Promise.all([client.flows(), client.events({ start, afterId: cursor })]);
-        const ingestedAt = now.toISOString();
-        const flowRows = flows.map((row) => normalizeLeadConduitFlow(row, companyId, ingestedAt)).filter((row) => row !== null);
-        const eventRows = events.rows.map((row) => normalizeLeadConduitEvent(row, companyId, ingestedAt)).filter((row) => row !== null);
-        const [flowCount, eventCount] = await Promise.all([
-          input.repository.upsertLeadConduitFlows(flowRows),
-          input.repository.upsertLeadConduitEvents(eventRows),
-        ]);
-        return {
-          seen: flows.length + events.rows.length,
-          written: flowCount + eventCount,
-          cursor: events.cursor,
-          metadata: { flow_count: flows.length, event_count: events.rows.length, read_only: true },
-        };
-      },
-    }));
-  }
 
   if (env.INTEGRATIONS_LEADMASTER_ENABLED && env.LEADMASTER_ACCESS_TOKEN) {
     tasks.push(executeVendor({
