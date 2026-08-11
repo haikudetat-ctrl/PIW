@@ -2,6 +2,33 @@ export type VendorSystem = "leadconduit" | "leadmaster" | "jobnimbus";
 
 export type JsonRecord = Record<string, unknown>;
 
+export type LeadConduitProbeResult = {
+  ok: boolean;
+  status: number;
+  visibleFlowCount: number;
+  approvedFlows: Array<{
+    flowId: string;
+    flowName: string;
+    sourceCount: number;
+    fieldNames: string[];
+  }>;
+  missingFlowNames: string[];
+  errorCategory?: "authentication" | "authorization" | "rate_limit" | "upstream" | "invalid_response";
+};
+
+export type LeadConduitOperationalErrorCategory =
+  | "authentication"
+  | "authorization"
+  | "rate_limit"
+  | "upstream"
+  | "invalid_response"
+  | "persistence"
+  | "mapping"
+  | "invalid_payload"
+  | "flow_mismatch"
+  | "unsupported_event"
+  | "retry_exhausted";
+
 export type LeadConduitFlowRow = {
   company_id: string;
   flow_id: string;

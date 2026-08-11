@@ -5,6 +5,7 @@ export class VendorReadError extends Error {
     public readonly vendor: string,
     public readonly category: "authentication" | "authorization" | "rate_limit" | "upstream" | "invalid_response",
     message: string,
+    public readonly status?: number,
   ) {
     super(message);
     this.name = "VendorReadError";
@@ -42,6 +43,7 @@ export async function getJson(input: {
           input.vendor,
           category,
           `${input.vendor} read failed with HTTP ${response.status}`,
+          response.status,
         );
         if (![429, 500, 502, 503, 504].includes(response.status) || attempt === attempts) throw error;
         lastError = error;
@@ -49,7 +51,7 @@ export async function getJson(input: {
         try {
           return await response.json();
         } catch {
-          throw new VendorReadError(input.vendor, "invalid_response", `${input.vendor} returned invalid JSON`);
+          throw new VendorReadError(input.vendor, "invalid_response", `${input.vendor} returned invalid JSON`, response.status);
         }
       }
     } catch (error) {

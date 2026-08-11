@@ -1,9 +1,10 @@
-import type { JsonRecord } from "./contracts";
-import { asArray } from "./normalize";
-import { basicAuth, categoryForStatus, getJson } from "./http";
+import type { JsonRecord, LeadConduitProbeResult } from "./contracts";
+import { asArray, asRecord, readString } from "./normalize";
+import { basicAuth, categoryForStatus, getJson, VendorReadError } from "./http";
 
 const PAGE_LIMIT = 500;
 const MAX_PAGES = 25;
+const LEADCONDUIT_MAX_PAGE_LIMIT = 1000;
 
 function endpoint(baseUrl: string, path: string): URL {
   return new URL(path, baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`);
@@ -60,28 +61,120 @@ export class LeadConduitReadClient {
     }));
   }
 
-  async events(input: { start: string; afterId?: string | null }): Promise<{ rows: JsonRecord[]; cursor: string | null }> {
-    const all: JsonRecord[] = [];
-    let afterId = input.afterId ?? null;
-    for (let page = 0; page < MAX_PAGES; page += 1) {
-      const url = endpoint(this.config.baseUrl ?? "https://app.leadconduit.com", "/events");
-      url.searchParams.set("start", input.start);
-      url.searchParams.set("sort", "asc");
-      url.searchParams.set("limit", "1000");
-      if (afterId) url.searchParams.set("after_id", afterId);
-      const rows = asArray(await getJson({
-        vendor: "leadconduit",
-        url,
-        headers: this.headers,
-        fetcher: this.config.fetcher,
-      }));
-      all.push(...rows);
-      const lastId = rows.at(-1)?.id;
-      afterId = typeof lastId === "string" ? lastId : afterId;
-      if (rows.length < 1000) break;
+  async eventsPage(input: {
+    flowId: string;
+    start?: string;
+    afterId?: string | null;
+    limit: number;
+  }): Promise<{ rows: JsonRecord[]; cursor: string | null; hasMore: boolean }> {
+    const start = input.start?.trim();
+    const afterId = input.afterId?.trim();
+    if (Boolean(start) === Boolean(afterId)) {
+      throw new VendorReadError("leadconduit", "invalid_response", "LeadConduit events require exactly one cursor selector");
     }
-    return { rows: all, cursor: afterId };
+    if (!Number.isInteger(input.limit) || input.limit < 1 || input.limit > LEADCONDUIT_MAX_PAGE_LIMIT) {
+      throw new VendorReadError("leadconduit", "invalid_response", "LeadConduit event page limit must be between 1 and 1000");
+    }
+
+    const url = endpoint(this.config.baseUrl ?? "https://app.leadconduit.com", "/events");
+    url.searchParams.set("sort", "asc");
+    url.searchParams.set("limit", String(input.limit));
+    url.searchParams.set("rules", JSON.stringify([{ lhv: "flow.id", op: "is equal to", rhv: input.flowId }]));
+    if (start) url.searchParams.set("start", start);
+    if (afterId) url.searchParams.set("after_id", afterId);
+
+    const rows = asArray(await getJson({
+      vendor: "leadconduit",
+      url,
+      headers: this.headers,
+      fetcher: this.config.fetcher,
+    })).slice(0, input.limit);
+    if (rows.some((row) => leadConduitEventFlowId(row) !== input.flowId)) {
+      throw new VendorReadError("leadconduit", "invalid_response", "LeadConduit event page contained an untrusted flow");
+    }
+    const cursor = readString(rows.at(-1) ?? {}, "id");
+    return { rows, cursor, hasMore: rows.length === input.limit && cursor !== null };
   }
+
+  async sourceMeta(flowId: string, sourceId: string): Promise<JsonRecord> {
+    return this.recordAt(`/flows/${encodeURIComponent(flowId)}/sources/${encodeURIComponent(sourceId)}/meta`);
+  }
+
+  async eventDetail(eventId: string): Promise<JsonRecord> {
+    return this.recordAt(`/events/${encodeURIComponent(eventId)}`);
+  }
+
+  async probe(input: { approvedFlows: ReadonlyMap<string, string> }): Promise<LeadConduitProbeResult> {
+    const configured = [...input.approvedFlows.entries()];
+    let visibleFlowCount = 0;
+    let approvedFlows: LeadConduitProbeResult["approvedFlows"] = [];
+    let missingFlowNames = configured.map(([, flowName]) => flowName);
+
+    try {
+      const flows = await this.flows();
+      visibleFlowCount = flows.length;
+      const visibleFlowIds = new Set(flows.map((flow) => readString(flow, "id")).filter((flowId): flowId is string => flowId !== null));
+      missingFlowNames = configured.filter(([flowId]) => !visibleFlowIds.has(flowId)).map(([, flowName]) => flowName);
+      approvedFlows = await Promise.all(configured
+        .filter(([flowId]) => visibleFlowIds.has(flowId))
+        .map(async ([flowId, flowName]) => {
+          const flow = flows.find((candidate) => readString(candidate, "id") === flowId)!;
+          const sourceIds = leadConduitSourceIds(flow);
+          const metadata = await Promise.all(sourceIds.map((sourceId) => this.sourceMeta(flowId, sourceId)));
+          return {
+            flowId,
+            flowName,
+            sourceCount: sourceIds.length,
+            fieldNames: [...new Set(metadata.flatMap(leadConduitFieldNames))].sort(),
+          };
+        }));
+      return { ok: true, status: 200, visibleFlowCount, approvedFlows, missingFlowNames };
+    } catch (error) {
+      const vendorError = error instanceof VendorReadError ? error : null;
+      return {
+        ok: false,
+        status: vendorError?.status ?? 0,
+        visibleFlowCount,
+        approvedFlows,
+        missingFlowNames,
+        errorCategory: vendorError?.category ?? "upstream",
+      };
+    }
+  }
+
+  private async recordAt(path: string): Promise<JsonRecord> {
+    const value = await getJson({
+      vendor: "leadconduit",
+      url: endpoint(this.config.baseUrl ?? "https://app.leadconduit.com", path),
+      headers: this.headers,
+      fetcher: this.config.fetcher,
+    });
+    const record = asRecord(value);
+    if (!record) throw new VendorReadError("leadconduit", "invalid_response", "LeadConduit returned an invalid record");
+    return record;
+  }
+}
+
+function leadConduitEventFlowId(record: JsonRecord): string | null {
+  return readString(record, "flow_id", "flow.id") ?? readString(asRecord(record.vars) ?? {}, "flow.id");
+}
+
+function leadConduitSourceIds(flow: JsonRecord): string[] {
+  if (!Array.isArray(flow.sources)) return [];
+  return flow.sources.flatMap((source) => {
+    if (typeof source === "string" && source.trim()) return [source.trim()];
+    const sourceId = readString(asRecord(source) ?? {}, "id", "source_id");
+    return sourceId ? [sourceId] : [];
+  });
+}
+
+function leadConduitFieldNames(metadata: JsonRecord): string[] {
+  if (!Array.isArray(metadata.fields)) return [];
+  return metadata.fields.flatMap((field) => {
+    if (typeof field === "string" && field.trim()) return [field.trim()];
+    const name = readString(asRecord(field) ?? {}, "name", "label", "id");
+    return name ? [name] : [];
+  });
 }
 
 export class LeadMasterReadClient {

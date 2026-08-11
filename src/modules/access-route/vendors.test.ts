@@ -16,6 +16,153 @@ describe("read-only vendor clients", () => {
     expect(new Headers(init?.headers).get("Authorization")).toMatch(/^Basic /);
   });
 
+  it("reads a bounded bootstrap LeadConduit event page with the trusted flow rule", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse([{ id: "event-1", flow_id: "roof flow" }]));
+    const result = await new LeadConduitReadClient({ apiKey: "key", fetcher }).eventsPage({
+      flowId: "roof flow",
+      start: "2026-08-01T00:00:00.000Z",
+      limit: 50,
+    });
+
+    expect(result).toEqual({ rows: [{ id: "event-1", flow_id: "roof flow" }], cursor: "event-1", hasMore: false });
+    const [requestUrl, init] = fetcher.mock.calls[0];
+    const url = new URL(String(requestUrl));
+    expect(url.pathname).toBe("/events");
+    expect(url.searchParams.get("start")).toBe("2026-08-01T00:00:00.000Z");
+    expect(url.searchParams.get("after_id")).toBeNull();
+    expect(url.searchParams.get("sort")).toBe("asc");
+    expect(url.searchParams.get("limit")).toBe("50");
+    expect(url.searchParams.get("rules")).toBe('[{"lhv":"flow.id","op":"is equal to","rhv":"roof flow"}]');
+    expect(init?.method).toBe("GET");
+    expect(new Headers(init?.headers).get("Authorization")).toBe(`Basic ${Buffer.from("API:key").toString("base64")}`);
+  });
+
+  it("reads a continuation LeadConduit event page without a bootstrap start", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse([{ id: "event-2", vars: { "flow.id": "roof-flow" } }]));
+    const result = await new LeadConduitReadClient({ apiKey: "key", fetcher }).eventsPage({
+      flowId: "roof-flow",
+      afterId: "event-1",
+      limit: 1,
+    });
+
+    expect(result).toEqual({ rows: [{ id: "event-2", vars: { "flow.id": "roof-flow" } }], cursor: "event-2", hasMore: true });
+    const url = new URL(String(fetcher.mock.calls[0][0]));
+    expect(url.searchParams.get("start")).toBeNull();
+    expect(url.searchParams.get("after_id")).toBe("event-1");
+    expect(url.searchParams.get("sort")).toBe("asc");
+    expect(url.searchParams.get("limit")).toBe("1");
+    expect(url.searchParams.get("rules")).toBe('[{"lhv":"flow.id","op":"is equal to","rhv":"roof-flow"}]');
+  });
+
+  it("rejects LeadConduit event pages without exactly one cursor selector or a bounded limit", async () => {
+    const client = new LeadConduitReadClient({ apiKey: "key", fetcher: vi.fn<typeof fetch>() });
+
+    await expect(client.eventsPage({ flowId: "flow", limit: 1 })).rejects.toThrow("exactly one cursor selector");
+    await expect(client.eventsPage({ flowId: "flow", start: "2026-08-01", afterId: "event", limit: 1 })).rejects.toThrow("exactly one cursor selector");
+    await expect(client.eventsPage({ flowId: "flow", start: "2026-08-01", limit: 1001 })).rejects.toThrow("between 1 and 1000");
+  });
+
+  it("fails closed when an event page contains a row outside its trusted flow", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse([{ id: "event-1", flow_id: "other-flow" }]));
+
+    await expect(new LeadConduitReadClient({ apiKey: "key", fetcher }).eventsPage({
+      flowId: "trusted-flow",
+      start: "2026-08-01",
+      limit: 10,
+    })).rejects.toMatchObject({ category: "invalid_response" });
+  });
+
+  it("encodes LeadConduit source metadata and event detail paths", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => jsonResponse({ fields: [] }));
+    const client = new LeadConduitReadClient({ apiKey: "key", fetcher });
+
+    await client.sourceMeta("flow / 1", "source / 2");
+    await client.eventDetail("event / 3");
+
+    expect(fetcher.mock.calls.map(([requestUrl, init]) => {
+      expect(init?.method).toBe("GET");
+      return new URL(String(requestUrl)).pathname;
+    })).toEqual(["/flows/flow%20%2F%201/sources/source%20%2F%202/meta", "/events/event%20%2F%203"]);
+  });
+
+  it("does not retry LeadConduit authentication or authorization failures", async () => {
+    for (const status of [401, 403]) {
+      const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response("upstream body", { status }));
+      await expect(new LeadConduitReadClient({ apiKey: "key", fetcher }).flows()).rejects.toMatchObject({
+        category: status === 401 ? "authentication" : "authorization",
+        status,
+      });
+      expect(fetcher).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it("retries bounded LeadConduit rate-limit and upstream failures", async () => {
+    for (const status of [429, 500]) {
+      const fetcher = vi.fn<typeof fetch>()
+        .mockResolvedValueOnce(new Response("upstream body", { status }))
+        .mockResolvedValueOnce(jsonResponse([]));
+      await expect(new LeadConduitReadClient({ apiKey: "key", fetcher }).flows()).resolves.toEqual([]);
+      expect(fetcher).toHaveBeenCalledTimes(2);
+    }
+  });
+
+  it("categorizes invalid LeadConduit JSON without exposing the upstream body", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response("lead@example.com api-key-123", { status: 200 }));
+
+    await expect(new LeadConduitReadClient({ apiKey: "key", fetcher }).flows()).rejects.toMatchObject({
+      category: "invalid_response",
+      status: 200,
+    });
+  });
+
+  it("probes only configured LeadConduit flows and returns sanitized metadata", async () => {
+    const fetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse([
+        { id: "roof-flow", name: "Upstream private name", sources: [{ id: "roof-source" }] },
+        { id: "unapproved-flow", name: "Someone Else", sources: [{ id: "other-source" }] },
+      ]))
+      .mockResolvedValueOnce(jsonResponse({
+        fields: [{ name: "email" }, { name: "address" }, { name: "email" }],
+        lead: { name: "Ava Private", email: "ava@example.com", phone: "555-0100", address: "1 Private Way" },
+        api_key: "api-key-123",
+      }));
+    const result = await new LeadConduitReadClient({ apiKey: "key", fetcher }).probe({
+      approvedFlows: new Map([["roof-flow", "Roofing"], ["quote-flow", "Roofing Virtual Quote"]]),
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      status: 200,
+      visibleFlowCount: 2,
+      approvedFlows: [{ flowId: "roof-flow", flowName: "Roofing", sourceCount: 1, fieldNames: ["address", "email"] }],
+      missingFlowNames: ["Roofing Virtual Quote"],
+    });
+    const serialized = JSON.stringify(result);
+    for (const secret of ["Ava Private", "ava@example.com", "555-0100", "1 Private Way", "api-key-123", "Someone Else"]) {
+      expect(serialized).not.toContain(secret);
+    }
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(new URL(String(fetcher.mock.calls[1][0])).pathname).toBe("/flows/roof-flow/sources/roof-source/meta");
+  });
+
+  it("sanitizes LeadConduit probe failures without returning upstream bodies", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ lead: { email: "ava@example.com" }, api_key: "api-key-123" }), { status: 401 }));
+    const result = await new LeadConduitReadClient({ apiKey: "key", fetcher }).probe({
+      approvedFlows: new Map([["roof-flow", "Roofing"]]),
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      status: 401,
+      visibleFlowCount: 0,
+      approvedFlows: [],
+      missingFlowNames: ["Roofing"],
+      errorCategory: "authentication",
+    });
+    expect(JSON.stringify(result)).not.toContain("ava@example.com");
+    expect(JSON.stringify(result)).not.toContain("api-key-123");
+  });
+
   it("uses documented LeadMaster paging endpoints and never sends Quick Action filters", async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse([]));
     const client = new LeadMasterReadClient({ accessToken: "token", lookbackMinutes: 60, fetcher });
