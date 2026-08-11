@@ -4,7 +4,9 @@ import { createEventEnvelope } from "@/domain/events";
 import { parseServerEnv } from "@/lib/env/server";
 import {
   isIntegrationEnabled,
+  isGenericWebhookVendor,
   isIntegrationVendor,
+  type GenericWebhookVendor,
   type IntegrationVendor,
 } from "@/lib/integrations/flags";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -19,7 +21,7 @@ export type IntegrationWebhookInput = {
 };
 
 export type IntegrationWebhookDependencies = {
-  isVendorEnabled: (vendor: IntegrationVendor) => boolean;
+  isVendorEnabled: (vendor: GenericWebhookVendor) => boolean;
   expectedSharedSecret: string | undefined;
   getCompanyId: () => Promise<string>;
   recordEvent: (input: {
@@ -75,6 +77,12 @@ export async function handleIntegrationWebhookRequest(
 ): Promise<IntegrationWebhookResult> {
   if (!isIntegrationVendor(input.vendor)) {
     return { status: 400, body: { error: "Unknown integration vendor" } };
+  }
+
+  // LeadConduit webhooks are tenant-bound and flow-bound. They cannot use
+  // this generic route because it resolves an unsafe primary-company tenant.
+  if (!isGenericWebhookVendor(input.vendor)) {
+    return { status: 400, body: { error: "Unsupported integration vendor" } };
   }
 
   if (!deps.isVendorEnabled(input.vendor)) {

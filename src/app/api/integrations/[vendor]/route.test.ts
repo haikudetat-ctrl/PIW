@@ -46,7 +46,7 @@ test("rejects a disabled vendor without touching config", async () => {
   const { deps } = makeDeps({ isVendorEnabled: () => false });
 
   const result = await handleIntegrationWebhookRequest(
-    { vendor: "leadconduit", sharedSecret: SHARED_SECRET, rawBody: {}, vendorEventId: null },
+    { vendor: "leadmaster", sharedSecret: SHARED_SECRET, rawBody: {}, vendorEventId: null },
     deps,
   );
 
@@ -57,7 +57,7 @@ test("rejects a missing or incorrect shared secret", async () => {
   const { deps } = makeDeps();
 
   const result = await handleIntegrationWebhookRequest(
-    { vendor: "leadconduit", sharedSecret: "wrong-secret", rawBody: {}, vendorEventId: null },
+    { vendor: "leadmaster", sharedSecret: "wrong-secret", rawBody: {}, vendorEventId: null },
     deps,
   );
 
@@ -69,7 +69,7 @@ test("records and enqueues a valid webhook", async () => {
 
   const result = await handleIntegrationWebhookRequest(
     {
-      vendor: "leadconduit",
+      vendor: "leadmaster",
       sharedSecret: SHARED_SECRET,
       rawBody: { event_type: "lead.created", event_id: "lc-1" },
       vendorEventId: null,
@@ -85,7 +85,7 @@ test("records and enqueues a valid webhook", async () => {
 test("a redelivered event is recorded but not re-enqueued", async () => {
   const { deps, recorded, enqueued } = makeDeps();
   const input = {
-    vendor: "leadconduit",
+    vendor: "leadmaster",
     sharedSecret: SHARED_SECRET,
     rawBody: { event_type: "lead.created", event_id: "lc-1" },
     vendorEventId: null,
@@ -98,4 +98,23 @@ test("a redelivered event is recorded but not re-enqueued", async () => {
   expect(second.status).toBe(200);
   expect(recorded).toHaveLength(2);
   expect(enqueued).toHaveLength(1);
+});
+
+test("rejects LeadConduit before tenant lookup or persistence even when its gate is enabled", async () => {
+  const { deps } = makeDeps({
+    isVendorEnabled: () => true,
+    getCompanyId: async () => {
+      throw new Error("tenant lookup must not run");
+    },
+    recordEvent: async () => {
+      throw new Error("persistence must not run");
+    },
+  });
+
+  const result = await handleIntegrationWebhookRequest(
+    { vendor: "leadconduit", sharedSecret: SHARED_SECRET, rawBody: {}, vendorEventId: null },
+    deps,
+  );
+
+  expect(result).toEqual({ status: 400, body: { error: "Unsupported integration vendor" } });
 });

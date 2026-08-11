@@ -26,6 +26,91 @@ describe("parseServerEnv", () => {
     expect(environment.COST_MONTHLY_BUDGET_USD).toBe(1500);
   });
 
+  test("defaults every LeadConduit capability and bounded reader setting to its safe value", () => {
+    const environment = parseServerEnv(base);
+
+    expect(environment.INTEGRATIONS_LEADCONDUIT_PROBE_ENABLED).toBe(false);
+    expect(environment.INTEGRATIONS_LEADCONDUIT_ROOFING_SHADOW_IMPORT_ENABLED).toBe(false);
+    expect(environment.INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_SHADOW_IMPORT_ENABLED).toBe(false);
+    expect(environment.INTEGRATIONS_LEADCONDUIT_ROOFING_POLLING_ENABLED).toBe(false);
+    expect(environment.INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_POLLING_ENABLED).toBe(false);
+    expect(environment.INTEGRATIONS_LEADCONDUIT_ROOFING_RECEIVER_ENABLED).toBe(false);
+    expect(environment.INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_RECEIVER_ENABLED).toBe(false);
+    expect(environment.INTEGRATIONS_LEADCONDUIT_ROOFING_PROCESSING_ENABLED).toBe(false);
+    expect(environment.INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_PROCESSING_ENABLED).toBe(false);
+    expect(environment.INTEGRATIONS_LEADCONDUIT_ROOFING_RESCUE_ENABLED).toBe(false);
+    expect(environment.INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_RESCUE_ENABLED).toBe(false);
+    expect(environment.INTEGRATIONS_LEADCONDUIT_ROOFING_RESCUE_ACTIONS_ENABLED).toBe(false);
+    expect(environment.INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_RESCUE_ACTIONS_ENABLED).toBe(false);
+    expect(environment.LEADCONDUIT_SHADOW_PAGE_LIMIT).toBe(50);
+    expect(environment.LEADCONDUIT_SHADOW_MAX_PAGES).toBe(1);
+    expect(environment.LEADCONDUIT_PAGE_LIMIT).toBe(50);
+    expect(environment.LEADCONDUIT_MAX_PAGES).toBe(1);
+    expect(environment.LEADCONDUIT_INITIAL_LOOKBACK_MINUTES).toBe(1440);
+    expect(environment.LEADCONDUIT_WEBHOOK_ATTEMPT_RATE_LIMIT_PER_MINUTE).toBe(600);
+    expect(environment.LEADCONDUIT_WEBHOOK_DELIVERY_RATE_LIMIT_PER_MINUTE).toBe(300);
+  });
+
+  test("requires only the credentials for each enabled LeadConduit capability", () => {
+    expect(() => parseServerEnv({
+      ...base,
+      INTEGRATIONS_LEADCONDUIT_PROBE_ENABLED: "true",
+    })).toThrow("LEADCONDUIT_API_KEY is required");
+
+    expect(() => parseServerEnv({
+      ...base,
+      INTEGRATIONS_LEADCONDUIT_ROOFING_RECEIVER_ENABLED: "true",
+    })).toThrow("ACCESS_ROUTE_COMPANY_ID is required");
+
+    expect(() => parseServerEnv({
+      ...base,
+      ACCESS_ROUTE_COMPANY_ID: "00000000-0000-4000-8000-000000000001",
+      INTEGRATIONS_LEADCONDUIT_ROOFING_RECEIVER_ENABLED: "true",
+    })).toThrow("LEADCONDUIT_ROOFING_FLOW_ID is required");
+
+    expect(() => parseServerEnv({
+      ...base,
+      ACCESS_ROUTE_COMPANY_ID: "00000000-0000-4000-8000-000000000001",
+      LEADCONDUIT_ROOFING_FLOW_ID: "roofing-flow",
+      INTEGRATIONS_LEADCONDUIT_ROOFING_RECEIVER_ENABLED: "true",
+    })).toThrow("LEADCONDUIT_ROOFING_WEBHOOK_TOKEN is required");
+
+    expect(() => parseServerEnv({
+      ...base,
+      INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_POLLING_ENABLED: "true",
+    })).toThrow("LEADCONDUIT_API_KEY is required");
+
+    expect(() => parseServerEnv({
+      ...base,
+      LEADCONDUIT_API_KEY: "test-api-key",
+      INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_POLLING_ENABLED: "true",
+    })).toThrow("LEADCONDUIT_VIRTUAL_QUOTE_FLOW_ID is required");
+  });
+
+  test("requires rescue recommendations and processing before enabling rescue actions", () => {
+    expect(() => parseServerEnv({
+      ...base,
+      INTEGRATIONS_LEADCONDUIT_ROOFING_RESCUE_ACTIONS_ENABLED: "true",
+    })).toThrow("Roofing rescue actions require rescue recommendations and processing");
+
+    expect(() => parseServerEnv({
+      ...base,
+      INTEGRATIONS_LEADCONDUIT_ROOFING_RESCUE_ACTIONS_ENABLED: "true",
+      INTEGRATIONS_LEADCONDUIT_ROOFING_RESCUE_ENABLED: "true",
+      INTEGRATIONS_LEADCONDUIT_ROOFING_PROCESSING_ENABLED: "true",
+    })).not.toThrow();
+  });
+
+  test("rejects LeadConduit settings above their safety bounds", () => {
+    expect(() => parseServerEnv({ ...base, LEADCONDUIT_SHADOW_PAGE_LIMIT: "51" })).toThrow();
+    expect(() => parseServerEnv({ ...base, LEADCONDUIT_SHADOW_MAX_PAGES: "2" })).toThrow();
+    expect(() => parseServerEnv({ ...base, LEADCONDUIT_PAGE_LIMIT: "1001" })).toThrow();
+    expect(() => parseServerEnv({ ...base, LEADCONDUIT_MAX_PAGES: "26" })).toThrow();
+    expect(() => parseServerEnv({ ...base, LEADCONDUIT_INITIAL_LOOKBACK_MINUTES: "129601" })).toThrow();
+    expect(() => parseServerEnv({ ...base, LEADCONDUIT_WEBHOOK_ATTEMPT_RATE_LIMIT_PER_MINUTE: "10001" })).toThrow();
+    expect(() => parseServerEnv({ ...base, LEADCONDUIT_WEBHOOK_DELIVERY_RATE_LIMIT_PER_MINUTE: "5001" })).toThrow();
+  });
+
   test("rejects JobNimbus import limits above their safety bounds", () => {
     expect(() => parseServerEnv({ ...base, JOBNIMBUS_PAGE_LIMIT: "501" })).toThrow();
     expect(() => parseServerEnv({ ...base, JOBNIMBUS_MAX_PAGES: "26" })).toThrow();
