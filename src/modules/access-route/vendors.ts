@@ -51,7 +51,7 @@ export class LeadConduitReadClient {
     return { Authorization: basicAuth("API", this.config.apiKey) };
   }
 
-  async flows(): Promise<JsonRecord[]> {
+  async #flows(): Promise<JsonRecord[]> {
     const url = endpoint(this.config.baseUrl ?? "https://app.leadconduit.com", "/flows");
     return asArray(await getJson({
       vendor: "leadconduit",
@@ -111,7 +111,7 @@ export class LeadConduitReadClient {
     let missingFlowNames = configured.map(([, flowName]) => flowName);
 
     try {
-      const flows = await this.flows();
+      const flows = await this.#flows();
       visibleFlowCount = flows.length;
       const visibleFlowIds = new Set(flows.map((flow) => readString(flow, "id")).filter((flowId): flowId is string => flowId !== null));
       missingFlowNames = configured.filter(([flowId]) => !visibleFlowIds.has(flowId)).map(([, flowName]) => flowName);
