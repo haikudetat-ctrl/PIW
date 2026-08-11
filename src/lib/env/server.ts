@@ -204,6 +204,13 @@ const serverEnvSchema = z
           message: `${flow.nextTokenExpiryPath} is required when a next LeadConduit webhook token is configured`,
         });
       }
+      if (flow.nextToken && flow.nextTokenExpiry && new Date(flow.nextTokenExpiry) <= new Date()) {
+        context.addIssue({
+          code: "custom",
+          path: [flow.nextTokenExpiryPath],
+          message: `${flow.nextTokenExpiryPath} must be in the future`,
+        });
+      }
       if (flow.rescueActions && (!flow.rescueRecommendations || !flow.processing)) {
         context.addIssue({
           code: "custom",

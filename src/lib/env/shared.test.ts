@@ -111,6 +111,14 @@ describe("parseServerEnv", () => {
     expect(() => parseServerEnv({ ...base, LEADCONDUIT_WEBHOOK_DELIVERY_RATE_LIMIT_PER_MINUTE: "5001" })).toThrow();
   });
 
+  test("rejects a next LeadConduit webhook token with a past expiry", () => {
+    expect(() => parseServerEnv({
+      ...base,
+      LEADCONDUIT_ROOFING_WEBHOOK_TOKEN_NEXT: "next-token",
+      LEADCONDUIT_ROOFING_WEBHOOK_TOKEN_NEXT_EXPIRES_AT: "2020-01-01T00:00:00.000Z",
+    })).toThrow("LEADCONDUIT_ROOFING_WEBHOOK_TOKEN_NEXT_EXPIRES_AT must be in the future");
+  });
+
   test("rejects JobNimbus import limits above their safety bounds", () => {
     expect(() => parseServerEnv({ ...base, JOBNIMBUS_PAGE_LIMIT: "501" })).toThrow();
     expect(() => parseServerEnv({ ...base, JOBNIMBUS_MAX_PAGES: "26" })).toThrow();
