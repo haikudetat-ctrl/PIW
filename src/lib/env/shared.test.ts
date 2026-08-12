@@ -71,6 +71,25 @@ describe("parseServerEnv", () => {
     })).toThrow("LEADCONDUIT_ROOFING_WEBHOOK_TOKEN_NEXT_EXPIRES_AT must be in the future");
   });
 
+  test.each([
+    ["active/active", "LEADCONDUIT_ROOFING_WEBHOOK_TOKEN", "LEADCONDUIT_VIRTUAL_QUOTE_WEBHOOK_TOKEN"],
+    ["active/next", "LEADCONDUIT_ROOFING_WEBHOOK_TOKEN", "LEADCONDUIT_VIRTUAL_QUOTE_WEBHOOK_TOKEN_NEXT"],
+    ["next/active", "LEADCONDUIT_ROOFING_WEBHOOK_TOKEN_NEXT", "LEADCONDUIT_VIRTUAL_QUOTE_WEBHOOK_TOKEN"],
+    ["next/next", "LEADCONDUIT_ROOFING_WEBHOOK_TOKEN_NEXT", "LEADCONDUIT_VIRTUAL_QUOTE_WEBHOOK_TOKEN_NEXT"],
+  ] as const)("rejects a LeadConduit token shared across flows in the %s position", (_position, roofingTokenKey, virtualQuoteTokenKey) => {
+    expect(() => parseServerEnv({
+      ...base,
+      LEADCONDUIT_ROOFING_WEBHOOK_TOKEN: "roofing-active-token",
+      LEADCONDUIT_ROOFING_WEBHOOK_TOKEN_NEXT: "roofing-next-token",
+      LEADCONDUIT_ROOFING_WEBHOOK_TOKEN_NEXT_EXPIRES_AT: "2030-01-01T00:00:00.000Z",
+      LEADCONDUIT_VIRTUAL_QUOTE_WEBHOOK_TOKEN: "virtual-quote-active-token",
+      LEADCONDUIT_VIRTUAL_QUOTE_WEBHOOK_TOKEN_NEXT: "virtual-quote-next-token",
+      LEADCONDUIT_VIRTUAL_QUOTE_WEBHOOK_TOKEN_NEXT_EXPIRES_AT: "2030-01-01T00:00:00.000Z",
+      [roofingTokenKey]: "shared-cross-flow-token",
+      [virtualQuoteTokenKey]: "shared-cross-flow-token",
+    })).toThrow("LeadConduit webhook tokens must not be shared across flows");
+  });
+
   test("rejects JobNimbus import limits above their safety bounds", () => {
     expect(() => parseServerEnv({ ...base, JOBNIMBUS_PAGE_LIMIT: "501" })).toThrow();
     expect(() => parseServerEnv({ ...base, JOBNIMBUS_MAX_PAGES: "26" })).toThrow();

@@ -100,6 +100,24 @@ function streamingRequest(chunks: Uint8Array[], contentLength: string): Request 
   } as RequestInit);
 }
 
+function oversizedStreamWithRejectingCancelRequest(): Request {
+  let sent = false;
+  const body = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      if (sent) return;
+      sent = true;
+      controller.enqueue(new Uint8Array(65_537));
+    },
+    cancel() {
+      return Promise.reject(new Error("synthetic cancellation failure"));
+    },
+  });
+  return {
+    headers: new Headers({ authorization: `Bearer ${ACTIVE_TOKEN}`, "content-type": "application/json" }),
+    body,
+  } as Request;
+}
+
 function makeDependencies(overrides: Partial<LeadConduitShadowRouteDependencies> = {}) {
   const persisted: LeadConduitEventBatch[] = [];
   const rowsByEventId = new Map<string, LeadConduitEventBatch["rows"][number]>();
@@ -260,6 +278,18 @@ describe("LeadConduit shadow receipt bounded parsing", () => {
     const { deps, persisted } = makeDependencies();
     const result = await handleLeadConduitShadowRequest(
       streamingRequest([encoder.encode("{"), encoder.encode("x".repeat(65_536))], "1"),
+      "roofing",
+      deps,
+    );
+
+    expect(result).toEqual({ status: 413, body: { outcome: "retry", category: "payload_too_large" } });
+    expect(persisted).toEqual([]);
+  });
+
+  it("returns payload-too-large when an oversized stream rejects cancellation", async () => {
+    const { deps, persisted } = makeDependencies();
+    const result = await handleLeadConduitShadowRequest(
+      oversizedStreamWithRejectingCancelRequest(),
       "roofing",
       deps,
     );

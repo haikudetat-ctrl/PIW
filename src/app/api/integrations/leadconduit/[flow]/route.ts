@@ -60,7 +60,11 @@ async function readBoundedBody(request: Request): Promise<string | null> {
     if (done) break;
     length += value.byteLength;
     if (length > MAX_BODY_BYTES) {
-      await reader.cancel();
+      try {
+        void reader.cancel().catch(() => undefined);
+      } catch {
+        // The byte limit has already been exceeded; cancellation is best-effort.
+      }
       return null;
     }
     chunks.push(value);

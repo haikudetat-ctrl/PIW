@@ -161,6 +161,21 @@ const serverEnvSchema = z
         });
       }
     }
+    const roofingTokens = new Set([
+      value.LEADCONDUIT_ROOFING_WEBHOOK_TOKEN,
+      value.LEADCONDUIT_ROOFING_WEBHOOK_TOKEN_NEXT,
+    ].filter((token): token is string => Boolean(token)));
+    const virtualQuoteTokens = new Set([
+      value.LEADCONDUIT_VIRTUAL_QUOTE_WEBHOOK_TOKEN,
+      value.LEADCONDUIT_VIRTUAL_QUOTE_WEBHOOK_TOKEN_NEXT,
+    ].filter((token): token is string => Boolean(token)));
+    if ([...roofingTokens].some((token) => virtualQuoteTokens.has(token))) {
+      context.addIssue({
+        code: "custom",
+        path: ["LEADCONDUIT_VIRTUAL_QUOTE_WEBHOOK_TOKEN"],
+        message: "LeadConduit webhook tokens must not be shared across flows",
+      });
+    }
     if (
       (value.ESTIMATE_SMS_WEBHOOK_URL || value.ESTIMATE_EMAIL_WEBHOOK_URL) &&
       !value.ESTIMATE_DELIVERY_SHARED_SECRET
