@@ -333,6 +333,71 @@ select is(
   'observed',
   'candidate replay cannot be downgraded by a later non-candidate status'
 );
+select is(
+  public.upsert_leadconduit_event_batch(
+    '30000000-0000-4000-8000-000000000003',
+    '[{"event_id":"shadow-status-event","flow_id":"roofing-flow-exact","lead_id":"synthetic-shadow-status","event_type":"shadow_checkpoint","occurred_at":"2026-08-12T16:00:00Z","raw_payload":{"fixture":"shadow-status-noncandidate-replay"},"processing_status":"not_applicable"}]'::jsonb,
+    'webhook',
+    '2026-08-12T16:03:00Z'
+  ),
+  1,
+  'non-candidate replay converges on the existing candidate observation'
+);
+select is(
+  (select processing_status from public.leadconduit_events
+   where company_id = '30000000-0000-4000-8000-000000000003' and event_id = 'shadow-status-event'),
+  'observed',
+  'an observed candidate cannot be downgraded by a later non-candidate replay'
+);
+
+insert into public.leads (id, company_id, name, phone, email, submitted_address) values (
+  '31111111-0000-4000-8000-000000000003',
+  '30000000-0000-4000-8000-000000000003',
+  'Synthetic Processed Lead', '555-0100', 'processed@example.invalid', '1 Synthetic Processed Way'
+);
+insert into public.leadconduit_events (
+  company_id, event_id, flow_id, event_type, occurred_at, raw_payload, ingestion_channels,
+  first_observed_at, processing_status, piw_lead_id, processing_error_category,
+  processing_attempts, processing_claimed_at, processing_claimed_by, processing_next_attempt_at
+) values
+  ('30000000-0000-4000-8000-000000000003', 'preserve-processed-status', 'roofing-flow-exact', 'shadow_checkpoint', '2026-08-12T16:00:00Z', '{}'::jsonb, array[]::text[], '2026-08-12T16:00:00Z', 'processed', '31111111-0000-4000-8000-000000000003', null, 7, '2026-08-12T16:04:00Z', 'synthetic-processed-claim', '2026-08-12T16:05:00Z'),
+  ('30000000-0000-4000-8000-000000000003', 'preserve-pending-status', 'roofing-flow-exact', 'shadow_checkpoint', '2026-08-12T16:00:00Z', '{}'::jsonb, array[]::text[], '2026-08-12T16:00:00Z', 'pending', null, null, 8, '2026-08-12T16:04:00Z', 'synthetic-pending-claim', '2026-08-12T16:05:00Z'),
+  ('30000000-0000-4000-8000-000000000003', 'preserve-failed-status', 'roofing-flow-exact', 'shadow_checkpoint', '2026-08-12T16:00:00Z', '{}'::jsonb, array[]::text[], '2026-08-12T16:00:00Z', 'failed', null, 'persistence', 9, '2026-08-12T16:04:00Z', 'synthetic-failed-claim', '2026-08-12T16:05:00Z');
+select is(
+  public.upsert_leadconduit_event_batch(
+    '30000000-0000-4000-8000-000000000003',
+    '[
+      {"event_id":"preserve-processed-status","flow_id":"roofing-flow-exact","event_type":"shadow_checkpoint","occurred_at":"2026-08-12T16:00:00Z","raw_payload":{},"processing_status":"observed"},
+      {"event_id":"preserve-pending-status","flow_id":"roofing-flow-exact","event_type":"shadow_checkpoint","occurred_at":"2026-08-12T16:00:00Z","raw_payload":{},"processing_status":"observed"},
+      {"event_id":"preserve-failed-status","flow_id":"roofing-flow-exact","event_type":"shadow_checkpoint","occurred_at":"2026-08-12T16:00:00Z","raw_payload":{},"processing_status":"observed"}
+    ]'::jsonb,
+    'webhook',
+    '2026-08-12T16:06:00Z'
+  ),
+  3,
+  'status replays converge on all terminal and in-flight receipts'
+);
+select is(
+  (select jsonb_agg(jsonb_build_object(
+    'event_id', event_id,
+    'processing_status', processing_status,
+    'piw_lead_id', piw_lead_id,
+    'processing_error_category', processing_error_category,
+    'processing_attempts', processing_attempts,
+    'processing_claimed_at', processing_claimed_at,
+    'processing_claimed_by', processing_claimed_by,
+    'processing_next_attempt_at', processing_next_attempt_at
+  ) order by event_id)
+   from public.leadconduit_events
+   where company_id = '30000000-0000-4000-8000-000000000003'
+     and event_id in ('preserve-processed-status', 'preserve-pending-status', 'preserve-failed-status')),
+  '[
+    {"event_id":"preserve-failed-status","processing_status":"failed","piw_lead_id":null,"processing_error_category":"persistence","processing_attempts":9,"processing_claimed_at":"2026-08-12T16:04:00+00:00","processing_claimed_by":"synthetic-failed-claim","processing_next_attempt_at":"2026-08-12T16:05:00+00:00"},
+    {"event_id":"preserve-pending-status","processing_status":"pending","piw_lead_id":null,"processing_error_category":null,"processing_attempts":8,"processing_claimed_at":"2026-08-12T16:04:00+00:00","processing_claimed_by":"synthetic-pending-claim","processing_next_attempt_at":"2026-08-12T16:05:00+00:00"},
+    {"event_id":"preserve-processed-status","processing_status":"processed","piw_lead_id":"31111111-0000-4000-8000-000000000003","processing_error_category":null,"processing_attempts":7,"processing_claimed_at":"2026-08-12T16:04:00+00:00","processing_claimed_by":"synthetic-processed-claim","processing_next_attempt_at":"2026-08-12T16:05:00+00:00"}
+  ]'::jsonb,
+  'processed, pending, and failed replays retain status and every processing-owned field'
+);
 select throws_ok(
   $$select public.upsert_leadconduit_event_batch(
       '30000000-0000-4000-8000-000000000003',

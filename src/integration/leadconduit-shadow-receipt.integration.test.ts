@@ -155,19 +155,38 @@ describe.runIf(runIntegration)("LeadConduit shadow receipt local persistence", (
       ]);
 
       const persisted = await requireSuccess(admin.from("leadconduit_events")
-        .select("company_id, event_id, lead_id, processing_status, lead_name, submitted_phone, submitted_email, submitted_address, trustedform_url, attribution, raw_payload")
+        .select("company_id, event_id, lead_id, processing_status, lead_name, submitted_phone, submitted_email, submitted_address, trustedform_url, phone_normalized, email_normalized, attribution, raw_payload")
         .in("company_id", [companyA, companyB]));
       expect(persisted.data).toHaveLength(3);
       expect(persisted.data?.filter((row) => row.company_id === companyA && row.lead_id === "shared-synthetic-lead")).toHaveLength(1);
       expect(persisted.data?.filter((row) => row.company_id === companyB && row.lead_id === "shared-synthetic-lead")).toHaveLength(1);
       const storedNonCandidate = persisted.data?.find((row) => row.company_id === companyA && row.lead_id === "synthetic-non-candidate");
-      expect(storedNonCandidate).toMatchObject({
-        processing_status: "not_applicable", lead_name: null, submitted_phone: null, submitted_email: null,
-        submitted_address: null, trustedform_url: null, attribution: { shadow_categories: [] },
+      expect(storedNonCandidate).toEqual({
+        company_id: companyA,
+        event_id: expect.any(String),
+        lead_id: "synthetic-non-candidate",
+        processing_status: "not_applicable",
+        lead_name: null,
+        submitted_phone: null,
+        submitted_email: null,
+        submitted_address: null,
+        trustedform_url: null,
+        phone_normalized: null,
+        email_normalized: null,
+        attribution: { shadow_categories: [] },
         raw_payload: { schema_version: 1, checkpoint: "after_corelogic", candidate_categories: [] },
       });
       expect(JSON.stringify(storedNonCandidate)).not.toContain("Synthetic Non Candidate");
-      expect(JSON.stringify(storedNonCandidate)).not.toContain("CoreLogic");
+      for (const customerOrCoreLogicValue of [
+        "+1 609 555 0199",
+        "non-candidate@example.invalid",
+        "199 Synthetic Way, Trenton, NJ",
+        "https://cert.example.invalid/non-candidate",
+        "Single Family",
+        "Synthetic CoreLogic reason",
+      ]) {
+        expect(JSON.stringify(storedNonCandidate)).not.toContain(customerOrCoreLogicValue);
+      }
 
       const clientA = createClient<Database>(status.API_URL, status.ANON_KEY, {
         auth: { persistSession: false, autoRefreshToken: false, storageKey: `shadow-auth-a-${crypto.randomUUID()}` },

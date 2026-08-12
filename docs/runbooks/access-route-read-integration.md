@@ -1,15 +1,15 @@
-# Access Route read-only integration
+# Access Route read integration (LeadConduit read retired)
 
 ## LeadConduit read boundary
 
-LeadConduit API reading is paused, unscheduled, and not required by the direct receipt baseline. It must remain disabled. Do not configure `LEADCONDUIT_API_KEY`, enable a LeadConduit read flag, schedule a LeadConduit pull, or add a LeadConduit API reader under this runbook. The direct receipt baseline accepts only the separately approved, sanitized inbound receipt described in `leadconduit-shadow-recipient.md`.
+LeadConduit API reading is paused, unscheduled, and not required by the direct receipt baseline. It must remain disabled. This is not an operational runbook for LeadConduit: do not configure a LeadConduit API key or base URL, inventory `/flows`, enable a LeadConduit vendor flag, schedule a pull, or add a LeadConduit API reader. The direct receipt baseline is preparation-only until separately approved; its only future configuration reference is [LeadConduit shadow recipient](leadconduit-shadow-recipient.md).
 
-This runbook operates the controlled LeadConduit → LeadMaster → JobNimbus read path. It does not create or update records in any vendor system and does not change production routing.
+The remaining operational material applies only to the separately scoped LeadMaster and JobNimbus read paths. It does not create or update records in any vendor system and does not change production routing.
 
 ## What is deployed
 
-- An Inngest schedule runs every 30 minutes in `America/New_York`.
-- Each vendor pull uses only HTTP `GET` requests.
+- An Inngest schedule runs every 30 minutes in `America/New_York` for approved LeadMaster and JobNimbus reads.
+- Each approved vendor pull uses only HTTP `GET` requests.
 - Raw vendor payloads are retained for diagnosis with credential-like fields recursively redacted.
 - Normalized rows use vendor record IDs as unique keys, so retries upsert rather than duplicate records.
 - `integration_sync_runs` records source system, run key, record counts, cursor, outcome, and a non-sensitive error category.
@@ -22,12 +22,6 @@ Set secrets in the deployment environment or secret manager, never in tracked fi
 Common:
 
 - `ACCESS_ROUTE_COMPANY_ID`: required when the database contains more than one company.
-
-LeadConduit:
-
-- `LEADCONDUIT_API_KEY`
-- `LEADCONDUIT_BASE_URL=https://app.leadconduit.com`
-- `INTEGRATIONS_LEADCONDUIT_ENABLED=true` only after a credential check succeeds.
 
 LeadMaster:
 
@@ -56,11 +50,10 @@ Do not grant Delete, billing/settings, or cost/margin permissions. Cost, margin,
 2. Confirm the existing `20260801230408_lead_automation_audit_delta.sql` migration is also present; it contains the speed-to-lead prerequisite.
 3. Provision one vendor secret at a time with that vendor’s enable flag still false.
 4. Validate the credential against its documented read endpoint outside production traffic. Never paste the credential into a ticket, commit, or application log.
-5. For LeadConduit, inventory `/flows` and compare the stored flow/source IDs with the production flow owner. This code never deploys or modifies a flow.
-6. For LeadMaster, verify the returned workgroup labels and confirm `entered_at` matches the UI’s **Date Entered** value. The integration never sends or reads a Quick Action Date Range filter.
-7. For JobNimbus, verify that the access profile can read contacts and jobs and that no write endpoint is permitted. Confirm whether appointment status is present on the returned job record for this account; map any custom appointment field before relying on the no-show panel.
-8. Enable only that vendor, observe the first `integration_sync_runs` row, and inspect record counts plus a small sample of normalized records.
-9. Repeat for the next vendor.
+5. For LeadMaster, verify the returned workgroup labels and confirm `entered_at` matches the UI’s **Date Entered** value. The integration never sends or reads a Quick Action Date Range filter.
+6. For JobNimbus, verify that the access profile can read contacts and jobs and that no write endpoint is permitted. Confirm whether appointment status is present on the returned job record for this account; map any custom appointment field before relying on the no-show panel.
+7. Enable only that approved vendor, observe the first `integration_sync_runs` row, and inspect record counts plus a small sample of normalized records.
+8. Repeat for the next approved read vendor.
 
 ## JobNimbus staging canary
 
@@ -77,7 +70,7 @@ If either probe fails, do not import. Record the endpoint, HTTP status, and sani
 
 ## Status mapping and reconciliation
 
-Reconciliation prefers `external_lead_id`, then normalized phone, then normalized email. The selected match method is shown in `reconciled_lead_routes`.
+Reconciliation for approved read vendors prefers `external_lead_id`, then normalized phone, then normalized email. The selected match method is shown in `reconciled_lead_routes`.
 
 Raw statuses never become canonical implicitly. Add a `vendor_status_mappings` row only after reviewing the vendor value. Keep `mapping_basis='assumed'` while the mapping is provisional; change it to `confirmed` after the business owner approves it. LeadMaster “Demo Complete” and JobNimbus “Appointment Complete” must remain separate unless explicitly confirmed.
 
@@ -89,7 +82,7 @@ JobNimbus is not marked authoritative by schema. Its lifecycle role remains an o
 - Rate limits and transient 5xx responses retry with bounded exponential backoff.
 - One vendor’s failure does not stop the other vendor pulls.
 - Re-running within the same 30-minute UTC slot is skipped by the unique sync key.
-- LeadConduit advances with `after_id`; other sources use idempotent upserts across their bounded read window.
+- Approved read sources use idempotent upserts across their bounded read window.
 
 ## Verification
 
@@ -110,4 +103,4 @@ Before a live demo, preserve only non-sensitive evidence: migration version, syn
 
 - Confirm whether JobNimbus is the sold/job system of record before any authoritative constraint or status rule is added.
 - Confirm the account-specific JobNimbus appointment/calendar representation. The current normalizer surfaces appointment fields returned with jobs; custom task/calendar fields may require an additional read endpoint after discovery.
-- No write-back approval exists. Do not add vendor writes, LeadConduit destinations, or production routing changes under this runbook.
+- No write-back approval exists. Do not add vendor writes or production routing changes under this runbook. LeadConduit direct-receipt preparation remains separately approval-gated.
