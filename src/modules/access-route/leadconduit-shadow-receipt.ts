@@ -75,7 +75,7 @@ export function parseLeadConduitShadowPayload(value: unknown):
     if (issue.code === "unrecognized_keys") {
       return issue.keys.map((key) => [...issue.path, key].join("."));
     }
-    return [issue.path.join(".")];
+    return [issue.path.length > 0 ? issue.path.join(".") : "$"];
   });
   return {
     ok: false,

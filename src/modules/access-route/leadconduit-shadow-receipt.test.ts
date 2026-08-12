@@ -91,6 +91,10 @@ describe("LeadConduit shadow receipt schema", () => {
     expect(result).toEqual({ ok: false, invalidFields: ["corelogic.debug", "extra", "lead.secret_note"] });
     expect(JSON.stringify(result)).not.toContain(secret);
   });
+
+  it("labels a root-invalid payload with the deterministic root marker", () => {
+    expect(parseLeadConduitShadowPayload(null)).toEqual({ ok: false, invalidFields: ["$"] });
+  });
 });
 
 describe("LeadConduit shadow receipt classifier", () => {
