@@ -19,8 +19,6 @@ const serverEnvSchema = z
     PAID_PROVIDERS_ENABLED: booleanString,
     INTEGRATIONS_LEADCONDUIT_ROOFING_RECEIVER_ENABLED: booleanString,
     INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_RECEIVER_ENABLED: booleanString,
-    LEADCONDUIT_FILTER_CAVEAT_ACTIVE: z.enum(["true", "false"]).default("true")
-      .transform((value) => value === "true"),
     INTEGRATIONS_LEADMASTER_ENABLED: booleanString,
     INTEGRATIONS_JOBNIMBUS_ENABLED: booleanString,
     INTEGRATIONS_CALLTOOLS_ENABLED: booleanString,

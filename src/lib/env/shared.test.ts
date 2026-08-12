@@ -32,6 +32,15 @@ describe("parseServerEnv", () => {
     expect(environment.INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_RECEIVER_ENABLED).toBe(false);
   });
 
+  test("does not surface an obsolete LeadConduit filter caveat setting", () => {
+    const environment = parseServerEnv({
+      ...base,
+      LEADCONDUIT_FILTER_CAVEAT_ACTIVE: "false",
+    });
+
+    expect(environment).not.toHaveProperty("LEADCONDUIT_FILTER_CAVEAT_ACTIVE");
+  });
+
   test.each([
     ["roofing", "INTEGRATIONS_LEADCONDUIT_ROOFING_RECEIVER_ENABLED", "LEADCONDUIT_ROOFING_FLOW_ID", "LEADCONDUIT_ROOFING_WEBHOOK_TOKEN"],
     ["virtual quote", "INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_RECEIVER_ENABLED", "LEADCONDUIT_VIRTUAL_QUOTE_FLOW_ID", "LEADCONDUIT_VIRTUAL_QUOTE_WEBHOOK_TOKEN"],

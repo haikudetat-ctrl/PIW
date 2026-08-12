@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { StatTile } from "@/components/ui/stat-tile";
-import { parseServerEnv } from "@/lib/env/server";
 import { humanize } from "@/lib/format";
 import { createServerClient } from "@/lib/supabase/server";
 import { summarizeFunnel } from "@/modules/access-route/funnel";
@@ -22,7 +21,6 @@ function formatTimestamp(value: string | null) {
 
 export default async function AccessRoutePage() {
   const supabase = await createServerClient();
-  const env = parseServerEnv(process.env);
   const [{ data: routes }, { data: blindSpots }, { data: syncRuns }] = await Promise.all([
     supabase.from("reconciled_lead_routes").select("*"),
     supabase.from("jobnimbus_reengagement_blind_spots").select("*")
@@ -54,15 +52,6 @@ export default async function AccessRoutePage() {
           ))}
         </div>
       </div>
-
-      {env.LEADCONDUIT_FILTER_CAVEAT_ACTIVE ? (
-        <section className="rounded-lg border border-warning/40 bg-warning/10 px-4 py-3" aria-label="LeadConduit data caveat">
-          <p className="text-sm font-semibold text-ink">LeadConduit counts are known undercounts</p>
-          <p className="mt-1 text-sm text-ink-muted">
-            Valid New Jersey leads are being rejected by address and geolocation filters. Re-check these totals after the ActiveProspect filter fix; do not use them as clean CPL or volume figures yet.
-          </p>
-        </section>
-      ) : null}
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
         {FUNNEL_STAGES.map((stage) => (

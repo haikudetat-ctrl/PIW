@@ -18,7 +18,6 @@ Set secrets in the deployment environment or secret manager, never in tracked fi
 Common:
 
 - `ACCESS_ROUTE_COMPANY_ID`: required when the database contains more than one company.
-- `LEADCONDUIT_FILTER_CAVEAT_ACTIVE=true`: keep enabled until post-fix counts have been compared and accepted.
 
 LeadConduit:
 
@@ -79,15 +78,6 @@ Reconciliation prefers `external_lead_id`, then normalized phone, then normalize
 Raw statuses never become canonical implicitly. Add a `vendor_status_mappings` row only after reviewing the vendor value. Keep `mapping_basis='assumed'` while the mapping is provisional; change it to `confirmed` after the business owner approves it. LeadMaster “Demo Complete” and JobNimbus “Appointment Complete” must remain separate unless explicitly confirmed.
 
 JobNimbus is not marked authoritative by schema. Its lifecycle role remains an operational decision, and `source_system` stays explicit.
-
-## LeadConduit count caveat
-
-Keep `LEADCONDUIT_FILTER_CAVEAT_ACTIVE=true` while valid New Jersey leads are being rejected by address/geolocation filters. After the ActiveProspect change:
-
-1. Compare pre-fix and post-fix accepted/rejected totals for the same source mix.
-2. Reconcile a sample of previously rejected valid addresses.
-3. Obtain approval from the dashboard owner.
-4. Set the flag to `false`; do not remove the code or historical raw events.
 
 ## Failure handling
 
