@@ -7,28 +7,22 @@ export type LeadConduitFlowBinding = {
   companyId: string;
   flowId: string;
   flowName: "Roofing" | "Roofing Virtual Quote";
-  capabilities: {
-    shadowImport: boolean;
-    polling: boolean;
-    receipt: boolean;
-    processing: boolean;
-    rescueRecommendations: boolean;
-    rescueActions: boolean;
-  };
+  receiptEnabled: boolean;
   tokens: ReadonlyArray<{ value: string; validUntil: string | null }>;
 };
 
 export type LeadConduitReadEnvironment = Pick<ServerEnv,
   | "ACCESS_ROUTE_COMPANY_ID"
-  | "LEADCONDUIT_API_KEY"
-  | "LEADCONDUIT_BASE_URL"
   | "LEADCONDUIT_ROOFING_FLOW_ID"
   | "LEADCONDUIT_VIRTUAL_QUOTE_FLOW_ID"
-  | "LEADCONDUIT_SHADOW_PAGE_LIMIT"
-  | "LEADCONDUIT_SHADOW_MAX_PAGES"
-  | "LEADCONDUIT_PAGE_LIMIT"
-  | "LEADCONDUIT_MAX_PAGES"
-  | "LEADCONDUIT_INITIAL_LOOKBACK_MINUTES"
+  | "INTEGRATIONS_LEADCONDUIT_ROOFING_RECEIVER_ENABLED"
+  | "INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_RECEIVER_ENABLED"
+  | "LEADCONDUIT_ROOFING_WEBHOOK_TOKEN"
+  | "LEADCONDUIT_ROOFING_WEBHOOK_TOKEN_NEXT"
+  | "LEADCONDUIT_ROOFING_WEBHOOK_TOKEN_NEXT_EXPIRES_AT"
+  | "LEADCONDUIT_VIRTUAL_QUOTE_WEBHOOK_TOKEN"
+  | "LEADCONDUIT_VIRTUAL_QUOTE_WEBHOOK_TOKEN_NEXT"
+  | "LEADCONDUIT_VIRTUAL_QUOTE_WEBHOOK_TOKEN_NEXT_EXPIRES_AT"
 >;
 
 function configuredTokens(
@@ -58,14 +52,7 @@ export function getLeadConduitFlowBinding(
       companyId: environment.ACCESS_ROUTE_COMPANY_ID,
       flowId: environment.LEADCONDUIT_ROOFING_FLOW_ID,
       flowName: "Roofing",
-      capabilities: {
-        shadowImport: environment.INTEGRATIONS_LEADCONDUIT_ROOFING_SHADOW_IMPORT_ENABLED,
-        polling: environment.INTEGRATIONS_LEADCONDUIT_ROOFING_POLLING_ENABLED,
-        receipt: environment.INTEGRATIONS_LEADCONDUIT_ROOFING_RECEIVER_ENABLED,
-        processing: environment.INTEGRATIONS_LEADCONDUIT_ROOFING_PROCESSING_ENABLED,
-        rescueRecommendations: environment.INTEGRATIONS_LEADCONDUIT_ROOFING_RESCUE_ENABLED,
-        rescueActions: environment.INTEGRATIONS_LEADCONDUIT_ROOFING_RESCUE_ACTIONS_ENABLED,
-      },
+      receiptEnabled: environment.INTEGRATIONS_LEADCONDUIT_ROOFING_RECEIVER_ENABLED,
       tokens: configuredTokens(
         environment.LEADCONDUIT_ROOFING_WEBHOOK_TOKEN,
         environment.LEADCONDUIT_ROOFING_WEBHOOK_TOKEN_NEXT,
@@ -81,14 +68,7 @@ export function getLeadConduitFlowBinding(
       companyId: environment.ACCESS_ROUTE_COMPANY_ID,
       flowId: environment.LEADCONDUIT_VIRTUAL_QUOTE_FLOW_ID,
       flowName: "Roofing Virtual Quote",
-      capabilities: {
-        shadowImport: environment.INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_SHADOW_IMPORT_ENABLED,
-        polling: environment.INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_POLLING_ENABLED,
-        receipt: environment.INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_RECEIVER_ENABLED,
-        processing: environment.INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_PROCESSING_ENABLED,
-        rescueRecommendations: environment.INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_RESCUE_ENABLED,
-        rescueActions: environment.INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_RESCUE_ACTIONS_ENABLED,
-      },
+      receiptEnabled: environment.INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_RECEIVER_ENABLED,
       tokens: configuredTokens(
         environment.LEADCONDUIT_VIRTUAL_QUOTE_WEBHOOK_TOKEN,
         environment.LEADCONDUIT_VIRTUAL_QUOTE_WEBHOOK_TOKEN_NEXT,

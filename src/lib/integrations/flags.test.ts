@@ -1,5 +1,9 @@
 import { expect, test } from "vitest";
-import { leadConduitCapabilityFlagsSnapshot } from "./flags";
+import {
+  integrationFlagsSnapshot,
+  isIntegrationEnabled,
+  leadConduitReceiptFlagsSnapshot,
+} from "./flags";
 
 const base = {
   NODE_ENV: "test",
@@ -11,38 +15,42 @@ const base = {
   INNGEST_SIGNING_KEY: "local-signing-key",
 };
 
-test("keeps each LeadConduit flow capability independently controlled", () => {
-  const flags = leadConduitCapabilityFlagsSnapshot({
+test("reports independent LeadConduit receipt receivers", () => {
+  const flags = leadConduitReceiptFlagsSnapshot({
     ...base,
-    INTEGRATIONS_LEADCONDUIT_ROOFING_SHADOW_IMPORT_ENABLED: "true",
-    INTEGRATIONS_LEADCONDUIT_ROOFING_POLLING_ENABLED: "true",
     INTEGRATIONS_LEADCONDUIT_ROOFING_RECEIVER_ENABLED: "true",
-    INTEGRATIONS_LEADCONDUIT_ROOFING_PROCESSING_ENABLED: "true",
-    INTEGRATIONS_LEADCONDUIT_ROOFING_RESCUE_ENABLED: "true",
-    INTEGRATIONS_LEADCONDUIT_ROOFING_RESCUE_ACTIONS_ENABLED: "true",
     ACCESS_ROUTE_COMPANY_ID: "00000000-0000-4000-8000-000000000001",
     LEADCONDUIT_ROOFING_FLOW_ID: "roofing-flow",
     LEADCONDUIT_ROOFING_WEBHOOK_TOKEN: "roofing-token",
-    LEADCONDUIT_API_KEY: "test-api-key",
   });
 
   expect(flags).toEqual({
-    probe: false,
-    roofing: {
-      shadowImport: true,
-      polling: true,
-      receipt: true,
-      processing: true,
-      rescueRecommendations: true,
-      rescueActions: true,
-    },
-    virtualQuote: {
-      shadowImport: false,
-      polling: false,
-      receipt: false,
-      processing: false,
-      rescueRecommendations: false,
-      rescueActions: false,
-    },
+    roofing: true,
+    virtualQuote: false,
   });
+});
+
+test("enables the generic LeadConduit vendor when either receipt receiver is enabled", () => {
+  expect(isIntegrationEnabled("leadconduit", base)).toBe(false);
+  expect(integrationFlagsSnapshot(base).leadconduit).toBe(false);
+
+  const roofing = {
+    ...base,
+    ACCESS_ROUTE_COMPANY_ID: "00000000-0000-4000-8000-000000000001",
+    LEADCONDUIT_ROOFING_FLOW_ID: "roofing-flow",
+    LEADCONDUIT_ROOFING_WEBHOOK_TOKEN: "roofing-token",
+    INTEGRATIONS_LEADCONDUIT_ROOFING_RECEIVER_ENABLED: "true",
+  };
+  expect(isIntegrationEnabled("leadconduit", roofing)).toBe(true);
+  expect(integrationFlagsSnapshot(roofing).leadconduit).toBe(true);
+
+  const virtualQuote = {
+    ...base,
+    ACCESS_ROUTE_COMPANY_ID: "00000000-0000-4000-8000-000000000001",
+    LEADCONDUIT_VIRTUAL_QUOTE_FLOW_ID: "virtual-quote-flow",
+    LEADCONDUIT_VIRTUAL_QUOTE_WEBHOOK_TOKEN: "virtual-quote-token",
+    INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_RECEIVER_ENABLED: "true",
+  };
+  expect(isIntegrationEnabled("leadconduit", virtualQuote)).toBe(true);
+  expect(integrationFlagsSnapshot(virtualQuote).leadconduit).toBe(true);
 });

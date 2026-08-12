@@ -23,11 +23,8 @@ function repository() {
 function environment(overrides: Record<string, unknown> = {}) {
   return {
     ACCESS_ROUTE_COMPANY_ID: "company-1",
-    INTEGRATIONS_LEADCONDUIT_ENABLED: false,
     INTEGRATIONS_LEADMASTER_ENABLED: false,
     INTEGRATIONS_JOBNIMBUS_ENABLED: false,
-    LEADCONDUIT_API_KEY: undefined,
-    LEADCONDUIT_BASE_URL: undefined,
     LEADMASTER_ACCESS_TOKEN: undefined,
     LEADMASTER_BASE_URL: undefined,
     LEADMASTER_WORKGROUPS: undefined,
@@ -44,12 +41,12 @@ function environment(overrides: Record<string, unknown> = {}) {
 }
 
 describe("runAccessRouteSync", () => {
-  it("does not schedule legacy LeadConduit alone or perform tenant lookup, fetch, or persistence", async () => {
+  it("does not schedule LeadConduit or perform tenant lookup, fetch, or persistence", async () => {
     const repo = repository();
     const fetcher = vi.fn<typeof fetch>();
 
     await expect(runAccessRouteSync({
-      environment: environment({ INTEGRATIONS_LEADCONDUIT_ENABLED: true, LEADCONDUIT_API_KEY: "legacy-key" }),
+      environment: environment(),
       repository: repo,
       fetcher,
     })).resolves.toEqual({ enabled: false, results: [] });

@@ -14,24 +14,9 @@ export type IntegrationVendor = (typeof INTEGRATION_VENDORS)[number];
 export const GENERIC_WEBHOOK_VENDORS = ["leadmaster", "jobnimbus", "calltools"] as const;
 export type GenericWebhookVendor = (typeof GENERIC_WEBHOOK_VENDORS)[number];
 
-export type LeadConduitCapabilityFlags = {
-  probe: boolean;
-  roofing: {
-    shadowImport: boolean;
-    polling: boolean;
-    receipt: boolean;
-    processing: boolean;
-    rescueRecommendations: boolean;
-    rescueActions: boolean;
-  };
-  virtualQuote: {
-    shadowImport: boolean;
-    polling: boolean;
-    receipt: boolean;
-    processing: boolean;
-    rescueRecommendations: boolean;
-    rescueActions: boolean;
-  };
+export type LeadConduitReceiptFlags = {
+  roofing: boolean;
+  virtualQuote: boolean;
 };
 
 export function isIntegrationVendor(value: string): value is IntegrationVendor {
@@ -52,7 +37,8 @@ export function isIntegrationEnabled(
   const env = parseServerEnv(values);
   switch (vendor) {
     case "leadconduit":
-      return env.INTEGRATIONS_LEADCONDUIT_ENABLED;
+      return env.INTEGRATIONS_LEADCONDUIT_ROOFING_RECEIVER_ENABLED
+        || env.INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_RECEIVER_ENABLED;
     case "leadmaster":
       return env.INTEGRATIONS_LEADMASTER_ENABLED;
     case "jobnimbus":
@@ -70,27 +56,12 @@ export function integrationFlagsSnapshot(
   ) as Record<IntegrationVendor, boolean>;
 }
 
-export function leadConduitCapabilityFlagsSnapshot(
+export function leadConduitReceiptFlagsSnapshot(
   values: Record<string, string | undefined> = process.env,
-): LeadConduitCapabilityFlags {
+): LeadConduitReceiptFlags {
   const env = parseServerEnv(values);
   return {
-    probe: env.INTEGRATIONS_LEADCONDUIT_PROBE_ENABLED,
-    roofing: {
-      shadowImport: env.INTEGRATIONS_LEADCONDUIT_ROOFING_SHADOW_IMPORT_ENABLED,
-      polling: env.INTEGRATIONS_LEADCONDUIT_ROOFING_POLLING_ENABLED,
-      receipt: env.INTEGRATIONS_LEADCONDUIT_ROOFING_RECEIVER_ENABLED,
-      processing: env.INTEGRATIONS_LEADCONDUIT_ROOFING_PROCESSING_ENABLED,
-      rescueRecommendations: env.INTEGRATIONS_LEADCONDUIT_ROOFING_RESCUE_ENABLED,
-      rescueActions: env.INTEGRATIONS_LEADCONDUIT_ROOFING_RESCUE_ACTIONS_ENABLED,
-    },
-    virtualQuote: {
-      shadowImport: env.INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_SHADOW_IMPORT_ENABLED,
-      polling: env.INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_POLLING_ENABLED,
-      receipt: env.INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_RECEIVER_ENABLED,
-      processing: env.INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_PROCESSING_ENABLED,
-      rescueRecommendations: env.INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_RESCUE_ENABLED,
-      rescueActions: env.INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_RESCUE_ACTIONS_ENABLED,
-    },
+    roofing: env.INTEGRATIONS_LEADCONDUIT_ROOFING_RECEIVER_ENABLED,
+    virtualQuote: env.INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_RECEIVER_ENABLED,
   };
 }

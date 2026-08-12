@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   integrationFlagsSnapshot,
-  leadConduitCapabilityFlagsSnapshot,
+  leadConduitReceiptFlagsSnapshot,
 } from "@/lib/integrations/flags";
 
 // Reliability framework requirement: every ingestion endpoint exposes a
@@ -10,6 +10,6 @@ export async function GET() {
   return NextResponse.json({
     status: "ok",
     vendors: integrationFlagsSnapshot(process.env),
-    leadconduit: leadConduitCapabilityFlagsSnapshot(process.env),
+    leadconduit: leadConduitReceiptFlagsSnapshot(process.env),
   });
 }

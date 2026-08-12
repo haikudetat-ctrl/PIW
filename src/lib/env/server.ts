@@ -17,28 +17,14 @@ const serverEnvSchema = z
     INNGEST_EVENT_KEY: z.string().min(1),
     INNGEST_SIGNING_KEY: z.string().min(1),
     PAID_PROVIDERS_ENABLED: booleanString,
-    INTEGRATIONS_LEADCONDUIT_ENABLED: booleanString,
-    INTEGRATIONS_LEADCONDUIT_PROBE_ENABLED: booleanString,
-    INTEGRATIONS_LEADCONDUIT_ROOFING_SHADOW_IMPORT_ENABLED: booleanString,
-    INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_SHADOW_IMPORT_ENABLED: booleanString,
-    INTEGRATIONS_LEADCONDUIT_ROOFING_POLLING_ENABLED: booleanString,
-    INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_POLLING_ENABLED: booleanString,
     INTEGRATIONS_LEADCONDUIT_ROOFING_RECEIVER_ENABLED: booleanString,
     INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_RECEIVER_ENABLED: booleanString,
-    INTEGRATIONS_LEADCONDUIT_ROOFING_PROCESSING_ENABLED: booleanString,
-    INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_PROCESSING_ENABLED: booleanString,
-    INTEGRATIONS_LEADCONDUIT_ROOFING_RESCUE_ENABLED: booleanString,
-    INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_RESCUE_ENABLED: booleanString,
-    INTEGRATIONS_LEADCONDUIT_ROOFING_RESCUE_ACTIONS_ENABLED: booleanString,
-    INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_RESCUE_ACTIONS_ENABLED: booleanString,
     LEADCONDUIT_FILTER_CAVEAT_ACTIVE: z.enum(["true", "false"]).default("true")
       .transform((value) => value === "true"),
     INTEGRATIONS_LEADMASTER_ENABLED: booleanString,
     INTEGRATIONS_JOBNIMBUS_ENABLED: booleanString,
     INTEGRATIONS_CALLTOOLS_ENABLED: booleanString,
     INTEGRATIONS_WEBHOOK_SHARED_SECRET: z.string().optional(),
-    LEADCONDUIT_API_KEY: optionalString,
-    LEADCONDUIT_BASE_URL: optionalUrl,
     LEADCONDUIT_ROOFING_FLOW_ID: optionalString,
     LEADCONDUIT_VIRTUAL_QUOTE_FLOW_ID: optionalString,
     LEADCONDUIT_ROOFING_WEBHOOK_TOKEN: optionalString,
@@ -47,13 +33,6 @@ const serverEnvSchema = z
     LEADCONDUIT_VIRTUAL_QUOTE_WEBHOOK_TOKEN: optionalString,
     LEADCONDUIT_VIRTUAL_QUOTE_WEBHOOK_TOKEN_NEXT: optionalString,
     LEADCONDUIT_VIRTUAL_QUOTE_WEBHOOK_TOKEN_NEXT_EXPIRES_AT: optionalIsoDatetime,
-    LEADCONDUIT_SHADOW_PAGE_LIMIT: z.coerce.number().int().positive().max(50).default(50),
-    LEADCONDUIT_SHADOW_MAX_PAGES: z.coerce.number().int().positive().max(1).default(1),
-    LEADCONDUIT_PAGE_LIMIT: z.coerce.number().int().positive().max(1000).default(50),
-    LEADCONDUIT_MAX_PAGES: z.coerce.number().int().positive().max(25).default(1),
-    LEADCONDUIT_INITIAL_LOOKBACK_MINUTES: z.coerce.number().int().positive().max(129600).default(1440),
-    LEADCONDUIT_WEBHOOK_ATTEMPT_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().max(10000).default(600),
-    LEADCONDUIT_WEBHOOK_DELIVERY_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().max(5000).default(300),
     LEADMASTER_ACCESS_TOKEN: optionalString,
     LEADMASTER_BASE_URL: optionalUrl,
     LEADMASTER_WORKGROUPS: optionalString,
@@ -112,7 +91,6 @@ const serverEnvSchema = z
       });
     }
     const readIntegrations = [
-      [value.INTEGRATIONS_LEADCONDUIT_ENABLED, value.LEADCONDUIT_API_KEY, "LEADCONDUIT_API_KEY"],
       [value.INTEGRATIONS_LEADMASTER_ENABLED, value.LEADMASTER_ACCESS_TOKEN, "LEADMASTER_ACCESS_TOKEN"],
       [value.INTEGRATIONS_JOBNIMBUS_ENABLED, value.JOBNIMBUS_API_KEY, "JOBNIMBUS_API_KEY"],
     ] as const;
@@ -125,43 +103,23 @@ const serverEnvSchema = z
         });
       }
     }
-    if (value.INTEGRATIONS_LEADCONDUIT_PROBE_ENABLED && !value.LEADCONDUIT_API_KEY) {
-      context.addIssue({
-        code: "custom",
-        path: ["LEADCONDUIT_API_KEY"],
-        message: "LEADCONDUIT_API_KEY is required when the LeadConduit probe is enabled",
-      });
-    }
-
     const leadConduitFlows = [
       {
-        label: "Roofing",
         flowId: value.LEADCONDUIT_ROOFING_FLOW_ID,
         activeToken: value.LEADCONDUIT_ROOFING_WEBHOOK_TOKEN,
         nextToken: value.LEADCONDUIT_ROOFING_WEBHOOK_TOKEN_NEXT,
         nextTokenExpiry: value.LEADCONDUIT_ROOFING_WEBHOOK_TOKEN_NEXT_EXPIRES_AT,
-        shadowImport: value.INTEGRATIONS_LEADCONDUIT_ROOFING_SHADOW_IMPORT_ENABLED,
-        polling: value.INTEGRATIONS_LEADCONDUIT_ROOFING_POLLING_ENABLED,
         receiver: value.INTEGRATIONS_LEADCONDUIT_ROOFING_RECEIVER_ENABLED,
-        processing: value.INTEGRATIONS_LEADCONDUIT_ROOFING_PROCESSING_ENABLED,
-        rescueRecommendations: value.INTEGRATIONS_LEADCONDUIT_ROOFING_RESCUE_ENABLED,
-        rescueActions: value.INTEGRATIONS_LEADCONDUIT_ROOFING_RESCUE_ACTIONS_ENABLED,
         flowIdPath: "LEADCONDUIT_ROOFING_FLOW_ID",
         tokenPath: "LEADCONDUIT_ROOFING_WEBHOOK_TOKEN",
         nextTokenExpiryPath: "LEADCONDUIT_ROOFING_WEBHOOK_TOKEN_NEXT_EXPIRES_AT",
       },
       {
-        label: "Roofing Virtual Quote",
         flowId: value.LEADCONDUIT_VIRTUAL_QUOTE_FLOW_ID,
         activeToken: value.LEADCONDUIT_VIRTUAL_QUOTE_WEBHOOK_TOKEN,
         nextToken: value.LEADCONDUIT_VIRTUAL_QUOTE_WEBHOOK_TOKEN_NEXT,
         nextTokenExpiry: value.LEADCONDUIT_VIRTUAL_QUOTE_WEBHOOK_TOKEN_NEXT_EXPIRES_AT,
-        shadowImport: value.INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_SHADOW_IMPORT_ENABLED,
-        polling: value.INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_POLLING_ENABLED,
         receiver: value.INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_RECEIVER_ENABLED,
-        processing: value.INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_PROCESSING_ENABLED,
-        rescueRecommendations: value.INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_RESCUE_ENABLED,
-        rescueActions: value.INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_RESCUE_ACTIONS_ENABLED,
         flowIdPath: "LEADCONDUIT_VIRTUAL_QUOTE_FLOW_ID",
         tokenPath: "LEADCONDUIT_VIRTUAL_QUOTE_WEBHOOK_TOKEN",
         nextTokenExpiryPath: "LEADCONDUIT_VIRTUAL_QUOTE_WEBHOOK_TOKEN_NEXT_EXPIRES_AT",
@@ -169,18 +127,11 @@ const serverEnvSchema = z
     ] as const;
 
     for (const flow of leadConduitFlows) {
-      if ((flow.shadowImport || flow.polling) && !value.LEADCONDUIT_API_KEY) {
-        context.addIssue({
-          code: "custom",
-          path: ["LEADCONDUIT_API_KEY"],
-          message: "LEADCONDUIT_API_KEY is required when LeadConduit import or polling is enabled",
-        });
-      }
-      if ((flow.shadowImport || flow.polling || flow.receiver) && !flow.flowId) {
+      if (flow.receiver && !flow.flowId) {
         context.addIssue({
           code: "custom",
           path: [flow.flowIdPath],
-          message: `${flow.flowIdPath} is required when its LeadConduit capability is enabled`,
+          message: `${flow.flowIdPath} is required when its LeadConduit receiver is enabled`,
         });
       }
       if (flow.receiver && !value.ACCESS_ROUTE_COMPANY_ID) {
@@ -209,13 +160,6 @@ const serverEnvSchema = z
           code: "custom",
           path: [flow.nextTokenExpiryPath],
           message: `${flow.nextTokenExpiryPath} must be in the future`,
-        });
-      }
-      if (flow.rescueActions && (!flow.rescueRecommendations || !flow.processing)) {
-        context.addIssue({
-          code: "custom",
-          path: [flow.label === "Roofing" ? "INTEGRATIONS_LEADCONDUIT_ROOFING_RESCUE_ACTIONS_ENABLED" : "INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_RESCUE_ACTIONS_ENABLED"],
-          message: `${flow.label} rescue actions require rescue recommendations and processing`,
         });
       }
     }

@@ -13,32 +13,21 @@ const requiredEnvironment = {
 
 afterEach(() => vi.unstubAllEnvs());
 
-test("reports the LeadConduit capability booleans without identifiers or credentials", async () => {
+test("reports only LeadConduit receipt booleans", async () => {
   for (const [key, value] of Object.entries(requiredEnvironment)) vi.stubEnv(key, value);
 
   const response = await GET();
 
-  expect(await response.json()).toEqual({
+  const body = await response.json();
+  expect(body).toMatchObject({
     status: "ok",
     vendors: { leadconduit: false, leadmaster: false, jobnimbus: false, calltools: false },
     leadconduit: {
-      probe: false,
-      roofing: {
-        shadowImport: false,
-        polling: false,
-        receipt: false,
-        processing: false,
-        rescueRecommendations: false,
-        rescueActions: false,
-      },
-      virtualQuote: {
-        shadowImport: false,
-        polling: false,
-        receipt: false,
-        processing: false,
-        rescueRecommendations: false,
-        rescueActions: false,
-      },
+      roofing: false,
+      virtualQuote: false,
     },
   });
+  expect(Object.keys(body.leadconduit)).not.toEqual(expect.arrayContaining([
+    expect.stringMatching(/probe|shadow|poll|process|rescue|token|flowId|api/i),
+  ]));
 });

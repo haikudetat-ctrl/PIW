@@ -7,18 +7,11 @@ import { createServiceClient } from "@/lib/supabase/service";
 import {
   importJobNimbusCanary,
 } from "@/modules/access-route/jobnimbus-canary";
-import { getLeadConduitFlowBinding } from "@/modules/access-route/leadconduit-config";
-import {
-  importLeadConduitShadow as runLeadConduitShadowImport,
-  probeLeadConduitConnection,
-} from "@/modules/access-route/leadconduit-shadow-import";
 import { SupabaseAccessRouteRepository } from "@/modules/access-route/repository";
 import { JobNimbusReadClient } from "@/modules/access-route/vendors";
 import {
   createJobNimbusActionHandlers,
-  createLeadConduitActionHandlers,
   type JobNimbusActionState,
-  type LeadConduitActionState,
 } from "./action-handlers";
 
 async function getAdminCompanyId(): Promise<string | null> {
@@ -62,34 +55,6 @@ const handlers = createJobNimbusActionHandlers({
   },
 });
 
-const leadConduitHandlers = createLeadConduitActionHandlers({
-  getAdminCompanyId,
-  probeEnabled: () => parseServerEnv(process.env).INTEGRATIONS_LEADCONDUIT_PROBE_ENABLED,
-  getBinding: (flowSlug) => getLeadConduitFlowBinding(
-    flowSlug,
-    parseServerEnv(process.env),
-  ),
-  probe: async (companyId) => {
-    const environment = parseServerEnv(process.env);
-    const repository = new SupabaseAccessRouteRepository(createServiceClient());
-    return probeLeadConduitConnection({ companyId, environment, repository });
-  },
-  importShadow: async (companyId, flowSlug) => {
-    const environment = parseServerEnv(process.env);
-    const repository = new SupabaseAccessRouteRepository(createServiceClient());
-    return runLeadConduitShadowImport({
-      companyId,
-      flowSlug,
-      environment,
-      repository,
-    });
-  },
-  revalidate: () => {
-    revalidatePath("/access-route");
-    revalidatePath("/access-route/leadconduit");
-  },
-});
-
 export async function testJobNimbusConnection(
   previous: JobNimbusActionState,
   formData: FormData,
@@ -102,18 +67,4 @@ export async function importJobNimbusSample(
   formData: FormData,
 ): Promise<JobNimbusActionState> {
   return handlers.importSample(previous, formData);
-}
-
-export async function testLeadConduitConnection(
-  previous: LeadConduitActionState,
-  formData: FormData,
-): Promise<LeadConduitActionState> {
-  return leadConduitHandlers.testConnection(previous, formData);
-}
-
-export async function importLeadConduitShadow(
-  previous: LeadConduitActionState,
-  formData: FormData,
-): Promise<LeadConduitActionState> {
-  return leadConduitHandlers.importShadow(previous, formData);
 }
