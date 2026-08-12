@@ -134,6 +134,7 @@ describe("SupabaseAccessRouteRepository LeadConduit foundation", () => {
           attribution: { lead_external_id: "attribution-only-id" },
           raw_payload: { evidence: "original" },
           is_test: false,
+          processing_status: "observed",
         }],
       },
     }]);

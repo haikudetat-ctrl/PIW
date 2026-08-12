@@ -60,6 +60,7 @@ function eventPayload(row: LeadConduitEventRow, trustedFlowId: string): Json {
     attribution: row.attribution,
     raw_payload: row.raw_payload,
     is_test: row.is_test,
+    processing_status: row.processing_status,
   });
 }
 

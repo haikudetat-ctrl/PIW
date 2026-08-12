@@ -1,5 +1,9 @@
 # Access Route read-only integration
 
+## LeadConduit read boundary
+
+LeadConduit API reading is paused, unscheduled, and not required by the direct receipt baseline. It must remain disabled. Do not configure `LEADCONDUIT_API_KEY`, enable a LeadConduit read flag, schedule a LeadConduit pull, or add a LeadConduit API reader under this runbook. The direct receipt baseline accepts only the separately approved, sanitized inbound receipt described in `leadconduit-shadow-recipient.md`.
+
 This runbook operates the controlled LeadConduit → LeadMaster → JobNimbus read path. It does not create or update records in any vendor system and does not change production routing.
 
 ## What is deployed

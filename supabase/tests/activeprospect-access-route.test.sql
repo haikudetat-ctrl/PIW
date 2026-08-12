@@ -196,7 +196,7 @@ select is(
       'submitted_phone', '555-010-4000',
       'attribution', jsonb_build_object('lead_external_id', 'attribution-first', 'initial', 'webhook'),
       'raw_payload', jsonb_build_object('flow_id', 'payload-flow-must-not-control-identity', 'evidence', 'webhook-original'),
-      'processing_status', 'processed',
+      'processing_status', 'observed',
       'piw_lead_id', 'ffffffff-ffff-4fff-8fff-ffffffffffff',
       'processing_error_category', 'customer-value-must-not-land',
       'ingestion_channels', jsonb_build_array('poll')
@@ -292,13 +292,57 @@ select is(
   (select processing_status from public.leadconduit_events
    where company_id = '30000000-0000-4000-8000-000000000003' and event_id = 'webhook-first-event'),
   'observed',
-  'batch ingestion ignores payload-supplied processing state'
+  'batch ingestion persists the trusted observed processing state'
 );
 select is(
   (select piw_lead_id from public.leadconduit_events
    where company_id = '30000000-0000-4000-8000-000000000003' and event_id = 'webhook-first-event'),
   null::uuid,
   'batch ingestion ignores payload-supplied PIW lead identity'
+);
+
+select is(
+  public.upsert_leadconduit_event_batch(
+    '30000000-0000-4000-8000-000000000003',
+    '[{"event_id":"shadow-status-event","flow_id":"roofing-flow-exact","lead_id":"synthetic-shadow-status","event_type":"shadow_checkpoint","occurred_at":"2026-08-12T16:00:00Z","raw_payload":{"fixture":"shadow-status"},"processing_status":"not_applicable"}]'::jsonb,
+    'webhook',
+    '2026-08-12T16:01:00Z'
+  ),
+  1,
+  'shadow receipt stores an explicitly non-applicable processing status'
+);
+select is(
+  (select processing_status from public.leadconduit_events
+   where company_id = '30000000-0000-4000-8000-000000000003' and event_id = 'shadow-status-event'),
+  'not_applicable',
+  'shadow receipt forwards the status to persistence'
+);
+select is(
+  public.upsert_leadconduit_event_batch(
+    '30000000-0000-4000-8000-000000000003',
+    '[{"event_id":"shadow-status-event","flow_id":"roofing-flow-exact","lead_id":"synthetic-shadow-status","event_type":"shadow_checkpoint","occurred_at":"2026-08-12T16:00:00Z","raw_payload":{"fixture":"shadow-status-replay"},"processing_status":"observed"}]'::jsonb,
+    'webhook',
+    '2026-08-12T16:02:00Z'
+  ),
+  1,
+  'candidate replay converges on the existing shadow receipt'
+);
+select is(
+  (select processing_status from public.leadconduit_events
+   where company_id = '30000000-0000-4000-8000-000000000003' and event_id = 'shadow-status-event'),
+  'observed',
+  'candidate replay cannot be downgraded by a later non-candidate status'
+);
+select throws_ok(
+  $$select public.upsert_leadconduit_event_batch(
+      '30000000-0000-4000-8000-000000000003',
+      '[{"event_id":"invalid-shadow-status-event","flow_id":"roofing-flow-exact","lead_id":"synthetic-invalid-status","event_type":"shadow_checkpoint","occurred_at":"2026-08-12T16:00:00Z","raw_payload":{},"processing_status":"unsafe"}]'::jsonb,
+      'webhook',
+      '2026-08-12T16:03:00Z'
+    )$$,
+  '23514',
+  'new row for relation "leadconduit_events" violates check constraint "leadconduit_events_processing_state_check"',
+  'batch ingestion relies on the allowed processing-status constraint'
 );
 
 select is(
