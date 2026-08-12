@@ -41,6 +41,8 @@ The exact source exemptions observed for these post-CoreLogic business rules are
 - `Facebook Lead Ads`
 - `1MDE`
 
+The pasted flow exports show that LeadConduit serializes two of those UI labels as internal source IDs in rule text: `66294ffc805cf61e9575ee40` resolves to Webrunner Media Group and `65a84540388af4b003c1b8de` resolves to Angi. PIW therefore compares exact, trimmed source IDs and names against both representations; it does not depend on the UI label alone.
+
 PIW mirrors these exemptions only to avoid creating false review candidates. LeadConduit remains authoritative and its rules remain unchanged.
 
 ## Approaches considered
@@ -78,7 +80,10 @@ The custom JSON recipient maps this versioned logical payload:
   "lead_id": "<LeadConduit lead ID>",
   "flow_id": "<hardcoded expected flow ID>",
   "checkpoint": "after_corelogic",
-  "source_name": "<LeadConduit source name>",
+  "source": {
+    "id": "<LeadConduit source ID when exposed>",
+    "name": "<LeadConduit source name when exposed>"
+  },
   "submitted_at": "<ISO timestamp>",
   "is_test": false,
   "lead": {
@@ -89,7 +94,7 @@ The custom JSON recipient maps this versioned logical payload:
     "trustedform_url": "<existing TrustedForm URL when present>"
   },
   "corelogic": {
-    "outcome": "<CoreLogic outcome>",
+    "outcome": "<CoreLogic outcome when the step ran>",
     "reason": "<CoreLogic reason>",
     "building_comments": "<CoreLogic Building Comments>",
     "site_land_use": "<CoreLogic Site Land Use>"
@@ -97,7 +102,7 @@ The custom JSON recipient maps this versioned logical payload:
 }
 ```
 
-The endpoint accepts omitted optional contact/enrichment strings as null, because incomplete customer values must not turn a shadow observer into a source-system failure. It requires schema version, LeadConduit lead ID, exact configured flow ID, checkpoint, source name, submission timestamp, test marker, and CoreLogic outcome.
+The endpoint accepts omitted optional contact/enrichment strings and CoreLogic outputs as null, because incomplete or conditionally skipped enrichment must not turn a shadow observer into a source-system failure. It requires schema version, LeadConduit lead ID, exact configured flow ID, checkpoint, submission timestamp, test marker, and at least one of source ID or source name. A missing or non-success CoreLogic outcome is a valid non-candidate observation.
 
 The maximum request body is 64 KiB. Only `application/json` is accepted.
 
@@ -108,7 +113,7 @@ The Roofing field inventory supplied during planning confirms these client-defin
 Two labels are deliberately not inferred from the client-defined IDs:
 
 - `lead_id` means LeadConduit's stable system lead identifier. Do not map `lead_id_allss` unless a synthetic Test Flow proves that it is stable, present, and unique for recipient retries.
-- `source_name` means LeadConduit's built-in `Source` value used by the existing filter exemptions. Do not substitute `lead_source_allss` or `campaign_source` without the same synthetic proof.
+- `source.id` and `source.name` mean LeadConduit's built-in Source identity used by the existing filter exemptions. Do not substitute `lead_source_allss` or `campaign_source` without the same synthetic proof. Phase C should map both built-in values when the recipient editor exposes both.
 
 CoreLogic outcome/reason/building-comments/site-land-use are step outputs, not base flow fields. Submission time and test status may also be LeadConduit metadata rather than client-defined fields. Phase C must verify each mapping in the recipient editor with synthetic data before either receiver can be enabled. Unknown or unavailable mappings stop activation; Phase A may still implement and locally verify the logical endpoint contract.
 
@@ -127,15 +132,17 @@ The Virtual Quote screenshot confirms that its Fields screen is also a larger ca
 
 Classification is deterministic and deny-by-default. Comparisons trim whitespace. Source exemptions use exact case-sensitive equality after trimming, CoreLogic success and the two `includes` rules are case-insensitive, and the multiple-property reason uses exact case-sensitive equality after trimming.
 
-An exempt source produces no candidate. A CoreLogic outcome other than case-insensitive `Success` produces no candidate. For eligible inputs, PIW may assign one or more of:
+An exempt source produces no candidate. Exact exemption keys include the six UI names plus internal IDs `66294ffc805cf61e9575ee40` and `65a84540388af4b003c1b8de`; a match on either submitted source field is sufficient. A missing CoreLogic outcome or an outcome other than case-insensitive `Success` produces no candidate. For eligible inputs, PIW may assign one or more of:
 
 1. `apartment_classification`
    - Building Comments includes `APARTMENT`, or
    - Site Land Use includes `APARTMENT`.
-2. `multiple_property_match`
+2. `multiple_property_match` (Roofing only)
    - CoreLogic reason exactly equals `Incomplete address. Multiple property results returned.`
-3. `vacant_property_classification`
-   - Roofing only: Site Land Use includes `Vacant`.
+3. `vacant_property_classification` (Roofing only)
+   - Site Land Use includes `Vacant`.
+
+Roofing Virtual Quote can produce only `apartment_classification`; its exported flow has no post-CoreLogic multiple-property or vacant filter.
 
 Unknown values, unknown rules, consent/suppression/TCPA/fraud categories, and enrichment failures never become candidates.
 
@@ -148,7 +155,7 @@ Reuse the existing tenant-scoped `leadconduit_events` foundation and service-onl
 - Every valid delivery creates one durable event row. This lets PIW acknowledge only after persistence and measure endpoint health without relying on logs.
 - Candidate observations retain the normalized name/contact/address fields required for authenticated human review. Their normalized snapshot contains only schema version, checkpoint, CoreLogic outcome/reason/building-comments/site-land-use, and the ordered candidate-category list; it contains no authorization or arbitrary submitted keys.
 - If more than one rule matches, `reason_category` is the first category in the documented policy order and `attribution.shadow_categories` contains the complete ordered list.
-- Non-candidate event rows retain the trusted company/flow identity, derived event ID, LeadConduit lead ID, source name, submitted/received timestamps, test marker, and a snapshot limited to schema version, checkpoint, and an empty candidate-category list. Their name, phone, email, address, TrustedForm URL, CoreLogic values, and arbitrary raw payload are stored as null/empty values.
+- Non-candidate event rows retain the trusted company/flow identity, derived event ID, LeadConduit lead ID, source ID/name, submitted/received timestamps, test marker, and a snapshot limited to schema version, checkpoint, and an empty candidate-category list. Their name, phone, email, address, TrustedForm URL, CoreLogic values, and arbitrary raw payload are stored as null/empty values.
 - Authenticated users can read only their company rows through existing RLS.
 - Browser-visible lists show category, source name, timestamps, and non-sensitive identifiers only. Customer values belong only in authenticated detail views.
 - No PIW `leads`, properties, pipelines, consent records, tasks, deliveries, rescue decisions, or outbox events are created by this endpoint.
@@ -193,8 +200,8 @@ No phase may silently advance to the next.
 
 - Both routes reject cross-flow tokens and flow IDs.
 - Disabled flags prevent receipt before body processing.
-- Synthetic apartment, multiple-property, and Roofing-vacant inputs create the expected allowlisted observations.
-- Exempt sources, CoreLogic failure, unknown classifications, and Virtual Quote vacant input create no candidate.
+- Synthetic apartment, Roofing multiple-property, and Roofing-vacant inputs create the expected allowlisted observations.
+- Exempt sources, missing/CoreLogic failure outcomes, unknown classifications, and Virtual Quote multiple-property/vacant inputs create no candidate.
 - Replays remain idempotent.
 - Malformed, oversized, and unauthenticated requests persist no customer values.
 - Candidate persistence is tenant-scoped and authenticated read-only.

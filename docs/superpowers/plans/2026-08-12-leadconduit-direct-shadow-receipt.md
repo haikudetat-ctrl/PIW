@@ -18,9 +18,9 @@
 - The public paths are exactly `/api/integrations/leadconduit/roofing` and `/api/integrations/leadconduit/roofing-virtual-quote`.
 - Each receiver defaults to false and has a distinct active/next bearer-token set. A token for one flow must not authenticate the other.
 - The request checkpoint is exactly `after_corelogic`; company identity is never accepted from request data.
-- Classification is deny-by-default. Only `apartment_classification`, `multiple_property_match`, and Roofing-only `vacant_property_classification` are candidates.
-- The six exact, case-sensitive source exemptions are `RoofingCalculator`, `Webrunner Media Group`, `Angies Leads`, `Angi`, `Facebook Lead Ads`, and `1MDE` after whitespace trimming.
-- A CoreLogic outcome other than case-insensitive `Success`, an unknown rule/value, or any compliance/suppression/TCPA/fraud/system category creates no candidate.
+- Classification is deny-by-default. Roofing may produce `apartment_classification`, `multiple_property_match`, or `vacant_property_classification`; Roofing Virtual Quote may produce only `apartment_classification`.
+- Exact, case-sensitive source exemptions after whitespace trimming are the six UI names `RoofingCalculator`, `Webrunner Media Group`, `Angies Leads`, `Angi`, `Facebook Lead Ads`, and `1MDE`, plus LeadConduit's exported internal IDs `66294ffc805cf61e9575ee40` (Webrunner Media Group) and `65a84540388af4b003c1b8de` (Angi). A match on source ID or name is sufficient.
+- A missing CoreLogic outcome, an outcome other than case-insensitive `Success`, an unknown rule/value, or any compliance/suppression/TCPA/fraud/system category creates no candidate.
 - The endpoint labels candidates as `likely filter match`; it never claims LeadConduit rejected a lead.
 - The endpoint creates no PIW lead, property, pipeline, consent, task, delivery, rescue decision, domain event, outbox event, LeadMaster record, or JobNimbus record.
 - Customer values may exist only in tenant-scoped candidate event rows and authenticated detail views. Logs, HTTP responses, errors, audit/status metadata, non-candidate rows, tests, and documentation contain no client values.
@@ -196,7 +196,13 @@ const leadConduitShadowPayloadSchema = z.object({
   lead_id: z.string().trim().min(1),
   flow_id: z.string().trim().min(1),
   checkpoint: z.literal("after_corelogic"),
-  source_name: z.string().trim().min(1),
+  source: z.object({
+    id: optionalLeaf,
+    name: optionalLeaf,
+  }).strict().refine(
+    (source) => Boolean(source.id || source.name),
+    { message: "source identity is required" },
+  ),
   submitted_at: z.string().datetime({ offset: true }),
   is_test: z.boolean(),
   lead: z.object({
@@ -207,7 +213,7 @@ const leadConduitShadowPayloadSchema = z.object({
     trustedform_url: optionalLeaf,
   }).strict(),
   corelogic: z.object({
-    outcome: z.string().trim().min(1),
+    outcome: optionalLeaf,
     reason: optionalLeaf,
     building_comments: optionalLeaf,
     site_land_use: optionalLeaf,
@@ -221,7 +227,8 @@ Use a complete synthetic literal with `.invalid` contact values. Tests must prov
 
 - schema version is exactly `1`;
 - checkpoint is exactly `after_corelogic`;
-- `lead_id`, `flow_id`, `source_name`, `submitted_at`, `is_test`, and `corelogic.outcome` are required;
+- `lead_id`, `flow_id`, `submitted_at`, and `is_test` are required, and `source` must contain at least one non-empty ID or name;
+- missing/null `corelogic.outcome` is accepted because the existing flow conditionally skips CoreLogic for exempt sources;
 - optional leaf strings accept string, null, or omission;
 - unknown top-level and nested keys are rejected;
 - invalid output contains sorted dot-path field names only and never submitted values.
@@ -250,12 +257,12 @@ Add literal cases for:
 Also prove:
 
 - both apartment fields yield one deduplicated category;
-- exact multiple-property reason yields `multiple_property_match`;
+- exact multiple-property reason yields `multiple_property_match` for Roofing only;
 - category order is apartment, multiple-property, vacant;
-- the six exact trimmed source exemptions yield `[]`;
+- the six exact trimmed source-name exemptions and the two exported internal source-ID equivalents yield `[]` when matched through either `source.id` or `source.name`;
 - a case-changed exemption such as `angi` does not silently become exempt;
-- non-success CoreLogic outcome yields `[]`;
-- Virtual Quote never produces `vacant_property_classification`;
+- missing, null, and non-success CoreLogic outcomes yield `[]` without making the payload invalid;
+- Virtual Quote never produces `multiple_property_match` or `vacant_property_classification`;
 - unknown property text yields `[]`.
 
 - [ ] **Step 3: Write event-mapping privacy tests**
@@ -352,7 +359,7 @@ Prove:
 
 - [ ] **Step 3: Write persistence and idempotency tests**
 
-With an in-memory fake keyed by event ID, prove apartment, multiple-property, Roofing-vacant, and non-candidate requests call persistence once per request with trusted company/flow/channel data; replays keep one logical row and return the same `200 { outcome: "success" }`. Prove Virtual Quote vacant remains non-candidate. Make persistence throw and assert `503 { outcome: "retry", category: "persistence" }` without an error message or payload echo.
+With an in-memory fake keyed by event ID, prove apartment, Roofing multiple-property, Roofing-vacant, and non-candidate requests call persistence once per request with trusted company/flow/channel data; replays keep one logical row and return the same `200 { outcome: "success" }`. Prove Virtual Quote multiple-property and vacant inputs remain non-candidates. Make persistence throw and assert `503 { outcome: "retry", category: "persistence" }` without an error message or payload echo.
 
 Assert no dependency exists for lead creation, Inngest, outbox, LeadMaster, JobNimbus, or ActiveProspect fetch.
 
@@ -483,7 +490,8 @@ Fix Task 2/3/repository composition rather than weakening assertions. Do not add
 | `lead_id` | LeadConduit system lead ID | Do **not** assume client field `lead_id_allss`; prove stable replay identity with a synthetic Test Flow |
 | `flow_id` | hardcoded expected flow ID | Must equal the path binding |
 | `checkpoint` | hardcoded `after_corelogic` | Literal only |
-| `source_name` | built-in `Source` | Do **not** substitute `lead_source_allss` or `campaign_source` |
+| `source.id` | built-in Source ID | Prefer the stable internal ID; verify `66294ffc805cf61e9575ee40` and `65a84540388af4b003c1b8de` resolve to the two UI labels seen in the existing rules |
+| `source.name` | built-in Source name | Map alongside the ID when exposed; do **not** substitute `lead_source_allss` or `campaign_source` |
 | `submitted_at` | LeadConduit submission timestamp metadata | Verify ISO-8601 output with offset |
 | `is_test` | LeadConduit test marker metadata | Verify JSON boolean, not a quoted string |
 | `lead.name` | `first_name` plus `last_name` | Verify the recipient template joins safely when either is absent |
@@ -491,7 +499,7 @@ Fix Task 2/3/repository composition rather than weakening assertions. Do not add
 | `lead.email` | `email` | Confirmed client field ID |
 | `lead.submitted_address` | `address_1`, optional `address_2`, `city`, plus state/postal fields selected semantically in Phase C | Join only present components; do not guess unseen IDs |
 | `lead.trustedform_url` | existing TrustedForm certificate URL | Select the existing flow/step value; optional |
-| `corelogic.outcome` | CoreLogic Property Details Outcome | Step output after CoreLogic |
+| `corelogic.outcome` | CoreLogic Property Details Outcome | Optional step output; omit/null when the conditional CoreLogic step did not run |
 | `corelogic.reason` | CoreLogic Property Details Reason | Step output after CoreLogic |
 | `corelogic.building_comments` | CoreLogic Property Details Building Building Comments | Step output after CoreLogic |
 | `corelogic.site_land_use` | CoreLogic Property Details Site Land Use | Step output after CoreLogic |
@@ -501,7 +509,7 @@ Fix Task 2/3/repository composition rather than weakening assertions. Do not add
 - token instructions that reference the server-managed token and never include a token value in the document or URL;
 - success response `{ "outcome": "success" }`;
 - explicit instructions not to add a filter based on PIW outcome and not to reorder/change any existing step;
-- a Phase C pre-enable mapping gate run independently for both flows: use only LeadConduit Test Flow synthetic data, verify Status/Flow usage plus the recipient preview, inspect PIW's sanitized receipt result and tenant-scoped stored row, and stop if system lead ID, built-in Source, metadata types, or CoreLogic step outputs cannot be selected exactly;
+- a Phase C pre-enable mapping gate run independently for both flows: use only LeadConduit Test Flow synthetic data, verify Status/Flow usage plus the recipient preview, inspect PIW's sanitized receipt result and tenant-scoped stored row, and stop if system lead ID, built-in Source ID/name, metadata types, or CoreLogic step outputs cannot be selected exactly; include one exempt-source synthetic case where CoreLogic output is absent and PIW still returns success with a non-candidate row;
 - synthetic-only test criteria and rollback: disable/remove only the new PIW recipient, leaving every existing step untouched;
 - a checklist requiring separate Phase B deployment approval and Phase C LeadConduit-edit approval.
 
