@@ -101,6 +101,19 @@ The endpoint accepts omitted optional contact/enrichment strings as null, becaus
 
 The maximum request body is 64 KiB. Only `application/json` is accepted.
 
+### Observed flow-field IDs and mapping boundary
+
+The Roofing field inventory supplied during planning confirms these client-defined IDs among the available flow fields: `address_1`, `address_2`, `city`, `email`, `first_name`, `last_name`, `guid_allss`, `lead_id_allss`, `lead_source_allss`, `campaign_source`, `comments`, and `original_source`. These observations help prepare the future Custom JSON mapping, but they do not authorize a flow edit and they do not change PIW's logical request contract.
+
+Two labels are deliberately not inferred from the client-defined IDs:
+
+- `lead_id` means LeadConduit's stable system lead identifier. Do not map `lead_id_allss` unless a synthetic Test Flow proves that it is stable, present, and unique for recipient retries.
+- `source_name` means LeadConduit's built-in `Source` value used by the existing filter exemptions. Do not substitute `lead_source_allss` or `campaign_source` without the same synthetic proof.
+
+CoreLogic outcome/reason/building-comments/site-land-use are step outputs, not base flow fields. Submission time and test status may also be LeadConduit metadata rather than client-defined fields. Phase C must verify each mapping in the recipient editor with synthetic data before either receiver can be enabled. Unknown or unavailable mappings stop activation; Phase A may still implement and locally verify the logical endpoint contract.
+
+The Virtual Quote screenshot confirms that its Fields screen is also a larger catalog: visible entries can be switched off and show zero flow usage. A catalog entry is therefore not evidence that a value is populated for a flow. Phase C validates Roofing and Roofing Virtual Quote independently, checking field Status/Flow usage and the synthetic recipient preview for each; a mapping proven in Roofing is never inherited by Virtual Quote.
+
 ### Authentication and isolation
 
 - Each flow has a distinct server-managed bearer token.
