@@ -1,5 +1,6 @@
 import "server-only";
 import { z } from "zod";
+import { LEADCONDUIT_RECEIPT_FLOW_IDS } from "@/modules/access-route/leadconduit-config";
 import { booleanString, deploymentEnvironmentSchema } from "./shared";
 
 const optionalString = z.preprocess((value) => value === "" ? undefined : value, z.string().min(1).optional());
@@ -111,6 +112,7 @@ const serverEnvSchema = z
         flowIdPath: "LEADCONDUIT_ROOFING_FLOW_ID",
         tokenPath: "LEADCONDUIT_ROOFING_WEBHOOK_TOKEN",
         nextTokenExpiryPath: "LEADCONDUIT_ROOFING_WEBHOOK_TOKEN_NEXT_EXPIRES_AT",
+        approvedFlowId: LEADCONDUIT_RECEIPT_FLOW_IDS.roofing,
       },
       {
         flowId: value.LEADCONDUIT_VIRTUAL_QUOTE_FLOW_ID,
@@ -121,6 +123,7 @@ const serverEnvSchema = z
         flowIdPath: "LEADCONDUIT_VIRTUAL_QUOTE_FLOW_ID",
         tokenPath: "LEADCONDUIT_VIRTUAL_QUOTE_WEBHOOK_TOKEN",
         nextTokenExpiryPath: "LEADCONDUIT_VIRTUAL_QUOTE_WEBHOOK_TOKEN_NEXT_EXPIRES_AT",
+        approvedFlowId: LEADCONDUIT_RECEIPT_FLOW_IDS["roofing-virtual-quote"],
       },
     ] as const;
 
@@ -146,18 +149,18 @@ const serverEnvSchema = z
           message: `${flow.tokenPath} is required when its LeadConduit receiver is enabled`,
         });
       }
+      if (flow.receiver && flow.flowId !== flow.approvedFlowId) {
+        context.addIssue({
+          code: "custom",
+          path: [flow.flowIdPath],
+          message: `${flow.flowIdPath} must equal ${flow.approvedFlowId} when its LeadConduit receiver is enabled`,
+        });
+      }
       if (flow.nextToken && !flow.nextTokenExpiry) {
         context.addIssue({
           code: "custom",
           path: [flow.nextTokenExpiryPath],
           message: `${flow.nextTokenExpiryPath} is required when a next LeadConduit webhook token is configured`,
-        });
-      }
-      if (flow.nextToken && flow.nextTokenExpiry && new Date(flow.nextTokenExpiry) <= new Date()) {
-        context.addIssue({
-          code: "custom",
-          path: [flow.nextTokenExpiryPath],
-          message: `${flow.nextTokenExpiryPath} must be in the future`,
         });
       }
     }

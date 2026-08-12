@@ -2,6 +2,11 @@ import type { ServerEnv } from "@/lib/env/server";
 
 export type LeadConduitFlowSlug = "roofing" | "roofing-virtual-quote";
 
+export const LEADCONDUIT_RECEIPT_FLOW_IDS = {
+  roofing: "6377949a81800d03d54119b5",
+  "roofing-virtual-quote": "68d597a7e5a45ce2a9c822fe",
+} as const;
+
 export type LeadConduitFlowBinding = {
   slug: LeadConduitFlowSlug;
   companyId: string;
@@ -11,7 +16,7 @@ export type LeadConduitFlowBinding = {
   tokens: ReadonlyArray<{ value: string; validUntil: string | null }>;
 };
 
-export type LeadConduitReadEnvironment = Pick<ServerEnv,
+export type LeadConduitReceiptEnvironment = Pick<ServerEnv,
   | "ACCESS_ROUTE_COMPANY_ID"
   | "LEADCONDUIT_ROOFING_FLOW_ID"
   | "LEADCONDUIT_VIRTUAL_QUOTE_FLOW_ID"
@@ -46,7 +51,7 @@ export function getLeadConduitFlowBinding(
 ): LeadConduitFlowBinding | null {
   if (!environment.ACCESS_ROUTE_COMPANY_ID) return null;
 
-  if (slug === "roofing" && environment.LEADCONDUIT_ROOFING_FLOW_ID) {
+  if (slug === "roofing" && environment.LEADCONDUIT_ROOFING_FLOW_ID === LEADCONDUIT_RECEIPT_FLOW_IDS.roofing) {
     return {
       slug,
       companyId: environment.ACCESS_ROUTE_COMPANY_ID,
@@ -62,7 +67,10 @@ export function getLeadConduitFlowBinding(
     };
   }
 
-  if (slug === "roofing-virtual-quote" && environment.LEADCONDUIT_VIRTUAL_QUOTE_FLOW_ID) {
+  if (
+    slug === "roofing-virtual-quote"
+    && environment.LEADCONDUIT_VIRTUAL_QUOTE_FLOW_ID === LEADCONDUIT_RECEIPT_FLOW_IDS["roofing-virtual-quote"]
+  ) {
     return {
       slug,
       companyId: environment.ACCESS_ROUTE_COMPANY_ID,

@@ -350,6 +350,63 @@ select is(
   'an observed candidate cannot be downgraded by a later non-candidate replay'
 );
 
+select is(
+  public.upsert_leadconduit_event_batch(
+    '30000000-0000-4000-8000-000000000003',
+    '[{"event_id":"candidate-after-noncandidate","flow_id":"roofing-flow-exact","event_type":"shadow_checkpoint","occurred_at":"2026-08-12T16:00:00Z","raw_status":"observed","attribution":{"shadow_categories":[]},"raw_payload":{"schema_version":1,"checkpoint":"after_corelogic","candidate_categories":[]},"processing_status":"not_applicable"}]'::jsonb,
+    'webhook',
+    '2026-08-12T16:10:00Z'
+  ), 1, 'stores a non-candidate shadow receipt before a candidate replay'
+);
+select is(
+  public.upsert_leadconduit_event_batch(
+    '30000000-0000-4000-8000-000000000003',
+    '[{"event_id":"candidate-after-noncandidate","flow_id":"roofing-flow-exact","event_type":"shadow_checkpoint","occurred_at":"2026-08-12T16:00:00Z","raw_status":"likely_filter_match","reason_category":"apartment_classification","attribution":{"shadow_categories":["apartment_classification"]},"raw_payload":{"schema_version":1,"checkpoint":"after_corelogic","corelogic":{"outcome":"Success","reason":"Synthetic reason","building_comments":"APARTMENT","site_land_use":"Single Family"},"candidate_categories":["apartment_classification"]},"processing_status":"observed"}]'::jsonb,
+    'webhook',
+    '2026-08-12T16:11:00Z'
+  ), 1, 'converges a later candidate shadow receipt'
+);
+select is(
+  (select jsonb_build_object(
+    'processing_status', processing_status,
+    'raw_status', raw_status,
+    'reason_category', reason_category,
+    'attribution', attribution,
+    'raw_payload', raw_payload
+  ) from public.leadconduit_events
+    where company_id = '30000000-0000-4000-8000-000000000003' and event_id = 'candidate-after-noncandidate'),
+  '{"processing_status":"observed","raw_status":"likely_filter_match","reason_category":"apartment_classification","attribution":{"shadow_categories":["apartment_classification"]},"raw_payload":{"schema_version":1,"checkpoint":"after_corelogic","corelogic":{"outcome":"Success","reason":"Synthetic reason","building_comments":"APARTMENT","site_land_use":"Single Family"},"candidate_categories":["apartment_classification"]}}'::jsonb,
+  'candidate-owned state replaces an earlier non-candidate state atomically'
+);
+select is(
+  public.upsert_leadconduit_event_batch(
+    '30000000-0000-4000-8000-000000000003',
+    '[{"event_id":"candidate-before-noncandidate","flow_id":"roofing-flow-exact","event_type":"shadow_checkpoint","occurred_at":"2026-08-12T16:00:00Z","raw_status":"likely_filter_match","reason_category":"apartment_classification","attribution":{"shadow_categories":["apartment_classification"]},"raw_payload":{"schema_version":1,"checkpoint":"after_corelogic","corelogic":{"outcome":"Success","reason":"Synthetic reason","building_comments":"APARTMENT","site_land_use":"Single Family"},"candidate_categories":["apartment_classification"]},"processing_status":"observed"}]'::jsonb,
+    'webhook',
+    '2026-08-12T16:12:00Z'
+  ), 1, 'stores a candidate shadow receipt before a non-candidate replay'
+);
+select is(
+  public.upsert_leadconduit_event_batch(
+    '30000000-0000-4000-8000-000000000003',
+    '[{"event_id":"candidate-before-noncandidate","flow_id":"roofing-flow-exact","event_type":"shadow_checkpoint","occurred_at":"2026-08-12T16:00:00Z","raw_status":"observed","attribution":{"shadow_categories":[]},"raw_payload":{"schema_version":1,"checkpoint":"after_corelogic","candidate_categories":[]},"processing_status":"not_applicable"}]'::jsonb,
+    'webhook',
+    '2026-08-12T16:13:00Z'
+  ), 1, 'converges a later non-candidate shadow replay'
+);
+select is(
+  (select jsonb_build_object(
+    'processing_status', processing_status,
+    'raw_status', raw_status,
+    'reason_category', reason_category,
+    'attribution', attribution,
+    'raw_payload', raw_payload
+  ) from public.leadconduit_events
+    where company_id = '30000000-0000-4000-8000-000000000003' and event_id = 'candidate-before-noncandidate'),
+  '{"processing_status":"observed","raw_status":"likely_filter_match","reason_category":"apartment_classification","attribution":{"shadow_categories":["apartment_classification"]},"raw_payload":{"schema_version":1,"checkpoint":"after_corelogic","corelogic":{"outcome":"Success","reason":"Synthetic reason","building_comments":"APARTMENT","site_land_use":"Single Family"},"candidate_categories":["apartment_classification"]}}'::jsonb,
+  'candidate-owned state survives a later non-candidate state atomically'
+);
+
 insert into public.leads (id, company_id, name, phone, email, submitted_address) values (
   '31111111-0000-4000-8000-000000000003',
   '30000000-0000-4000-8000-000000000003',
@@ -397,6 +454,31 @@ select is(
     {"event_id":"preserve-processed-status","processing_status":"processed","piw_lead_id":"31111111-0000-4000-8000-000000000003","processing_error_category":null,"processing_attempts":7,"processing_claimed_at":"2026-08-12T16:04:00+00:00","processing_claimed_by":"synthetic-processed-claim","processing_next_attempt_at":"2026-08-12T16:05:00+00:00"}
   ]'::jsonb,
   'processed, pending, and failed replays retain status and every processing-owned field'
+);
+insert into public.leadconduit_events (
+  company_id, event_id, flow_id, event_type, occurred_at, raw_status, reason_category,
+  attribution, raw_payload, ingestion_channels, first_observed_at, processing_status, piw_lead_id
+) values (
+  '30000000-0000-4000-8000-000000000003', 'processed-candidate-state', 'roofing-flow-exact',
+  'shadow_checkpoint', '2026-08-12T16:00:00Z', 'likely_filter_match', 'apartment_classification',
+  '{"shadow_categories":["apartment_classification"]}'::jsonb,
+  '{"schema_version":1,"checkpoint":"after_corelogic","candidate_categories":["apartment_classification"]}'::jsonb,
+  array[]::text[], '2026-08-12T16:00:00Z', 'processed', '31111111-0000-4000-8000-000000000003'
+);
+select is(
+  public.upsert_leadconduit_event_batch(
+    '30000000-0000-4000-8000-000000000003',
+    '[{"event_id":"processed-candidate-state","flow_id":"roofing-flow-exact","event_type":"shadow_checkpoint","occurred_at":"2026-08-12T16:00:00Z","raw_status":"observed","attribution":{"shadow_categories":[]},"raw_payload":{"schema_version":1,"checkpoint":"after_corelogic","candidate_categories":[]},"processing_status":"not_applicable"}]'::jsonb,
+    'webhook',
+    '2026-08-12T16:20:00Z'
+  ), 1, 'converges a non-candidate replay onto a processed candidate row'
+);
+select is(
+  (select jsonb_build_object('processing_status', processing_status, 'raw_status', raw_status, 'reason_category', reason_category, 'attribution', attribution, 'raw_payload', raw_payload)
+   from public.leadconduit_events
+   where company_id = '30000000-0000-4000-8000-000000000003' and event_id = 'processed-candidate-state'),
+  '{"processing_status":"processed","raw_status":"likely_filter_match","reason_category":"apartment_classification","attribution":{"shadow_categories":["apartment_classification"]},"raw_payload":{"schema_version":1,"checkpoint":"after_corelogic","candidate_categories":["apartment_classification"]}}'::jsonb,
+  'a terminal candidate retains its complete candidate state after a non-candidate replay'
 );
 select throws_ok(
   $$select public.upsert_leadconduit_event_batch(

@@ -115,10 +115,10 @@ describe.runIf(runIntegration)("LeadConduit shadow receipt local persistence", (
       ]));
 
       const createdA = await admin.auth.admin.createUser({ email: emailA, password, email_confirm: true });
-      const createdB = await admin.auth.admin.createUser({ email: emailB, password, email_confirm: true });
       if (createdA.error || !createdA.data.user) throw new Error(createdA.error?.message ?? "Synthetic user A was not created");
-      if (createdB.error || !createdB.data.user) throw new Error(createdB.error?.message ?? "Synthetic user B was not created");
       userAId = createdA.data.user.id;
+      const createdB = await admin.auth.admin.createUser({ email: emailB, password, email_confirm: true });
+      if (createdB.error || !createdB.data.user) throw new Error(createdB.error?.message ?? "Synthetic user B was not created");
       userBId = createdB.data.user.id;
       await requireSuccess(admin.from("admin_profiles").insert([
         { id: userAId, company_id: companyA, display_name: "Synthetic Shadow Admin A" },
@@ -133,6 +133,12 @@ describe.runIf(runIntegration)("LeadConduit shadow receipt local persistence", (
         now: () => new Date("2026-08-12T16:01:00.000Z"),
       };
       const candidateA = receiptPayload({ flowId: flowA, leadId: "shared-synthetic-lead", buildingComments: "APARTMENT HOUSE" });
+      const concurrentCandidateA = receiptPayload({ flowId: flowA, leadId: "concurrent-synthetic-lead", buildingComments: "APARTMENT HOUSE" });
+      const concurrentNonCandidateA = receiptPayload({
+        flowId: flowA, leadId: "concurrent-synthetic-lead", buildingComments: "Single Family",
+        name: "Concurrent Non Candidate", phone: "+1 609 555 0198", email: "concurrent-non-candidate@example.invalid",
+        address: "198 Synthetic Way, Trenton, NJ", trustedformUrl: "https://cert.example.invalid/concurrent-non-candidate",
+      });
       const nonCandidateA = receiptPayload({
         flowId: flowA,
         leadId: "synthetic-non-candidate", buildingComments: "Single Family", name: "Synthetic Non Candidate",
@@ -141,13 +147,17 @@ describe.runIf(runIntegration)("LeadConduit shadow receipt local persistence", (
       });
       const candidateB = receiptPayload({ flowId: flowB, leadId: "shared-synthetic-lead", buildingComments: "APARTMENT" });
 
-      const [firstA, replayA, nonCandidate, tenantB] = await Promise.all([
+      const [firstA, replayA, concurrentNonCandidate, concurrentCandidate, nonCandidate, tenantB] = await Promise.all([
         handleLeadConduitShadowRequest(receiptRequest(tokenA, candidateA), "roofing", dependencies),
         handleLeadConduitShadowRequest(receiptRequest(tokenA, candidateA), "roofing", dependencies),
+        handleLeadConduitShadowRequest(receiptRequest(tokenA, concurrentNonCandidateA), "roofing", dependencies),
+        handleLeadConduitShadowRequest(receiptRequest(tokenA, concurrentCandidateA), "roofing", dependencies),
         handleLeadConduitShadowRequest(receiptRequest(tokenA, nonCandidateA), "roofing", dependencies),
         handleLeadConduitShadowRequest(receiptRequest(tokenB, candidateB), "roofing-virtual-quote", dependencies),
       ]);
-      expect([firstA, replayA, nonCandidate, tenantB]).toEqual([
+      expect([firstA, replayA, concurrentNonCandidate, concurrentCandidate, nonCandidate, tenantB]).toEqual([
+        { status: 200, body: { outcome: "success" } },
+        { status: 200, body: { outcome: "success" } },
         { status: 200, body: { outcome: "success" } },
         { status: 200, body: { outcome: "success" } },
         { status: 200, body: { outcome: "success" } },
@@ -155,9 +165,9 @@ describe.runIf(runIntegration)("LeadConduit shadow receipt local persistence", (
       ]);
 
       const persisted = await requireSuccess(admin.from("leadconduit_events")
-        .select("company_id, event_id, lead_id, processing_status, lead_name, submitted_phone, submitted_email, submitted_address, trustedform_url, phone_normalized, email_normalized, attribution, raw_payload")
+        .select("company_id, event_id, lead_id, processing_status, raw_status, reason_category, lead_name, submitted_phone, submitted_email, submitted_address, trustedform_url, phone_normalized, email_normalized, attribution, raw_payload")
         .in("company_id", [companyA, companyB]));
-      expect(persisted.data).toHaveLength(3);
+      expect(persisted.data).toHaveLength(4);
       expect(persisted.data?.filter((row) => row.company_id === companyA && row.lead_id === "shared-synthetic-lead")).toHaveLength(1);
       expect(persisted.data?.filter((row) => row.company_id === companyB && row.lead_id === "shared-synthetic-lead")).toHaveLength(1);
       const storedNonCandidate = persisted.data?.find((row) => row.company_id === companyA && row.lead_id === "synthetic-non-candidate");
@@ -166,6 +176,8 @@ describe.runIf(runIntegration)("LeadConduit shadow receipt local persistence", (
         event_id: expect.any(String),
         lead_id: "synthetic-non-candidate",
         processing_status: "not_applicable",
+        raw_status: "observed",
+        reason_category: null,
         lead_name: null,
         submitted_phone: null,
         submitted_email: null,
@@ -187,6 +199,17 @@ describe.runIf(runIntegration)("LeadConduit shadow receipt local persistence", (
       ]) {
         expect(JSON.stringify(storedNonCandidate)).not.toContain(customerOrCoreLogicValue);
       }
+      expect(persisted.data?.find((row) => row.company_id === companyA && row.lead_id === "concurrent-synthetic-lead")).toMatchObject({
+        processing_status: "observed",
+        raw_status: "likely_filter_match",
+        reason_category: "apartment_classification",
+        attribution: { shadow_categories: ["apartment_classification"] },
+        raw_payload: {
+          schema_version: 1,
+          checkpoint: "after_corelogic",
+          candidate_categories: ["apartment_classification"],
+        },
+      });
 
       const clientA = createClient<Database>(status.API_URL, status.ANON_KEY, {
         auth: { persistSession: false, autoRefreshToken: false, storageKey: `shadow-auth-a-${crypto.randomUUID()}` },
@@ -201,7 +224,7 @@ describe.runIf(runIntegration)("LeadConduit shadow receipt local persistence", (
         requireSuccess(clientB.from("leadconduit_events").select("company_id")).then((result) => result.data),
         clientA.rpc("upsert_leadconduit_event_batch", { p_company_id: companyA, p_events: [], p_channel: "webhook", p_observed_at: "2026-08-12T16:01:00Z" }),
       ]);
-      expect(readsA).toHaveLength(2);
+      expect(readsA).toHaveLength(3);
       expect(readsA?.every((row) => row.company_id === companyA)).toBe(true);
       expect(readsB).toHaveLength(1);
       expect(readsB?.every((row) => row.company_id === companyB)).toBe(true);

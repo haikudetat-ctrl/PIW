@@ -8,8 +8,8 @@ Create a new Custom JSON recipient only after separate approval for Phase B depl
 
 | Flow | Exact endpoint path | Intended position |
 |---|---|---|
-| Roofing | `/api/integrations/leadconduit/roofing` | Immediately after the conditional CoreLogic Property Details step; do not reorder or alter existing steps. |
-| Roofing Virtual Quote | `/api/integrations/leadconduit/roofing-virtual-quote` | Immediately after the conditional CoreLogic Property Details step; do not reorder or alter existing steps. |
+| Roofing | `/api/integrations/leadconduit/roofing` | After step 26 and before step 27; do not reorder or alter existing steps. |
+| Roofing Virtual Quote | `/api/integrations/leadconduit/roofing-virtual-quote` | After step 15 and before step 16; do not reorder or alter existing steps. |
 
 The recipient must be a **Custom JSON** recipient. Configure bearer authorization from the server-managed token only; never put a token value in this document, a template URL, a test payload, or a ticket. Set `Content-Type: application/json`. The expected successful PIW response is `{ "outcome": "success" }`.
 

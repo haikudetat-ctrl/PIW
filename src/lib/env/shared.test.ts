@@ -42,9 +42,9 @@ describe("parseServerEnv", () => {
   });
 
   test.each([
-    ["roofing", "INTEGRATIONS_LEADCONDUIT_ROOFING_RECEIVER_ENABLED", "LEADCONDUIT_ROOFING_FLOW_ID", "LEADCONDUIT_ROOFING_WEBHOOK_TOKEN"],
-    ["virtual quote", "INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_RECEIVER_ENABLED", "LEADCONDUIT_VIRTUAL_QUOTE_FLOW_ID", "LEADCONDUIT_VIRTUAL_QUOTE_WEBHOOK_TOKEN"],
-  ] as const)("requires the company, exact flow ID, and active token for an enabled %s receiver", (_label, receiverFlag, flowId, token) => {
+    ["roofing", "INTEGRATIONS_LEADCONDUIT_ROOFING_RECEIVER_ENABLED", "LEADCONDUIT_ROOFING_FLOW_ID", "LEADCONDUIT_ROOFING_WEBHOOK_TOKEN", "6377949a81800d03d54119b5"],
+    ["virtual quote", "INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_RECEIVER_ENABLED", "LEADCONDUIT_VIRTUAL_QUOTE_FLOW_ID", "LEADCONDUIT_VIRTUAL_QUOTE_WEBHOOK_TOKEN", "68d597a7e5a45ce2a9c822fe"],
+  ] as const)("requires the company, exact flow ID, and active token for an enabled %s receiver", (_label, receiverFlag, flowId, token, approvedFlowId) => {
     expect(() => parseServerEnv({ ...base, [receiverFlag]: "true" })).toThrow("ACCESS_ROUTE_COMPANY_ID is required");
     expect(() => parseServerEnv({
       ...base,
@@ -54,7 +54,7 @@ describe("parseServerEnv", () => {
     expect(() => parseServerEnv({
       ...base,
       ACCESS_ROUTE_COMPANY_ID: "00000000-0000-4000-8000-000000000001",
-      [flowId]: "flow-id",
+      [flowId]: approvedFlowId,
       [receiverFlag]: "true",
     })).toThrow(`${token} is required`);
   });
@@ -63,12 +63,35 @@ describe("parseServerEnv", () => {
     expect(() => parseServerEnv(base)).not.toThrow();
   });
 
-  test("rejects a next LeadConduit webhook token with a past expiry", () => {
-    expect(() => parseServerEnv({
+  test("keeps an enabled receiver and its active token valid after next-token expiry", () => {
+    const environment = parseServerEnv({
       ...base,
+      ACCESS_ROUTE_COMPANY_ID: "00000000-0000-4000-8000-000000000001",
+      INTEGRATIONS_LEADCONDUIT_ROOFING_RECEIVER_ENABLED: "true",
+      LEADCONDUIT_ROOFING_FLOW_ID: "6377949a81800d03d54119b5",
+      LEADCONDUIT_ROOFING_WEBHOOK_TOKEN: "active-token",
       LEADCONDUIT_ROOFING_WEBHOOK_TOKEN_NEXT: "next-token",
       LEADCONDUIT_ROOFING_WEBHOOK_TOKEN_NEXT_EXPIRES_AT: "2020-01-01T00:00:00.000Z",
-    })).toThrow("LEADCONDUIT_ROOFING_WEBHOOK_TOKEN_NEXT_EXPIRES_AT must be in the future");
+    });
+
+    expect(environment.INTEGRATIONS_LEADCONDUIT_ROOFING_RECEIVER_ENABLED).toBe(true);
+    expect(environment.LEADCONDUIT_ROOFING_WEBHOOK_TOKEN).toBe("active-token");
+  });
+
+  test.each([
+    ["roofing", "INTEGRATIONS_LEADCONDUIT_ROOFING_RECEIVER_ENABLED", "LEADCONDUIT_ROOFING_FLOW_ID", "LEADCONDUIT_ROOFING_WEBHOOK_TOKEN", "6377949a81800d03d54119b5", "68d597a7e5a45ce2a9c822fe"],
+    ["virtual quote", "INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_RECEIVER_ENABLED", "LEADCONDUIT_VIRTUAL_QUOTE_FLOW_ID", "LEADCONDUIT_VIRTUAL_QUOTE_WEBHOOK_TOKEN", "68d597a7e5a45ce2a9c822fe", "6377949a81800d03d54119b5"],
+  ] as const)("requires the approved %s flow ID when the receiver is enabled", (_label, receiverFlag, flowId, token, approvedFlowId, swappedFlowId) => {
+    const receiver = {
+      ...base,
+      ACCESS_ROUTE_COMPANY_ID: "00000000-0000-4000-8000-000000000001",
+      [receiverFlag]: "true",
+      [token]: "flow-token",
+    };
+
+    expect(() => parseServerEnv({ ...receiver, [flowId]: "unapproved-flow-id" })).toThrow(`${flowId} must equal ${approvedFlowId}`);
+    expect(() => parseServerEnv({ ...receiver, [flowId]: swappedFlowId })).toThrow(`${flowId} must equal ${approvedFlowId}`);
+    expect(() => parseServerEnv({ ...receiver, [flowId]: approvedFlowId })).not.toThrow();
   });
 
   test.each([

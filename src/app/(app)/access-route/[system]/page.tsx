@@ -22,13 +22,13 @@ export default async function AccessRouteSystemPage({ params }: { params: Promis
   const supabase = await createServerClient();
 
   const rows = system === "leadconduit"
-    ? (await supabase.from("leadconduit_events").select("event_id, flow_id, source_name, event_type, outcome, occurred_at").order("occurred_at", { ascending: false }).limit(100)).data?.map((row) => [row.event_id, row.source_name ?? row.flow_id, row.event_type, row.outcome, row.occurred_at])
+    ? (await supabase.from("leadconduit_events").select("event_id, flow_id, source_name, event_type, raw_status, reason_category, occurred_at").order("occurred_at", { ascending: false }).limit(100)).data?.map((row) => [row.event_id, row.source_name ?? row.flow_id, row.event_type, humanize(row.raw_status ?? ""), humanize(row.reason_category ?? ""), row.occurred_at])
     : system === "leadmaster"
       ? (await supabase.from("leadmaster_records").select("record_id, record_kind, workgroup, disposition, opportunity_status, entered_at").order("entered_at", { ascending: false }).limit(100)).data?.map((row) => [row.record_id, row.record_kind, row.workgroup, row.opportunity_status ?? row.disposition, row.entered_at])
       : (await supabase.from("jobnimbus_jobs").select("job_id, contact_id, status, stage, appointment_status, appointment_at, vendor_updated_at").order("vendor_updated_at", { ascending: false }).limit(100)).data?.map((row) => [row.job_id, row.contact_id, row.stage ?? row.status, row.appointment_status, row.appointment_at ?? row.vendor_updated_at]);
 
   const headers = system === "leadconduit"
-    ? ["Event", "Source / flow", "Type", "Outcome", "Occurred"]
+    ? ["Event", "Source / flow", "Type", "Status", "Reason", "Occurred"]
     : system === "leadmaster"
       ? ["Record", "Kind", "Workgroup", "Raw status", "Date entered"]
       : ["Job", "Contact", "Raw status", "Appointment", "Updated"];
@@ -51,7 +51,7 @@ export default async function AccessRouteSystemPage({ params }: { params: Promis
               {(rows ?? []).map((row, index) => (
                 <tr key={`${row[0]}-${index}`}>{row.map((value, cell) => <td key={cell} className="py-3 pr-4 text-ink-muted last:pr-0">{show(value)}</td>)}</tr>
               ))}
-              {!rows?.length ? <tr><td colSpan={5} className="py-6 text-center text-ink-subtle">No records ingested yet.</td></tr> : null}
+              {!rows?.length ? <tr><td colSpan={headers.length} className="py-6 text-center text-ink-subtle">No records ingested yet.</td></tr> : null}
             </tbody>
           </table>
         </div>

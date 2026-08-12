@@ -20,7 +20,7 @@ test("reports independent LeadConduit receipt receivers", () => {
     ...base,
     INTEGRATIONS_LEADCONDUIT_ROOFING_RECEIVER_ENABLED: "true",
     ACCESS_ROUTE_COMPANY_ID: "00000000-0000-4000-8000-000000000001",
-    LEADCONDUIT_ROOFING_FLOW_ID: "roofing-flow",
+    LEADCONDUIT_ROOFING_FLOW_ID: "6377949a81800d03d54119b5",
     LEADCONDUIT_ROOFING_WEBHOOK_TOKEN: "roofing-token",
   });
 
@@ -37,7 +37,7 @@ test("enables the generic LeadConduit vendor when either receipt receiver is ena
   const roofing = {
     ...base,
     ACCESS_ROUTE_COMPANY_ID: "00000000-0000-4000-8000-000000000001",
-    LEADCONDUIT_ROOFING_FLOW_ID: "roofing-flow",
+    LEADCONDUIT_ROOFING_FLOW_ID: "6377949a81800d03d54119b5",
     LEADCONDUIT_ROOFING_WEBHOOK_TOKEN: "roofing-token",
     INTEGRATIONS_LEADCONDUIT_ROOFING_RECEIVER_ENABLED: "true",
   };
@@ -47,7 +47,7 @@ test("enables the generic LeadConduit vendor when either receipt receiver is ena
   const virtualQuote = {
     ...base,
     ACCESS_ROUTE_COMPANY_ID: "00000000-0000-4000-8000-000000000001",
-    LEADCONDUIT_VIRTUAL_QUOTE_FLOW_ID: "virtual-quote-flow",
+    LEADCONDUIT_VIRTUAL_QUOTE_FLOW_ID: "68d597a7e5a45ce2a9c822fe",
     LEADCONDUIT_VIRTUAL_QUOTE_WEBHOOK_TOKEN: "virtual-quote-token",
     INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_RECEIVER_ENABLED: "true",
   };
