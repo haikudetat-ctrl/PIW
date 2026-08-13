@@ -32,10 +32,10 @@ on conflict (id) do nothing;
 
 insert into public.leadconduit_events (
   company_id, event_id, flow_id, source_id, source_name, lead_id, event_type,
-  occurred_at, outcome, phone_normalized, raw_status, raw_payload
+  occurred_at, first_observed_at, outcome, phone_normalized, raw_status, raw_payload
 ) values (
   '00000000-0000-4000-8000-000000000001', 'lc-event-1', 'flow-1', 'source-1',
-  'Meta NJ', 'lc-lead-1', 'source', now(), 'success', '+16095550100', 'accepted', '{}'
+  'Meta NJ', 'lc-lead-1', 'source', now(), now(), 'success', '+16095550100', 'accepted', '{}'
 );
 
 insert into public.leadmaster_records (
@@ -87,9 +87,9 @@ select is(
 );
 select throws_ok(
   $$insert into public.leadconduit_events (
-      company_id, event_id, event_type, occurred_at, raw_payload
+      company_id, event_id, event_type, occurred_at, first_observed_at, raw_payload
     ) values (
-      '00000000-0000-4000-8000-000000000001', 'lc-event-1', 'source', now(), '{}'
+      '00000000-0000-4000-8000-000000000001', 'lc-event-1', 'source', now(), now(), '{}'
     )$$,
   '23505',
   'duplicate key value violates unique constraint "leadconduit_events_company_id_event_id_key"',
