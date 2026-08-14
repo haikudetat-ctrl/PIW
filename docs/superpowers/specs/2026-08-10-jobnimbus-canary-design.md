@@ -29,8 +29,8 @@ The JobNimbus client continues to use Bearer authentication and HTTP `GET` exclu
 
 Connection probes use:
 
-- Contacts: the configured contacts path with `limit=1` and `offset=0`.
-- Jobs: the configured jobs path with `limit=1` and `offset=0`.
+- Contacts: the configured contacts path with `size=1` and `from=0`.
+- Jobs: the configured jobs path with `size=1` and `from=0`.
 
 Each resource result contains:
 
@@ -58,6 +58,7 @@ The initial staging configuration will be:
 JOBNIMBUS_PAGE_LIMIT=50
 JOBNIMBUS_MAX_PAGES=1
 INTEGRATIONS_JOBNIMBUS_ENABLED=false
+INTEGRATIONS_JOBNIMBUS_CANARY_ENABLED=true
 JOBNIMBUS_INCLUDE_SOLD_VALUE=false
 ```
 
@@ -76,7 +77,7 @@ The import action performs these steps as one explicit operator action:
 7. Record a JobNimbus `integration_sync_runs` entry with canary metadata, records seen, records written, and sanitized outcome.
 8. Return counts only to the UI.
 
-The import does not depend on `INTEGRATIONS_JOBNIMBUS_ENABLED`; that flag controls only scheduled ingestion. The manual path is protected by authentication, admin membership, tenant derivation, and the explicit button action.
+The import does not depend on `INTEGRATIONS_JOBNIMBUS_ENABLED`; that flag controls only scheduled ingestion. The manual path additionally requires the default-off `INTEGRATIONS_JOBNIMBUS_CANARY_ENABLED` gate, authentication, admin membership, tenant derivation, and the explicit button action.
 
 Repeated imports are idempotent because the existing upsert keys remain unchanged.
 Contact and job upserts are not a cross-table database transaction. If one persistence step fails after the other succeeds, the run is recorded as failed and the operator can safely rerun the canary without creating duplicates.
@@ -85,7 +86,7 @@ Contact and job upserts are not a cross-table database transaction. If one persi
 
 The JobNimbus drill-down adds a compact connection panel above the records table.
 
-- **Test JobNimbus connection** is always available to an authenticated admin.
+- **Test JobNimbus connection** is available to an authenticated admin only while `INTEGRATIONS_JOBNIMBUS_CANARY_ENABLED=true`.
 - The result lists Contacts and Jobs with success/failure, HTTP status, record count, and field names.
 - **Import limited sample** becomes available only after both probes succeed in the current page session.
 - The server independently reruns the probes before importing; client state is never trusted as authorization or safety proof.
@@ -107,7 +108,7 @@ The JobNimbus drill-down adds a compact connection panel above the records table
 
 Implementation follows test-driven development. Tests will prove:
 
-- probe requests use only `GET`, `limit=1`, `offset=0`, and Bearer authentication;
+- probe requests use only `GET`, `size=1`, `from=0`, and Bearer authentication;
 - probe responses contain field names but no field values;
 - invalid JSON and relevant HTTP statuses map to sanitized categories;
 - unauthenticated and non-admin callers cannot probe or import;
@@ -120,7 +121,7 @@ Implementation follows test-driven development. Tests will prove:
 
 ## Deployment and acceptance
 
-1. Add the two limit variables to Vercel Production and Preview while keeping the integration flag false.
+1. Add the two limit variables and the dedicated canary flag to the PIW staging deployment. Keep both scheduled ingestion and the canary false until the controlled test window.
 2. Deploy the implementation to the existing PIW staging host.
 3. Sign in as the staging administrator.
 4. Run **Test JobNimbus connection**.
@@ -128,6 +129,7 @@ Implementation follows test-driven development. Tests will prove:
 6. Run one limited sample import.
 7. Verify the resulting `integration_sync_runs` row and confirm no more than 50 contacts and 50 jobs were written for the primary staging tenant.
 8. Verify tenant isolation and confirm the JobNimbus API received only `GET` requests.
+9. Return `INTEGRATIONS_JOBNIMBUS_CANARY_ENABLED=false` after the canary window.
 
 The recurring JobNimbus schedule remains disabled after acceptance. Enabling it requires a separate explicit decision.
 

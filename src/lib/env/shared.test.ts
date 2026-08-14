@@ -19,6 +19,7 @@ describe("parseServerEnv", () => {
     expect(environment.COST_INTELLIGENCE_ENABLED).toBe(false);
     expect(environment.INTEGRATIONS_LEADMASTER_ENABLED).toBe(false);
     expect(environment.INTEGRATIONS_JOBNIMBUS_ENABLED).toBe(false);
+    expect(environment.INTEGRATIONS_JOBNIMBUS_CANARY_ENABLED).toBe(false);
     expect(environment.INTEGRATIONS_CALLTOOLS_ENABLED).toBe(false);
     expect(environment.JOBNIMBUS_PAGE_LIMIT).toBe(50);
     expect(environment.JOBNIMBUS_MAX_PAGES).toBe(1);

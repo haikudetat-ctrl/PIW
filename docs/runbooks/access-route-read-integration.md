@@ -6,6 +6,8 @@ LeadConduit API reading is paused, unscheduled, and not required by the direct r
 
 The remaining operational material applies only to the separately scoped LeadMaster and JobNimbus read paths. It does not create or update records in any vendor system and does not change production routing.
 
+The generic `/api/integrations/[vendor]` POST route is hard-disabled for LeadMaster, JobNimbus, and CallTools. Scheduled read flags cannot activate inbound webhook receipt, and the route performs no tenant lookup, body parsing, persistence, or enqueueing.
+
 ## What is deployed
 
 - An Inngest schedule runs every 30 minutes in `America/New_York` for approved LeadMaster and JobNimbus reads.
@@ -40,6 +42,7 @@ JobNimbus:
 - `JOBNIMBUS_PAGE_LIMIT=50`
 - `JOBNIMBUS_MAX_PAGES=1`
 - `JOBNIMBUS_INCLUDE_SOLD_VALUE=false` unless the business owner explicitly approves that field.
+- `INTEGRATIONS_JOBNIMBUS_CANARY_ENABLED=false` except during an approved, attended staging canary window.
 - Keep `INTEGRATIONS_JOBNIMBUS_ENABLED=false` during the staging canary. Confirm both paths against the granted account before any later decision to enable scheduled ingestion. JobNimbus’s current public Platform documentation exposes Bearer authentication but does not list contacts/jobs in its visible service registry, so the paths are deliberately configurable.
 
 Do not grant Delete, billing/settings, or cost/margin permissions. Cost, margin, profit, and commission fields are redacted defensively if a mis-scoped profile returns them. `sold_value` remains null unless its dedicated approval flag is enabled.
@@ -57,14 +60,15 @@ Do not grant Delete, billing/settings, or cost/margin permissions. Cost, margin,
 
 ## JobNimbus staging canary
 
-The authenticated JobNimbus drill-down at `/access-route/jobnimbus` provides a deliberately separate staging path. It does not depend on `INTEGRATIONS_JOBNIMBUS_ENABLED` and never writes to JobNimbus.
+The authenticated JobNimbus drill-down at `/access-route/jobnimbus` provides a deliberately separate staging path. It does not depend on `INTEGRATIONS_JOBNIMBUS_ENABLED`, requires `INTEGRATIONS_JOBNIMBUS_CANARY_ENABLED=true`, and never writes to JobNimbus.
 
 1. Confirm the API key and the JobNimbus paths are set in the staging deployment only.
-2. Confirm `INTEGRATIONS_JOBNIMBUS_ENABLED=false`, `JOBNIMBUS_PAGE_LIMIT=50`, `JOBNIMBUS_MAX_PAGES=1`, and `JOBNIMBUS_INCLUDE_SOLD_VALUE=false`.
+2. Confirm `INTEGRATIONS_JOBNIMBUS_ENABLED=false`, `JOBNIMBUS_PAGE_LIMIT=50`, `JOBNIMBUS_MAX_PAGES=1`, and `JOBNIMBUS_INCLUDE_SOLD_VALUE=false`; then temporarily set `INTEGRATIONS_JOBNIMBUS_CANARY_ENABLED=true` for the attended test window.
 3. Sign in as a staging administrator and select **Test JobNimbus connection**.
 4. Verify that both contacts and jobs report a successful HTTP status. The result intentionally shows only status, record count, and field names; it never displays customer values.
 5. Only after both probes pass, select **Import limited sample** once. The server repeats both probes before importing, binds all records to the signed-in administrator's company, and enforces the configured page and record caps.
 6. Record only the sync-run identifier, outcome, counts, and timestamps. Verify that the control tenant has no new JobNimbus rows.
+7. Return `INTEGRATIONS_JOBNIMBUS_CANARY_ENABLED=false` after the canary.
 
 If either probe fails, do not import. Record the endpoint, HTTP status, and sanitized error category (`authentication`, `authorization`, `rate_limit`, `upstream`, or `invalid_response`) without copying response bodies into logs or tickets.
 

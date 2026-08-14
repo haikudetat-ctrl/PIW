@@ -81,7 +81,7 @@ describe("importJobNimbusCanary", () => {
     const store = repository();
     const fetcher = vi.fn<typeof fetch>().mockImplementation(async (input) => {
       const url = new URL(String(input));
-      const isProbe = url.searchParams.get("limit") === "1";
+      const isProbe = url.searchParams.get("size") === "1";
       if (url.pathname.includes("contacts")) {
         return jsonResponse(isProbe
           ? [{ id: "contact-probe", email: "hidden@example.com" }]

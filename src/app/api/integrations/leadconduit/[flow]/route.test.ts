@@ -129,6 +129,7 @@ function makeDependencies(overrides: Partial<LeadConduitShadowRouteDependencies>
       return input.rows.length;
     },
     now: () => NOW,
+    reportOutcome: () => undefined,
     ...overrides,
   };
   return { deps, persisted, rowsByEventId };
@@ -315,6 +316,48 @@ describe("LeadConduit shadow receipt bounded parsing", () => {
 });
 
 describe("LeadConduit shadow receipt persistence", () => {
+  it("reports only allowlisted receipt telemetry", async () => {
+    const secret = "synthetic-homeowner-value-that-must-not-be-logged";
+    const reportOutcome = vi.fn();
+    const dependencies = makeDependencies({ reportOutcome });
+
+    const result = await handleLeadConduitShadowRequest(
+      request(payload({
+        lead: { ...payload().lead, name: secret },
+        corelogic: { ...payload().corelogic, building_comments: "APARTMENT HOUSE" },
+      }), { authorization: `Bearer ${ACTIVE_TOKEN}` }),
+      "roofing",
+      dependencies.deps,
+    );
+
+    expect(result).toEqual({ status: 200, body: { outcome: "success" } });
+    expect(reportOutcome).toHaveBeenCalledWith({
+      flow: "roofing",
+      status: 200,
+      outcome: "success",
+      candidateCategoryCount: 1,
+      isTest: true,
+    });
+    expect(JSON.stringify(reportOutcome.mock.calls)).not.toContain(secret);
+  });
+
+  it("does not let telemetry failure change a persisted success response", async () => {
+    const dependencies = makeDependencies({
+      reportOutcome: () => {
+        throw new Error("synthetic telemetry failure");
+      },
+    });
+
+    const result = await handleLeadConduitShadowRequest(
+      request(payload(), { authorization: `Bearer ${ACTIVE_TOKEN}` }),
+      "roofing",
+      dependencies.deps,
+    );
+
+    expect(result).toEqual({ status: 200, body: { outcome: "success" } });
+    expect(dependencies.persisted).toHaveLength(1);
+  });
+
   it.each([
     ["apartment", payload({ corelogic: { ...payload().corelogic, building_comments: "APARTMENT HOUSE" } }), "apartment_classification"],
     ["Roofing multiple-property", payload({ corelogic: { ...payload().corelogic, reason: "Incomplete address. Multiple property results returned." } }), "multiple_property_match"],

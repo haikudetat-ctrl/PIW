@@ -42,6 +42,7 @@ function jobNimbusClient() {
 }
 
 const handlers = createJobNimbusActionHandlers({
+  isCanaryEnabled: () => parseServerEnv(process.env).INTEGRATIONS_JOBNIMBUS_CANARY_ENABLED,
   getAdminCompanyId,
   probe: () => jobNimbusClient().probe(),
   importSample: async (companyId) => {

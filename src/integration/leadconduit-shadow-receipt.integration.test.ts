@@ -131,6 +131,7 @@ describe.runIf(runIntegration)("LeadConduit shadow receipt local persistence", (
           input.companyId === companyA ? repositoryA.upsertLeadConduitEvents(input) : repositoryB.upsertLeadConduitEvents(input)
         ),
         now: () => new Date("2026-08-12T16:01:00.000Z"),
+        reportOutcome: () => undefined,
       };
       const candidateA = receiptPayload({ flowId: flowA, leadId: "shared-synthetic-lead", buildingComments: "APARTMENT HOUSE" });
       const concurrentCandidateA = receiptPayload({ flowId: flowA, leadId: "concurrent-synthetic-lead", buildingComments: "APARTMENT HOUSE" });

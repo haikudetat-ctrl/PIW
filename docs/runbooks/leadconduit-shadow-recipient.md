@@ -2,6 +2,13 @@
 
 This document is a future configuration checklist for a direct, sanitized shadow receipt. It does not authorize a LeadConduit flow edit, recipient enablement, deployment, token provisioning, or a request containing client data.
 
+## Current phase status
+
+- Phase A implementation and local verification are complete.
+- The disabled Phase B receiver deployment is present on the dedicated PIW staging stack.
+- Both receiver flags remain false.
+- Phase C flow insertion, token rotation, and authenticated synthetic testing are not approved or started.
+
 ## Intended recipients
 
 Create a new Custom JSON recipient only after separate approval for Phase B deployment and Phase C LeadConduit edits:
@@ -14,6 +21,8 @@ Create a new Custom JSON recipient only after separate approval for Phase B depl
 The recipient must be a **Custom JSON** recipient. Configure bearer authorization from the server-managed token only; never put a token value in this document, a template URL, a test payload, or a ticket. Set `Content-Type: application/json`. The expected successful PIW response is `{ "outcome": "success" }`.
 
 Do not add a filter based on PIW outcome. Do not reorder, delete, or change any existing LeadConduit step.
+
+Before enabling a recipient, prove in LeadConduit Test Flow that timeout, non-2xx, and network-failure outcomes continue to the existing downstream steps. PIW persists before returning success, so the recipient must be configured fail-open from the client flow's perspective. Stop if that continuation behavior cannot be demonstrated.
 
 ## Schema version 1 body
 
@@ -89,6 +98,12 @@ Stop immediately if the system lead ID, built-in Source ID/name, metadata types,
 ## Synthetic-only rollout and rollback
 
 All Phase C checks are synthetic-only. Do not send client values. If any check fails, disable or remove only the new PIW recipient. Leave every existing step, destination, order, and filter unchanged.
+
+PIW emits structured receipt telemetry limited to flow slug, HTTP status, sanitized outcome category, candidate-category count, test marker, and latency. Payload values, authorization data, contact fields, CoreLogic values, and persistence errors must never be logged.
+
+## Retention gate
+
+No live candidate traffic may be enabled until the business owner approves a written retention and deletion schedule for candidate contact/address evidence. Non-candidate receipts already discard homeowner and CoreLogic values. Synthetic rows may be removed only with separate approval scoped to exact `is_test=true` event IDs; there is no blanket or automated deletion authorization.
 
 ## Approval checklist
 

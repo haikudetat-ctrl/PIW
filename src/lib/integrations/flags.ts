@@ -10,7 +10,7 @@ export const INTEGRATION_VENDORS = [
 export type IntegrationVendor = (typeof INTEGRATION_VENDORS)[number];
 
 // LeadConduit is intentionally excluded: its webhook route is tenant-bound
-// and flow-bound, while these vendors use the generic primary-company route.
+// and flow-bound. The remaining generic webhook paths are hard-disabled.
 export const GENERIC_WEBHOOK_VENDORS = ["leadmaster", "jobnimbus", "calltools"] as const;
 export type GenericWebhookVendor = (typeof GENERIC_WEBHOOK_VENDORS)[number];
 
