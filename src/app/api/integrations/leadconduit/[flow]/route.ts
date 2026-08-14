@@ -18,6 +18,15 @@ export type LeadConduitShadowRouteDependencies = {
   getBinding(flow: string): LeadConduitFlowBinding | null;
   persist(input: LeadConduitEventBatch): Promise<number>;
   now(): Date;
+  reportOutcome(input: LeadConduitReceiptTelemetry): void;
+};
+
+export type LeadConduitReceiptTelemetry = {
+  flow: "roofing" | "roofing-virtual-quote" | "unknown";
+  status: 200 | 400 | 401 | 413 | 503;
+  outcome: "success" | "disabled" | "unauthorized" | "invalid_payload" | "payload_too_large" | "persistence";
+  candidateCategoryCount?: number;
+  isTest?: boolean;
 };
 
 type LeadConduitShadowRouteResult = {
@@ -96,53 +105,71 @@ export async function handleLeadConduitShadowRequest(
   dependencies: LeadConduitShadowRouteDependencies,
 ): Promise<LeadConduitShadowRouteResult> {
   const binding = dependencies.getBinding(flow);
+  const report = (
+    result: LeadConduitShadowRouteResult,
+    outcome: LeadConduitReceiptTelemetry["outcome"],
+    details: Pick<LeadConduitReceiptTelemetry, "candidateCategoryCount" | "isTest"> = {},
+  ) => {
+    try {
+      dependencies.reportOutcome({
+        flow: binding?.slug ?? "unknown",
+        status: result.status,
+        outcome,
+        ...details,
+      });
+    } catch {
+      // Telemetry is best-effort and must never affect receipt semantics.
+    }
+    return result;
+  };
   if (!binding || !binding.receiptEnabled) {
-    return { status: 503, body: { outcome: "retry", category: "disabled" } };
+    return report({ status: 503, body: { outcome: "retry", category: "disabled" } }, "disabled");
   }
 
   const now = dependencies.now();
   if (!hasValidBearerToken(extractBearerToken(request), binding, now)) {
-    return { status: 401, body: { outcome: "unauthorized" } };
+    return report({ status: 401, body: { outcome: "unauthorized" } }, "unauthorized");
   }
 
   if (!isJsonContentType(request)) {
-    return { status: 400, body: { outcome: "invalid", category: "invalid_payload" } };
+    return report({ status: 400, body: { outcome: "invalid", category: "invalid_payload" } }, "invalid_payload");
   }
 
   let text: string | null;
   try {
     text = await readBoundedBody(request);
   } catch {
-    return { status: 400, body: { outcome: "invalid", category: "invalid_payload" } };
+    return report({ status: 400, body: { outcome: "invalid", category: "invalid_payload" } }, "invalid_payload");
   }
   if (text === null) {
-    return { status: 413, body: { outcome: "retry", category: "payload_too_large" } };
+    return report({ status: 413, body: { outcome: "retry", category: "payload_too_large" } }, "payload_too_large");
   }
 
   let rawPayload: unknown;
   try {
     rawPayload = JSON.parse(text);
   } catch {
-    return { status: 400, body: { outcome: "invalid", category: "invalid_payload" } };
+    return report({ status: 400, body: { outcome: "invalid", category: "invalid_payload" } }, "invalid_payload");
   }
 
   if (hasTrustedBindingMismatch(rawPayload, binding)) {
-    return { status: 401, body: { outcome: "unauthorized" } };
+    return report({ status: 401, body: { outcome: "unauthorized" } }, "unauthorized");
   }
 
   const parsed = parseLeadConduitShadowPayload(rawPayload);
   if (!parsed.ok) {
-    return {
+    return report({
       status: 400,
       body: { outcome: "invalid", category: "invalid_payload", invalidFields: parsed.invalidFields },
-    };
+    }, "invalid_payload");
   }
 
   const observedAt = now.toISOString();
+  const categories = classifyLeadConduitShadow({ flowSlug: binding.slug, payload: parsed.value });
   const event = toLeadConduitShadowEvent({
     binding,
     payload: parsed.value,
-    categories: classifyLeadConduitShadow({ flowSlug: binding.slug, payload: parsed.value }),
+    categories,
     observedAt,
   });
 
@@ -155,10 +182,16 @@ export async function handleLeadConduitShadowRequest(
       rows: [event],
     });
   } catch {
-    return { status: 503, body: { outcome: "retry", category: "persistence" } };
+    return report({ status: 503, body: { outcome: "retry", category: "persistence" } }, "persistence", {
+      candidateCategoryCount: categories.length,
+      isTest: parsed.value.is_test,
+    });
   }
 
-  return { status: 200, body: { outcome: "success" } };
+  return report({ status: 200, body: { outcome: "success" } }, "success", {
+    candidateCategoryCount: categories.length,
+    isTest: parsed.value.is_test,
+  });
 }
 
 export async function POST(
@@ -167,11 +200,18 @@ export async function POST(
 ) {
   const { flow } = await params;
   const environment = parseServerEnv(process.env);
+  const startedAt = performance.now();
 
   const result = await handleLeadConduitShadowRequest(request, flow, {
     getBinding: (candidateFlow) => getLeadConduitFlowBinding(candidateFlow, environment),
     persist: async (input) => new SupabaseAccessRouteRepository(createServiceClient()).upsertLeadConduitEvents(input),
     now: () => new Date(),
+    reportOutcome: (telemetry) => {
+      console.info("leadconduit_shadow_receipt", {
+        ...telemetry,
+        latencyMs: Math.max(0, Math.round(performance.now() - startedAt)),
+      });
+    },
   });
 
   return NextResponse.json(result.body, { status: result.status });

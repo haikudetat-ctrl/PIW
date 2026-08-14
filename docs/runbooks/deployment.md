@@ -4,6 +4,10 @@ Procedure for standing up the PIW foundation in Supabase, Inngest, and
 Vercel. Account-level changes require an authenticated operator or connector;
 the checked-in migrations and CI gates remain the source of truth.
 
+## Current PIW staging semantics
+
+As of August 14, 2026, `https://piw-sepia.vercel.app` is the dedicated PIW staging application even though Vercel labels its deployment target `Production`. Its database is the dedicated Supabase staging project `qituolbocxnoxcmkqrva`. Do not interpret the Vercel target label as authorization for customer production traffic, and do not substitute an older project reference from another runbook.
+
 ## 1. Create Supabase projects
 
 Create two Supabase projects: one for **production** and one for **preview**.
@@ -58,6 +62,18 @@ signing keys, since that prefix ships the value to the browser bundle:
 | `INNGEST_EVENT_KEY` | prod event key | preview/dev event key |
 | `INNGEST_SIGNING_KEY` | prod signing key | preview/dev signing key |
 | `PAID_PROVIDERS_ENABLED` | `true` to process consented estimates | `false` (enforced — preview cannot enable paid providers) |
+| `ACCESS_ROUTE_COMPANY_ID` | server-bound staging tenant UUID | preview tenant UUID or blank |
+| `INTEGRATIONS_LEADCONDUIT_ROOFING_RECEIVER_ENABLED` | `false` until separately approved | `false` |
+| `INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_RECEIVER_ENABLED` | `false` until separately approved | `false` |
+| `LEADCONDUIT_ROOFING_FLOW_ID` / `LEADCONDUIT_VIRTUAL_QUOTE_FLOW_ID` | exact approved flow IDs | blank |
+| `LEADCONDUIT_*_WEBHOOK_TOKEN` / `_NEXT` / `_NEXT_EXPIRES_AT` | server-only per-flow values | separate synthetic values or blank |
+| `INTEGRATIONS_LEADMASTER_ENABLED` | `false` until read approval | `false` |
+| `INTEGRATIONS_JOBNIMBUS_ENABLED` | `false` until recurring-read approval | `false` |
+| `INTEGRATIONS_JOBNIMBUS_CANARY_ENABLED` | `true` only during an attended staging canary | `false` |
+| `JOBNIMBUS_API_KEY` / `JOBNIMBUS_BASE_URL` / paths | read-only staging credential and `/api1` paths | blank |
+| `JOBNIMBUS_PAGE_LIMIT` / `JOBNIMBUS_MAX_PAGES` | `50` / `1` for a canary | `50` / `1` |
+| `JOBNIMBUS_INCLUDE_SOLD_VALUE` | `false` | `false` |
+| `INTEGRATIONS_CALLTOOLS_ENABLED` | `false` | `false` |
 | `GOOGLE_MAPS_API_KEY` | server-restricted key with Places API (New), Solar API, and Maps Static API access | blank |
 | `GOOGLE_MAPS_BROWSER_API_KEY` | browser key restricted by HTTP referrer; Maps JavaScript API + Places API (New) only | preview-domain browser key or blank |
 | `ROOF_ESTIMATE_COMPANY_ID` | company UUID receiving public leads | preview company UUID if form testing is needed |
@@ -81,6 +97,8 @@ Solar API, and Maps Static API, and never expose it to the browser. Restrict
 `https://piw-sepia.vercel.app/*`) and by API to Maps JavaScript API and Places
 API (New). The form falls back to manual address entry when the browser key is
 not configured or Google cannot load.
+
+The generic vendor webhook is intentionally hard-disabled and has no shared-secret setting. LeadMaster and JobNimbus flags control scheduled reads only. Remove obsolete `INTEGRATIONS_LEADCONDUIT_ENABLED` and `INTEGRATIONS_WEBHOOK_SHARED_SECRET` values from deployment configuration if present; neither authorizes a receiver.
 
 ## 6. Connect GitHub to Vercel
 

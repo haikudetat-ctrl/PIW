@@ -32,9 +32,52 @@ const successfulImport: JobNimbusCanaryResult = {
 };
 
 describe("JobNimbus action handlers", () => {
+  it("rejects probes while the dedicated canary gate is disabled", async () => {
+    const handlers = createJobNimbusActionHandlers({
+      isCanaryEnabled: () => false,
+      getAdminCompanyId: vi.fn(() => {
+        throw new Error("admin lookup must not run");
+      }),
+      probe: vi.fn(() => {
+        throw new Error("vendor request must not run");
+      }),
+      importSample: vi.fn(),
+      revalidate: vi.fn(),
+    });
+
+    await expect(
+      handlers.testConnection(idleJobNimbusActionState, new FormData()),
+    ).resolves.toEqual({
+      status: "failed",
+      message: "JobNimbus staging canary is disabled.",
+    });
+  });
+
+  it("rejects imports while the dedicated canary gate is disabled", async () => {
+    const handlers = createJobNimbusActionHandlers({
+      isCanaryEnabled: () => false,
+      getAdminCompanyId: vi.fn(() => {
+        throw new Error("admin lookup must not run");
+      }),
+      probe: vi.fn(),
+      importSample: vi.fn(() => {
+        throw new Error("vendor request must not run");
+      }),
+      revalidate: vi.fn(),
+    });
+
+    await expect(
+      handlers.importSample(idleJobNimbusActionState, new FormData()),
+    ).resolves.toEqual({
+      status: "failed",
+      message: "JobNimbus staging canary is disabled.",
+    });
+  });
+
   it("rejects unauthenticated probes before any vendor request", async () => {
     const probe = vi.fn().mockResolvedValue(successfulProbe);
     const handlers = createJobNimbusActionHandlers({
+      isCanaryEnabled: () => true,
       getAdminCompanyId: vi.fn().mockResolvedValue(null),
       probe,
       importSample: vi.fn(),
@@ -52,6 +95,7 @@ describe("JobNimbus action handlers", () => {
 
   it("returns only the sanitized probe contract", async () => {
     const handlers = createJobNimbusActionHandlers({
+      isCanaryEnabled: () => true,
       getAdminCompanyId: vi.fn().mockResolvedValue("company-a"),
       probe: vi.fn().mockResolvedValue(successfulProbe),
       importSample: vi.fn(),
@@ -68,6 +112,7 @@ describe("JobNimbus action handlers", () => {
     const importSample = vi.fn().mockResolvedValue(successfulImport);
     const revalidate = vi.fn();
     const handlers = createJobNimbusActionHandlers({
+      isCanaryEnabled: () => true,
       getAdminCompanyId: vi.fn().mockResolvedValue("company-a"),
       probe: vi.fn(),
       importSample,
@@ -86,6 +131,7 @@ describe("JobNimbus action handlers", () => {
   it("does not revalidate after a failed canary import", async () => {
     const revalidate = vi.fn();
     const handlers = createJobNimbusActionHandlers({
+      isCanaryEnabled: () => true,
       getAdminCompanyId: vi.fn().mockResolvedValue("company-a"),
       probe: vi.fn(),
       importSample: vi.fn().mockResolvedValue({

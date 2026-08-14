@@ -18,6 +18,7 @@ export type JobNimbusActionState = {
 export const idleJobNimbusActionState: JobNimbusActionState = { status: "idle" };
 
 type JobNimbusActionDependencies = {
+  isCanaryEnabled: () => boolean;
   getAdminCompanyId: () => Promise<string | null>;
   probe: () => Promise<JobNimbusProbe>;
   importSample: (companyId: string) => Promise<JobNimbusCanaryResult>;
@@ -36,6 +37,9 @@ export function createJobNimbusActionHandlers(dependencies: JobNimbusActionDepen
     ): Promise<JobNimbusActionState> {
       void previous;
       void formData;
+      if (!dependencies.isCanaryEnabled()) {
+        return { status: "failed", message: "JobNimbus staging canary is disabled." };
+      }
       const companyId = await requireCompanyId();
       if (!companyId) {
         return { status: "failed", message: "Administrator access is required." };
@@ -53,6 +57,9 @@ export function createJobNimbusActionHandlers(dependencies: JobNimbusActionDepen
     ): Promise<JobNimbusActionState> {
       void previous;
       void formData;
+      if (!dependencies.isCanaryEnabled()) {
+        return { status: "failed", message: "JobNimbus staging canary is disabled." };
+      }
       const companyId = await requireCompanyId();
       if (!companyId) {
         return { status: "failed", message: "Administrator access is required." };

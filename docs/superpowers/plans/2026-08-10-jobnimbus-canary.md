@@ -37,7 +37,7 @@
 
 - [ ] **Step 1: Write failing environment and pagination tests**
 
-Add assertions that server parsing defaults to 50/1, rejects values above 500/25, and that a client configured with `{ pageLimit: 2, maxPages: 1 }` sends `limit=2`, `offset=0`, and stops after one page.
+Add assertions that server parsing defaults to 50/1, rejects values above 500/25, and that a client configured with `{ pageLimit: 2, maxPages: 1 }` sends `size=2`, `from=0`, and stops after one page.
 
 ```ts
 it("caps a JobNimbus read to the configured page size and page count", async () => {
@@ -54,8 +54,8 @@ it("caps a JobNimbus read to the configured page size and page count", async () 
   expect(await client.contacts()).toHaveLength(2);
   expect(fetcher).toHaveBeenCalledTimes(1);
   const url = new URL(String(fetcher.mock.calls[0][0]));
-  expect(url.searchParams.get("limit")).toBe("2");
-  expect(url.searchParams.get("offset")).toBe("0");
+  expect(url.searchParams.get("size")).toBe("2");
+  expect(url.searchParams.get("from")).toBe("0");
 });
 ```
 
@@ -147,7 +147,7 @@ Expected: FAIL because `probe()` and `JobNimbusProbeResult` do not exist.
 
 - [ ] **Step 3: Implement the minimal probe**
 
-Add a single-request helper that always sets `limit=1` and `offset=0`, captures the HTTP status, parses JSON, passes the body through `asArray`, and returns only `Object.keys(rows[0] ?? {}).sort()`.
+Add a single-request helper that always sets `size=1` and `from=0`, captures the HTTP status, parses JSON, passes the body through `asArray`, and returns only `Object.keys(rows[0] ?? {}).sort()`.
 
 The helper must use the existing status-category mapping exported from `http.ts` and must not call the paginated import path.
 
