@@ -82,13 +82,17 @@ describe("All Season lead intake", () => {
   });
 
   test("returns a retryable response when persistence fails", async () => {
+    const reportError = vi.fn();
+    const persistenceError = new Error("database unavailable");
     const response = await handleAllSeasonIntakeRequest(request(validPayload), {
       expectedSecret: "shared-secret",
+      reportError,
       accept: async () => {
-        throw new Error("database unavailable");
+        throw persistenceError;
       },
     });
 
     expect(response.status).toBe(503);
+    expect(reportError).toHaveBeenCalledWith(persistenceError);
   });
 });

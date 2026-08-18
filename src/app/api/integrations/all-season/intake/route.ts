@@ -34,6 +34,7 @@ export type AllSeasonIntake = z.infer<typeof allSeasonIntakeSchema>;
 type IntakeDependencies = {
   expectedSecret: string;
   accept: (payload: AllSeasonIntake) => Promise<{ leadId: string; duplicate: boolean }>;
+  reportError?: (error: unknown) => void;
 };
 
 function secretsMatch(actual: string, expected: string) {
@@ -58,7 +59,8 @@ export async function handleAllSeasonIntakeRequest(
   try {
     const accepted = await dependencies.accept(parsed.data);
     return NextResponse.json({ accepted: true, ...accepted }, { status: 202 });
-  } catch {
+  } catch (error) {
+    (dependencies.reportError ?? console.error)(error);
     return NextResponse.json({ error: "Lead intake is temporarily unavailable" }, { status: 503 });
   }
 }
