@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(14);
+select plan(16);
 
 select has_column('public', 'leads', 'source_submitted_at', 'leads retain source submission time');
 select has_function(
@@ -61,6 +61,14 @@ select is(
 select is(
   (select count(*) from public.pipeline_runs where id = (select pipeline_run_id from first_submission)),
   1::bigint, 'submission starts one PIW pipeline run'
+);
+select is(
+  (select count(*) from public.roof_estimates where lead_id = (select lead_id from first_submission)),
+  1::bigint, 'submission starts one roof estimate for Solar enrichment'
+);
+select is(
+  (select google_place_id from public.roof_estimates where lead_id = (select lead_id from first_submission)),
+  'ChIJ-selected', 'roof estimate retains the selected Google Place ID'
 );
 
 create temp table duplicate_submission as
