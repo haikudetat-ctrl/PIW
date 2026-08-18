@@ -109,7 +109,16 @@ export async function POST(request: NextRequest) {
               p_phone_e164: lead.phoneE164 ?? "",
               p_email_normalized: lead.emailNormalized,
             });
-            if (error || !data?.[0]) throw new Error("Failed to create All Season lead");
+            if (error) {
+              console.error("All Season Supabase RPC failed", {
+                code: error.code,
+                message: error.message,
+                details: error.details,
+                hint: error.hint,
+              });
+              throw new Error("Failed to create All Season lead");
+            }
+            if (!data?.[0]) throw new Error("All Season lead RPC returned no rows");
             return {
               leadId: data[0].lead_id,
               propertyId: data[0].property_id,
