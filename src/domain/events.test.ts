@@ -61,6 +61,30 @@ describe("crm/lead.submitted event", () => {
       propertyId: "66666666-6666-4666-8666-666666666666",
     });
   });
+
+  test.each(["solar", "both"] as const)(
+    "accepts %s as the requested service",
+    (serviceRequested) => {
+      const event = createEventEnvelope({
+        name: "crm/lead.submitted",
+        correlationId: "11111111-1111-4111-8111-111111111111",
+        pipelineRunId: "22222222-2222-4222-8222-222222222222",
+        leadId: "55555555-5555-4555-8555-555555555555",
+        propertyId: "66666666-6666-4666-8666-666666666666",
+        data: {
+          leadId: "55555555-5555-4555-8555-555555555555",
+          propertyId: "66666666-6666-4666-8666-666666666666",
+          name: "Jordan Rivera",
+          phone: "555-010-1000",
+          email: "jordan@example.com",
+          submittedAddress: "12 Birch St, Trenton, NJ",
+          serviceRequested,
+        },
+      });
+
+      expect(eventEnvelopeSchema.parse(event).data).toMatchObject({ serviceRequested });
+    },
+  );
 });
 
 describe("appointments/rep.assigned event", () => {

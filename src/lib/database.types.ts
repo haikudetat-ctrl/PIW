@@ -1891,6 +1891,7 @@ export type Database = {
           service_requested: string
           source_account_id: string | null
           source_record_id: string | null
+          source_submitted_at: string | null
           source_system: string
           speed_to_lead_status: string
           stage: Database["public"]["Enums"]["lead_stage"]
@@ -1927,6 +1928,7 @@ export type Database = {
           service_requested?: string
           source_account_id?: string | null
           source_record_id?: string | null
+          source_submitted_at?: string | null
           source_system?: string
           speed_to_lead_status?: string
           stage?: Database["public"]["Enums"]["lead_stage"]
@@ -1963,6 +1965,7 @@ export type Database = {
           service_requested?: string
           source_account_id?: string | null
           source_record_id?: string | null
+          source_submitted_at?: string | null
           source_system?: string
           speed_to_lead_status?: string
           stage?: Database["public"]["Enums"]["lead_stage"]
@@ -3527,6 +3530,31 @@ export type Database = {
           property_id: string
         }[]
       }
+      submit_all_season_lead: {
+        Args: {
+          p_attribution: Json
+          p_company_id: string
+          p_disclosure_version: string
+          p_email: string
+          p_email_normalized: string
+          p_ip_address: string
+          p_name: string
+          p_phone: string
+          p_phone_e164: string
+          p_pipeline_version: number
+          p_service_requested: string
+          p_submission_id: string
+          p_submitted_address: string
+          p_submitted_at: string
+          p_user_agent: string
+        }
+        Returns: {
+          is_duplicate: boolean
+          lead_id: string
+          pipeline_run_id: string
+          property_id: string
+        }[]
+      }
       submit_lead_intake: {
         Args: {
           p_company_id: string
@@ -3896,4 +3924,3 @@ export const Constants = {
     },
   },
 } as const
-
