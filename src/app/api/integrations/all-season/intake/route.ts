@@ -111,6 +111,7 @@ export async function POST(request: NextRequest) {
             });
             if (error) {
               console.error("All Season Supabase RPC failed", {
+                supabaseHost: new URL(environment.NEXT_PUBLIC_SUPABASE_URL).host,
                 code: error.code,
                 message: error.message,
                 details: error.details,
