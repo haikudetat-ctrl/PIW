@@ -8,6 +8,7 @@ const validPayload = {
   email: "alex@example.com",
   phone: "201-555-0100",
   address: "1 Main St, Newark, NJ",
+  google_place_id: "ChIJ-selected",
   project_interest: "solar" as const,
   consent_to_contact: true as const,
   consent_to_process_property: true as const,
@@ -68,6 +69,32 @@ describe("All Season lead intake", () => {
       );
     },
   );
+
+  test("canonicalizes a selected Google Place before accepting the lead", async () => {
+    const accept = vi.fn(async () => ({
+      leadId: "22222222-2222-4222-8222-222222222222",
+      duplicate: false,
+    }));
+    const normalizeAddress = vi.fn(async () =>
+      "354 Stockton St, Princeton, NJ 08540, USA"
+    );
+
+    const response = await handleAllSeasonIntakeRequest(request(validPayload), {
+      expectedSecret: "shared-secret",
+      accept,
+      normalizeAddress,
+    });
+
+    expect(response.status).toBe(202);
+    expect(normalizeAddress).toHaveBeenCalledWith({
+      submittedAddress: "1 Main St, Newark, NJ",
+      googlePlaceId: "ChIJ-selected",
+    });
+    expect(accept).toHaveBeenCalledWith(expect.objectContaining({
+      address: "354 Stockton St, Princeton, NJ 08540, USA",
+      google_place_id: "ChIJ-selected",
+    }));
+  });
 
   test("rejects a lead without property-processing consent", async () => {
     const accept = vi.fn();

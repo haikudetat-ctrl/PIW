@@ -34,10 +34,16 @@
 .as-quote-choice span{display:grid;min-height:43px;place-items:center;padding:9px 12px;border:1px solid var(--as-line);border-radius:8px;background:var(--as-field);color:var(--as-muted);font-size:.78rem;font-weight:800}
 .as-quote-choice input:checked+span{border-color:var(--as-blue);background:color-mix(in srgb,var(--as-blue),var(--as-surface) 91%);color:var(--as-text);box-shadow:inset 0 -3px 0 var(--as-blue)}
 .as-quote-field{min-width:0}
+.as-quote-address-field{position:relative;grid-column:1/-1}
 .as-quote-label{display:block;margin:0 0 6px;color:var(--as-muted);font-size:.72rem;font-weight:800}
 .as-quote-input{width:100%;min-height:48px;padding:11px 12px;border:1px solid var(--as-line);border-radius:8px;background:var(--as-field);color:var(--as-text);font:600 .84rem/1.35 Manrope,system-ui,sans-serif}
 .as-quote-input::placeholder{color:var(--as-muted);opacity:.78}
 .as-quote-error{display:block;min-height:14px;margin-top:3px;color:#b3261e;font-size:.65rem}
+.as-quote-address-options{position:absolute;z-index:3;top:72px;right:0;left:0;overflow:hidden;border:1px solid var(--as-line);border-radius:8px;background:var(--as-surface);box-shadow:0 16px 32px -20px rgba(7,52,93,.72)}
+.as-quote-address-options[hidden]{display:none}
+.as-quote-address-option{display:block;width:100%;padding:11px 12px;border:0;border-bottom:1px solid var(--as-line);background:transparent;color:var(--as-text);cursor:pointer;text-align:left;font:600 .75rem/1.35 Manrope,system-ui,sans-serif}
+.as-quote-address-option:hover,.as-quote-address-option:focus-visible{background:color-mix(in srgb,var(--as-blue),var(--as-surface) 91%)}
+.as-quote-google-attribution{display:block;padding:7px 12px;color:var(--as-muted);font-size:.6rem;font-weight:700;text-align:right}
 .as-quote-consent{display:grid;grid-column:1/-1;grid-template-columns:18px 1fr;gap:9px;align-items:start;color:var(--as-muted);font-size:.65rem;line-height:1.45;cursor:pointer}
 .as-quote-consent input{width:18px;height:18px;margin:1px 0 0;accent-color:var(--as-blue)}
 .as-quote-status{grid-column:1/-1;min-height:18px;margin:0;color:var(--as-muted);font-size:.7rem}

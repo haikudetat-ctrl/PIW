@@ -24,6 +24,20 @@ const googleTextSearchResponseSchema = z.object({
   places: z.array(googlePlaceSchema).optional().default([]),
 });
 
+const googleAutocompleteResponseSchema = z.object({
+  suggestions: z.array(z.object({
+    placePrediction: z.object({
+      placeId: z.string().min(1),
+      text: z.object({ text: z.string().min(1) }),
+    }).optional(),
+  })).optional().default([]),
+});
+
+export type GoogleAddressSuggestion = {
+  placeId: string;
+  address: string;
+};
+
 function placeComponent(
   components: z.infer<typeof placeAddressComponentSchema>[],
   type: string,
@@ -110,6 +124,67 @@ async function readJson(response: Response, provider: string) {
 const PLACE_FIELDS =
   "id,formattedAddress,location,addressComponents,types";
 
+export async function fetchGoogleAddressSuggestions(input: {
+  input: string;
+  sessionToken: string;
+  apiKey?: string;
+}): Promise<GoogleAddressSuggestion[]> {
+  const apiKey = input.apiKey ?? process.env.GOOGLE_MAPS_API_KEY;
+  if (!apiKey) throw new Error("Google Maps API key is not configured");
+  const response = await fetch("https://places.googleapis.com/v1/places:autocomplete", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Goog-Api-Key": apiKey,
+      "X-Goog-FieldMask":
+        "suggestions.placePrediction.placeId,suggestions.placePrediction.text.text",
+    },
+    body: JSON.stringify({
+      input: input.input,
+      sessionToken: input.sessionToken,
+      languageCode: "en-US",
+      regionCode: "us",
+      includedRegionCodes: ["us"],
+      includedPrimaryTypes: ["street_address", "premise", "subpremise"],
+      locationBias: {
+        rectangle: {
+          low: { latitude: 38.9, longitude: -75.6 },
+          high: { latitude: 41.4, longitude: -73.8 },
+        },
+      },
+    }),
+  });
+  const raw = await readJson(response, "Google Places Autocomplete");
+  return googleAutocompleteResponseSchema.parse(raw).suggestions.flatMap((suggestion) =>
+    suggestion.placePrediction
+      ? [{
+          placeId: suggestion.placePrediction.placeId,
+          address: suggestion.placePrediction.text.text,
+        }]
+      : []
+  );
+}
+
+export async function fetchGooglePlaceDetails(input: {
+  submittedAddress: string;
+  googlePlaceId: string;
+  apiKey?: string;
+}): Promise<AddressValidationResult> {
+  const apiKey = input.apiKey ?? process.env.GOOGLE_MAPS_API_KEY;
+  if (!apiKey) throw new Error("Google Maps API key is not configured");
+  const response = await fetch(
+    `https://places.googleapis.com/v1/places/${encodeURIComponent(input.googlePlaceId)}`,
+    {
+      headers: {
+        "X-Goog-Api-Key": apiKey,
+        "X-Goog-FieldMask": PLACE_FIELDS,
+      },
+    },
+  );
+  const raw = await readJson(response, "Google Place Details");
+  return parseGooglePlaceResponse(raw, input.submittedAddress);
+}
+
 export function createGooglePlacesProvider(input?: {
   apiKey?: string;
   enabled?: boolean;
@@ -129,16 +204,18 @@ export function createGooglePlacesProvider(input?: {
 
       let raw: unknown;
       if (request.googlePlaceId) {
-        const response = await fetch(
-          `https://places.googleapis.com/v1/places/${encodeURIComponent(request.googlePlaceId)}`,
-          {
-            headers: {
-              "X-Goog-Api-Key": apiKey,
-              "X-Goog-FieldMask": PLACE_FIELDS,
-            },
-          },
-        );
-        raw = await readJson(response, "Google Place Details");
+        const value = await fetchGooglePlaceDetails({
+          submittedAddress: request.submittedAddress,
+          googlePlaceId: request.googlePlaceId,
+          apiKey,
+        });
+        return {
+          value,
+          provider: "google_places",
+          sourceIdentifier: value.googlePlaceId ?? request.submittedAddress,
+          retrievedAt: new Date().toISOString(),
+          estimatedCostMicros: 5_000,
+        };
       } else {
         const response = await fetch(
           "https://places.googleapis.com/v1/places:searchText",
@@ -169,9 +246,7 @@ export function createGooglePlacesProvider(input?: {
         raw = await readJson(response, "Google Places Text Search");
       }
 
-      const value = request.googlePlaceId
-        ? parseGooglePlaceResponse(raw, request.submittedAddress)
-        : parseGoogleTextSearchResponse(raw, request.submittedAddress);
+      const value = parseGoogleTextSearchResponse(raw, request.submittedAddress);
       return {
         value,
         provider: "google_places",

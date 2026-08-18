@@ -7,8 +7,10 @@ preview deployments; `main` is production.
 The `/api/intake` route validates public form submissions, captures `fbclid`,
 `_fbp`, and `_fbc`, and forwards the normalized payload to PIW's authenticated
 All Season intake endpoint. It never exposes the PIW URL or shared secret to
-browsers. Configure `INTAKE_WEBHOOK_URL` to the matching PIW environment and
-use the same secret as PIW's `ALL_SEASON_INTAKE_SHARED_SECRET`.
+browsers. Configure `INTAKE_WEBHOOK_URL` and `INTAKE_ADDRESS_SUGGESTIONS_URL`
+to the matching PIW environment and use the same secret as PIW's
+`ALL_SEASON_INTAKE_SHARED_SECRET`. PIW uses its server-side
+`GOOGLE_MAPS_API_KEY` for Quick Quote address suggestions and canonicalization.
 
 ```bash
 cp .env.example .env.local

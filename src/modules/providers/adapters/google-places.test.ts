@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import {
   createGooglePlacesProvider,
+  fetchGoogleAddressSuggestions,
   parseGooglePlaceResponse,
 } from "./google-places";
 
@@ -88,5 +89,48 @@ describe("Google Places adapter", () => {
     );
     expect(options.headers["X-Goog-Api-Key"]).toBe("secret");
     expect(requestedUrl).not.toContain("secret");
+  });
+
+  test("returns address-only New Jersey autocomplete predictions without exposing the API key", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        suggestions: [
+          {
+            placePrediction: {
+              placeId: "ChIJ-selected",
+              text: { text: "354 Stockton St, Princeton, NJ 08540, USA" },
+            },
+          },
+        ],
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(fetchGoogleAddressSuggestions({
+      input: "354 Stock",
+      sessionToken: "11111111-1111-4111-8111-111111111111",
+      apiKey: "secret",
+    })).resolves.toEqual([
+      {
+        placeId: "ChIJ-selected",
+        address: "354 Stockton St, Princeton, NJ 08540, USA",
+      },
+    ]);
+
+    const [requestedUrl, options] = fetchMock.mock.calls[0];
+    expect(requestedUrl).toBe("https://places.googleapis.com/v1/places:autocomplete");
+    expect(requestedUrl).not.toContain("secret");
+    expect(options.headers["X-Goog-Api-Key"]).toBe("secret");
+    expect(options.headers["X-Goog-FieldMask"]).toBe(
+      "suggestions.placePrediction.placeId,suggestions.placePrediction.text.text",
+    );
+    expect(JSON.parse(options.body)).toMatchObject({
+      input: "354 Stock",
+      sessionToken: "11111111-1111-4111-8111-111111111111",
+      includedPrimaryTypes: ["street_address", "premise", "subpremise"],
+      includedRegionCodes: ["us"],
+    });
   });
 });

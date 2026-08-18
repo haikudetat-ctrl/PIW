@@ -26,6 +26,7 @@ describe("lead intake proxy", () => {
         email: "alex@example.com",
         phone: "201-555-0100",
         address: "1 Main St, Newark, NJ",
+        google_place_id: "ChIJ-selected",
         project_interest: "both",
         consent_to_contact: true,
         consent_to_process_property: true,
@@ -38,6 +39,7 @@ describe("lead intake proxy", () => {
     expect(forward).toHaveBeenCalledWith(expect.objectContaining({
       submission_id: "11111111-1111-4111-8111-111111111111",
       source: "all-season-website",
+      google_place_id: "ChIJ-selected",
       attribution: {fbclid: "click-123", fbp: "fb.1.100.200", fbc: "fb.1.100.click"},
     }));
   });

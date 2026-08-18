@@ -66,6 +66,9 @@
     var started = false;
     var autoTriggered = false;
     var submissionId = window.crypto.randomUUID();
+    var selectedGooglePlaceId = '';
+    var addressRequestSequence = 0;
+    var addressTimer = null;
 
     root = element('div', 'as-quote-root');
     root.dataset.state = 'closed';
@@ -126,6 +129,17 @@
     var address = field('as-quote-address', 'Project address', 'text', 'street-address', 'Street address, city, ZIP');
     phone.input.inputMode = 'tel';
     address.input.minLength = 5;
+    address.input.autocomplete = 'off';
+    address.wrap.classList.add('as-quote-address-field');
+    address.input.setAttribute('role', 'combobox');
+    address.input.setAttribute('aria-autocomplete', 'list');
+    address.input.setAttribute('aria-expanded', 'false');
+    address.input.setAttribute('aria-controls', 'as-quote-address-options');
+    var addressOptions = element('div', 'as-quote-address-options');
+    addressOptions.id = 'as-quote-address-options';
+    addressOptions.setAttribute('role', 'listbox');
+    addressOptions.hidden = true;
+    address.wrap.insertBefore(addressOptions, address.error);
 
     var fields = [name, email, phone, address];
     form.appendChild(projectWrap);
@@ -202,6 +216,64 @@
       item.input.setAttribute('aria-invalid', message ? 'true' : 'false');
     }
 
+    function closeAddressOptions() {
+      addressOptions.hidden = true;
+      addressOptions.textContent = '';
+      address.input.setAttribute('aria-expanded', 'false');
+    }
+
+    function renderAddressOptions(suggestions) {
+      addressOptions.textContent = '';
+      suggestions.forEach(function (suggestion) {
+        var option = element('button', 'as-quote-address-option', suggestion.address);
+        option.type = 'button';
+        option.setAttribute('role', 'option');
+        option.addEventListener('click', function () {
+          selectedGooglePlaceId = suggestion.placeId;
+          address.input.value = suggestion.address;
+          setError(address, '');
+          closeAddressOptions();
+          address.input.focus();
+        });
+        addressOptions.appendChild(option);
+      });
+      if (suggestions.length) {
+        addressOptions.appendChild(element('span', 'as-quote-google-attribution', 'Powered by Google'));
+        addressOptions.hidden = false;
+        address.input.setAttribute('aria-expanded', 'true');
+      } else {
+        closeAddressOptions();
+      }
+    }
+
+    address.input.addEventListener('input', function () {
+      selectedGooglePlaceId = '';
+      var query = address.input.value.trim();
+      addressRequestSequence += 1;
+      var sequence = addressRequestSequence;
+      if (addressTimer) window.clearTimeout(addressTimer);
+      closeAddressOptions();
+      if (query.length < 3) return;
+      addressTimer = window.setTimeout(async function () {
+        try {
+          var response = await window.fetch(
+            '/api/address-suggestions?q=' + encodeURIComponent(query) +
+              '&session_token=' + encodeURIComponent(submissionId),
+            {credentials: 'same-origin'}
+          );
+          if (!response.ok) throw new Error(String(response.status));
+          var payload = await response.json();
+          if (sequence !== addressRequestSequence || address.input.value.trim() !== query) return;
+          renderAddressOptions(Array.isArray(payload.suggestions) ? payload.suggestions : []);
+        } catch {
+          if (sequence === addressRequestSequence) {
+            closeAddressOptions();
+            setError(address, 'Address lookup is unavailable. Try again.');
+          }
+        }
+      }, 250);
+    });
+
     function validate() {
       var firstInvalid = null;
       fields.forEach(function (item) {
@@ -209,6 +281,7 @@
         if (!item.input.value.trim()) message = 'This field is required.';
         else if (item.input.type === 'email' && !item.input.validity.valid) message = 'Enter a valid email address.';
         else if (item.input === phone.input && item.input.value.replace(/\D/g, '').length < 7) message = 'Enter a valid phone number.';
+        else if (item.input === address.input && !selectedGooglePlaceId) message = 'Choose an address from the suggestions.';
         setError(item, message);
         if (message && !firstInvalid) firstInvalid = item.input;
       });
@@ -250,6 +323,7 @@
         email: email.input.value.trim(),
         phone: phone.input.value.trim(),
         address: address.input.value.trim(),
+        google_place_id: selectedGooglePlaceId,
         project_interest: new FormData(form).get('project_interest'),
         consent_to_contact: consent.checked,
         consent_to_process_property: processingConsent.checked,

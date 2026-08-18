@@ -8,6 +8,7 @@ export type AllSeasonLeadInput = {
   email: string;
   phone: string;
   submittedAddress: string;
+  googlePlaceId?: string;
   serviceRequested: AllSeasonServiceRequested;
   submittedAt: string;
   attribution: {

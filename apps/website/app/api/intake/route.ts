@@ -7,6 +7,7 @@ const leadSchema = z.object({
   email: z.email(),
   phone: z.string().trim().min(7).max(40),
   address: z.string().trim().min(5).max(500),
+  google_place_id: z.string().trim().min(1).max(500).optional(),
   project_interest: z.enum(["roofing", "solar", "both"]),
   consent_to_contact: z.literal(true),
   consent_to_process_property: z.literal(true),

@@ -7,6 +7,7 @@ const payload = {
   email: "Alex@Example.com",
   phone: "(201) 555-0100",
   submittedAddress: "1 Main St, Newark, NJ",
+  googlePlaceId: "ChIJ-selected",
   serviceRequested: "solar" as const,
   submittedAt: "2026-08-18T14:00:00.000Z",
   attribution: {
@@ -40,10 +41,12 @@ test("creates and enqueues a new All Season lead", async () => {
     emailNormalized: "alex@example.com",
     phoneE164: "+12015550100",
     serviceRequested: "solar",
+    googlePlaceId: "ChIJ-selected",
   }));
   expect(enqueueLeadSubmitted).toHaveBeenCalledWith(expect.objectContaining({
     correlationId: payload.submissionId,
     serviceRequested: "solar",
+    googlePlaceId: "ChIJ-selected",
   }));
 });
 

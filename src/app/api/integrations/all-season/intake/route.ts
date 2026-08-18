@@ -1,4 +1,3 @@
-import { createHash, timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createEventEnvelope } from "@/domain/events";
@@ -8,6 +7,8 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { enqueueAndPublishEvent } from "@/modules/events/enqueue-and-publish-event";
 import { SupabaseOutboxRepository } from "@/modules/events/supabase-outbox-repository";
 import { acceptAllSeasonIntake } from "@/modules/leads/accept-all-season-intake";
+import { allSeasonSecretsMatch } from "@/modules/leads/all-season-intake-secret";
+import { fetchGooglePlaceDetails } from "@/modules/providers/adapters/google-places";
 
 const nullableAttribution = z.string().trim().max(500).nullable();
 
@@ -17,6 +18,7 @@ export const allSeasonIntakeSchema = z.object({
   email: z.email(),
   phone: z.string().trim().min(7).max(40),
   address: z.string().trim().min(5).max(500),
+  google_place_id: z.string().trim().min(1).max(500).optional(),
   project_interest: z.enum(["roofing", "solar", "both"]),
   consent_to_contact: z.literal(true),
   consent_to_process_property: z.literal(true),
@@ -34,20 +36,19 @@ export type AllSeasonIntake = z.infer<typeof allSeasonIntakeSchema>;
 type IntakeDependencies = {
   expectedSecret: string;
   accept: (payload: AllSeasonIntake) => Promise<{ leadId: string; duplicate: boolean }>;
+  normalizeAddress?: (input: {
+    submittedAddress: string;
+    googlePlaceId: string;
+  }) => Promise<string>;
   reportError?: (error: unknown) => void;
 };
-
-function secretsMatch(actual: string, expected: string) {
-  const digest = (value: string) => createHash("sha256").update(value).digest();
-  return actual.length > 0 && expected.length > 0 && timingSafeEqual(digest(actual), digest(expected));
-}
 
 export async function handleAllSeasonIntakeRequest(
   request: NextRequest,
   dependencies: IntakeDependencies,
 ) {
   const providedSecret = request.headers.get("x-all-season-intake-secret") ?? "";
-  if (!secretsMatch(providedSecret, dependencies.expectedSecret)) {
+  if (!allSeasonSecretsMatch(providedSecret, dependencies.expectedSecret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -57,7 +58,15 @@ export async function handleAllSeasonIntakeRequest(
   }
 
   try {
-    const accepted = await dependencies.accept(parsed.data);
+    let payload = parsed.data;
+    if (payload.google_place_id && dependencies.normalizeAddress) {
+      const canonicalAddress = await dependencies.normalizeAddress({
+        submittedAddress: payload.address,
+        googlePlaceId: payload.google_place_id,
+      });
+      payload = { ...payload, address: canonicalAddress };
+    }
+    const accepted = await dependencies.accept(payload);
     return NextResponse.json({ accepted: true, ...accepted }, { status: 202 });
   } catch (error) {
     (dependencies.reportError ?? console.error)(error);
@@ -78,6 +87,21 @@ export async function POST(request: NextRequest) {
 
   return handleAllSeasonIntakeRequest(request, {
     expectedSecret: environment.ALL_SEASON_INTAKE_SHARED_SECRET,
+    normalizeAddress: async ({ submittedAddress, googlePlaceId }) => {
+      const normalized = await fetchGooglePlaceDetails({
+        submittedAddress,
+        googlePlaceId,
+        apiKey: environment.GOOGLE_MAPS_API_KEY,
+      });
+      if (
+        !normalized.canonicalAddress ||
+        normalized.stateCode !== "NJ" ||
+        normalized.matchMethod !== "exact_single_match"
+      ) {
+        throw new Error("Selected project address is not a precise New Jersey address");
+      }
+      return normalized.canonicalAddress;
+    },
     accept: (payload) =>
       acceptAllSeasonIntake(
         {
@@ -86,6 +110,7 @@ export async function POST(request: NextRequest) {
           email: payload.email,
           phone: payload.phone,
           submittedAddress: payload.address,
+          googlePlaceId: payload.google_place_id,
           serviceRequested: payload.project_interest,
           submittedAt: payload.submittedAt,
           attribution: payload.attribution,
@@ -99,6 +124,7 @@ export async function POST(request: NextRequest) {
               p_phone: lead.phone,
               p_email: lead.email,
               p_submitted_address: lead.submittedAddress,
+              p_google_place_id: lead.googlePlaceId ?? "",
               p_service_requested: lead.serviceRequested,
               p_submitted_at: lead.submittedAt,
               p_attribution: lead.attribution,
@@ -141,6 +167,7 @@ export async function POST(request: NextRequest) {
                 phone: lead.phone,
                 email: lead.email,
                 submittedAddress: lead.submittedAddress,
+                googlePlaceId: lead.googlePlaceId,
                 serviceRequested: lead.serviceRequested,
                 notes: "Submitted through the All Season website quote form.",
               },

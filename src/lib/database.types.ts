@@ -1879,6 +1879,7 @@ export type Database = {
           fbp: string | null
           first_contact_attempted_at: string | null
           first_contact_channel: string | null
+          google_place_id: string | null
           id: string
           is_test: boolean
           meta_lead_id: string | null
@@ -1916,6 +1917,7 @@ export type Database = {
           fbp?: string | null
           first_contact_attempted_at?: string | null
           first_contact_channel?: string | null
+          google_place_id?: string | null
           id?: string
           is_test?: boolean
           meta_lead_id?: string | null
@@ -1953,6 +1955,7 @@ export type Database = {
           fbp?: string | null
           first_contact_attempted_at?: string | null
           first_contact_channel?: string | null
+          google_place_id?: string | null
           id?: string
           is_test?: boolean
           meta_lead_id?: string | null
@@ -3462,6 +3465,7 @@ export type Database = {
           p_channel: string
           p_company_id: string
           p_email_normalized: string
+          p_google_place_id: string
           p_phone_e164: string
         }
         Returns: boolean
@@ -3537,6 +3541,7 @@ export type Database = {
           p_disclosure_version: string
           p_email: string
           p_email_normalized: string
+          p_google_place_id: string
           p_ip_address: string
           p_name: string
           p_phone: string
