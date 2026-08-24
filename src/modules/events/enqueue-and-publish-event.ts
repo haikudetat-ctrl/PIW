@@ -11,6 +11,7 @@ type Dependencies = {
   event: DomainEvent;
   companyId: string;
   send: (event: OutboundEvent) => Promise<unknown>;
+  eventAlreadyPersisted?: boolean;
   timeoutMs?: number;
   info?: (message: string, context: Record<string, unknown>) => void;
   warn?: (message: string, context: Record<string, unknown>) => void;
@@ -33,11 +34,14 @@ export async function enqueueAndPublishEvent({
   event,
   companyId,
   send,
+  eventAlreadyPersisted = false,
   timeoutMs = 2_500,
   info = (message, context) => console.info(message, context),
   warn = (message, context) => console.warn(message, context),
 }: Dependencies): Promise<ImmediatePublishResult> {
-  const persistedEventId = await repository.enqueue(event, companyId);
+  const persistedEventId = eventAlreadyPersisted
+    ? event.id
+    : await repository.enqueue(event, companyId);
   const persistedEvent =
     persistedEventId === event.id
       ? event
