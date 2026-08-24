@@ -1899,12 +1899,12 @@ export type Database = {
           submitted_address: string
           time_to_first_contact_seconds: number | null
           trustedform_url: string | null
+          updated_at: string
           utm_campaign: string | null
           utm_content: string | null
           utm_medium: string | null
           utm_source: string | null
           utm_term: string | null
-          updated_at: string
         }
         Insert: {
           campaign?: string | null
@@ -1942,12 +1942,12 @@ export type Database = {
           submitted_address: string
           time_to_first_contact_seconds?: number | null
           trustedform_url?: string | null
+          updated_at?: string
           utm_campaign?: string | null
           utm_content?: string | null
           utm_medium?: string | null
           utm_source?: string | null
           utm_term?: string | null
-          updated_at?: string
         }
         Update: {
           campaign?: string | null
@@ -1985,12 +1985,12 @@ export type Database = {
           submitted_address?: string
           time_to_first_contact_seconds?: number | null
           trustedform_url?: string | null
+          updated_at?: string
           utm_campaign?: string | null
           utm_content?: string | null
           utm_medium?: string | null
           utm_source?: string | null
           utm_term?: string | null
-          updated_at?: string
         }
         Relationships: [
           {
@@ -3480,7 +3480,6 @@ export type Database = {
           p_channel: string
           p_company_id: string
           p_email_normalized: string
-          p_google_place_id?: string
           p_phone_e164: string
         }
         Returns: boolean
@@ -3973,3 +3972,4 @@ export const Constants = {
     },
   },
 } as const
+
