@@ -2,10 +2,14 @@ import {NextRequest, NextResponse} from "next/server";
 import {z} from "zod";
 
 const leadSchema = z.object({
+  submission_id: z.uuid(),
   name: z.string().trim().min(1).max(160),
   email: z.email(),
   phone: z.string().trim().min(7).max(40),
   address: z.string().trim().min(5).max(500),
+  project_interest: z.enum(["roofing", "solar", "both"]),
+  consent_to_contact: z.literal(true),
+  consent_to_process_property: z.literal(true),
   fbclid: z.string().trim().max(500).nullish(),
 });
 
@@ -24,7 +28,7 @@ export async function handleIntakeRequest(request: NextRequest, forward: Forward
       fbp: request.cookies.get("_fbp")?.value ?? null,
       fbc: request.cookies.get("_fbc")?.value ?? null,
     },
-    source: "rake-website",
+    source: "all-season-website",
     submittedAt: new Date().toISOString(),
   };
 
@@ -48,7 +52,7 @@ export async function POST(request: NextRequest) {
       headers: {
         "content-type": "application/json",
         ...(process.env.INTAKE_WEBHOOK_SHARED_SECRET
-          ? {"x-rake-webhook-secret": process.env.INTAKE_WEBHOOK_SHARED_SECRET}
+          ? {"x-all-season-intake-secret": process.env.INTAKE_WEBHOOK_SHARED_SECRET}
           : {}),
       },
       body: JSON.stringify(payload),
