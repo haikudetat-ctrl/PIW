@@ -1,3 +1,19 @@
+@font-face {
+  font-family: "Montserrat Campaign";
+  src: url("/fonts/montserrat-700.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Bebas Campaign";
+  src: url("/fonts/bebas-neue-400.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
 :root {
   color-scheme: light;
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -18,3 +34,416 @@ input { font: inherit; padding: 13px 14px; border: 1px solid #938b7e; background
 button { width: fit-content; border: 0; padding: 14px 20px; background: #a8432a; color: white; font: inherit; font-weight: 750; cursor: pointer; }
 button:disabled { opacity: .55; cursor: wait; }
 .status { min-height: 1.5em; margin: 0; }
+
+.campaign-page {
+  --campaign-ink: #f2f6f7;
+  --campaign-muted: #b6c9d4;
+  --campaign-paper: #061f34;
+  --campaign-surface: #0b3554;
+  --campaign-line: rgba(235, 246, 250, .18);
+  --campaign-accent: #63b7dc;
+  --campaign-accent-ink: #0b1f35;
+  --campaign-signal: #63b7dc;
+  min-height: 100vh;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: var(--campaign-paper);
+  color: var(--campaign-ink);
+}
+
+.campaign-page[data-theme="forecast"] {
+  --campaign-ink: #f3f8fa;
+  --campaign-muted: #b9d0dc;
+  --campaign-paper: #082e49;
+  --campaign-surface: #0c405f;
+  --campaign-signal: #ff9a45;
+  --campaign-accent: #ff9a45;
+}
+
+.campaign-page[data-theme="shield"] {
+  --campaign-ink: #f2f8f0;
+  --campaign-muted: #bad4c1;
+  --campaign-paper: #07351f;
+  --campaign-surface: #0b4b2d;
+  --campaign-signal: #90d76f;
+  --campaign-accent: #90d76f;
+}
+
+.campaign-page[data-theme="seasons"] {
+  --campaign-ink: #f1f8fb;
+  --campaign-muted: #b9d3df;
+  --campaign-paper: #073754;
+  --campaign-surface: #0d4b6a;
+  --campaign-signal: #f2a044;
+  --campaign-accent: #7bcb28;
+}
+
+.campaign-nav {
+  width: min(1440px, 100%);
+  min-height: 76px;
+  margin: 0 auto;
+  padding: 0 4vw;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--campaign-line);
+}
+
+.campaign-brand,
+.campaign-phone {
+  color: inherit;
+  text-decoration: none;
+}
+
+.campaign-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.campaign-brand img { width: 48px; height: 48px; }
+.campaign-brand span { display: grid; line-height: 1; }
+.campaign-brand strong {
+  font: 700 1rem/1 "Montserrat Campaign", sans-serif;
+  letter-spacing: -.035em;
+}
+.campaign-brand small {
+  margin-top: 5px;
+  color: var(--campaign-muted);
+  font-size: .66rem;
+  font-weight: 700;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+}
+
+.campaign-phone { display: grid; gap: 3px; text-align: right; }
+.campaign-phone small { color: var(--campaign-muted); font-size: .7rem; letter-spacing: .04em; }
+.campaign-phone strong { font: 700 .95rem/1 "Montserrat Campaign", sans-serif; }
+
+.campaign-hero {
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  min-height: calc(100dvh - 76px);
+  display: grid;
+  grid-template-columns: minmax(0, 58%) minmax(390px, 42%);
+  overflow: hidden;
+  background: var(--campaign-paper);
+}
+
+.campaign-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, transparent 0 43%, color-mix(in srgb, var(--campaign-paper) 52%, transparent) 57%, var(--campaign-paper) 76%),
+    linear-gradient(0deg, color-mix(in srgb, var(--campaign-paper) 88%, transparent), transparent 30%);
+}
+
+.campaign-ad-ambient {
+  position: absolute;
+  inset: -8%;
+  z-index: 0;
+  opacity: .44;
+  filter: blur(42px) saturate(1.08);
+  transform: scale(1.08);
+}
+
+.campaign-ad-ambient img { object-fit: cover; }
+
+.campaign-ad-foreground {
+  position: relative;
+  z-index: 1;
+  grid-column: 1;
+  min-height: calc(100dvh - 76px);
+}
+
+.campaign-ad-foreground img {
+  object-fit: contain;
+  object-position: left center;
+}
+
+.campaign-conversion {
+  position: relative;
+  z-index: 2;
+  grid-column: 2;
+  align-self: center;
+  width: min(100%, 560px);
+  padding: 42px clamp(28px, 5vw, 76px) 54px 18px;
+}
+
+.campaign-bridge {
+  width: min(100%, 500px);
+  margin: 0 0 24px auto;
+}
+
+.campaign-bridge > span,
+.campaign-section-eyebrow,
+.campaign-form-label {
+  color: var(--campaign-signal);
+  font: 700 .72rem/1.2 "Montserrat Campaign", sans-serif;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+
+.campaign-bridge h1 {
+  max-width: 11ch;
+  margin: 13px 0 12px;
+  color: var(--campaign-ink);
+  font: 700 clamp(2rem, 3vw, 3.25rem)/.96 "Montserrat Campaign", sans-serif;
+  letter-spacing: -.045em;
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+
+.campaign-bridge h1 strong {
+  color: var(--campaign-accent);
+  font-weight: inherit;
+}
+
+.campaign-bridge p {
+  max-width: 38ch;
+  margin: 0;
+  color: var(--campaign-muted);
+  font-size: .95rem;
+  line-height: 1.55;
+}
+
+.campaign-form {
+  width: 100%;
+  max-width: 500px;
+  margin: 0 0 0 auto;
+  padding: clamp(24px, 3vw, 38px);
+  display: grid;
+  gap: 20px;
+  border: 1px solid var(--campaign-line);
+  border-top: 4px solid var(--campaign-signal);
+  background: color-mix(in srgb, var(--campaign-surface) 88%, transparent);
+  box-shadow: 0 28px 80px color-mix(in srgb, var(--campaign-paper) 75%, transparent);
+  backdrop-filter: blur(20px) saturate(125%);
+}
+
+.campaign-page[data-theme="heritage"] .campaign-form,
+.campaign-page[data-theme="shield"] .campaign-form { border-top-color: var(--campaign-accent); }
+
+.campaign-form header { display: grid; gap: 10px; }
+.campaign-form h2 {
+  margin: 0;
+  color: var(--campaign-ink);
+  font: 400 clamp(1.9rem, 2.7vw, 2.5rem)/.98 "Bebas Campaign", "Arial Narrow", sans-serif;
+  letter-spacing: .012em;
+}
+.campaign-form header p { margin: 0; color: var(--campaign-muted); font-size: .9rem; line-height: 1.55; }
+
+.campaign-step-meter {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-bottom: 1px solid var(--campaign-line);
+}
+
+.campaign-step-meter span {
+  padding: 0 0 11px;
+  color: #82929d;
+  font-size: .66rem;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  border-bottom: 2px solid transparent;
+}
+
+.campaign-step-meter span[data-active="true"] { color: var(--campaign-ink); border-color: var(--campaign-signal); }
+.campaign-form fieldset { min-width: 0; margin: 0; padding: 0; display: grid; gap: 16px; border: 0; }
+.campaign-form fieldset[hidden] { display: none; }
+.campaign-field { display: grid; gap: 7px; color: var(--campaign-ink); font-size: .76rem; font-weight: 800; }
+.campaign-field i { color: var(--campaign-muted); font-style: normal; font-weight: 500; }
+.campaign-field small { color: var(--campaign-muted); font-size: .7rem; font-weight: 500; line-height: 1.4; }
+.campaign-field input {
+  width: 100%;
+  min-height: 48px;
+  padding: 11px 13px;
+  border: 1px solid #a7b5bd;
+  border-radius: 0;
+  outline: none;
+  background: #fff;
+  color: #102737;
+  font: 500 1rem/1.25 ui-sans-serif, system-ui, sans-serif;
+}
+.campaign-field input:focus { border-color: var(--campaign-signal); box-shadow: 0 0 0 3px color-mix(in srgb, var(--campaign-signal) 16%, transparent); }
+.campaign-combobox { position: relative; }
+.campaign-searching { display: block; margin-top: 7px; color: var(--campaign-muted); font-size: .68rem; font-weight: 600; }
+.campaign-combobox ul {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  list-style: none;
+  border: 1px solid var(--campaign-line);
+  background: #fff;
+  box-shadow: 0 18px 40px rgba(14, 43, 60, .16);
+}
+.campaign-combobox li + li { border-top: 1px solid var(--campaign-line); }
+.campaign-combobox button { width: 100%; padding: 12px 14px; border: 0; background: #fff; color: #102737; text-align: left; font-size: .82rem; line-height: 1.35; }
+.campaign-combobox button:hover,
+.campaign-combobox button:focus { background: #e7f0f4; }
+
+.campaign-manual-grid { display: grid; grid-template-columns: 1fr 90px 120px; gap: 13px; }
+.campaign-field-wide,
+.campaign-field-city { grid-column: 1 / -1; }
+.campaign-error,
+.campaign-status { margin: 0; color: #ffd0c7; font-size: .78rem; line-height: 1.45; }
+.campaign-status:empty { display: none; }
+.campaign-text-action {
+  width: fit-content;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--campaign-muted);
+  font-size: .72rem;
+  font-weight: 750;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.campaign-primary-action {
+  width: 100%;
+  min-height: 52px;
+  padding: 14px 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  border: 0;
+  background: var(--campaign-signal);
+  color: var(--campaign-accent-ink);
+  font: 700 .8rem/1 "Montserrat Campaign", sans-serif;
+  letter-spacing: .02em;
+}
+.campaign-primary-action:hover { background: var(--campaign-accent); }
+.campaign-page[data-theme="heritage"] .campaign-primary-action,
+.campaign-page[data-theme="shield"] .campaign-primary-action { background: var(--campaign-accent); color: var(--campaign-accent-ink); }
+.campaign-page[data-theme="heritage"] .campaign-primary-action:hover,
+.campaign-page[data-theme="shield"] .campaign-primary-action:hover { background: var(--campaign-signal); color: var(--campaign-accent-ink); }
+
+.campaign-consents { display: grid; gap: 11px; }
+.campaign-consents label { display: grid; grid-template-columns: 17px 1fr; gap: 9px; color: var(--campaign-muted); font-size: .68rem; font-weight: 500; line-height: 1.42; }
+.campaign-consents input { width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--campaign-signal); }
+.campaign-form-actions { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 16px; }
+.campaign-fine-print { margin: -8px 0 0; color: var(--campaign-muted); font-size: .62rem; line-height: 1.45; }
+.campaign-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+.campaign-proof {
+  width: min(1440px, calc(100% - 8vw));
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-top: 1px solid var(--campaign-line);
+  border-bottom: 1px solid var(--campaign-line);
+}
+.campaign-proof div { min-height: 150px; padding: 30px clamp(20px, 4vw, 56px); display: grid; align-content: center; gap: 5px; }
+.campaign-proof div + div { border-left: 1px solid var(--campaign-line); }
+.campaign-proof strong { color: var(--campaign-signal); font: 700 clamp(1.8rem, 3vw, 3rem)/1 "Montserrat Campaign", sans-serif; letter-spacing: -.05em; }
+.campaign-proof span { color: var(--campaign-muted); font-size: .7rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+
+.campaign-story {
+  width: min(1180px, calc(100% - 8vw));
+  margin: 0 auto;
+  padding: clamp(80px, 10vw, 150px) 0;
+  display: block;
+}
+.campaign-story h2 { max-width: 15ch; margin: 18px 0 28px; color: var(--campaign-ink); font: 400 clamp(3.1rem, 6.5vw, 6.5rem)/.9 "Bebas Campaign", "Arial Narrow", sans-serif; letter-spacing: .005em; }
+.campaign-story > p { max-width: 55ch; margin: 0; padding-top: 25px; border-top: 3px solid var(--campaign-accent); color: var(--campaign-muted); font-size: clamp(1rem, 1.45vw, 1.24rem); line-height: 1.7; }
+
+.campaign-process {
+  width: min(1180px, calc(100% - 8vw));
+  margin: 0 auto clamp(80px, 10vw, 150px);
+  display: grid;
+  grid-template-columns: 1.18fr .82fr 1fr;
+  border-top: 1px solid var(--campaign-line);
+}
+.campaign-process article { padding: 28px clamp(18px, 3vw, 38px) 0 0; }
+.campaign-process article + article { padding-left: clamp(18px, 3vw, 38px); border-left: 1px solid var(--campaign-line); }
+.campaign-process h3 { margin: 0 0 11px; color: var(--campaign-ink); font: 400 1.65rem/1 "Bebas Campaign", "Arial Narrow", sans-serif; letter-spacing: .015em; }
+.campaign-process p { margin: 0; color: var(--campaign-muted); font-size: .86rem; line-height: 1.6; }
+
+.campaign-footer {
+  width: min(1440px, calc(100% - 8vw));
+  min-height: 105px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid var(--campaign-line);
+  color: var(--campaign-muted);
+  font-size: .74rem;
+}
+.campaign-footer strong { color: var(--campaign-ink); font-family: "Montserrat Campaign", sans-serif; }
+.campaign-footer a { color: var(--campaign-ink); font-weight: 800; text-decoration: none; }
+
+@media (max-width: 1120px) {
+  .campaign-hero {
+    grid-template-columns: minmax(0, 52%) minmax(380px, 48%);
+  }
+  .campaign-hero::after {
+    background:
+      linear-gradient(90deg, transparent 0 35%, color-mix(in srgb, var(--campaign-paper) 62%, transparent) 50%, var(--campaign-paper) 72%),
+      linear-gradient(0deg, color-mix(in srgb, var(--campaign-paper) 88%, transparent), transparent 30%);
+  }
+  .campaign-conversion { padding-left: 0; padding-right: 32px; }
+}
+
+@media (max-width: 760px) {
+  .campaign-nav { min-height: 70px; padding: 0 20px; }
+  .campaign-phone small { display: none; }
+  .campaign-phone strong { font-size: .78rem; }
+  .campaign-brand img { width: 38px; height: 38px; }
+  .campaign-hero {
+    min-height: auto;
+    display: block;
+    padding: 0 0 64px;
+  }
+  .campaign-hero::after {
+    background: linear-gradient(0deg, var(--campaign-paper) 0 42%, color-mix(in srgb, var(--campaign-paper) 78%, transparent) 60%, transparent 82%);
+  }
+  .campaign-ad-ambient { inset: -3%; opacity: .5; filter: blur(28px) saturate(1.05); }
+  .campaign-ad-foreground {
+    width: 100%;
+    min-height: 0;
+    aspect-ratio: 4 / 5;
+  }
+  .campaign-ad-foreground img { object-fit: cover; object-position: center top; }
+  .campaign-conversion {
+    width: 100%;
+    margin-top: -24px;
+    padding: 0 20px;
+  }
+  .campaign-bridge { margin: 0 0 24px; }
+  .campaign-bridge h1 { max-width: 13ch; font-size: clamp(2.15rem, 9vw, 3rem); }
+  .campaign-form { max-width: none; padding: 25px 20px; }
+  .campaign-proof { width: calc(100% - 40px); grid-template-columns: 1fr; }
+  .campaign-proof div { min-height: 105px; padding: 24px 6px; grid-template-columns: 120px 1fr; align-items: center; }
+  .campaign-proof div + div { border-left: 0; border-top: 1px solid var(--campaign-line); }
+  .campaign-proof strong { font-size: 2rem; }
+  .campaign-story { width: calc(100% - 40px); padding: 85px 0; }
+  .campaign-story h2 { font-size: clamp(2.55rem, 12vw, 4.2rem); }
+  .campaign-process { width: calc(100% - 40px); }
+  .campaign-process { grid-template-columns: 1fr; }
+  .campaign-process article { padding: 26px 0 34px; }
+  .campaign-process article + article { padding-left: 0; border-left: 0; border-top: 1px solid var(--campaign-line); }
+  .campaign-footer { width: calc(100% - 40px); padding: 28px 0; align-items: flex-start; gap: 24px; }
+  .campaign-footer p { margin: 0; }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .campaign-form {
+    background: var(--campaign-surface);
+    backdrop-filter: none;
+  }
+}

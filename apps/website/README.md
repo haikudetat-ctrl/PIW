@@ -12,6 +12,20 @@ to the matching PIW environment and use the same secret as PIW's
 `ALL_SEASON_INTAKE_SHARED_SECRET`. PIW uses its server-side
 `GOOGLE_MAPS_API_KEY` for Quick Quote address suggestions and canonicalization.
 
+Campaign landing pages submit to `/api/campaign-estimate`. This route accepts
+the four approved campaign slugs, requires either a Google-normalized address
+or a complete New Jersey manual address, captures UTM and Meta attribution,
+and forwards the request to PIW over the same authenticated server-to-server
+connection. Configure `CAMPAIGN_ESTIMATE_WEBHOOK_URL` to PIW's matching
+campaign-estimate endpoint and `PIW_PUBLIC_APP_URL` to the public PIW origin.
+After PIW accepts a request, the route returns a safe estimate URL beneath that
+configured origin so the browser can continue to the live estimate.
+
+`/api/address-autocomplete` keeps `GOOGLE_PLACES_API_KEY` on the server while
+returning only normalized `{placeId, address}` suggestions to campaign forms.
+Autocomplete requests are restricted to the United States and biased toward
+New Jersey; campaign forms retain a manual New Jersey address fallback.
+
 ```bash
 cp .env.example .env.local
 npm install
