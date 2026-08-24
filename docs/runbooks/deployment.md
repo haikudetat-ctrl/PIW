@@ -61,6 +61,8 @@ signing keys, since that prefix ships the value to the browser bundle:
 | `GOOGLE_MAPS_API_KEY` | server-restricted key with Places API (New), Solar API, and Maps Static API access | blank |
 | `GOOGLE_MAPS_BROWSER_API_KEY` | browser key restricted by HTTP referrer; Maps JavaScript API + Places API (New) only | preview-domain browser key or blank |
 | `ROOF_ESTIMATE_COMPANY_ID` | company UUID receiving public leads | preview company UUID if form testing is needed |
+| `ALL_SEASON_INTAKE_COMPANY_ID` | company UUID receiving All Season website leads | preview company UUID |
+| `ALL_SEASON_INTAKE_SHARED_SECRET` | random secret expected from the All Season website deployment | separate preview secret |
 | `ESTIMATE_SMS_WEBHOOK_URL` | approved SMS provider/automation webhook | test endpoint or blank |
 | `ESTIMATE_EMAIL_WEBHOOK_URL` | approved email provider/automation webhook | test endpoint or blank |
 | `ESTIMATE_DELIVERY_SHARED_SECRET` | bearer secret expected by both delivery webhooks | separate preview secret |
@@ -74,6 +76,17 @@ signing keys, since that prefix ships the value to the browser bundle:
 | `GOOGLE_CLOUD_BILLING_PROJECT_ID` / `GOOGLE_CLOUD_BILLING_TABLE` | billing export query target | blank |
 | `SUPABASE_COST_CONFIG_JSON` / `COST_RESOURCE_MAP_JSON` | scoped rate card and resource inventory | blank |
 | `CONTEXT_DIALER_BASE_URL` | stable application origin, such as `https://piw-sepia.vercel.app` | preview origin when Slack QA is enabled |
+
+On the separate All Season website project, set:
+
+- `INTAKE_WEBHOOK_URL` to `https://<matching-piw-domain>/api/integrations/all-season/intake`.
+- `CAMPAIGN_ESTIMATE_WEBHOOK_URL` to `https://<matching-piw-domain>/api/integrations/all-season/campaign-estimate`.
+- `PIW_PUBLIC_APP_URL` to the same matching PIW origin so accepted campaign submissions continue to the homeowner result.
+- `INTAKE_WEBHOOK_SHARED_SECRET` to the matching PIW shared secret.
+- `GOOGLE_PLACES_API_KEY` to the server-restricted Places API (New) key used by campaign address autocomplete.
+
+Never point a preview website deployment at PIW production. The campaign
+webhook URL and public result origin must always target the same PIW environment.
 
 Use separate Google keys. Restrict `GOOGLE_MAPS_API_KEY` to Places API (New),
 Solar API, and Maps Static API, and never expose it to the browser. Restrict

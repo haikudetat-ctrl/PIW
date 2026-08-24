@@ -23,6 +23,8 @@ const serverEnvSchema = z
     INTEGRATIONS_JOBNIMBUS_ENABLED: booleanString,
     INTEGRATIONS_CALLTOOLS_ENABLED: booleanString,
     INTEGRATIONS_WEBHOOK_SHARED_SECRET: z.string().optional(),
+    ALL_SEASON_INTAKE_SHARED_SECRET: optionalString,
+    ALL_SEASON_INTAKE_COMPANY_ID: optionalUuid,
     LEADCONDUIT_API_KEY: z.string().optional(),
     LEADCONDUIT_BASE_URL: optionalUrl,
     LEADMASTER_ACCESS_TOKEN: optionalString,
@@ -102,6 +104,16 @@ const serverEnvSchema = z
         code: "custom",
         path: ["ESTIMATE_DELIVERY_SHARED_SECRET"],
         message: "Estimate delivery webhooks require a shared secret",
+      });
+    }
+    if (
+      Boolean(value.ALL_SEASON_INTAKE_SHARED_SECRET) !==
+      Boolean(value.ALL_SEASON_INTAKE_COMPANY_ID)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["ALL_SEASON_INTAKE_COMPANY_ID"],
+        message: "All Season intake requires both its company ID and shared secret",
       });
     }
   });

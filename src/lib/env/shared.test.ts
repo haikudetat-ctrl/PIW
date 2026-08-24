@@ -79,6 +79,15 @@ describe("parseServerEnv", () => {
       }).SLACK_CONTEXT_DIALER_WEBHOOK_URL,
     ).toBe("not-a-valid-webhook-url");
   });
+
+  test("requires the All Season company and shared secret together", () => {
+    expect(() =>
+      parseServerEnv({
+        ...base,
+        ALL_SEASON_INTAKE_SHARED_SECRET: "shared-secret",
+      }),
+    ).toThrow("All Season intake requires both its company ID and shared secret");
+  });
 });
 
 describe("parseClientEnv", () => {

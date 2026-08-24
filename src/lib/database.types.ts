@@ -1647,12 +1647,18 @@ export type Database = {
           service_requested: string
           source_account_id: string | null
           source_record_id: string | null
+          source_submitted_at: string | null
           source_system: string
           speed_to_lead_status: string
           stage: Database["public"]["Enums"]["lead_stage"]
           submitted_address: string
           time_to_first_contact_seconds: number | null
           trustedform_url: string | null
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
           updated_at: string
         }
         Insert: {
@@ -1683,12 +1689,18 @@ export type Database = {
           service_requested?: string
           source_account_id?: string | null
           source_record_id?: string | null
+          source_submitted_at?: string | null
           source_system?: string
           speed_to_lead_status?: string
           stage?: Database["public"]["Enums"]["lead_stage"]
           submitted_address: string
           time_to_first_contact_seconds?: number | null
           trustedform_url?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
           updated_at?: string
         }
         Update: {
@@ -1719,12 +1731,18 @@ export type Database = {
           service_requested?: string
           source_account_id?: string | null
           source_record_id?: string | null
+          source_submitted_at?: string | null
           source_system?: string
           speed_to_lead_status?: string
           stage?: Database["public"]["Enums"]["lead_stage"]
           submitted_address?: string
           time_to_first_contact_seconds?: number | null
           trustedform_url?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -3283,6 +3301,60 @@ export type Database = {
           property_id: string
         }[]
       }
+      submit_all_season_campaign_estimate: {
+        Args: {
+          p_attribution: Json
+          p_campaign_slug: string
+          p_company_id: string
+          p_correlation_id: string
+          p_disclosure_version: string
+          p_email: string
+          p_google_place_id?: string
+          p_ip_address: string
+          p_name: string
+          p_phone: string
+          p_pipeline_version: number
+          p_submission_id: string
+          p_submitted_address: string
+          p_submitted_at: string
+          p_user_agent: string
+        }
+        Returns: {
+          estimate_id: string
+          event_id: string
+          event_payload: Json
+          is_duplicate: boolean
+          lead_id: string
+          pipeline_run_id: string
+          property_id: string
+          public_token: string
+        }[]
+      }
+      submit_all_season_lead: {
+        Args: {
+          p_attribution: Json
+          p_company_id: string
+          p_disclosure_version: string
+          p_email: string
+          p_email_normalized: string
+          p_ip_address: string
+          p_name: string
+          p_phone: string
+          p_phone_e164: string
+          p_pipeline_version: number
+          p_service_requested: string
+          p_submission_id: string
+          p_submitted_address: string
+          p_submitted_at: string
+          p_user_agent: string
+        }
+        Returns: {
+          is_duplicate: boolean
+          lead_id: string
+          pipeline_run_id: string
+          property_id: string
+        }[]
+      }
       submit_lead_intake: {
         Args: {
           p_company_id: string
@@ -3643,4 +3715,3 @@ export const Constants = {
     },
   },
 } as const
-
