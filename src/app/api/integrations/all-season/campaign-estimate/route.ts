@@ -252,6 +252,12 @@ export async function POST(request: NextRequest) {
               is_duplicate: z.boolean(),
             }).safeParse(Array.isArray(attempted.data) ? attempted.data[0] : null);
             if (attempted.error || !bridged.success) {
+              console.error("Cached All Season campaign RPC failed", {
+                supabaseHost: new URL(environment.NEXT_PUBLIC_SUPABASE_URL).host,
+                companyId,
+                code: attempted.error?.code,
+                message: attempted.error?.message,
+              });
               throw new Error("Failed to create bridged All Season campaign estimate", {
                 cause: attempted.error ?? new Error("Cached campaign bridge returned incomplete records"),
               });
