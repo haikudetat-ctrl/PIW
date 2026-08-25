@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
 import { z } from "zod";
-import { roofEstimateBrand } from "@/config/roof-estimate-brand";
 import { createServiceClient } from "@/lib/supabase/service";
 import { CampaignEstimateShell } from "./campaign-estimate-shell";
+import { CampaignResultContent } from "./campaign-result-content";
 import {
   buildEstimateResultModel,
   type EstimateResultModel,
@@ -10,12 +10,6 @@ import {
 import { EstimateStatusRefresh } from "./estimate-status-refresh";
 import { EstimateWaitExperience } from "./estimate-wait-experience";
 import { PropertySatelliteImage } from "./property-satellite-image";
-
-const money = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  maximumFractionDigits: 0,
-});
 
 function PropertyMedia({ token, address }: { token: string; address: string }) {
   return (
@@ -70,71 +64,6 @@ function ProcessingContent({ model }: { model: EstimateResultModel }) {
   );
 }
 
-function ManualReviewContent({ model }: { model: EstimateResultModel }) {
-  return (
-    <>
-      <p className="campaign-estimate-kicker">{model.copy.eyebrow}</p>
-      <h1 id="estimate-heading" className="campaign-estimate-title">
-        {model.copy.headline}
-      </h1>
-      <p className="campaign-estimate-intro">
-        Your request is saved. Our team is making sure the estimate starts with the right roof.
-      </p>
-      <EstimateWaitExperience theme={model.theme} manualReview />
-    </>
-  );
-}
-
-function ReadyContent({ model }: { model: EstimateResultModel }) {
-  return (
-    <>
-      <p className="campaign-estimate-kicker">{model.copy.eyebrow}</p>
-      <h1 id="estimate-heading" className="campaign-estimate-title">
-        {model.copy.headline}
-      </h1>
-      <p className="campaign-estimate-amount">
-        {money.format(model.rangeLowCents! / 100)} <span>to</span>{" "}
-        {money.format(model.rangeHighCents! / 100)}
-      </p>
-      <p className="campaign-estimate-intro">{model.copy.description}</p>
-
-      <dl className="campaign-estimate-facts">
-        <div>
-          <dt>Measured roof</dt>
-          <dd>{Number(model.roofSquares).toFixed(1)} squares</dd>
-        </div>
-        <div>
-          <dt>Pricing market</dt>
-          <dd>New Jersey</dd>
-        </div>
-      </dl>
-
-      <a href={roofEstimateBrand.phoneHref} className="campaign-primary-action">
-        Talk with a roofing specialist
-      </a>
-      <p className="campaign-estimate-disclaimer">
-        Preliminary sales estimate only. Decking, tear-off layers, access, permits, and field
-        conditions can change the final proposal.
-      </p>
-    </>
-  );
-}
-
-function UnavailableContent({ model }: { model: EstimateResultModel }) {
-  return (
-    <>
-      <p className="campaign-estimate-kicker">{model.copy.eyebrow}</p>
-      <h1 id="estimate-heading" className="campaign-estimate-title">
-        {model.copy.headline}
-      </h1>
-      <p className="campaign-estimate-intro">{model.copy.description}</p>
-      <a href={roofEstimateBrand.phoneHref} className="campaign-primary-action">
-        Call {roofEstimateBrand.phoneDisplay}
-      </a>
-    </>
-  );
-}
-
 export default async function RoofEstimateResultPage({
   params,
 }: {
@@ -171,36 +100,32 @@ export default async function RoofEstimateResultPage({
       .maybeSingle(),
   ]);
 
-  const result = buildEstimateResultModel({
+  const model = buildEstimateResultModel({
     estimate,
     pipelineStatus: pipeline?.status,
     canonicalAddress: property?.canonical_address,
     submittedAddress: lead?.submitted_address,
     campaign: lead?.campaign,
   });
-  const pending = result.state === "processing";
+  const pending = model.state === "processing";
 
   return (
     <>
       <EstimateStatusRefresh pending={pending} />
       <CampaignEstimateShell
-        theme={result.theme}
+        theme={model.theme}
         propertyMedia={
           pending ? (
-            <PropertyMediaSkeleton address={result.address} />
+            <PropertyMediaSkeleton address={model.address} />
           ) : (
-            <PropertyMedia token={token} address={result.address} />
+            <PropertyMedia token={token} address={model.address} />
           )
         }
       >
         {pending ? (
-          <ProcessingContent model={result} />
-        ) : result.state === "manual-review" ? (
-          <ManualReviewContent model={result} />
-        ) : result.state === "ready" ? (
-          <ReadyContent model={result} />
+          <ProcessingContent model={model} />
         ) : (
-          <UnavailableContent model={result} />
+          <CampaignResultContent model={model} />
         )}
       </CampaignEstimateShell>
     </>
