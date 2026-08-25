@@ -126,42 +126,42 @@ export default async function RoofEstimateResultPage({
             {pending ? (
               <>
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-cyan-700 dark:text-cyan-300">
-                  Measurement in progress
+                  {result.copy.eyebrow}
                 </p>
                 <h1 className="mt-5 max-w-lg text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">
-                  Your roof is being measured.
+                  {result.copy.headline}
                 </h1>
                 <p className="mt-5 max-w-md text-base leading-7 text-slate-600 dark:text-slate-300">
-                  Keep your phone close. Our team may call while Google prepares the measurement.
+                  {result.copy.description}
                 </p>
                 <EstimateWaitExperience brand={roofEstimateBrand} />
               </>
             ) : manualReview ? (
               <>
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-cyan-700 dark:text-cyan-300">
-                  Professional review
+                  {result.copy.eyebrow}
                 </p>
                 <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">
-                  We are checking the property match.
+                  {result.copy.headline}
                 </h1>
                 <p className="mt-5 text-base leading-7 text-slate-600 dark:text-slate-300">
-                  Google did not return a measurement we trust enough to price automatically. Your request is saved for a roofing professional.
+                  {result.copy.description}
                 </p>
                 <EstimateWaitExperience brand={roofEstimateBrand} manualReview />
               </>
             ) : ready ? (
               <>
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-cyan-700 dark:text-cyan-300">
-                  Preliminary roof estimate
+                  {result.copy.eyebrow}
                 </p>
                 <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">
-                  Your range is ready.
+                  {result.copy.headline}
                 </h1>
                 <p className="mt-8 text-4xl font-semibold tracking-[-0.05em] text-slate-950 dark:text-white sm:text-5xl">
                   {money.format(result.rangeLowCents! / 100)} <span className="text-slate-400">to</span> {money.format(result.rangeHighCents! / 100)}
                 </p>
                 <p className="mt-5 max-w-md text-base leading-7 text-slate-600 dark:text-slate-300">
-                  Based on approximately {Number(result.roofSquares).toFixed(1)} roofing squares and current New Jersey architectural-shingle averages.
+                  {result.copy.description}
                 </p>
 
                 <dl className="mt-8 grid grid-cols-2 gap-5 rounded-2xl bg-slate-100 p-5 dark:bg-slate-800/70">
@@ -188,13 +188,13 @@ export default async function RoofEstimateResultPage({
             ) : (
               <>
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-cyan-700 dark:text-cyan-300">
-                  Request received
+                  {result.copy.eyebrow}
                 </p>
                 <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">
-                  Your request is with our team.
+                  {result.copy.headline}
                 </h1>
                 <p className="mt-5 text-base leading-7 text-slate-600 dark:text-slate-300">
-                  We could not create a reliable instant range. A roofing professional can review the property and follow up.
+                  {result.copy.description}
                 </p>
               </>
             )}
