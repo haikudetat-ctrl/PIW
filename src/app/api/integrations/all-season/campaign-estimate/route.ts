@@ -148,7 +148,12 @@ export async function handleAllSeasonCampaignEstimateRequest(
   try {
     const accepted = await dependencies.accept(parsed.data);
     return NextResponse.json({ accepted: true, ...accepted }, { status: 202 });
-  } catch {
+  } catch (error) {
+    console.error("All Season campaign estimate intake failed", {
+      submissionId: parsed.data.submission_id,
+      campaign: parsed.data.campaign,
+      error,
+    });
     return NextResponse.json(
       { error: "Campaign estimate intake is temporarily unavailable" },
       { status: 503 },
@@ -190,7 +195,9 @@ export async function POST(request: NextRequest) {
             !created.event_id ||
             !created.event_payload
           ) {
-            throw new Error("Failed to create All Season campaign estimate");
+            throw new Error("Failed to create All Season campaign estimate", {
+              cause: error ?? new Error("Campaign estimate RPC returned incomplete records"),
+            });
           }
           const event = eventEnvelopeSchema.parse(created.event_payload);
           if (event.id !== created.event_id) {
