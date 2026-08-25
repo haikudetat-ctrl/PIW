@@ -39,7 +39,13 @@ Diagnostic isolation:
 | Command | Exit | Evidence |
 | --- | ---: | --- |
 | `npm run test:run -- --exclude 'apps/website/**'` | 0 | Pre-fix diagnostic: 80 files/334 tests passed; 5 files/6 tests skipped. The post-fix exact root gate now produces the same counts. |
-| Focused estimate-state/API command covering six named files | 0 | 6 files/29 tests passed. |
+| Focused estimate-state/API command shown below | 0 | 6 files/29 tests passed. |
+
+Exact focused integrity command:
+
+```bash
+npm run test:run -- 'src/app/roof-estimate/[token]/estimate-result-model.test.ts' 'src/app/roof-estimate/[token]/estimate-wait-experience.test.tsx' 'src/app/roof-estimate/[token]/campaign-result-content.test.tsx' 'src/app/roof-estimate/[token]/not-found.test.tsx' 'src/app/api/integrations/all-season/campaign-estimate/route.test.ts' 'src/modules/leads/accept-all-season-campaign-estimate.test.ts'
+```
 
 The focused command covered:
 
