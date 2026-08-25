@@ -1,7 +1,7 @@
 import {describe, expect, test} from "vitest";
+import {campaignSlugs} from "../../../../shared/all-season-campaign-themes";
 import {
   buildCampaignSubmission,
-  campaignSlugs,
   getCampaign,
 } from "./campaigns";
 

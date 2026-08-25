@@ -36,14 +36,14 @@ button:disabled { opacity: .55; cursor: wait; }
 .status { min-height: 1.5em; margin: 0; }
 
 .campaign-page {
-  --campaign-ink: #f2f6f7;
-  --campaign-muted: #b6c9d4;
-  --campaign-paper: #061f34;
-  --campaign-surface: #0b3554;
+  --campaign-ink: var(--estimate-text);
+  --campaign-muted: var(--estimate-muted);
+  --campaign-paper: var(--estimate-bg);
+  --campaign-surface: var(--estimate-surface);
   --campaign-line: rgba(235, 246, 250, .18);
-  --campaign-accent: #63b7dc;
-  --campaign-accent-ink: #0b1f35;
-  --campaign-signal: #63b7dc;
+  --campaign-accent: var(--estimate-accent);
+  --campaign-accent-ink: var(--estimate-accent-contrast);
+  --campaign-signal: var(--estimate-accent);
   min-height: 100vh;
   width: 100%;
   max-width: none;
@@ -52,33 +52,6 @@ button:disabled { opacity: .55; cursor: wait; }
   overflow: hidden;
   background: var(--campaign-paper);
   color: var(--campaign-ink);
-}
-
-.campaign-page[data-theme="forecast"] {
-  --campaign-ink: #f3f8fa;
-  --campaign-muted: #b9d0dc;
-  --campaign-paper: #082e49;
-  --campaign-surface: #0c405f;
-  --campaign-signal: #ff9a45;
-  --campaign-accent: #ff9a45;
-}
-
-.campaign-page[data-theme="shield"] {
-  --campaign-ink: #f2f8f0;
-  --campaign-muted: #bad4c1;
-  --campaign-paper: #07351f;
-  --campaign-surface: #0b4b2d;
-  --campaign-signal: #90d76f;
-  --campaign-accent: #90d76f;
-}
-
-.campaign-page[data-theme="seasons"] {
-  --campaign-ink: #f1f8fb;
-  --campaign-muted: #b9d3df;
-  --campaign-paper: #073754;
-  --campaign-surface: #0d4b6a;
-  --campaign-signal: #f2a044;
-  --campaign-accent: #7bcb28;
 }
 
 .campaign-nav {

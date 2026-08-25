@@ -1,5 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
+import type {CSSProperties} from "react";
+import {campaignThemeCssVariables} from "../../../../shared/all-season-campaign-themes";
 import {CampaignEstimateForm} from "./campaign-estimate-form";
 import type {CampaignDefinition} from "./campaigns";
 
@@ -14,7 +16,11 @@ export function CampaignLandingPage({campaign}: {campaign: CampaignDefinition}) 
   const headlineParts = campaign.bridgeHeadline.split(/(\s+)/);
 
   return (
-    <main className="campaign-page" data-theme={campaign.theme}>
+    <main
+      className="campaign-page"
+      data-theme={campaign.visual.theme}
+      style={campaignThemeCssVariables(campaign.visual) as CSSProperties}
+    >
       <nav className="campaign-nav" aria-label="Campaign navigation">
         <Link className="campaign-brand" href="/" aria-label="All Season home">
           <Image src="/assets/all-season-sun.svg" alt="" width={48} height={48} />

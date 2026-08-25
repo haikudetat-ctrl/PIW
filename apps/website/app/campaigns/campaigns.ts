@@ -1,15 +1,10 @@
-export const campaignSlugs = [
-  "do-it-right-once",
-  "weather-report",
-  "seasonal-shield",
-  "for-every-season",
-] as const;
+import {campaignSlugs, campaignThemes, type CampaignSlug, type CampaignTheme} from "../../../../shared/all-season-campaign-themes";
 
-export type CampaignSlug = (typeof campaignSlugs)[number];
+export {campaignSlugs};
 
 export type CampaignDefinition = {
   slug: CampaignSlug;
-  theme: "heritage" | "forecast" | "shield" | "seasons";
+  visual: CampaignTheme;
   name: string;
   kicker: string;
   headline: string;
@@ -34,7 +29,7 @@ export type CampaignDefinition = {
 export const campaigns: Record<CampaignSlug, CampaignDefinition> = {
   "do-it-right-once": {
     slug: "do-it-right-once",
-    theme: "heritage",
+    visual: campaignThemes["do-it-right-once"],
     name: "Do It Right. Once.",
     kicker: "Built right. Backed for life.",
     headline: "Do it right.",
@@ -61,7 +56,7 @@ export const campaigns: Record<CampaignSlug, CampaignDefinition> = {
   },
   "weather-report": {
     slug: "weather-report",
-    theme: "forecast",
+    visual: campaignThemes["weather-report"],
     name: "Weather Report",
     kicker: "Your roof has a rough week ahead",
     headline: "Your home gets",
@@ -88,7 +83,7 @@ export const campaigns: Record<CampaignSlug, CampaignDefinition> = {
   },
   "seasonal-shield": {
     slug: "seasonal-shield",
-    theme: "shield",
+    visual: campaignThemes["seasonal-shield"],
     name: "Seasonal Shield",
     kicker: "Protection above everything",
     headline: "The roof above",
@@ -115,7 +110,7 @@ export const campaigns: Record<CampaignSlug, CampaignDefinition> = {
   },
   "for-every-season": {
     slug: "for-every-season",
-    theme: "seasons",
+    visual: campaignThemes["for-every-season"],
     name: "For Every Season",
     kicker: "New Jersey roofing, year after year",
     headline: "One roof.",
