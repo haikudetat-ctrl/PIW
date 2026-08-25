@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(49);
+select plan(52);
 
 select has_column('public', 'leads', 'utm_source', 'campaign leads retain UTM source');
 select has_column('public', 'leads', 'utm_medium', 'campaign leads retain UTM medium');
@@ -123,6 +123,65 @@ select is(
    where outbox.event_id = (select event_id from first_submission)),
   1::bigint,
   'first submission creates the matching event outbox row'
+);
+
+create temp table cached_bridge_submission as select * from public.submit_all_season_lead(
+  'b0000000-0000-4000-8000-000000000001',
+  'b0000000-0000-4000-8000-000000000060',
+  'Bridge Homeowner',
+  '201-555-0160',
+  'bridge@example.com',
+  '60 Main St, Newark, NJ 07102',
+  'roofing',
+  '2026-08-25T05:00:00Z',
+  '{"_campaign_slug":"weather-report","utm_source":"facebook","utm_medium":"paid-social","utm_campaign":"weather"}'::jsonb,
+  'all-season-campaign-estimate-v1',
+  '127.0.0.60',
+  'cached-rpc-pgtap',
+  2,
+  '',
+  'bridge@example.com',
+  'ChIJ-cached-bridge'
+);
+select is(
+  (select concat_ws('|', source_system, campaign, original_lead_source, utm_source, utm_medium, utm_campaign)
+   from public.leads where id = (select lead_id from cached_bridge_submission)),
+  'all-season-campaign|weather-report|campaign-landing-page|facebook|paid-social|weather',
+  'cached All Season RPC routes marked submissions into the attributed campaign transaction'
+);
+select ok(
+  (select count(*) = 1
+   from public.roof_estimates as estimate
+   join public.domain_events as event
+     on event.pipeline_run_id = (select pipeline_run_id from cached_bridge_submission)
+    and event.idempotency_key = 'crm/lead.submitted:' || (select pipeline_run_id::text from cached_bridge_submission)
+   join public.event_outbox as outbox on outbox.event_id = event.id
+   where estimate.lead_id = (select lead_id from cached_bridge_submission)
+     and estimate.public_token is not null
+     and event.event_name = 'crm/lead.submitted'),
+  'cached campaign bridge atomically creates the estimate token, event, and outbox row'
+);
+select is(
+  (select is_duplicate from public.submit_all_season_lead(
+    'b0000000-0000-4000-8000-000000000001',
+    'b0000000-0000-4000-8000-000000000060',
+    'Changed Bridge Homeowner',
+    '201-555-0161',
+    'changed-bridge@example.com',
+    '61 Main St, Newark, NJ 07102',
+    'roofing',
+    '2026-08-25T05:01:00Z',
+    '{"_campaign_slug":"weather-report"}'::jsonb,
+    'all-season-campaign-estimate-v1',
+    '127.0.0.61',
+    'cached-rpc-retry',
+    2,
+    '',
+    'changed-bridge@example.com',
+    null
+  )),
+  true,
+  'cached campaign bridge preserves campaign submission deduplication'
 );
 
 create temp table campaign_counts_before_invalid as select

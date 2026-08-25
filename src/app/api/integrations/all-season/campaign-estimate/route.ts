@@ -113,6 +113,61 @@ export function toCampaignEstimateRpcArgs({
   };
 }
 
+export function toCachedCampaignBridgeRpcArgs({
+  input,
+  companyId,
+}: {
+  input: AllSeasonCampaignEstimateLeadInput;
+  companyId: string;
+}) {
+  return {
+    p_company_id: companyId,
+    p_submission_id: input.submissionId,
+    p_name: input.name,
+    p_phone: input.phone,
+    p_email: input.email,
+    p_submitted_address: input.submittedAddress,
+    p_service_requested: "roofing",
+    p_submitted_at: input.submittedAt,
+    p_attribution: { ...input.attribution, _campaign_slug: input.campaign },
+    p_disclosure_version: "all-season-campaign-estimate-v1",
+    p_ip_address: input.clientIpAddress,
+    p_user_agent: input.clientUserAgent,
+    p_pipeline_version: 2,
+    p_phone_e164: "",
+    p_email_normalized: input.email.trim().toLowerCase(),
+    p_google_place_id: input.googlePlaceId ?? "",
+  };
+}
+
+type RpcErrorLike = {
+  code?: string;
+  message: string;
+  details?: string;
+  hint?: string;
+};
+
+type RpcAttempt = {
+  data: unknown;
+  error: RpcErrorLike | null;
+};
+
+export async function submitWithCampaignRpcFallback({
+  submitCampaign,
+  submitBridge,
+}: {
+  submitCampaign: () => PromiseLike<RpcAttempt>;
+  submitBridge: () => PromiseLike<RpcAttempt>;
+}) {
+  const campaign = await submitCampaign();
+  if (campaign.error?.code !== "PGRST202") {
+    return { source: "campaign-rpc" as const, ...campaign };
+  }
+
+  const bridge = await submitBridge();
+  return { source: "cached-bridge" as const, ...bridge };
+}
+
 type CampaignEstimateResult = {
   leadId: string;
   publicToken: string;
@@ -178,13 +233,74 @@ export async function POST(request: NextRequest) {
     accept: (payload) =>
       acceptAllSeasonCampaignEstimate(toCampaignEstimateLeadInput(payload), {
         createEstimateRecords: async (lead) => {
-          const { data, error } = await service.rpc(
-            "submit_all_season_campaign_estimate",
-            toCampaignEstimateRpcArgs({
-              input: lead,
-              companyId,
-            }),
-          );
+          const attempted = await submitWithCampaignRpcFallback({
+            submitCampaign: () => service.rpc(
+              "submit_all_season_campaign_estimate",
+              toCampaignEstimateRpcArgs({ input: lead, companyId }),
+            ),
+            submitBridge: () => service.rpc(
+              "submit_all_season_lead",
+              toCachedCampaignBridgeRpcArgs({ input: lead, companyId }),
+            ),
+          });
+
+          if (attempted.source === "cached-bridge") {
+            const bridged = z.object({
+              lead_id: z.uuid(),
+              property_id: z.uuid(),
+              pipeline_run_id: z.uuid(),
+              is_duplicate: z.boolean(),
+            }).safeParse(Array.isArray(attempted.data) ? attempted.data[0] : null);
+            if (attempted.error || !bridged.success) {
+              throw new Error("Failed to create bridged All Season campaign estimate", {
+                cause: attempted.error ?? new Error("Cached campaign bridge returned incomplete records"),
+              });
+            }
+
+            const [{ data: estimate, error: estimateError }, { data: persisted, error: eventError }] =
+              await Promise.all([
+                service
+                  .from("roof_estimates")
+                  .select("public_token")
+                  .eq("company_id", companyId)
+                  .eq("lead_id", bridged.data.lead_id)
+                  .single(),
+                service
+                  .from("domain_events")
+                  .select("id,payload")
+                  .eq("company_id", companyId)
+                  .eq("pipeline_run_id", bridged.data.pipeline_run_id)
+                  .eq(
+                    "idempotency_key",
+                    `crm/lead.submitted:${bridged.data.pipeline_run_id}`,
+                  )
+                  .single(),
+              ]);
+            const event = eventEnvelopeSchema.safeParse(persisted?.payload);
+            if (
+              estimateError ||
+              eventError ||
+              !estimate?.public_token ||
+              !persisted?.id ||
+              !event.success ||
+              event.data.id !== persisted.id
+            ) {
+              throw new Error("Failed to load bridged All Season campaign graph", {
+                cause: estimateError ?? eventError ?? new Error("Campaign graph is incomplete"),
+              });
+            }
+            return {
+              leadId: bridged.data.lead_id,
+              propertyId: bridged.data.property_id,
+              pipelineRunId: bridged.data.pipeline_run_id,
+              publicToken: estimate.public_token,
+              event: event.data,
+              isDuplicate: bridged.data.is_duplicate,
+            };
+          }
+
+          const data = attempted.data as Awaited<ReturnType<typeof service.rpc<"submit_all_season_campaign_estimate">>>["data"];
+          const error = attempted.error;
           const created = data?.[0];
           if (
             error ||

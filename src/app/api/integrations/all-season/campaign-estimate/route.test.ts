@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { describe, expect, test, vi } from "vitest";
 import {
   handleAllSeasonCampaignEstimateRequest,
+  submitWithCampaignRpcFallback,
+  toCachedCampaignBridgeRpcArgs,
   toCampaignEstimateRpcArgs,
   toCampaignEstimateLeadInput,
   type AllSeasonCampaignEstimateInput,
@@ -98,6 +100,68 @@ describe("All Season campaign estimate intake", () => {
       p_user_agent: validPayload.client_user_agent,
       p_correlation_id: validPayload.submission_id,
       p_pipeline_version: 2,
+      p_google_place_id: validPayload.google_place_id,
+    });
+  });
+
+  test("falls back through the cached All Season RPC when PostgREST cannot discover the campaign RPC", async () => {
+    const bridgeRow = {
+      lead_id: "22222222-2222-4222-8222-222222222222",
+      property_id: "33333333-3333-4333-8333-333333333333",
+      pipeline_run_id: "44444444-4444-4444-8444-444444444444",
+      is_duplicate: false,
+    };
+    const result = await submitWithCampaignRpcFallback({
+      submitCampaign: async () => ({
+        data: null,
+        error: { code: "PGRST202", message: "function missing from schema cache" },
+      }),
+      submitBridge: async () => ({ data: [bridgeRow], error: null }),
+    });
+
+    expect(result).toEqual({ source: "cached-bridge", data: [bridgeRow], error: null });
+  });
+
+  test("does not hide campaign RPC failures unrelated to schema discovery", async () => {
+    const result = await submitWithCampaignRpcFallback({
+      submitCampaign: async () => ({
+        data: null,
+        error: { code: "42501", message: "permission denied" },
+      }),
+      submitBridge: async () => {
+        throw new Error("bridge must not run");
+      },
+    });
+
+    expect(result).toEqual({
+      source: "campaign-rpc",
+      data: null,
+      error: { code: "42501", message: "permission denied" },
+    });
+  });
+
+  test("marks cached bridge calls so the existing RPC invokes the atomic campaign transaction", () => {
+    const input = toCampaignEstimateLeadInput(validPayload);
+
+    expect(toCachedCampaignBridgeRpcArgs({
+      input,
+      companyId: "99999999-9999-4999-8999-999999999999",
+    })).toEqual({
+      p_company_id: "99999999-9999-4999-8999-999999999999",
+      p_submission_id: validPayload.submission_id,
+      p_name: validPayload.name,
+      p_phone: validPayload.phone,
+      p_email: validPayload.email,
+      p_submitted_address: validPayload.address,
+      p_service_requested: "roofing",
+      p_submitted_at: validPayload.submittedAt,
+      p_attribution: { ...validPayload.attribution, _campaign_slug: "do-it-right-once" },
+      p_disclosure_version: "all-season-campaign-estimate-v1",
+      p_ip_address: validPayload.client_ip_address,
+      p_user_agent: validPayload.client_user_agent,
+      p_pipeline_version: 2,
+      p_phone_e164: "",
+      p_email_normalized: "alex@example.com",
       p_google_place_id: validPayload.google_place_id,
     });
   });
