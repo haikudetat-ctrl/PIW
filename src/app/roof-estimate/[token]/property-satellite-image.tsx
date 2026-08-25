@@ -38,17 +38,17 @@ export function PropertySatelliteImage({
   if (state.status === "unavailable") {
     const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
     return (
-      <div className="grid h-full place-items-center bg-[radial-gradient(circle_at_30%_30%,#315b68_0_12%,transparent_13%),radial-gradient(circle_at_72%_64%,#274955_0_17%,transparent_18%),#17333d] p-8 text-center">
-        <div className="max-w-sm rounded-2xl border border-white/10 bg-slate-950/60 p-6 backdrop-blur-md">
-          <p className="text-base font-semibold text-white">Property imagery is temporarily unavailable.</p>
-          <p className="mt-2 text-sm leading-6 text-slate-300">
-            Your measurement and price range are saved. You can still view the address in Google Maps.
+      <div className="campaign-property-media-state">
+        <div className="campaign-property-media-message">
+          <p className="campaign-property-media-heading">Property imagery is temporarily unavailable.</p>
+          <p>
+            Your request is saved, and our roofing team can continue reviewing the property.
           </p>
           <a
             href={mapsUrl}
             target="_blank"
             rel="noreferrer"
-            className="mt-5 inline-block rounded-2xl bg-white px-5 py-3 text-sm font-bold !text-slate-950 transition active:translate-y-px"
+            className="campaign-property-media-link"
           >
             Open Google Maps
           </a>
@@ -59,8 +59,8 @@ export function PropertySatelliteImage({
 
   if (state.status === "loading") {
     return (
-      <div className="estimate-map-skeleton grid h-full place-items-center p-8 text-center">
-        <p className="rounded-2xl border border-white/10 bg-slate-950/55 px-5 py-3 text-sm font-semibold text-white backdrop-blur-md">
+      <div className="campaign-property-media-state estimate-map-skeleton">
+        <p className="campaign-property-loading-label">
           Loading the satellite view
         </p>
       </div>
@@ -75,7 +75,7 @@ export function PropertySatelliteImage({
       priority
       unoptimized
       sizes="(min-width: 1024px) 58vw, 100vw"
-      className="object-cover"
+      className="campaign-property-image estimate-reveal"
     />
   );
 }
