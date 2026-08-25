@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { z } from "zod";
 import { roofEstimateBrand } from "@/config/roof-estimate-brand";
 import { createServiceClient } from "@/lib/supabase/service";
+import { buildEstimateResultModel } from "./estimate-result-model";
 import { EstimateStatusRefresh } from "./estimate-status-refresh";
 import { EstimateWaitExperience } from "./estimate-wait-experience";
 import { PropertySatelliteImage } from "./property-satellite-image";
@@ -81,23 +82,21 @@ export default async function RoofEstimateResultPage({
       .maybeSingle(),
     service
       .from("leads")
-      .select("submitted_address")
+      .select("submitted_address, campaign")
       .eq("id", estimate.lead_id)
       .maybeSingle(),
   ]);
 
-  const pipelineTerminal = Boolean(
-    pipeline && ["complete", "partial", "review_required", "failed"].includes(pipeline.status),
-  );
-  const pending = estimate.status === "pending" && !pipelineTerminal;
-  const manualReview =
-    estimate.status === "review_required" ||
-    (estimate.status === "pending" && pipeline?.status === "review_required");
-  const ready =
-    estimate.status === "ready" &&
-    estimate.range_low_cents !== null &&
-    estimate.range_high_cents !== null;
-  const address = property?.canonical_address ?? lead?.submitted_address ?? "your property";
+  const result = buildEstimateResultModel({
+    estimate,
+    pipelineStatus: pipeline?.status,
+    canonicalAddress: property?.canonical_address,
+    submittedAddress: lead?.submitted_address,
+    campaign: lead?.campaign,
+  });
+  const pending = result.state === "processing";
+  const manualReview = result.state === "manual-review";
+  const ready = result.state === "ready";
 
   return (
     <main className="min-h-[100dvh] bg-[#eef3f5] px-4 py-6 text-slate-950 dark:bg-slate-950 dark:text-slate-100 sm:px-6 sm:py-10">
@@ -118,7 +117,7 @@ export default async function RoofEstimateResultPage({
 
         <section className="grid gap-6 lg:grid-cols-[minmax(0,1.18fr)_minmax(24rem,0.82fr)] lg:items-stretch">
           {ready || manualReview ? (
-            <PropertyMedia token={token} address={address} />
+            <PropertyMedia token={token} address={result.address} />
           ) : (
             <PropertyMediaSkeleton />
           )}
@@ -159,16 +158,16 @@ export default async function RoofEstimateResultPage({
                   Your range is ready.
                 </h1>
                 <p className="mt-8 text-4xl font-semibold tracking-[-0.05em] text-slate-950 dark:text-white sm:text-5xl">
-                  {money.format(estimate.range_low_cents! / 100)} <span className="text-slate-400">to</span> {money.format(estimate.range_high_cents! / 100)}
+                  {money.format(result.rangeLowCents! / 100)} <span className="text-slate-400">to</span> {money.format(result.rangeHighCents! / 100)}
                 </p>
                 <p className="mt-5 max-w-md text-base leading-7 text-slate-600 dark:text-slate-300">
-                  Based on approximately {Number(estimate.roof_squares).toFixed(1)} roofing squares and current New Jersey architectural-shingle averages.
+                  Based on approximately {Number(result.roofSquares).toFixed(1)} roofing squares and current New Jersey architectural-shingle averages.
                 </p>
 
                 <dl className="mt-8 grid grid-cols-2 gap-5 rounded-2xl bg-slate-100 p-5 dark:bg-slate-800/70">
                   <div>
                     <dt className="text-xs text-slate-500 dark:text-slate-400">Measured roof</dt>
-                    <dd className="mt-1 text-lg font-semibold">{Number(estimate.roof_squares).toFixed(1)} squares</dd>
+                    <dd className="mt-1 text-lg font-semibold">{Number(result.roofSquares).toFixed(1)} squares</dd>
                   </div>
                   <div>
                     <dt className="text-xs text-slate-500 dark:text-slate-400">Pricing market</dt>
