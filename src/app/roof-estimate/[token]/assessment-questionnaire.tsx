@@ -43,8 +43,19 @@ function OptionGrid({
   onSelect: (value: string) => void;
   multi?: boolean;
 }) {
+  const columns = options.length >= 5 ? "two" : "one";
+  const density = options.length >= 7 ? "compact" : "comfortable";
+
   return (
-    <div className="assessment-option-grid" data-multi={multi}>
+    <div
+      role="group"
+      aria-label={multi ? "Select all that apply" : "Choose one answer"}
+      className="assessment-option-grid"
+      data-multi={multi}
+      data-option-count={options.length}
+      data-columns={columns}
+      data-density={density}
+    >
       {options.map((option) => {
         const active = selected.includes(option.value);
         return (
@@ -259,7 +270,7 @@ export function AssessmentQuestionnaire({
               {step === 1 ? <OptionGrid options={roofAgeOptions} selected={responses.roofAge ? [responses.roofAge] : []} onSelect={(value) => selectSingle("roofAge", value as RoofAssessmentResponses["roofAge"])} /> : null}
               {step === 2 ? <OptionGrid multi options={conditionOptions} selected={responses.conditionSignals ?? []} onSelect={(value) => toggleMulti("conditionSignals", value, ["nothing_obvious", "unsure"])} /> : null}
               {step === 3 ? (
-                <div className="space-y-6">
+                <div className="assessment-visibility-options space-y-6">
                   <OptionGrid options={[{value: "yes", label: "Yes"}, {value: "no", label: "No"}]} selected={responses.roofVisible ? [responses.roofVisible] : []} onSelect={(value) => {
                     selectSingle("roofVisible", value as RoofAssessmentResponses["roofVisible"]);
                     if (value === "no") selectSingle("visibleCondition", "not_answered");
