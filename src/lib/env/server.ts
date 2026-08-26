@@ -25,6 +25,10 @@ const serverEnvSchema = z
     PAID_PROVIDERS_ENABLED: booleanString,
     ROOF_ASSESSMENT_ENABLED: booleanString,
     ROOF_ASSESSMENT_SIGNING_SECRET: optionalSigningSecret,
+    TWILIO_VERIFY_ENABLED: booleanString,
+    TWILIO_API_KEY_SID: optionalString,
+    TWILIO_API_KEY_SECRET: optionalString,
+    TWILIO_VERIFY_SERVICE_SID: optionalString,
     INTEGRATIONS_LEADCONDUIT_ENABLED: booleanString,
     LEADCONDUIT_FILTER_CAVEAT_ACTIVE: z.enum(["true", "false"]).default("true")
       .transform((value) => value === "true"),
@@ -96,6 +100,22 @@ const serverEnvSchema = z
         code: "custom",
         path: ["ROOF_ASSESSMENT_SIGNING_SECRET"],
         message: "Roof assessment signing secret is required when assessments are enabled",
+      });
+    }
+    if (
+      value.TWILIO_VERIFY_ENABLED
+      && (
+        !value.TWILIO_API_KEY_SID
+        || !value.TWILIO_API_KEY_SECRET
+        || !value.TWILIO_VERIFY_SERVICE_SID
+        || !value.ROOF_ASSESSMENT_ENABLED
+        || !value.ROOF_ASSESSMENT_SIGNING_SECRET
+      )
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["TWILIO_VERIFY_ENABLED"],
+        message: "Twilio Verify requires API credentials, a service SID, and assessment signing",
       });
     }
     const readIntegrations = [

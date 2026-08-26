@@ -2898,6 +2898,66 @@ export type Database = {
           },
         ]
       }
+      roof_assessment_verification_sends: {
+        Row: {
+          approved_at: string | null
+          attempt_id: string
+          company_id: string
+          created_at: string
+          destination_phone_e164: string
+          id: string
+          provider_attempt_id: string | null
+          provider_status: string
+          request_ip: unknown
+          reserved_at: string
+          sent_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          approved_at?: string | null
+          attempt_id: string
+          company_id: string
+          created_at?: string
+          destination_phone_e164: string
+          id?: string
+          provider_attempt_id?: string | null
+          provider_status?: string
+          request_ip: unknown
+          reserved_at?: string
+          sent_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          approved_at?: string | null
+          attempt_id?: string
+          company_id?: string
+          created_at?: string
+          destination_phone_e164?: string
+          id?: string
+          provider_attempt_id?: string | null
+          provider_status?: string
+          request_ip?: unknown
+          reserved_at?: string
+          sent_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "roof_assessment_verification_sends_company_id_attempt_id_fkey"
+            columns: ["company_id", "attempt_id"]
+            isOneToOne: false
+            referencedRelation: "roof_assessment_access_attempts"
+            referencedColumns: ["company_id", "id"]
+          },
+          {
+            foreignKeyName: "roof_assessment_verification_sends_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       roof_assessments: {
         Row: {
           abandoned_at: string | null
@@ -3593,6 +3653,18 @@ export type Database = {
       }
     }
     Functions: {
+      approve_verified_roof_assessment_resume: {
+        Args: {
+          p_attempt_id: string
+          p_company_id: string
+          p_provider_attempt_id: string
+        }
+        Returns: {
+          assessment_id: string
+          public_token: string
+          token_rotated_at: string
+        }[]
+      }
       authorize_same_browser_roof_assessment_resume: {
         Args: {
           p_assessment_id: string
@@ -3735,6 +3807,15 @@ export type Database = {
           is_duplicate: boolean
         }[]
       }
+      record_roof_assessment_verification_start: {
+        Args: {
+          p_attempt_id: string
+          p_company_id: string
+          p_provider_attempt_id: string
+          p_reservation_id: string
+        }
+        Returns: undefined
+      }
       request_roof_consultation: {
         Args: {
           p_assessment_id: string
@@ -3754,6 +3835,15 @@ export type Database = {
           allowed: boolean
           call_limit: number
           reserved_count: number
+        }[]
+      }
+      reserve_roof_assessment_verification_start: {
+        Args: { p_attempt_id: string; p_request_ip: unknown }
+        Returns: {
+          company_id: string
+          destination_phone_e164: string
+          reservation_id: string
+          reserved_at: string
         }[]
       }
       resolve_review_task: {
