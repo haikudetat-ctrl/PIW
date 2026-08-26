@@ -4,9 +4,32 @@ Procedure for standing up the PIW foundation in Supabase, Inngest, and
 Vercel. Account-level changes require an authenticated operator or connector;
 the checked-in migrations and CI gates remain the source of truth.
 
-## Current PIW staging semantics
+## Current All Season production ownership
 
-As of August 14, 2026, `https://piw-sepia.vercel.app` is the dedicated PIW staging application even though Vercel labels its deployment target `Production`. Its database is the dedicated Supabase staging project `qituolbocxnoxcmkqrva`. Do not interpret the Vercel target label as authorization for customer production traffic, and do not substitute an older project reference from another runbook.
+As of August 26, 2026, the All Season customer journey is intentionally split
+across two production Vercel projects:
+
+- `https://rake-website.vercel.app` is the canonical public homepage, content
+  site, and owner of `/campaigns/*` landing pages and their public form shell.
+- `https://piw-sepia.vercel.app` is the secure intake/enrichment backend and
+  owner of `/roof-estimate/[token]` processing and result rendering.
+- Campaign result themes resolve from the stored `leads.campaign` value. The
+  neutral All Season theme remains the rollback-compatible fallback for
+  traffic without a recognized campaign.
+- PIW uses its existing configured production Supabase environment for project
+  `imtcrbqintoehyjtgvgr`. Do not create or connect another Supabase project as
+  part of a website or PIW deployment.
+
+Current release inventory:
+
+| Application | Production deployment | Release commit | State | Production alias |
+| --- | --- | --- | --- | --- |
+| PIW backend/results | `dpl_hdAtWjRrpc6Q1qHrjz5df13BqUgX` | `d53a528` | READY | `https://piw-sepia.vercel.app` |
+| All Season website/campaigns | `dpl_SDmWNaoaq8KEzX4iY1bg19FLDTnx` | `d7f8dcc` (`releaseCommit` metadata) | READY | `https://rake-website.vercel.app` |
+
+These deployments preserve the environment already attached to each linked
+Vercel project. Never copy secret values into this runbook or infer a runtime
+binding from the account inventory visible to a separate connector.
 
 ## 1. Create Supabase projects
 
@@ -62,7 +85,7 @@ signing keys, since that prefix ships the value to the browser bundle:
 | `INNGEST_EVENT_KEY` | prod event key | preview/dev event key |
 | `INNGEST_SIGNING_KEY` | prod signing key | preview/dev signing key |
 | `PAID_PROVIDERS_ENABLED` | `true` to process consented estimates | `false` (enforced — preview cannot enable paid providers) |
-| `ACCESS_ROUTE_COMPANY_ID` | server-bound staging tenant UUID | preview tenant UUID or blank |
+| `ACCESS_ROUTE_COMPANY_ID` | server-bound production tenant UUID | preview tenant UUID or blank |
 | `INTEGRATIONS_LEADCONDUIT_ROOFING_RECEIVER_ENABLED` | `false` until separately approved | `false` |
 | `INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_RECEIVER_ENABLED` | `false` until separately approved | `false` |
 | `LEADCONDUIT_ROOFING_FLOW_ID` / `LEADCONDUIT_VIRTUAL_QUOTE_FLOW_ID` | exact approved flow IDs | blank |
@@ -99,7 +122,20 @@ On the separate All Season website project, set:
 - `CAMPAIGN_ESTIMATE_WEBHOOK_URL` to `https://<matching-piw-domain>/api/integrations/all-season/campaign-estimate`.
 - `PIW_PUBLIC_APP_URL` to the same matching PIW origin so accepted campaign submissions continue to the homeowner result.
 - `INTAKE_WEBHOOK_SHARED_SECRET` to the matching PIW shared secret.
-- `GOOGLE_PLACES_API_KEY` to the server-restricted Places API (New) key used by campaign address autocomplete.
+- `GOOGLE_PLACES_API_KEY` to the server-restricted Places API (New) key used by campaign address autocomplete and the Google review feed.
+- `GOOGLE_PLACES_PLACE_ID` to the canonical All Season Google Business Profile place ID used by the review feed.
+
+Keep these project-scoped Vercel Firewall rules enabled in production. Each
+rule is keyed by client IP and denies requests beyond its fixed window:
+
+- `POST /api/address-autocomplete`: 60 requests per 60 seconds.
+- `POST /api/campaign-estimate`: 10 requests per 3600 seconds.
+- `GET /api/google-reviews`: 10 requests per 60 seconds.
+
+The review route's in-process limiter is defense in depth for a warm function
+instance; it does not replace the distributed Vercel Firewall rule. Verify
+`3 active, 0 inactive` and no unpublished draft before promoting a website
+deployment.
 
 Never point a preview website deployment at PIW production. The campaign
 webhook URL and public result origin must always target the same PIW environment.
