@@ -20,6 +20,10 @@ describe("public estimate assessment flow", () => {
     expect(selectPublicEstimateView({assessmentEnabled: true, assessmentStatus: "completed"})).toBe("result");
   });
 
+  test("requires an authorized resume for an abandoned assessment", () => {
+    expect(selectPublicEstimateView({assessmentEnabled: true, assessmentStatus: "abandoned"})).toBe("resume_required");
+  });
+
   test.each([
     ["monitor_or_repair", "Replacement probably isn't your first move.", "Have us take a look before you spend money"],
     ["professional_inspection", "Worth having inspected.", "Get a professional roof assessment"],
