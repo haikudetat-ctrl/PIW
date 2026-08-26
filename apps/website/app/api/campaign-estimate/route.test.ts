@@ -1,5 +1,6 @@
 import {NextRequest} from "next/server";
 import {afterEach, describe, expect, test, vi} from "vitest";
+import {allSeasonCampaignEstimateSchema} from "../../../../../src/app/api/integrations/all-season/campaign-estimate/schema";
 import {handleCampaignEstimateRequest, POST} from "./route";
 
 const submissionId = "11111111-1111-4111-8111-111111111111";
@@ -18,7 +19,7 @@ function request(body: unknown, cookie = "_fbp=fb.1.100.200; _fbc=fb.1.100.click
     headers: {
       "content-type": "application/json",
       cookie,
-      referer: "https://allseason.example/campaigns/do-it-right-once?utm_source=facebook",
+      referer: "https://allseason.example/campaigns/weather-report?utm_source=facebook",
       "user-agent": "homeowner-browser",
       "x-forwarded-for": "203.0.113.10",
     },
@@ -42,9 +43,9 @@ function requestWithHeaders(body: unknown, headers: Record<string, string>) {
 function googleSubmission(overrides: Record<string, unknown> = {}) {
   return {
     submission_id: submissionId,
-    campaign: "do-it-right-once",
-    presentation_key: "do-it-right-once",
-    entry_point: "campaign:do-it-right-once",
+    campaign: "weather-report",
+    presentation_key: "weather-report",
+    entry_point: "campaign:weather-report",
     name: "Alex Rivera",
     email: "alex@example.com",
     phone: "201-555-0100",
@@ -75,21 +76,22 @@ describe("campaign estimate proxy", () => {
     );
 
     expect(response.status).toBe(202);
+    expect(response.headers.get("cache-control")).toBe("no-store");
     await expect(response.json()).resolves.toEqual({
       accepted: true,
       estimateUrl: "https://piw.example/roof-estimate/continue/signed_token-123",
     });
     expect(forwarded).toEqual(expect.objectContaining({
       submission_id: submissionId,
-      campaign: "do-it-right-once",
-      presentation_key: "do-it-right-once",
-      entry_point: "campaign:do-it-right-once",
+      campaign: "weather-report",
+      presentation_key: "weather-report",
+      entry_point: "campaign:weather-report",
       source: "all-season-campaign",
       address: "1 Main St, Newark, NJ 07102, USA",
       google_place_id: "ChIJ-test-place",
       client_ip_address: "203.0.113.10",
       client_user_agent: "homeowner-browser",
-      referrer: "https://allseason.example/campaigns/do-it-right-once?utm_source=facebook",
+      referrer: "https://allseason.example/campaigns/weather-report?utm_source=facebook",
       disclosure_version: "all-season-campaign-estimate-v1",
       attribution: {
         utm_source: "facebook",
@@ -103,6 +105,13 @@ describe("campaign estimate proxy", () => {
       },
     }));
     expect(typeof forwarded?.submittedAt).toBe("string");
+    expect(allSeasonCampaignEstimateSchema.safeParse(forwarded).success).toBe(true);
+    expect(forwarded).not.toHaveProperty("utm_source");
+    expect(forwarded).not.toHaveProperty("utm_medium");
+    expect(forwarded).not.toHaveProperty("utm_campaign");
+    expect(forwarded).not.toHaveProperty("utm_term");
+    expect(forwarded).not.toHaveProperty("utm_content");
+    expect(forwarded).not.toHaveProperty("fbclid");
   });
 
   test("accepts a complete manual New Jersey address and formats it for PIW", async () => {
@@ -173,7 +182,7 @@ describe("campaign estimate proxy", () => {
     ["an address outside New Jersey", googleSubmission({google_place_id: undefined, address_line_1: "12 Birch Street", city: "Newark", state: "NY", postal_code: "07102"})],
     ["missing contact consent", googleSubmission({consent_to_contact: false})],
     ["missing property-processing consent", googleSubmission({consent_to_process_property: false})],
-    ["mismatched campaign framing", googleSubmission({presentation_key: "weather-report"})],
+    ["mismatched campaign framing", googleSubmission({presentation_key: "seasonal-shield"})],
     ["an unknown field", googleSubmission({raw_secret: "must-not-pass"})],
   ])("rejects %s without forwarding it", async (_label, body) => {
     const forward = vi.fn(async () => Response.json({accepted: true, continuationPath: "/roof-estimate/continue/safe_token"}));
@@ -221,6 +230,7 @@ describe("campaign estimate proxy", () => {
     );
 
     expect(response.status).toBe(409);
+    expect(response.headers.get("cache-control")).toBe("no-store");
     await expect(response.json()).resolves.toEqual({
       error: "Please restart this estimate request.",
       retryable: true,
@@ -248,14 +258,20 @@ describe("campaign estimate proxy", () => {
   });
 
   test("rejects an insecure configured PIW origin in production", async () => {
+    const forward = vi.fn(async () => Response.json({
+      accepted: true,
+      continuationPath: "/roof-estimate/continue/safe_token",
+    }, {status: 202}));
     const response = await handleCampaignEstimateRequest(
       request(googleSubmission()),
-      async () => Response.json({accepted: true, continuationPath: "/roof-estimate/continue/safe_token"}, {status: 202}),
+      forward,
       "http://piw.example",
       "production",
     );
 
     expect(response.status).toBe(502);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(forward).not.toHaveBeenCalled();
   });
 
   test("allows an HTTP localhost PIW origin during development", async () => {
@@ -279,14 +295,19 @@ describe("campaign estimate proxy", () => {
     "https://piw.example/?tenant=other",
     "https://piw.example/#fragment",
   ])("rejects a configured value that is not an exact PIW origin", async (configuredOrigin) => {
+    const forward = vi.fn(async () => Response.json({
+      accepted: true,
+      continuationPath: "/roof-estimate/continue/safe_token",
+    }, {status: 202}));
     const response = await handleCampaignEstimateRequest(
       request(googleSubmission()),
-      async () => Response.json({accepted: true, continuationPath: "/roof-estimate/continue/safe_token"}, {status: 202}),
+      forward,
       configuredOrigin,
       "production",
     );
 
     expect(response.status).toBe(502);
+    expect(forward).not.toHaveBeenCalled();
   });
 
   test("POST authenticates the configured server-to-server request", async () => {
@@ -318,6 +339,7 @@ describe("campaign estimate proxy", () => {
     const response = await POST(request(googleSubmission()));
 
     expect(response.status).toBe(503);
+    expect(response.headers.get("cache-control")).toBe("no-store");
     await expect(response.json()).resolves.toEqual({error: "Estimate intake is not configured"});
   });
 });

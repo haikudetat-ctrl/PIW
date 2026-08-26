@@ -100,6 +100,7 @@ describe("All Season campaign estimate intake", () => {
     );
 
     expect(response.status).toBe(202);
+    expect(response.headers.get("cache-control")).toBe("no-store");
     await expect(response.json()).resolves.toEqual({
       accepted: true,
       continuationPath: "/roof-estimate/continue/signed_token-123",
@@ -144,6 +145,7 @@ describe("All Season campaign estimate intake", () => {
     );
 
     expect(response.status).toBe(409);
+    expect(response.headers.get("cache-control")).toBe("no-store");
     await expect(response.json()).resolves.toEqual({
       error: "Please restart this estimate request.",
       retryable: true,
@@ -193,6 +195,7 @@ describe("All Season campaign estimate intake", () => {
     );
 
     expect(response.status).toBe(503);
+    expect(response.headers.get("cache-control")).toBe("no-store");
     const body = await response.text();
     expect(body).toBe('{"error":"Campaign estimate intake is temporarily unavailable"}');
     expect(body).not.toContain("secret-123");
