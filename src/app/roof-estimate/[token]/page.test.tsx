@@ -10,6 +10,8 @@ const database = vi.hoisted(() => ({
       range_low_cents: null,
       range_high_cents: null,
       roof_squares: null,
+      roof_insight_id: null,
+      updated_at: "2026-08-26T12:00:00.000Z",
       failure_reason: null,
       lead_id: "33333333-3333-4333-8333-333333333333",
       property_id: "44444444-4444-4444-8444-444444444444",
@@ -22,6 +24,8 @@ const database = vi.hoisted(() => ({
       failure_reason: string | null;
       lead_id: string;
       property_id: string;
+      roof_insight_id: string | null;
+      updated_at: string;
     },
     pipeline_runs: {status: "complete"},
     properties: {canonical_address: "1 Main St, Newark, NJ 07102"},
@@ -39,6 +43,7 @@ const database = vi.hoisted(() => ({
         visibleCondition: "not_answered",
       },
       recommendation: null,
+      presentation_key: "weather-report",
     } as {
       status: "in_progress" | "abandoned" | "completed";
       revision: number;
@@ -46,6 +51,7 @@ const database = vi.hoisted(() => ({
       property_revealed_at: string | null;
       responses: Record<string, unknown>;
       recommendation: "monitor_or_repair" | "professional_inspection" | "replacement_may_make_sense" | null;
+      presentation_key: string;
     },
   },
 }));
@@ -97,7 +103,9 @@ vi.mock("./assessment-questionnaire", async () => {
 });
 
 vi.mock("./assessment-result", () => ({
-  AssessmentResult: () => <p>Completed assessment result</p>,
+  AssessmentResult: ({calculation, context}: {calculation: unknown; context: {resultHeadline: string}}) => (
+    <p data-calculation={JSON.stringify(calculation)} data-framing={context.resultHeadline}>Completed assessment result</p>
+  ),
 }));
 
 const {default: RoofEstimateResultPage} = await import("./page");
@@ -113,6 +121,8 @@ describe("production roof assessment page", () => {
       range_low_cents: null,
       range_high_cents: null,
       roof_squares: null,
+      roof_insight_id: null,
+      updated_at: "2026-08-26T12:00:00.000Z",
       failure_reason: null,
       lead_id: "33333333-3333-4333-8333-333333333333",
       property_id: "44444444-4444-4444-8444-444444444444",
@@ -130,6 +140,7 @@ describe("production roof assessment page", () => {
         visibleCondition: "not_answered",
       },
       recommendation: null,
+      presentation_key: "weather-report",
     };
   });
 
@@ -141,7 +152,7 @@ describe("production roof assessment page", () => {
     expect(screen.getByText("Questionnaire revision 7 at step 4")).toBeVisible();
     expect(database.selects).toContainEqual({
       table: "roof_assessments",
-      columns: "status, revision, current_step, property_revealed_at, responses, recommendation",
+      columns: "status, revision, current_step, property_revealed_at, responses, recommendation, presentation_key",
     });
   });
 
@@ -157,6 +168,7 @@ describe("production roof assessment page", () => {
         timeline: "asap",
       },
       recommendation: null,
+      presentation_key: "weather-report",
     };
 
     const {container} = render(await RoofEstimateResultPage({
@@ -192,6 +204,7 @@ describe("production roof assessment page", () => {
         timeline: "asap",
       },
       recommendation: "replacement_may_make_sense",
+      presentation_key: "weather-report",
     };
 
     const {container} = render(await RoofEstimateResultPage({
@@ -231,6 +244,7 @@ describe("production roof assessment page", () => {
         ownership: "owner",
       },
       recommendation: "monitor_or_repair",
+      presentation_key: "weather-report",
     };
 
     render(await RoofEstimateResultPage({
@@ -239,5 +253,27 @@ describe("production roof assessment page", () => {
 
     expect(screen.getByText("Completed assessment result")).toBeVisible();
     expect(assessmentMounts.questionnaire).toBe(0);
+    expect(screen.getByText("Completed assessment result")).toHaveAttribute("data-framing", "Your roof weather outlook");
+  });
+
+  test("downgrades invalid ready values before crossing the client boundary", async () => {
+    database.rows.roof_estimates = {
+      ...database.rows.roof_estimates,
+      status: "ready",
+      range_low_cents: 1_850_000,
+      range_high_cents: 2_475_000,
+      roof_squares: 24.5,
+      roof_insight_id: null,
+    };
+    database.rows.roof_assessments = {
+      status: "completed", revision: 10, current_step: 9,
+      property_revealed_at: "2026-08-26T12:00:00.000Z",
+      responses: {reason:"planning",roofAge:"unknown",conditionSignals:["unsure"],roofVisible:"no",visibleCondition:"not_answered",stories:"two",complexityFeatures:["none_or_unsure"],priority:"understand_options",timeline:"researching",ownership:"owner"},
+      recommendation: "monitor_or_repair", presentation_key: "weather-report",
+    };
+    render(await RoofEstimateResultPage({params: Promise.resolve({token: "11111111-1111-4111-8111-111111111111"})}));
+    const result=screen.getByText("Completed assessment result");
+    expect(result).toHaveAttribute("data-calculation", JSON.stringify({status:"review_required",reason:"low_confidence"}));
+    expect(result.getAttribute("data-calculation")).not.toMatch(/1850000|2475000|24\.5/);
   });
 });

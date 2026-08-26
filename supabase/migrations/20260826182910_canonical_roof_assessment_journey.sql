@@ -1408,73 +1408,108 @@ end;
 $$;
 
 create function public.request_roof_consultation(
-  p_company_id uuid,
-  p_assessment_id uuid,
-  p_contact_method text,
-  p_call_window text default null
+  p_company_id uuid,p_assessment_id uuid,p_estimate_id uuid,
+  p_contact_method text,p_call_window text,p_timezone text
 ) returns table (
-  request_id uuid,
-  status text,
-  created_at timestamptz
+  request_id uuid,status text,created_at timestamptz,
+  contact_method text,call_window text,timezone text
 )
-language plpgsql
-security definer
-set search_path = ''
-as $$
+language plpgsql security definer set search_path = '' as $$
 declare
-  v_lead_id uuid;
-  v_property_id uuid;
-  v_estimate_id uuid;
+  v_assessment public.roof_assessments%rowtype;
+  v_property_id uuid; v_pipeline_run_id uuid;
   v_request public.consultation_requests%rowtype;
-  v_method text := pg_catalog.lower(pg_catalog.btrim(coalesce(p_contact_method, '')));
-  v_window text := nullif(pg_catalog.lower(pg_catalog.btrim(coalesce(p_call_window, ''))), '');
+  v_method text:=pg_catalog.lower(pg_catalog.btrim(coalesce(p_contact_method,'')));
+  v_window text:=nullif(pg_catalog.lower(pg_catalog.btrim(coalesce(p_call_window,''))),'');
+  v_timezone text:=pg_catalog.btrim(coalesce(p_timezone,''));
+  v_first boolean:=false; v_now timestamptz:=pg_catalog.clock_timestamp();
+  v_event_id uuid; v_event jsonb;
 begin
-  if v_method not in ('call', 'text', 'email') then
-    raise exception 'Unsupported consultation contact method';
-  end if;
-  if v_method = 'call' and v_window is null then
-    raise exception 'Call window is required for phone consultation';
-  end if;
-  if v_method = 'call' and v_window not in ('asap', 'morning', 'midday', 'afternoon', 'evening') then
-    raise exception 'Unsupported consultation call window';
-  end if;
-  if v_method <> 'call' and v_window is not null then
-    raise exception 'Call window is only valid for phone consultation';
-  end if;
+  if v_method not in ('call','text','email') then raise exception 'Unsupported consultation contact method'; end if;
+  if v_method='call' and v_window is null then raise exception 'Call window is required for phone consultation'; end if;
+  if v_method='call' and v_window not in ('asap','morning','midday','afternoon','evening') then raise exception 'Unsupported consultation call window'; end if;
+  if v_method<>'call' and v_window is not null then raise exception 'Call window is only valid for phone consultation'; end if;
+  if v_timezone<>'America/New_York' then raise exception 'Unsupported consultation timezone'; end if;
 
-  select assessment.lead_id, estimate.property_id, assessment.estimate_id
-  into v_lead_id, v_property_id, v_estimate_id
-  from public.roof_assessments as assessment
-  join public.roof_estimates as estimate
-    on estimate.id = assessment.estimate_id
-   and estimate.company_id = assessment.company_id
-  where assessment.id = p_assessment_id
-    and assessment.company_id = p_company_id;
+  select assessment.* into v_assessment from public.roof_assessments assessment
+  where assessment.id=p_assessment_id and assessment.company_id=p_company_id
+    and assessment.estimate_id=p_estimate_id for update;
+  if not found then raise exception 'Roof assessment not found for company'; end if;
+  if v_assessment.status<>'completed' then raise exception 'Roof assessment is not complete'; end if;
+  select estimate.property_id into v_property_id from public.roof_estimates estimate
+  where estimate.id=p_estimate_id and estimate.company_id=p_company_id
+    and estimate.lead_id=v_assessment.lead_id;
+  if not found then raise exception 'Roof assessment not found for company'; end if;
+  select run.id into v_pipeline_run_id from public.pipeline_runs run
+  where run.company_id=p_company_id and run.lead_id=v_assessment.lead_id
+  order by run.started_at desc,run.id limit 1;
+  if v_pipeline_run_id is null then raise exception 'Roof assessment pipeline not found'; end if;
 
+  select request.* into v_request from public.consultation_requests request
+  where request.assessment_id=p_assessment_id and request.company_id=p_company_id for update;
   if not found then
-    raise exception 'Roof assessment not found for company';
+    insert into public.consultation_requests(
+      company_id,lead_id,property_id,estimate_id,assessment_id,contact_method,call_window,timezone,created_at,updated_at
+    ) values (
+      p_company_id,v_assessment.lead_id,v_property_id,p_estimate_id,p_assessment_id,v_method,v_window,v_timezone,v_now,v_now
+    ) returning * into v_request;
+    v_first:=true;
+  else
+    update public.consultation_requests request set
+      contact_method=v_method,call_window=v_window,timezone=v_timezone,status='requested',updated_at=v_now
+    where request.id=v_request.id and request.company_id=p_company_id returning request.* into v_request;
   end if;
 
-  insert into public.consultation_requests as request (
-    company_id, lead_id, property_id, estimate_id, assessment_id,
-    contact_method, call_window
-  ) values (
-    p_company_id, v_lead_id, v_property_id, v_estimate_id, p_assessment_id,
-    v_method, v_window
-  )
-  on conflict (assessment_id) do update
-  set contact_method = excluded.contact_method,
-      call_window = excluded.call_window,
-      status = 'requested',
-      updated_at = pg_catalog.clock_timestamp()
-  where request.company_id = p_company_id
-  returning request.* into v_request;
-
-  if not found then
-    raise exception 'Consultation request belongs to another company';
+  if v_first then
+    v_event_id:=extensions.gen_random_uuid();
+    v_event:=pg_catalog.jsonb_build_object(
+      'id',v_event_id,'name','roof/assessment.consultation_requested','schemaVersion',1,
+      'correlationId',p_assessment_id,'leadId',v_assessment.lead_id,'propertyId',v_property_id,
+      'pipelineRunId',v_pipeline_run_id,'occurredAt',pg_catalog.to_char(v_now at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+      'idempotencyKey','roof/assessment.consultation_requested:'||p_assessment_id::text,
+      'data',pg_catalog.jsonb_build_object('assessmentId',p_assessment_id,'consultationRequestId',v_request.id,'contactMethod',v_method,'callWindow',v_window));
+    perform public.enqueue_domain_event(p_company_id,v_event);
   end if;
+  return query select v_request.id,v_request.status,v_request.created_at,v_request.contact_method,v_request.call_window,v_request.timezone;
+end;
+$$;
 
-  return query select v_request.id, v_request.status, v_request.created_at;
+create function public.mark_roof_assessment_result_viewed(
+  p_company_id uuid,p_assessment_id uuid,p_estimate_id uuid
+) returns table(result_viewed_at timestamptz)
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_assessment public.roof_assessments%rowtype;
+  v_property_id uuid; v_pipeline_run_id uuid;
+  v_now timestamptz:=pg_catalog.clock_timestamp(); v_event_id uuid; v_event jsonb;
+begin
+  select assessment.* into v_assessment from public.roof_assessments assessment
+  where assessment.id=p_assessment_id and assessment.company_id=p_company_id
+    and assessment.estimate_id=p_estimate_id for update;
+  if not found then raise exception 'Roof assessment not found for company'; end if;
+  if v_assessment.status<>'completed' then raise exception 'Roof assessment is not complete'; end if;
+  select estimate.property_id into v_property_id from public.roof_estimates estimate
+  where estimate.id=p_estimate_id and estimate.company_id=p_company_id
+    and estimate.lead_id=v_assessment.lead_id;
+  if not found then raise exception 'Roof assessment not found for company'; end if;
+  if v_assessment.result_viewed_at is null then
+    select run.id into v_pipeline_run_id from public.pipeline_runs run
+    where run.company_id=p_company_id and run.lead_id=v_assessment.lead_id
+    order by run.started_at desc,run.id limit 1;
+    if v_pipeline_run_id is null then raise exception 'Roof assessment pipeline not found'; end if;
+    update public.roof_assessments assessment set result_viewed_at=v_now,updated_at=v_now
+    where assessment.id=p_assessment_id and assessment.company_id=p_company_id;
+    v_assessment.result_viewed_at:=v_now;
+    v_event_id:=extensions.gen_random_uuid();
+    v_event:=pg_catalog.jsonb_build_object(
+      'id',v_event_id,'name','roof/assessment.result_viewed','schemaVersion',1,
+      'correlationId',p_assessment_id,'leadId',v_assessment.lead_id,'propertyId',v_property_id,
+      'pipelineRunId',v_pipeline_run_id,'occurredAt',pg_catalog.to_char(v_now at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+      'idempotencyKey','roof/assessment.result_viewed:'||p_assessment_id::text,
+      'data',pg_catalog.jsonb_build_object('assessmentId',p_assessment_id));
+    perform public.enqueue_domain_event(p_company_id,v_event);
+  end if;
+  return query select v_assessment.result_viewed_at;
 end;
 $$;
 
@@ -1514,9 +1549,14 @@ revoke execute on function public.approve_verified_roof_assessment_resume(uuid, 
 grant execute on function public.approve_verified_roof_assessment_resume(uuid, uuid, text)
   to service_role;
 
-revoke execute on function public.request_roof_consultation(uuid, uuid, text, text)
+revoke execute on function public.request_roof_consultation(uuid, uuid, uuid, text, text, text)
   from public, anon, authenticated;
-grant execute on function public.request_roof_consultation(uuid, uuid, text, text)
+grant execute on function public.request_roof_consultation(uuid, uuid, uuid, text, text, text)
+  to service_role;
+
+revoke execute on function public.mark_roof_assessment_result_viewed(uuid, uuid, uuid)
+  from public, anon, authenticated;
+grant execute on function public.mark_roof_assessment_result_viewed(uuid, uuid, uuid)
   to service_role;
 
 revoke execute on function public.save_roof_assessment_progress(

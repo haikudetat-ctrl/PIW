@@ -3822,6 +3822,16 @@ export type Database = {
         }
         Returns: undefined
       }
+      mark_roof_assessment_result_viewed: {
+        Args: {
+          p_assessment_id: string
+          p_company_id: string
+          p_estimate_id: string
+        }
+        Returns: {
+          result_viewed_at: string
+        }[]
+      }
       normalize_property_address: {
         Args: { p_address: string }
         Returns: string
@@ -3851,14 +3861,19 @@ export type Database = {
       request_roof_consultation: {
         Args: {
           p_assessment_id: string
-          p_call_window?: string
+          p_call_window: string
           p_company_id: string
           p_contact_method: string
+          p_estimate_id: string
+          p_timezone: string
         }
         Returns: {
+          call_window: string
+          contact_method: string
           created_at: string
           request_id: string
           status: string
+          timezone: string
         }[]
       }
       reserve_provider_usage: {

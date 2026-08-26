@@ -38,11 +38,8 @@ describe("development assessment sandbox", () => {
     render(<AssessmentSandbox />);
     fireEvent.click(screen.getByRole("button", {name: "Finish demo assessment"}));
 
-    expect(screen.getByRole("link", {name: "Turn this range into an exact quote"}))
-      .toHaveAttribute("href", "tel:+18888325050");
+    fireEvent.click(screen.getByRole("button", {name: "Turn this range into an exact quote"}));
+    expect(screen.getByRole("group", {name: "How should we follow up?"})).toBeVisible();
     expect(screen.queryByRole("button", {name: "Finish demo assessment"})).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", {name: "Replay assessment"}));
-    expect(screen.getByRole("button", {name: "Finish demo assessment"})).toBeVisible();
   });
 });

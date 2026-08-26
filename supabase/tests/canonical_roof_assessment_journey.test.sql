@@ -29,7 +29,8 @@ select has_function(
   array['uuid','uuid','uuid','bytea'],
   'atomic same-browser resume RPC exists'
 );
-select has_function('public', 'request_roof_consultation', array['uuid','uuid','text','text'], 'consultation RPC exists');
+select has_function('public', 'request_roof_consultation', array['uuid','uuid','uuid','text','text','text'], 'bound consultation RPC exists');
+select has_function('public', 'mark_roof_assessment_result_viewed', array['uuid','uuid','uuid'], 'atomic result-view RPC exists');
 select has_function(
   'public', 'reserve_roof_assessment_verification_start', array['uuid','inet'],
   'atomic verification reservation RPC exists'
@@ -84,7 +85,10 @@ select function_privs_are(
   array['uuid','uuid','uuid','bytea'],
   'service_role', array['EXECUTE'], 'service role alone authorizes same-browser resume'
 );
-select function_privs_are('public', 'request_roof_consultation', array['uuid','uuid','text','text'], 'public', array[]::text[], 'public cannot create consultations');
+select function_privs_are('public', 'request_roof_consultation', array['uuid','uuid','uuid','text','text','text'], 'public', array[]::text[], 'public cannot create consultations');
+select function_privs_are('public', 'request_roof_consultation', array['uuid','uuid','uuid','text','text','text'], 'service_role', array['EXECUTE'], 'service role alone creates consultations');
+select function_privs_are('public', 'mark_roof_assessment_result_viewed', array['uuid','uuid','uuid'], 'public', array[]::text[], 'public cannot mark result views');
+select function_privs_are('public', 'mark_roof_assessment_result_viewed', array['uuid','uuid','uuid'], 'service_role', array['EXECUTE'], 'service role alone marks result views');
 select function_privs_are(
   'public', 'reserve_roof_assessment_verification_start', array['uuid','inet'],
   'public', array[]::text[], 'public cannot reserve verification starts'
@@ -139,8 +143,14 @@ select ok(
 select ok(
   (select proc.prosecdef and proc.proconfig = array['search_path=""']
    from pg_catalog.pg_proc as proc
-   where proc.oid = 'public.request_roof_consultation(uuid,uuid,text,text)'::regprocedure),
+   where proc.oid = 'public.request_roof_consultation(uuid,uuid,uuid,text,text,text)'::regprocedure),
   'consultation RPC is security definer with an empty search path'
+);
+select ok(
+  (select proc.prosecdef and proc.proconfig = array['search_path=""']
+   from pg_catalog.pg_proc as proc
+   where proc.oid = 'public.mark_roof_assessment_result_viewed(uuid,uuid,uuid)'::regprocedure),
+  'result-view RPC is security definer with an empty search path'
 );
 select ok(
   (select proc.prosecdef and proc.proconfig = array['search_path=""']
@@ -571,24 +581,81 @@ select throws_ok(
 );
 
 select throws_ok(
-  $$select * from public.request_roof_consultation('d0000000-0000-4000-8000-000000000001', (select assessment_id from public.roof_assessment_access_attempts where id = (select attempt_id from completed_start)), 'call', null)$$,
+  $$select * from public.request_roof_consultation(
+    'd0000000-0000-4000-8000-000000000001',
+    (select assessment_id from public.roof_assessment_access_attempts where id = (select attempt_id from completed_start)),
+    (select estimate_id from public.roof_assessment_access_attempts where id = (select attempt_id from completed_start)),
+    'call', null, 'America/New_York')$$,
   'Call window is required for phone consultation',
   'call consultation requires a call window'
 );
+
+select throws_ok(
+  $$select * from public.request_roof_consultation(
+    'd0000000-0000-4000-8000-000000000001',
+    (select assessment_id from public.roof_assessment_access_attempts where id = (select attempt_id from completed_start)),
+    (select estimate_id from public.roof_assessment_access_attempts where id = (select attempt_id from completed_start)),
+    'text', 'morning', 'America/New_York')$$,
+  'Call window is only valid for phone consultation',
+  'text consultation rejects a call window'
+);
+
+select throws_ok(
+  $$select * from public.request_roof_consultation(
+    'd0000000-0000-4000-8000-000000000001',
+    (select assessment_id from public.roof_assessment_access_attempts where id = (select attempt_id from completed_start)),
+    (select estimate_id from public.roof_assessment_access_attempts where id = (select attempt_id from completed_start)),
+    'email', null, 'America/Chicago')$$,
+  'Unsupported consultation timezone',
+  'consultation requests remain in Eastern Time'
+);
+
+select throws_ok(
+  $$select * from public.request_roof_consultation(
+    'd0000000-0000-4000-8000-000000000001',
+    (select assessment_id from public.roof_assessment_access_attempts where id = (select attempt_id from completed_start)),
+    (select estimate_id from public.roof_assessment_access_attempts where id = (select attempt_id from completed_start)),
+    'email', null, 'America/New_York')$$,
+  'Roof assessment is not complete',
+  'consultation requests require a completed assessment'
+);
+
+update public.roof_assessments
+set status='completed', recommendation='professional_inspection', completed_at=clock_timestamp()
+where id=(select assessment_id from public.roof_assessment_access_attempts where id=(select attempt_id from completed_start));
 
 create temp table first_consultation as
 select * from public.request_roof_consultation(
   'd0000000-0000-4000-8000-000000000001',
   (select assessment_id from public.roof_assessment_access_attempts where id = (select attempt_id from completed_start)),
-  'call', 'morning'
+  (select estimate_id from public.roof_assessment_access_attempts where id = (select attempt_id from completed_start)),
+  'call', 'morning', 'America/New_York'
 );
 create temp table duplicate_consultation as
 select * from public.request_roof_consultation(
   'd0000000-0000-4000-8000-000000000001',
   (select assessment_id from public.roof_assessment_access_attempts where id = (select attempt_id from completed_start)),
-  'call', 'morning'
+  (select estimate_id from public.roof_assessment_access_attempts where id = (select attempt_id from completed_start)),
+  'text', null, 'America/New_York'
 );
 select is((select request_id from duplicate_consultation), (select request_id from first_consultation), 'consultation intent is idempotent by assessment');
+select is((select contact_method from public.consultation_requests where id=(select request_id from first_consultation)), 'text', 'a retry updates the same request preference');
+select is((select count(*) from public.domain_events where idempotency_key='roof/assessment.consultation_requested:'||(select assessment_id::text from public.roof_assessment_access_attempts where id=(select attempt_id from completed_start))),1::bigint,'consultation retry enqueues exactly one event');
+select is((select count(*) from public.event_outbox outbox join public.domain_events event on event.id=outbox.event_id where event.idempotency_key='roof/assessment.consultation_requested:'||(select assessment_id::text from public.roof_assessment_access_attempts where id=(select attempt_id from completed_start))),1::bigint,'consultation retry enqueues exactly one outbox row');
+
+create temp table first_result_view as select * from public.mark_roof_assessment_result_viewed(
+  'd0000000-0000-4000-8000-000000000001',
+  (select assessment_id from public.roof_assessment_access_attempts where id=(select attempt_id from completed_start)),
+  (select estimate_id from public.roof_assessment_access_attempts where id=(select attempt_id from completed_start))
+);
+create temp table duplicate_result_view as select * from public.mark_roof_assessment_result_viewed(
+  'd0000000-0000-4000-8000-000000000001',
+  (select assessment_id from public.roof_assessment_access_attempts where id=(select attempt_id from completed_start)),
+  (select estimate_id from public.roof_assessment_access_attempts where id=(select attempt_id from completed_start))
+);
+select is((select result_viewed_at from duplicate_result_view),(select result_viewed_at from first_result_view),'result-view retry returns the canonical timestamp');
+select is((select count(*) from public.domain_events where idempotency_key='roof/assessment.result_viewed:'||(select assessment_id::text from public.roof_assessment_access_attempts where id=(select attempt_id from completed_start))),1::bigint,'result-view retry enqueues exactly one event');
+select is((select count(*) from public.event_outbox outbox join public.domain_events event on event.id=outbox.event_id where event.idempotency_key='roof/assessment.result_viewed:'||(select assessment_id::text from public.roof_assessment_access_attempts where id=(select attempt_id from completed_start))),1::bigint,'result-view retry enqueues exactly one outbox row');
 
 update public.roof_assessment_access_attempts
 set verified_at = now()
@@ -1635,6 +1702,27 @@ select ok(extensions.dblink_disconnect('progress_race_a')='OK','first progress w
 select ok(extensions.dblink_disconnect('progress_race_b')='OK','second progress writer disconnects');
 select ok(extensions.dblink_disconnect('progress_race_gate')='OK','progress race gate disconnects');
 
+select lives_ok($$select extensions.dblink_connect('result_view_race_gate','host=host.docker.internal port=56322 dbname=postgres user=postgres password=postgres')$$,'result-view race gate connects');
+select lives_ok($$select extensions.dblink_connect('result_view_race_a','host=host.docker.internal port=56322 dbname=postgres user=postgres password=postgres')$$,'first result-view worker connects');
+select lives_ok($$select extensions.dblink_connect('result_view_race_b','host=host.docker.internal port=56322 dbname=postgres user=postgres password=postgres')$$,'second result-view worker connects');
+select is(extensions.dblink_exec('result_view_race_gate',$$insert into public.companies(id,name) values('f7200000-0000-4000-8000-000000000001','Result View Race Company'); do $remote$ declare v record; begin select * into v from public.start_or_resume_roof_assessment('f7200000-0000-4000-8000-000000000001','f7200000-0000-4000-8000-000000000002','Result Homeowner','+12015550720','race-result@example.com','720 Race St, Newark, NJ 07102','ChIJ-result-race','all-season-main','main-home','{}'::jsonb,null,'all-season-assessment-v1',clock_timestamp(),'127.7.2.1','pgtap'); update public.roof_assessments set status='completed',recommendation='professional_inspection',completed_at=clock_timestamp() where id=(select assessment_id from public.roof_assessment_access_attempts where id=v.attempt_id); end $remote$;$$),'DO','committed result-view fixture is prepared');
+select is(extensions.dblink_exec('result_view_race_gate',$$begin; do $lock$ begin perform 1 from public.roof_assessments where company_id='f7200000-0000-4000-8000-000000000001' for update; end $lock$;$$),'DO','result-view race gate locks the completed assessment');
+select is(extensions.dblink_send_query('result_view_race_a',$$select result_viewed_at from public.mark_roof_assessment_result_viewed('f7200000-0000-4000-8000-000000000001',(select id from public.roof_assessments where company_id='f7200000-0000-4000-8000-000000000001'),(select id from public.roof_estimates where company_id='f7200000-0000-4000-8000-000000000001'))$$),1,'first result-view worker is dispatched');
+select is(extensions.dblink_send_query('result_view_race_b',$$select result_viewed_at from public.mark_roof_assessment_result_viewed('f7200000-0000-4000-8000-000000000001',(select id from public.roof_assessments where company_id='f7200000-0000-4000-8000-000000000001'),(select id from public.roof_estimates where company_id='f7200000-0000-4000-8000-000000000001'))$$),1,'second result-view worker is dispatched');
+select is(extensions.dblink_is_busy('result_view_race_a'),1,'first result-view worker waits on the assessment lock');
+select is(extensions.dblink_is_busy('result_view_race_b'),1,'second result-view worker waits on the assessment lock');
+select is(extensions.dblink_exec('result_view_race_gate','commit'),'COMMIT','result-view gate releases both workers');
+create temp table result_view_race_results(result_viewed_at timestamptz);
+insert into result_view_race_results select result_viewed_at from extensions.dblink_get_result('result_view_race_a') as row(result_viewed_at timestamptz);
+insert into result_view_race_results select result_viewed_at from extensions.dblink_get_result('result_view_race_b') as row(result_viewed_at timestamptz);
+select is((select count(distinct result_viewed_at) from result_view_race_results),1::bigint,'concurrent result views return one canonical timestamp');
+select is((select count(*) from public.domain_events where company_id='f7200000-0000-4000-8000-000000000001' and event_name='roof/assessment.result_viewed'),1::bigint,'concurrent result views create one event');
+select is((select count(*) from public.event_outbox outbox join public.domain_events event on event.id=outbox.event_id where event.company_id='f7200000-0000-4000-8000-000000000001' and event.event_name='roof/assessment.result_viewed'),1::bigint,'concurrent result views enqueue one outbox row');
+select is(extensions.dblink_exec('result_view_race_gate',$$do $cleanup$ begin delete from public.event_outbox where event_id in(select id from public.domain_events where company_id='f7200000-0000-4000-8000-000000000001'); delete from public.domain_events where company_id='f7200000-0000-4000-8000-000000000001'; delete from public.roof_assessment_access_attempts where company_id='f7200000-0000-4000-8000-000000000001'; delete from public.lead_consent_evidence where company_id='f7200000-0000-4000-8000-000000000001'; delete from public.lead_attribution_touches where company_id='f7200000-0000-4000-8000-000000000001'; delete from public.roof_assessments where company_id='f7200000-0000-4000-8000-000000000001'; delete from public.roof_estimates where company_id='f7200000-0000-4000-8000-000000000001'; delete from public.pipeline_runs where company_id='f7200000-0000-4000-8000-000000000001'; delete from public.lead_consents where company_id='f7200000-0000-4000-8000-000000000001'; delete from public.leads where company_id='f7200000-0000-4000-8000-000000000001'; delete from public.properties where company_id='f7200000-0000-4000-8000-000000000001'; delete from public.companies where id='f7200000-0000-4000-8000-000000000001'; end $cleanup$;$$),'DO','result-view race fixtures are removed');
+select ok(extensions.dblink_disconnect('result_view_race_a')='OK','first result-view worker disconnects');
+select ok(extensions.dblink_disconnect('result_view_race_b')='OK','second result-view worker disconnects');
+select ok(extensions.dblink_disconnect('result_view_race_gate')='OK','result-view gate disconnects');
+
 -- Run the forced downstream failure after remote concurrency coverage because
 -- PostgreSQL retains the trigger DDL relation lock until this test rolls back.
 create temp table same_browser_failure_snapshot as
@@ -2171,6 +2259,22 @@ create trigger reject_abandonment_outbox before insert on public.event_outbox fo
 select throws_ok($$select * from public.abandon_inactive_roof_assessments(100)$$,'forced abandonment outbox failure','outbox failure aborts abandonment');
 select is((select status from public.roof_assessments where id=(select assessment_id from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_rollback))),'in_progress','failed enqueue rolls back lifecycle update');
 drop trigger reject_abandonment_outbox on public.event_outbox;
+
+create function pg_temp.reject_result_view_outbox() returns trigger language plpgsql as $$ begin
+  if exists(select 1 from public.domain_events event where event.id=new.event_id and event.idempotency_key='roof/assessment.result_viewed:'||(select assessment_id::text from public.roof_assessment_access_attempts where id=(select attempt_id from stale_start))) then raise exception 'forced result-view outbox failure'; end if; return new; end $$;
+create trigger reject_result_view_outbox before insert on public.event_outbox for each row execute function pg_temp.reject_result_view_outbox();
+select throws_ok($$select * from public.mark_roof_assessment_result_viewed('d0000000-0000-4000-8000-000000000001',(select assessment_id from public.roof_assessment_access_attempts where id=(select attempt_id from stale_start)),(select estimate_id from public.roof_assessment_access_attempts where id=(select attempt_id from stale_start)))$$,'forced result-view outbox failure','outbox failure aborts result-view mutation');
+select is((select result_viewed_at from public.roof_assessments where id=(select assessment_id from public.roof_assessment_access_attempts where id=(select attempt_id from stale_start))),null::timestamptz,'failed result-view enqueue rolls back the timestamp');
+select is((select count(*) from public.domain_events where idempotency_key='roof/assessment.result_viewed:'||(select assessment_id::text from public.roof_assessment_access_attempts where id=(select attempt_id from stale_start))),0::bigint,'failed result-view enqueue rolls back the event');
+drop trigger reject_result_view_outbox on public.event_outbox;
+
+create function pg_temp.reject_consultation_outbox() returns trigger language plpgsql as $$ begin
+  if exists(select 1 from public.domain_events event where event.id=new.event_id and event.idempotency_key='roof/assessment.consultation_requested:'||(select assessment_id::text from public.roof_assessment_access_attempts where id=(select attempt_id from stale_start))) then raise exception 'forced consultation outbox failure'; end if; return new; end $$;
+create trigger reject_consultation_outbox before insert on public.event_outbox for each row execute function pg_temp.reject_consultation_outbox();
+select throws_ok($$select * from public.request_roof_consultation('d0000000-0000-4000-8000-000000000001',(select assessment_id from public.roof_assessment_access_attempts where id=(select attempt_id from stale_start)),(select estimate_id from public.roof_assessment_access_attempts where id=(select attempt_id from stale_start)),'email',null,'America/New_York')$$,'forced consultation outbox failure','outbox failure aborts consultation mutation');
+select is((select count(*) from public.consultation_requests where assessment_id=(select assessment_id from public.roof_assessment_access_attempts where id=(select attempt_id from stale_start))),0::bigint,'failed consultation enqueue rolls back the request');
+select is((select count(*) from public.domain_events where idempotency_key='roof/assessment.consultation_requested:'||(select assessment_id::text from public.roof_assessment_access_attempts where id=(select attempt_id from stale_start))),0::bigint,'failed consultation enqueue rolls back the event');
+drop trigger reject_consultation_outbox on public.event_outbox;
 
 select * from extensions.finish();
 rollback;
