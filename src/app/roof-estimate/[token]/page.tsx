@@ -11,7 +11,7 @@ import { AssessmentResult } from "./assessment-result";
 import { EstimateStatusRefresh } from "./estimate-status-refresh";
 import { EstimateWaitExperience } from "./estimate-wait-experience";
 import { PropertySatelliteImage } from "./property-satellite-image";
-import { getAssessmentResultCopy, getAssessmentResultRange, selectPublicEstimateView } from "./public-estimate-flow";
+import { getAssessmentCalculationState, getAssessmentResultCopy, selectPublicEstimateView } from "./public-estimate-flow";
 import { QuoteLoadingView } from "./quote-loading-view";
 import { ResumeRequiredView } from "./resume-required-view";
 
@@ -50,7 +50,7 @@ export default async function RoofEstimateResultPage({
   const service = createServiceClient();
   const { data: estimate } = await service
     .from("roof_estimates")
-    .select("id, status, range_low_cents, range_high_cents, roof_squares, failure_reason, lead_id, property_id")
+    .select("id, status, range_low_cents, range_high_cents, roof_squares, roof_insight_id, updated_at, failure_reason, lead_id, property_id")
     .eq("public_token", token)
     .maybeSingle();
   if (!estimate) notFound();
@@ -75,7 +75,7 @@ export default async function RoofEstimateResultPage({
       .maybeSingle(),
     service
       .from("roof_assessments")
-      .select("status, revision, current_step, property_revealed_at, responses, recommendation")
+      .select("status, revision, current_step, property_revealed_at, responses, recommendation, presentation_key")
       .eq("estimate_id", estimate.id)
       .maybeSingle(),
   ]);
@@ -87,10 +87,16 @@ export default async function RoofEstimateResultPage({
   const manualReview =
     estimate.status === "review_required" ||
     (estimate.status === "pending" && pipeline?.status === "review_required");
-  const ready =
-    estimate.status === "ready" &&
-    estimate.range_low_cents !== null &&
-    estimate.range_high_cents !== null;
+  const calculation = getAssessmentCalculationState({
+    estimateStatus: estimate.status,
+    pipelineStatus: pipeline?.status ?? null,
+    sourceId: estimate.roof_insight_id,
+    lowCents: estimate.range_low_cents,
+    highCents: estimate.range_high_cents,
+    roofSquares: estimate.roof_squares === null ? null : Number(estimate.roof_squares),
+    generatedAt: estimate.updated_at,
+  });
+  const ready = calculation.status === "ready";
   const address = property?.canonical_address ?? lead?.submitted_address ?? "your property";
   const assessmentStatus = z.enum(["in_progress", "abandoned", "completed"]).safeParse(assessment?.status);
   const assessmentRecommendation = z.enum([
@@ -143,17 +149,13 @@ export default async function RoofEstimateResultPage({
       <>
         <EstimateStatusRefresh pending={pending} />
         <AssessmentResult
+          token={token}
           address={address}
           imageUrl={`/api/roof-estimate/${token}/house-image`}
           recommendation={assessmentRecommendation.data}
           responses={completedAssessmentResponses.data}
-          range={getAssessmentResultRange({
-            ready,
-            lowCents: estimate.range_low_cents,
-            highCents: estimate.range_high_cents,
-            roofSquares: estimate.roof_squares === null ? null : Number(estimate.roof_squares),
-          })}
-          consultationHref={roofEstimateBrand.phoneHref}
+          calculation={calculation}
+          context={getRoofAssessmentContext(assessment?.presentation_key ?? lead?.campaign)}
         />
       </>
     );

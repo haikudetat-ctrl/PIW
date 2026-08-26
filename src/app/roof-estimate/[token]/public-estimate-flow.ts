@@ -1,4 +1,8 @@
-import type {RoofAssessmentRecommendation} from "@/domain/roof-assessment";
+import {
+  calculationStateSchema,
+  type CalculationState,
+  type RoofAssessmentRecommendation,
+} from "@/domain/roof-assessment";
 
 export function selectPublicEstimateView({
   assessmentEnabled,
@@ -42,22 +46,45 @@ export function getAssessmentResultCopy(recommendation: RoofAssessmentRecommenda
   return resultCopy[recommendation];
 }
 
-export function getAssessmentResultRange({
-  ready,
+export function getAssessmentCalculationState({
+  estimateStatus,
+  pipelineStatus,
+  sourceId,
   lowCents,
   highCents,
   roofSquares,
+  generatedAt,
 }: {
-  ready: boolean;
+  estimateStatus: string;
+  pipelineStatus: string | null;
+  sourceId: string | null;
   lowCents: number | null;
   highCents: number | null;
   roofSquares: number | null;
-}) {
-  if (!ready || lowCents === null || highCents === null || roofSquares === null) return null;
-  return {
+  generatedAt: string;
+}): CalculationState {
+  const pipelineTerminal = pipelineStatus !== null && [
+    "complete", "partial", "review_required", "failed",
+  ].includes(pipelineStatus);
+  if (estimateStatus === "pending" && !pipelineTerminal) return {status: "pending"};
+  if (estimateStatus === "review_required" || pipelineStatus === "review_required") {
+    return {status: "review_required", reason: "low_confidence"};
+  }
+
+  const candidate = calculationStateSchema.safeParse({
+    status: "ready",
+    source: "google",
     lowCents,
     highCents,
     roofSquares,
-    source: "google" as const,
-  };
+    generatedAt,
+  });
+  if (estimateStatus !== "ready" || !sourceId || !candidate.success || lowCents === null || lowCents <= 0) {
+    return {status: "review_required", reason: "low_confidence"};
+  }
+  return candidate.data;
+}
+
+export function getAssessmentResultRange(state: CalculationState) {
+  return state.status === "ready" ? state : null;
 }

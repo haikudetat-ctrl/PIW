@@ -3,7 +3,7 @@
 import {useState} from "react";
 import {
   getRoofAssessmentContext,
-  type RoofAssessmentCampaignSlug,
+  type RoofAssessmentPresentationKey,
 } from "@/config/roof-assessment";
 import {
   calculateRoofAssessment,
@@ -15,22 +15,22 @@ import {AssessmentExperience} from "../[token]/assessment-experience";
 import {AssessmentQuestionnaire} from "../[token]/assessment-questionnaire";
 import {AssessmentResult} from "../[token]/assessment-result";
 
-const campaigns: Array<{slug: RoofAssessmentCampaignSlug; label: string}> = [
-  {slug: "for-every-season", label: "Main website"},
-  {slug: "do-it-right-once", label: "Do It Right Once"},
+const campaigns: Array<{slug: RoofAssessmentPresentationKey; label: string}> = [
+  {slug: "all-season-main", label: "Main website"},
+  {slug: "for-every-season", label: "For Every Season"},
   {slug: "weather-report", label: "Weather Report"},
   {slug: "seasonal-shield", label: "Seasonal Shield"},
 ];
 
 export function AssessmentSandbox() {
-  const [campaign, setCampaign] = useState<RoofAssessmentCampaignSlug>("for-every-season");
+  const [campaign, setCampaign] = useState<RoofAssessmentPresentationKey>("all-season-main");
   const [run, setRun] = useState(0);
   const [result, setResult] = useState<{
     recommendation: RoofAssessmentRecommendation;
     responses: RoofAssessmentResponses;
   } | null>(null);
   const context = getRoofAssessmentContext(campaign);
-  const imageUrl = campaign === "for-every-season" || campaign === "do-it-right-once"
+  const imageUrl = campaign === "for-every-season" || campaign === "all-season-main"
     ? "/campaigns/every-season.jpg"
     : "/campaigns/roof-above.jpg";
 
@@ -43,17 +43,14 @@ export function AssessmentSandbox() {
   if (result) {
     return (
       <AssessmentResult
+        preview
+        token="11111111-1111-4111-8111-111111111111"
         address="18 Harbor View Drive, Red Bank, NJ 07701"
         imageUrl={imageUrl}
         recommendation={result.recommendation}
         responses={result.responses}
-        range={{
-          lowCents: 1_800_000,
-          highCents: 2_600_000,
-          roofSquares: 23,
-          source: "sample",
-        }}
-        consultationHref="tel:+18888325050"
+        calculation={{status: "pending"}}
+        context={context}
         onReplay={() => restart()}
       />
     );
