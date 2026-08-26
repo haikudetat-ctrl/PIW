@@ -6,23 +6,21 @@ import {
 } from "./public-estimate-flow";
 
 describe("public estimate assessment flow", () => {
-  test("preserves the legacy estimate when the feature is disabled", () => {
-    expect(selectPublicEstimateView({assessmentEnabled: false, assessmentStatus: null})).toBe("legacy");
-    expect(selectPublicEstimateView({assessmentEnabled: false, assessmentStatus: "completed"})).toBe("legacy");
-  });
-
-  test("shows the assessment until it is complete", () => {
-    expect(selectPublicEstimateView({assessmentEnabled: true, assessmentStatus: null})).toBe("assessment");
-    expect(selectPublicEstimateView({assessmentEnabled: true, assessmentStatus: "in_progress"})).toBe("assessment");
-  });
-
-  test("reveals the result after completion", () => {
-    expect(selectPublicEstimateView({assessmentEnabled: true, assessmentStatus: "completed"})).toBe("result");
-  });
-
-  test("requires an authorized resume for an abandoned assessment", () => {
-    expect(selectPublicEstimateView({assessmentEnabled: true, assessmentStatus: "abandoned"})).toBe("resume_required");
-  });
+  test.each([
+    [false, null, "legacy"],
+    [false, "in_progress", "legacy"],
+    [false, "completed", "legacy"],
+    [false, "abandoned", "resume_required"],
+    [true, null, "assessment"],
+    [true, "in_progress", "assessment"],
+    [true, "completed", "result"],
+    [true, "abandoned", "resume_required"],
+  ] as const)(
+    "selects %s-enabled %s assessments as %s",
+    (assessmentEnabled, assessmentStatus, expectedView) => {
+      expect(selectPublicEstimateView({assessmentEnabled, assessmentStatus})).toBe(expectedView);
+    },
+  );
 
   test.each([
     ["monitor_or_repair", "Replacement probably isn't your first move.", "Have us take a look before you spend money"],

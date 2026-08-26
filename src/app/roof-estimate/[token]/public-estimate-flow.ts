@@ -7,8 +7,8 @@ export function selectPublicEstimateView({
   assessmentEnabled: boolean;
   assessmentStatus: "in_progress" | "abandoned" | "completed" | null;
 }) {
-  if (!assessmentEnabled) return "legacy" as const;
   if (assessmentStatus === "abandoned") return "resume_required" as const;
+  if (!assessmentEnabled) return "legacy" as const;
   return assessmentStatus === "completed" ? "result" as const : "assessment" as const;
 }
 

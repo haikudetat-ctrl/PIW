@@ -13,6 +13,15 @@ const database = vi.hoisted(() => ({
       failure_reason: null,
       lead_id: "33333333-3333-4333-8333-333333333333",
       property_id: "44444444-4444-4444-8444-444444444444",
+    } as {
+      id: string;
+      status: "pending" | "ready" | "review_required";
+      range_low_cents: number | null;
+      range_high_cents: number | null;
+      roof_squares: number | null;
+      failure_reason: string | null;
+      lead_id: string;
+      property_id: string;
     },
     pipeline_runs: {status: "complete"},
     properties: {canonical_address: "1 Main St, Newark, NJ 07102"},
@@ -45,6 +54,10 @@ const assessmentMounts = vi.hoisted(() => ({
   questionnaire: 0,
 }));
 
+const serverEnv = vi.hoisted(() => ({
+  assessmentEnabled: true,
+}));
+
 vi.mock("@/lib/supabase/service", () => ({
   createServiceClient: () => ({
     from: (table: keyof typeof database.rows) => ({
@@ -63,7 +76,7 @@ vi.mock("@/lib/supabase/service", () => ({
 }));
 
 vi.mock("@/lib/env/server", () => ({
-  parseServerEnv: () => ({ROOF_ASSESSMENT_ENABLED: true}),
+  parseServerEnv: () => ({ROOF_ASSESSMENT_ENABLED: serverEnv.assessmentEnabled}),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -93,6 +106,17 @@ describe("production roof assessment page", () => {
   beforeEach(() => {
     database.selects.length = 0;
     assessmentMounts.questionnaire = 0;
+    serverEnv.assessmentEnabled = true;
+    database.rows.roof_estimates = {
+      id: "22222222-2222-4222-8222-222222222222",
+      status: "pending",
+      range_low_cents: null,
+      range_high_cents: null,
+      roof_squares: null,
+      failure_reason: null,
+      lead_id: "33333333-3333-4333-8333-333333333333",
+      property_id: "44444444-4444-4444-8444-444444444444",
+    };
     database.rows.roof_assessments = {
       status: "in_progress",
       revision: 7,
@@ -146,6 +170,46 @@ describe("production roof assessment page", () => {
     expect(container.innerHTML).not.toContain("active_leak");
     expect(container.innerHTML).not.toContain("long_warranty");
     expect(container.innerHTML).not.toContain("11111111-1111-4111-8111-111111111111");
+  });
+
+  test("keeps a disabled abandoned assessment private without rendering legacy property or result data", async () => {
+    serverEnv.assessmentEnabled = false;
+    database.rows.roof_estimates = {
+      ...database.rows.roof_estimates,
+      status: "ready",
+      range_low_cents: 1_850_000,
+      range_high_cents: 2_475_000,
+      roof_squares: 24.5,
+    };
+    database.rows.roof_assessments = {
+      status: "abandoned",
+      revision: 19,
+      current_step: 8,
+      property_revealed_at: "2026-08-24T12:00:00.000Z",
+      responses: {
+        reason: "private_active_leak",
+        priority: "private_long_warranty",
+        timeline: "asap",
+      },
+      recommendation: "replacement_may_make_sense",
+    };
+
+    const {container} = render(await RoofEstimateResultPage({
+      params: Promise.resolve({token: "11111111-1111-4111-8111-111111111111"}),
+    }));
+
+    expect(screen.getByRole("heading", {name: "Your secure assessment link has expired."})).toBeVisible();
+    expect(screen.getByRole("link", {name: "Start a new RoofCheck"})).toHaveAttribute("href", "/roof-estimate");
+    expect(assessmentMounts.questionnaire).toBe(0);
+    expect(screen.queryByText(/Questionnaire revision/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Completed assessment result")).not.toBeInTheDocument();
+    expect(container.innerHTML).not.toContain("1 Main St, Newark, NJ 07102");
+    expect(container.innerHTML).not.toContain("11111111-1111-4111-8111-111111111111");
+    expect(container.innerHTML).not.toContain("/api/roof-estimate/");
+    expect(container.innerHTML).not.toContain("private_active_leak");
+    expect(container.innerHTML).not.toContain("private_long_warranty");
+    expect(container.innerHTML).not.toContain("$18,500");
+    expect(container.innerHTML).not.toContain("$24,750");
   });
 
   test("keeps completed assessments on the result payoff", async () => {
