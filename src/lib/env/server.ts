@@ -16,6 +16,7 @@ const serverEnvSchema = z
     INNGEST_EVENT_KEY: z.string().min(1),
     INNGEST_SIGNING_KEY: z.string().min(1),
     PAID_PROVIDERS_ENABLED: booleanString,
+    ROOF_ASSESSMENT_ENABLED: booleanString,
     INTEGRATIONS_LEADCONDUIT_ENABLED: booleanString,
     LEADCONDUIT_FILTER_CAVEAT_ACTIVE: z.enum(["true", "false"]).default("true")
       .transform((value) => value === "true"),

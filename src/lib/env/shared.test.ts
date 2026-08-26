@@ -16,12 +16,17 @@ describe("parseServerEnv", () => {
   test("disables paid providers by default", () => {
     const environment = parseServerEnv(base);
     expect(environment.PAID_PROVIDERS_ENABLED).toBe(false);
+    expect(environment.ROOF_ASSESSMENT_ENABLED).toBe(false);
     expect(environment.COST_INTELLIGENCE_ENABLED).toBe(false);
     expect(environment.INTEGRATIONS_LEADCONDUIT_ENABLED).toBe(false);
     expect(environment.INTEGRATIONS_LEADMASTER_ENABLED).toBe(false);
     expect(environment.INTEGRATIONS_JOBNIMBUS_ENABLED).toBe(false);
     expect(environment.INTEGRATIONS_CALLTOOLS_ENABLED).toBe(false);
     expect(environment.COST_MONTHLY_BUDGET_USD).toBe(1500);
+  });
+
+  test("enables the public roof assessment explicitly", () => {
+    expect(parseServerEnv({...base, ROOF_ASSESSMENT_ENABLED: "true"}).ROOF_ASSESSMENT_ENABLED).toBe(true);
   });
 
   test("rejects paid providers in preview", () => {

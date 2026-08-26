@@ -81,6 +81,29 @@ describe("assessment property reveal", () => {
     expect(await screen.findByText("Questions begin here")).toBeVisible();
   });
 
+  test("opens the questions without persistence in the development preview", () => {
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    render(
+      <AssessmentExperience
+        preview
+        token={token}
+        address="1 Main St, Newark, NJ 07102"
+        imageUrl={imageUrl}
+        context={context}
+        initialPropertyRevealed
+        initialStep={0}
+      >
+        <p>Questions begin here</p>
+      </AssessmentExperience>,
+    );
+
+    fireEvent.click(screen.getByRole("button", {name: "Start my assessment"}));
+
+    expect(screen.getByText("Questions begin here")).toBeVisible();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   test("keeps the reveal visible when progress cannot be saved", async () => {
     vi.useRealTimers();
     vi.stubGlobal("fetch", vi.fn(async () => new Response(null, {status: 503})));
