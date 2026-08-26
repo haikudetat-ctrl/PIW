@@ -170,6 +170,7 @@ create table public.roof_assessment_access_attempts (
   token_rotated_at timestamptz,
   created_at timestamptz not null default pg_catalog.now(),
   updated_at timestamptz not null default pg_catalog.now(),
+  unique (company_id, submission_id),
   foreign key (company_id, lead_id)
     references public.leads(company_id, id) on delete cascade,
   foreign key (company_id, property_id)
@@ -227,7 +228,8 @@ create function public.start_or_resume_roof_assessment(
 ) returns table (
   attempt_id uuid,
   continuation_secret text,
-  expires_at timestamptz
+  expires_at timestamptz,
+  is_replay boolean
 )
 language plpgsql
 security definer
@@ -316,26 +318,11 @@ begin
   limit 1;
 
   if found then
-    -- A retry gets a fresh credential without mutating, extending, or
-    -- resurrecting any previously issued or consumed attempt.
-    v_secret := pg_catalog.encode(extensions.gen_random_bytes(32), 'hex');
-    v_expires_at := v_now + interval '15 minutes';
-    v_attempt_id := extensions.gen_random_uuid();
-    insert into public.roof_assessment_access_attempts (
-      id, company_id, submission_id, lead_id, property_id, estimate_id,
-      assessment_id, attempt_kind, continuation_secret_hash,
-      destination_phone_e164, requested_presentation_key,
-      requested_entry_point, request_ip, expires_at
-    ) values (
-      v_attempt_id, v_attempt.company_id, v_attempt.submission_id,
-      v_attempt.lead_id, v_attempt.property_id, v_attempt.estimate_id,
-      v_attempt.assessment_id, v_attempt.attempt_kind,
-      extensions.digest(v_secret, 'sha256'),
-      v_attempt.destination_phone_e164, v_attempt.requested_presentation_key,
-      v_attempt.requested_entry_point, v_request_ip, v_expires_at
-    );
-
-    return query select v_attempt_id, v_secret, v_expires_at;
+    -- Only the first accepted call can issue the raw continuation secret. A
+    -- replay returns the canonical attempt identity with an explicit marker
+    -- and no credential, without refreshing or mutating any attempt state.
+    return query
+    select v_attempt.id, null::text, v_attempt.expires_at, true;
     return;
   end if;
 
@@ -550,7 +537,7 @@ begin
     insert into public.event_outbox (event_id) values (v_event_id);
   end if;
 
-  return query select v_attempt_id, v_secret, v_expires_at;
+  return query select v_attempt_id, v_secret, v_expires_at, false;
 end;
 $$;
 
@@ -578,6 +565,9 @@ begin
 
   if not found then
     raise exception 'Assessment access attempt not found';
+  end if;
+  if v_attempt.consumed_at is not null then
+    raise exception 'Assessment access attempt has already been consumed';
   end if;
   if v_attempt.attempt_kind <> 'resume_candidate' or v_attempt.verified_at is null then
     raise exception 'Assessment access attempt is not verified';
