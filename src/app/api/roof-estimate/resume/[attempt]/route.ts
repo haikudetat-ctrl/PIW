@@ -11,13 +11,13 @@ import {
   type ResumeVerificationRepository,
 } from "@/modules/roof-assessment/resume-verification";
 import {TwilioVerifyProvider} from "@/modules/roof-assessment/twilio-verify-provider";
+import {trustedRequestIp} from "@/modules/roof-assessment/trusted-request-ip";
 
 const paramsSchema = z.strictObject({attempt: z.uuid()});
 const requestSchema = z.discriminatedUnion("action", [
   z.strictObject({action: z.literal("start")}),
   z.strictObject({action: z.literal("check"), code: z.string().regex(/^[0-9]{6}$/)}),
 ]);
-const ipSchema = z.union([z.ipv4(), z.ipv6()]);
 
 type StartResult = {sent: boolean};
 
@@ -37,25 +37,6 @@ function json(body: unknown, status = 200) {
     status,
     headers: {"cache-control": "no-store"},
   });
-}
-
-function requestIp(
-  request: NextRequest,
-  deploymentEnv: ResumeVerificationRouteDependencies["deploymentEnv"],
-) {
-  if (deploymentEnv === "production") {
-    // Vercel overwrites x-vercel-forwarded-for with the public client IP.
-    // Never fall back to client-controlled x-forwarded-for in production.
-    const marker = request.headers.get("x-vercel-id")?.trim();
-    const vercelIp = request.headers.get("x-vercel-forwarded-for")?.trim();
-    if (!marker || marker.length > 512 || !vercelIp || vercelIp.includes(",")) return null;
-    const parsed = ipSchema.safeParse(vercelIp);
-    return parsed.success ? parsed.data : null;
-  }
-  const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  const direct = request.headers.get("x-real-ip")?.trim();
-  const parsed = ipSchema.safeParse(forwarded || direct);
-  return parsed.success ? parsed.data : null;
 }
 
 async function equalizeResponseTime(
@@ -88,7 +69,7 @@ export async function handleResumeVerification(
   try {
 
     if (body.data.action === "start") {
-      const ip = requestIp(request, dependencies.deploymentEnv);
+      const ip = trustedRequestIp(request.headers, dependencies.deploymentEnv);
       if (!ip) return json({status: "invalid_request"}, 400);
       try {
         await dependencies.start({attemptId: params.data.attempt, requestIp: ip});

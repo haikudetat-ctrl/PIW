@@ -29,6 +29,12 @@ alter table public.roof_assessments
 -- than relying on service-role callers to keep company_id columns consistent.
 alter table public.properties
   add constraint properties_company_id_id_key unique (company_id, id);
+alter table public.roof_insights
+  add constraint roof_insights_company_property_id_key unique (company_id, property_id, id),
+  drop constraint roof_insights_property_id_fkey,
+  add constraint roof_insights_company_property_fkey
+    foreign key (company_id, property_id)
+    references public.properties(company_id, id) on delete cascade;
 alter table public.leads
   add constraint leads_company_id_id_key unique (company_id, id),
   drop constraint leads_property_id_fkey,
@@ -39,12 +45,16 @@ alter table public.roof_estimates
   add constraint roof_estimates_company_id_id_key unique (company_id, id),
   drop constraint roof_estimates_lead_id_fkey,
   drop constraint roof_estimates_property_id_fkey,
+  drop constraint roof_estimates_roof_insight_id_fkey,
   add constraint roof_estimates_company_lead_fkey
     foreign key (company_id, lead_id)
     references public.leads(company_id, id) on delete cascade,
   add constraint roof_estimates_company_property_fkey
     foreign key (company_id, property_id)
-    references public.properties(company_id, id) on delete cascade;
+    references public.properties(company_id, id) on delete cascade,
+  add constraint roof_estimates_company_property_insight_fkey
+    foreign key (company_id, property_id, roof_insight_id)
+    references public.roof_insights(company_id, property_id, id);
 alter table public.roof_assessments
   add constraint roof_assessments_company_id_id_key unique (company_id, id),
   drop constraint roof_assessments_estimate_id_fkey,
@@ -140,6 +150,20 @@ create table public.consultation_requests (
   )
 );
 
+-- Durable abuse evidence. Accepted submissions count even when their
+-- consultation projection is an idempotent no-op, bounding public RPC load.
+-- Policy: at most 6 submissions per assessment and 20 per trusted client IP
+-- in a rolling hour; a row exactly one hour old is outside the window.
+create table public.roof_assessment_consultation_attempts (
+  id uuid primary key default extensions.gen_random_uuid(),
+  company_id uuid not null references public.companies(id) on delete cascade,
+  assessment_id uuid not null,
+  request_ip inet not null,
+  reserved_at timestamptz not null default pg_catalog.now(),
+  foreign key (company_id, assessment_id)
+    references public.roof_assessments(company_id, id) on delete cascade
+);
+
 create table public.roof_assessment_access_attempts (
   id uuid primary key default extensions.gen_random_uuid(),
   company_id uuid not null references public.companies(id) on delete cascade,
@@ -212,6 +236,10 @@ create index lead_attribution_touches_lead_occurred_idx
   on public.lead_attribution_touches(company_id, lead_id, occurred_at desc);
 create index consultation_requests_company_created_idx
   on public.consultation_requests(company_id, created_at desc);
+create index roof_assessment_consultation_attempts_assessment_idx
+  on public.roof_assessment_consultation_attempts(company_id, assessment_id, reserved_at desc);
+create index roof_assessment_consultation_attempts_ip_idx
+  on public.roof_assessment_consultation_attempts(request_ip, reserved_at desc);
 create index roof_assessment_access_attempts_assessment_idx
   on public.roof_assessment_access_attempts(company_id, assessment_id, created_at desc);
 create index roof_assessment_access_attempts_submission_idx
@@ -230,18 +258,21 @@ create index roof_assessment_verification_sends_attempt_idx
 alter table public.lead_consent_evidence enable row level security;
 alter table public.lead_attribution_touches enable row level security;
 alter table public.consultation_requests enable row level security;
+alter table public.roof_assessment_consultation_attempts enable row level security;
 alter table public.roof_assessment_access_attempts enable row level security;
 alter table public.roof_assessment_verification_sends enable row level security;
 
 revoke all on public.lead_consent_evidence from public, anon, authenticated;
 revoke all on public.lead_attribution_touches from public, anon, authenticated;
 revoke all on public.consultation_requests from public, anon, authenticated;
+revoke all on public.roof_assessment_consultation_attempts from public, anon, authenticated;
 revoke all on public.roof_assessment_access_attempts from public, anon, authenticated;
 revoke all on public.roof_assessment_verification_sends from public, anon, authenticated;
 
 grant all on public.lead_consent_evidence to service_role;
 grant all on public.lead_attribution_touches to service_role;
 grant all on public.consultation_requests to service_role;
+grant all on public.roof_assessment_consultation_attempts to service_role;
 grant all on public.roof_assessment_access_attempts to service_role;
 grant all on public.roof_assessment_verification_sends to service_role;
 
@@ -1409,7 +1440,7 @@ $$;
 
 create function public.request_roof_consultation(
   p_company_id uuid,p_assessment_id uuid,p_estimate_id uuid,
-  p_contact_method text,p_call_window text,p_timezone text
+  p_contact_method text,p_call_window text,p_timezone text,p_request_ip inet
 ) returns table (
   request_id uuid,status text,created_at timestamptz,
   contact_method text,call_window text,timezone text
@@ -1430,12 +1461,32 @@ begin
   if v_method='call' and v_window not in ('asap','morning','midday','afternoon','evening') then raise exception 'Unsupported consultation call window'; end if;
   if v_method<>'call' and v_window is not null then raise exception 'Call window is only valid for phone consultation'; end if;
   if v_timezone<>'America/New_York' then raise exception 'Unsupported consultation timezone'; end if;
+  if p_request_ip is null then raise exception 'Consultation request IP is required'; end if;
 
   select assessment.* into v_assessment from public.roof_assessments assessment
   where assessment.id=p_assessment_id and assessment.company_id=p_company_id
     and assessment.estimate_id=p_estimate_id for update;
   if not found then raise exception 'Roof assessment not found for company'; end if;
   if v_assessment.status<>'completed' then raise exception 'Roof assessment is not complete'; end if;
+
+  -- The assessment row lock serializes the per-assessment boundary. The
+  -- transaction advisory lock serializes the cross-assessment IP boundary.
+  perform pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended('roof-consultation-ip:' || p_request_ip::text, 0)
+  );
+  if (select pg_catalog.count(*) from public.roof_assessment_consultation_attempts attempt
+      where attempt.company_id=p_company_id and attempt.assessment_id=p_assessment_id
+        and attempt.reserved_at > v_now - interval '1 hour') >= 6 then
+    raise exception 'Consultation rate limit exceeded';
+  end if;
+  if (select pg_catalog.count(*) from public.roof_assessment_consultation_attempts attempt
+      where attempt.request_ip=p_request_ip
+        and attempt.reserved_at > v_now - interval '1 hour') >= 20 then
+    raise exception 'Consultation rate limit exceeded';
+  end if;
+  insert into public.roof_assessment_consultation_attempts(
+    company_id,assessment_id,request_ip,reserved_at
+  ) values (p_company_id,p_assessment_id,p_request_ip,v_now);
   select estimate.property_id into v_property_id from public.roof_estimates estimate
   where estimate.id=p_estimate_id and estimate.company_id=p_company_id
     and estimate.lead_id=v_assessment.lead_id;
@@ -1454,9 +1505,11 @@ begin
       p_company_id,v_assessment.lead_id,v_property_id,p_estimate_id,p_assessment_id,v_method,v_window,v_timezone,v_now,v_now
     ) returning * into v_request;
     v_first:=true;
-  else
+  elsif v_request.contact_method is distinct from v_method
+     or v_request.call_window is distinct from v_window
+     or v_request.timezone is distinct from v_timezone then
     update public.consultation_requests request set
-      contact_method=v_method,call_window=v_window,timezone=v_timezone,status='requested',updated_at=v_now
+      contact_method=v_method,call_window=v_window,timezone=v_timezone,updated_at=v_now
     where request.id=v_request.id and request.company_id=p_company_id returning request.* into v_request;
   end if;
 
@@ -1467,7 +1520,7 @@ begin
       'correlationId',p_assessment_id,'leadId',v_assessment.lead_id,'propertyId',v_property_id,
       'pipelineRunId',v_pipeline_run_id,'occurredAt',pg_catalog.to_char(v_now at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
       'idempotencyKey','roof/assessment.consultation_requested:'||p_assessment_id::text,
-      'data',pg_catalog.jsonb_build_object('assessmentId',p_assessment_id,'consultationRequestId',v_request.id,'contactMethod',v_method,'callWindow',v_window));
+      'data',pg_catalog.jsonb_build_object('assessmentId',p_assessment_id,'consultationRequestId',v_request.id));
     perform public.enqueue_domain_event(p_company_id,v_event);
   end if;
   return query select v_request.id,v_request.status,v_request.created_at,v_request.contact_method,v_request.call_window,v_request.timezone;
@@ -1549,9 +1602,9 @@ revoke execute on function public.approve_verified_roof_assessment_resume(uuid, 
 grant execute on function public.approve_verified_roof_assessment_resume(uuid, uuid, text)
   to service_role;
 
-revoke execute on function public.request_roof_consultation(uuid, uuid, uuid, text, text, text)
+revoke execute on function public.request_roof_consultation(uuid, uuid, uuid, text, text, text, inet)
   from public, anon, authenticated;
-grant execute on function public.request_roof_consultation(uuid, uuid, uuid, text, text, text)
+grant execute on function public.request_roof_consultation(uuid, uuid, uuid, text, text, text, inet)
   to service_role;
 
 revoke execute on function public.mark_roof_assessment_result_viewed(uuid, uuid, uuid)

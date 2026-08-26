@@ -34,11 +34,11 @@ vi.mock("../[token]/assessment-questionnaire", () => ({
 const {AssessmentSandbox} = await import("./assessment-sandbox");
 
 describe("development assessment sandbox", () => {
-  test("the exact quote action does not restart the loading flow", () => {
+  test("the consultation action does not restart the loading flow", () => {
     render(<AssessmentSandbox />);
     fireEvent.click(screen.getByRole("button", {name: "Finish demo assessment"}));
 
-    fireEvent.click(screen.getByRole("button", {name: "Turn this range into an exact quote"}));
+    fireEvent.click(screen.getByRole("button", {name: "Review my roof with a specialist"}));
     expect(screen.getByRole("group", {name: "How should we follow up?"})).toBeVisible();
     expect(screen.queryByRole("button", {name: "Finish demo assessment"})).not.toBeInTheDocument();
   });

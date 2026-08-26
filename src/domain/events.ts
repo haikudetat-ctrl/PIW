@@ -85,16 +85,7 @@ export const roofAssessmentCompletedDataSchema = assessmentIdDataSchema.extend({
 }).strict();
 export const roofAssessmentConsultationRequestedDataSchema = assessmentIdDataSchema.extend({
   consultationRequestId: uuidSchema,
-  contactMethod: z.enum(["call", "text", "email"]),
-  callWindow: z.enum(["asap", "morning", "midday", "afternoon", "evening"]).nullable().optional(),
-}).strict().superRefine((value, context) => {
-  if (value.contactMethod === "call" && !value.callWindow) {
-    context.addIssue({code: "custom", path: ["callWindow"], message: "Call window is required"});
-  }
-  if (value.contactMethod !== "call" && value.callWindow) {
-    context.addIssue({code: "custom", path: ["callWindow"], message: "Call window is call-only"});
-  }
-});
+}).strict();
 
 const assessmentEnvelopeFields = {
   id: uuidSchema,

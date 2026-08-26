@@ -50,12 +50,12 @@ export default async function RoofEstimateResultPage({
   const service = createServiceClient();
   const { data: estimate } = await service
     .from("roof_estimates")
-    .select("id, status, range_low_cents, range_high_cents, roof_squares, roof_insight_id, updated_at, failure_reason, lead_id, property_id")
+    .select("id, company_id, status, range_low_cents, range_high_cents, roof_squares, roof_insight_id, updated_at, failure_reason, lead_id, property_id")
     .eq("public_token", token)
     .maybeSingle();
   if (!estimate) notFound();
 
-  const [{ data: pipeline }, { data: property }, { data: lead }, { data: assessment }] = await Promise.all([
+  const [{ data: pipeline }, { data: property }, { data: lead }, { data: assessment }, {data: insight}] = await Promise.all([
     service
       .from("pipeline_runs")
       .select("status")
@@ -78,6 +78,10 @@ export default async function RoofEstimateResultPage({
       .select("status, revision, current_step, property_revealed_at, responses, recommendation, presentation_key")
       .eq("estimate_id", estimate.id)
       .maybeSingle(),
+    estimate.roof_insight_id ? service.from("roof_insights")
+      .select("id, company_id, property_id, provider, lookup_status")
+      .eq("id",estimate.roof_insight_id).eq("company_id",estimate.company_id)
+      .eq("property_id",estimate.property_id).maybeSingle() : Promise.resolve({data:null}),
   ]);
 
   const pipelineTerminal = Boolean(
@@ -90,7 +94,9 @@ export default async function RoofEstimateResultPage({
   const calculation = getAssessmentCalculationState({
     estimateStatus: estimate.status,
     pipelineStatus: pipeline?.status ?? null,
-    sourceId: estimate.roof_insight_id,
+    expectedCompanyId: estimate.company_id,
+    expectedPropertyId: estimate.property_id,
+    insight: insight ? {id:insight.id,companyId:insight.company_id,propertyId:insight.property_id,provider:insight.provider,lookupStatus:insight.lookup_status} : null,
     lowCents: estimate.range_low_cents,
     highCents: estimate.range_high_cents,
     roofSquares: estimate.roof_squares === null ? null : Number(estimate.roof_squares),

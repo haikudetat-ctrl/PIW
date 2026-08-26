@@ -7,8 +7,8 @@ import {useGSAP} from "@gsap/react";
 import gsap from "gsap";
 import type {RoofAssessmentContext} from "@/config/roof-assessment";
 import type {CalculationState, RoofAssessmentRecommendation, RoofAssessmentResponses} from "@/domain/roof-assessment";
-import type {ConsultationCallWindow, ConsultationContactMethod} from "@/modules/roof-assessment/request-consultation";
-import {getAssessmentResultCopy, getAssessmentResultRange} from "./public-estimate-flow";
+import {consultationApiSuccessSchema, type ConsultationCallWindow, type ConsultationContactMethod} from "@/modules/roof-assessment/consultation-preference";
+import {getAssessmentResultCopy, getAssessmentResultCta, getAssessmentResultRange} from "./public-estimate-flow";
 import "./assessment.css";
 
 const money=new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0});
@@ -40,8 +40,9 @@ export function ConsultationPreferenceForm({token}: {token:string}) {
     try{
       const response=await fetch(`/api/roof-estimate/${token}/consultation`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({contactMethod:method,callWindow:method==="call"?window:null})});
       if(!response.ok) throw new Error("unavailable");
-      const body=await response.json() as {contactMethod:ConsultationContactMethod;callWindow:ConsultationCallWindow|null};
-      setSuccess(body);
+      const parsed=consultationApiSuccessSchema.safeParse(await response.json());
+      if(!parsed.success||parsed.data.contactMethod!==method||parsed.data.callWindow!==(method==="call"?window:null))throw new Error("unavailable");
+      setSuccess(parsed.data);
     }catch{setError("We could not save your preference. Please try again.");}finally{setSubmitting(false);}
   }
   if(success){
@@ -59,7 +60,7 @@ export function ConsultationPreferenceForm({token}: {token:string}) {
 }
 
 export function AssessmentResult({token,address,imageUrl,recommendation,responses,calculation,context,onReplay,preview=false}:{token:string;address:string;imageUrl:string;recommendation:RoofAssessmentRecommendation;responses:RoofAssessmentResponses;calculation:CalculationState;context:RoofAssessmentContext;onReplay?:()=>void;preview?:boolean}){
-  const copy=getAssessmentResultCopy(recommendation); const outlook=getProjectOutlook(responses,recommendation); const range=getAssessmentResultRange(calculation);
+  const copy=getAssessmentResultCopy(recommendation); const outlook=getProjectOutlook(responses,recommendation); const range=getAssessmentResultRange(calculation); const cta=getAssessmentResultCta(recommendation,calculation);
   const resultRef=useRef<HTMLElement>(null); const recorded=useRef(false); const [consultationOpen,setConsultationOpen]=useState(false);
   useEffect(()=>{if(preview||recorded.current)return;recorded.current=true;void fetch(`/api/roof-estimate/${token}/result-view`,{method:"POST"}).catch(()=>undefined);},[preview,token]);
   useGSAP(()=>{if(!window.matchMedia||window.matchMedia("(prefers-reduced-motion: reduce)").matches)return;gsap.timeline({defaults:{ease:"power3.out"}}).fromTo(".assessment-result-image",{scale:.96,opacity:.58},{scale:1,opacity:1,duration:.9}).fromTo(".assessment-result-copy > *",{y:14,opacity:0},{y:0,opacity:1,duration:.45,stagger:.045},"-=0.58");},{scope:resultRef});
@@ -70,7 +71,7 @@ export function AssessmentResult({token,address,imageUrl,recommendation,response
       <div className="assessment-result-copy p-6 sm:p-9 lg:p-11"><p className="assessment-context-kicker text-xs font-black uppercase tracking-[0.16em]">{copy.eyebrow}</p><h1 className="assessment-display mt-4 text-[clamp(3.2rem,5vw,5.5rem)] leading-[.92]">{context.resultHeadline}</h1><p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">{context.resultIntro}</p><h2 className="mt-7 text-2xl font-semibold tracking-[-.025em]">{copy.headline}</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">{copy.body}</p>
         <div className="assessment-range-panel mt-8 p-6 text-white sm:p-7" aria-live="polite">{range?<><p className="text-sm font-semibold text-white/65">Preliminary project range</p><p className="mt-3 flex flex-wrap items-baseline gap-x-3 text-4xl font-semibold tracking-[-.05em] sm:text-5xl"><span>{money.format(range.lowCents/100)}</span><span className="text-2xl text-white/45">to</span><span>{money.format(range.highCents/100)}</span></p><p className="mt-4 text-xs text-white/60">Based on approximately {range.roofSquares.toFixed(1)} measured roofing squares</p></>:calculation.status==="pending"?<><p className="text-lg font-semibold">Finalizing your property calculation</p><p className="mt-2 text-sm leading-6 text-white/65">Your outlook is ready. A measured range will appear only when Google returns a trustworthy calculation.</p></>:<><p className="text-lg font-semibold">A professional is reviewing the property</p><p className="mt-2 text-sm leading-6 text-white/65">Google did not return a measurement we trust enough to price automatically. We will not invent a range.</p></>}</div>
         <div className="mt-8 grid gap-7 sm:grid-cols-2"><div><h2 className="text-sm font-semibold text-slate-500">Recommended timing</h2><p className="mt-2 text-xl font-semibold">{outlook.timing}</p></div><div><h2 className="text-sm font-semibold text-slate-500">Likely direction</h2><p className="mt-2 text-sm leading-6 text-slate-700">{outlook.direction}</p></div><div className="sm:col-span-2 sm:border-t sm:border-slate-200 sm:pt-6"><h2 className="text-sm font-semibold text-slate-500">What may shape the project</h2><p className="mt-2 text-sm leading-6 text-slate-700">{outlook.costFactors}</p></div></div>
-        {!consultationOpen?<div className="mt-9 flex flex-col gap-3 sm:flex-row"><button type="button" onClick={()=>setConsultationOpen(true)} aria-describedby="assessment-consultation-note" className="assessment-conversion-action px-6 py-4 text-sm font-black text-white">{copy.cta}</button>{onReplay?<button type="button" onClick={onReplay} className="px-5 py-3 text-sm font-bold text-slate-500">Replay assessment</button>:null}</div>:<div className="assessment-consultation-panel mt-9"><p className="assessment-context-kicker text-xs font-black uppercase tracking-[.14em]">Next step</p><h2 className="mt-2 text-2xl font-semibold">Choose how we should continue.</h2><p className="mt-2 text-sm leading-6 text-slate-600">{context.consultationIntro}</p><div className="mt-5"><ConsultationPreferenceForm token={token}/></div></div>}
+        {!consultationOpen?<div className="mt-9 flex flex-col gap-3 sm:flex-row"><button type="button" onClick={()=>setConsultationOpen(true)} aria-describedby="assessment-consultation-note" className="assessment-conversion-action px-6 py-4 text-sm font-black text-white">{cta}</button>{onReplay?<button type="button" onClick={onReplay} className="px-5 py-3 text-sm font-bold text-slate-500">Replay assessment</button>:null}</div>:<div className="assessment-consultation-panel mt-9"><p className="assessment-context-kicker text-xs font-black uppercase tracking-[.14em]">Next step</p><h2 className="mt-2 text-2xl font-semibold">Choose how we should continue.</h2><p className="mt-2 text-sm leading-6 text-slate-600">{context.consultationIntro}</p><div className="mt-5"><ConsultationPreferenceForm token={token}/></div></div>}
         <p id="assessment-consultation-note" className="mt-4 text-xs leading-5 text-slate-500">A roofing specialist will review the property details and your priorities before recommending a scope.</p><p className="mt-5 text-xs leading-5 text-slate-500">Preliminary planning guidance only. A field inspection confirms scope, materials, and final pricing.</p>
       </div></div></section></div></main>;
 }

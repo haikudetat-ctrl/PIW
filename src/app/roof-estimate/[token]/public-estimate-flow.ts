@@ -46,10 +46,22 @@ export function getAssessmentResultCopy(recommendation: RoofAssessmentRecommenda
   return resultCopy[recommendation];
 }
 
+export function getAssessmentResultCta(
+  recommendation: RoofAssessmentRecommendation,
+  calculation: CalculationState,
+) {
+  if (recommendation === "replacement_may_make_sense" && calculation.status !== "ready") {
+    return "Review my roof with a specialist";
+  }
+  return resultCopy[recommendation].cta;
+}
+
 export function getAssessmentCalculationState({
   estimateStatus,
   pipelineStatus,
-  sourceId,
+  expectedCompanyId,
+  expectedPropertyId,
+  insight,
   lowCents,
   highCents,
   roofSquares,
@@ -57,17 +69,17 @@ export function getAssessmentCalculationState({
 }: {
   estimateStatus: string;
   pipelineStatus: string | null;
-  sourceId: string | null;
+  expectedCompanyId: string;
+  expectedPropertyId: string;
+  insight: {id:string;companyId:string;propertyId:string;provider:string;lookupStatus:string}|null;
   lowCents: number | null;
   highCents: number | null;
   roofSquares: number | null;
   generatedAt: string;
 }): CalculationState {
-  const pipelineTerminal = pipelineStatus !== null && [
-    "complete", "partial", "review_required", "failed",
-  ].includes(pipelineStatus);
+  const pipelineTerminal = pipelineStatus !== null && ["complete", "partial", "review_required", "failed"].includes(pipelineStatus);
   if (estimateStatus === "pending" && !pipelineTerminal) return {status: "pending"};
-  if (estimateStatus === "review_required" || pipelineStatus === "review_required") {
+  if (estimateStatus === "review_required" || ["failed","partial","review_required"].includes(pipelineStatus ?? "")) {
     return {status: "review_required", reason: "low_confidence"};
   }
 
@@ -79,7 +91,8 @@ export function getAssessmentCalculationState({
     roofSquares,
     generatedAt,
   });
-  if (estimateStatus !== "ready" || !sourceId || !candidate.success || lowCents === null || lowCents <= 0) {
+  const trustedInsight=insight!==null&&insight.companyId===expectedCompanyId&&insight.propertyId===expectedPropertyId&&insight.provider==="google_solar"&&insight.lookupStatus==="success";
+  if (estimateStatus !== "ready" || pipelineStatus!=="complete" || !trustedInsight || !candidate.success || lowCents === null || lowCents <= 0) {
     return {status: "review_required", reason: "low_confidence"};
   }
   return candidate.data;
