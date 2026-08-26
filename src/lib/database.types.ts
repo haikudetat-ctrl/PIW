@@ -2541,6 +2541,79 @@ export type Database = {
           },
         ]
       }
+      roof_assessments: {
+        Row: {
+          assessment_version: string
+          company_id: string
+          completed_at: string | null
+          current_step: number
+          estimate_id: string
+          id: string
+          lead_id: string
+          property_revealed_at: string | null
+          recommendation: string | null
+          responses: Json
+          scores: Json
+          started_at: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          assessment_version?: string
+          company_id: string
+          completed_at?: string | null
+          current_step?: number
+          estimate_id: string
+          id?: string
+          lead_id: string
+          property_revealed_at?: string | null
+          recommendation?: string | null
+          responses?: Json
+          scores?: Json
+          started_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          assessment_version?: string
+          company_id?: string
+          completed_at?: string | null
+          current_step?: number
+          estimate_id?: string
+          id?: string
+          lead_id?: string
+          property_revealed_at?: string | null
+          recommendation?: string | null
+          responses?: Json
+          scores?: Json
+          started_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "roof_assessments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "roof_assessments_estimate_id_fkey"
+            columns: ["estimate_id"]
+            isOneToOne: true
+            referencedRelation: "roof_estimates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "roof_assessments_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       roof_estimates: {
         Row: {
           assumptions: Json
