@@ -7,6 +7,31 @@ export type Json =
   | Json[]
 
 export type Database = {
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       admin_profiles: {
@@ -326,11 +351,18 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "consultation_requests_assessment_id_fkey"
-            columns: ["assessment_id"]
-            isOneToOne: true
+            foreignKeyName: "consultation_requests_company_id_assessment_id_fkey"
+            columns: ["company_id", "assessment_id"]
+            isOneToOne: false
             referencedRelation: "roof_assessments"
-            referencedColumns: ["id"]
+            referencedColumns: ["company_id", "id"]
+          },
+          {
+            foreignKeyName: "consultation_requests_company_id_estimate_id_fkey"
+            columns: ["company_id", "estimate_id"]
+            isOneToOne: false
+            referencedRelation: "roof_estimates"
+            referencedColumns: ["company_id", "id"]
           },
           {
             foreignKeyName: "consultation_requests_company_id_fkey"
@@ -340,25 +372,18 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "consultation_requests_estimate_id_fkey"
-            columns: ["estimate_id"]
-            isOneToOne: false
-            referencedRelation: "roof_estimates"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "consultation_requests_lead_id_fkey"
-            columns: ["lead_id"]
+            foreignKeyName: "consultation_requests_company_id_lead_id_fkey"
+            columns: ["company_id", "lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
-            referencedColumns: ["id"]
+            referencedColumns: ["company_id", "id"]
           },
           {
-            foreignKeyName: "consultation_requests_property_id_fkey"
-            columns: ["property_id"]
+            foreignKeyName: "consultation_requests_company_id_property_id_fkey"
+            columns: ["company_id", "property_id"]
             isOneToOne: false
             referencedRelation: "properties"
-            referencedColumns: ["id"]
+            referencedColumns: ["company_id", "id"]
           },
         ]
       }
@@ -1399,11 +1424,18 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "lead_attribution_touches_assessment_id_fkey"
-            columns: ["assessment_id"]
+            foreignKeyName: "lead_attribution_touches_company_id_assessment_id_fkey"
+            columns: ["company_id", "assessment_id"]
             isOneToOne: false
             referencedRelation: "roof_assessments"
-            referencedColumns: ["id"]
+            referencedColumns: ["company_id", "id"]
+          },
+          {
+            foreignKeyName: "lead_attribution_touches_company_id_estimate_id_fkey"
+            columns: ["company_id", "estimate_id"]
+            isOneToOne: false
+            referencedRelation: "roof_estimates"
+            referencedColumns: ["company_id", "id"]
           },
           {
             foreignKeyName: "lead_attribution_touches_company_id_fkey"
@@ -1413,18 +1445,71 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "lead_attribution_touches_estimate_id_fkey"
-            columns: ["estimate_id"]
+            foreignKeyName: "lead_attribution_touches_company_id_lead_id_fkey"
+            columns: ["company_id", "lead_id"]
             isOneToOne: false
-            referencedRelation: "roof_estimates"
+            referencedRelation: "leads"
+            referencedColumns: ["company_id", "id"]
+          },
+        ]
+      }
+      lead_consent_evidence: {
+        Row: {
+          company_id: string
+          consent_type: string
+          disclosure_version: string
+          granted: boolean
+          granted_at: string
+          id: string
+          ip_address: unknown
+          lead_id: string
+          recorded_at: string
+          source: string
+          submission_id: string
+          user_agent: string | null
+        }
+        Insert: {
+          company_id: string
+          consent_type: string
+          disclosure_version: string
+          granted: boolean
+          granted_at: string
+          id?: string
+          ip_address?: unknown
+          lead_id: string
+          recorded_at?: string
+          source: string
+          submission_id: string
+          user_agent?: string | null
+        }
+        Update: {
+          company_id?: string
+          consent_type?: string
+          disclosure_version?: string
+          granted?: boolean
+          granted_at?: string
+          id?: string
+          ip_address?: unknown
+          lead_id?: string
+          recorded_at?: string
+          source?: string
+          submission_id?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_consent_evidence_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "lead_attribution_touches_lead_id_fkey"
-            columns: ["lead_id"]
+            foreignKeyName: "lead_consent_evidence_company_id_lead_id_fkey"
+            columns: ["company_id", "lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
-            referencedColumns: ["id"]
+            referencedColumns: ["company_id", "id"]
           },
         ]
       }
@@ -1439,7 +1524,6 @@ export type Database = {
           ip_address: unknown
           lead_id: string
           source: string
-          submission_id: string | null
           user_agent: string | null
         }
         Insert: {
@@ -1452,7 +1536,6 @@ export type Database = {
           ip_address?: unknown
           lead_id: string
           source?: string
-          submission_id?: string | null
           user_agent?: string | null
         }
         Update: {
@@ -1465,7 +1548,6 @@ export type Database = {
           ip_address?: unknown
           lead_id?: string
           source?: string
-          submission_id?: string | null
           user_agent?: string | null
         }
         Relationships: [
@@ -1477,11 +1559,11 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "lead_consents_lead_id_fkey"
-            columns: ["lead_id"]
+            foreignKeyName: "lead_consents_company_lead_fkey"
+            columns: ["company_id", "lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
-            referencedColumns: ["id"]
+            referencedColumns: ["company_id", "id"]
           },
         ]
       }
@@ -1912,11 +1994,11 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "leads_property_id_fkey"
-            columns: ["property_id"]
+            foreignKeyName: "leads_company_property_fkey"
+            columns: ["company_id", "property_id"]
             isOneToOne: false
             referencedRelation: "properties"
-            referencedColumns: ["id"]
+            referencedColumns: ["company_id", "id"]
           },
         ]
       }
@@ -2716,6 +2798,8 @@ export type Database = {
           provider_attempt_id: string | null
           provider_attempt_metadata: Json
           request_ip: unknown
+          requested_entry_point: string
+          requested_presentation_key: string
           submission_id: string
           token_rotated_at: string | null
           updated_at: string
@@ -2740,6 +2824,8 @@ export type Database = {
           provider_attempt_id?: string | null
           provider_attempt_metadata?: Json
           request_ip: unknown
+          requested_entry_point: string
+          requested_presentation_key: string
           submission_id: string
           token_rotated_at?: string | null
           updated_at?: string
@@ -2764,6 +2850,8 @@ export type Database = {
           provider_attempt_id?: string | null
           provider_attempt_metadata?: Json
           request_ip?: unknown
+          requested_entry_point?: string
+          requested_presentation_key?: string
           submission_id?: string
           token_rotated_at?: string | null
           updated_at?: string
@@ -2774,11 +2862,18 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "roof_assessment_access_attempts_assessment_id_fkey"
-            columns: ["assessment_id"]
+            foreignKeyName: "roof_assessment_access_attempts_company_id_assessment_id_fkey"
+            columns: ["company_id", "assessment_id"]
             isOneToOne: false
             referencedRelation: "roof_assessments"
-            referencedColumns: ["id"]
+            referencedColumns: ["company_id", "id"]
+          },
+          {
+            foreignKeyName: "roof_assessment_access_attempts_company_id_estimate_id_fkey"
+            columns: ["company_id", "estimate_id"]
+            isOneToOne: false
+            referencedRelation: "roof_estimates"
+            referencedColumns: ["company_id", "id"]
           },
           {
             foreignKeyName: "roof_assessment_access_attempts_company_id_fkey"
@@ -2788,25 +2883,18 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "roof_assessment_access_attempts_estimate_id_fkey"
-            columns: ["estimate_id"]
-            isOneToOne: false
-            referencedRelation: "roof_estimates"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "roof_assessment_access_attempts_lead_id_fkey"
-            columns: ["lead_id"]
+            foreignKeyName: "roof_assessment_access_attempts_company_id_lead_id_fkey"
+            columns: ["company_id", "lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
-            referencedColumns: ["id"]
+            referencedColumns: ["company_id", "id"]
           },
           {
-            foreignKeyName: "roof_assessment_access_attempts_property_id_fkey"
-            columns: ["property_id"]
+            foreignKeyName: "roof_assessment_access_attempts_company_id_property_id_fkey"
+            columns: ["company_id", "property_id"]
             isOneToOne: false
             referencedRelation: "properties"
-            referencedColumns: ["id"]
+            referencedColumns: ["company_id", "id"]
           },
         ]
       }
@@ -2876,6 +2964,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "roof_assessments_company_estimate_fkey"
+            columns: ["company_id", "estimate_id"]
+            isOneToOne: false
+            referencedRelation: "roof_estimates"
+            referencedColumns: ["company_id", "id"]
+          },
+          {
             foreignKeyName: "roof_assessments_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
@@ -2883,18 +2978,11 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "roof_assessments_estimate_id_fkey"
-            columns: ["estimate_id"]
-            isOneToOne: true
-            referencedRelation: "roof_estimates"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "roof_assessments_lead_id_fkey"
-            columns: ["lead_id"]
+            foreignKeyName: "roof_assessments_company_lead_fkey"
+            columns: ["company_id", "lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
-            referencedColumns: ["id"]
+            referencedColumns: ["company_id", "id"]
           },
         ]
       }
@@ -2974,18 +3062,18 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "roof_estimates_lead_id_fkey"
-            columns: ["lead_id"]
-            isOneToOne: true
+            foreignKeyName: "roof_estimates_company_lead_fkey"
+            columns: ["company_id", "lead_id"]
+            isOneToOne: false
             referencedRelation: "leads"
-            referencedColumns: ["id"]
+            referencedColumns: ["company_id", "id"]
           },
           {
-            foreignKeyName: "roof_estimates_property_id_fkey"
-            columns: ["property_id"]
+            foreignKeyName: "roof_estimates_company_property_fkey"
+            columns: ["company_id", "property_id"]
             isOneToOne: false
             referencedRelation: "properties"
-            referencedColumns: ["id"]
+            referencedColumns: ["company_id", "id"]
           },
           {
             foreignKeyName: "roof_estimates_reused_from_estimate_id_fkey"
@@ -4027,6 +4115,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       address_match_method: [
