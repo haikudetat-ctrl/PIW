@@ -3789,6 +3789,7 @@ export type Database = {
           attempt_id: string
           continuation_secret: string
           expires_at: string
+          is_replay: boolean
         }[]
       }
       submit_all_season_campaign_estimate: {
