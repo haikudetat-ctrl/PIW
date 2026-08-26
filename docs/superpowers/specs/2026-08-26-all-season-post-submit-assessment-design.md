@@ -75,12 +75,12 @@ The service input includes:
 - UTM and click attribution
 - Consent values, disclosure version, timestamp, IP address, and user agent
 
-The service result is one of:
+The service returns a short-lived continuation URL rather than an existing public assessment token. The homeowner's browser follows that URL onto the assessment origin, where the assessment cookie is available. Continuation resolution produces one of:
 
-- `started`: a new public assessment URL
-- `resumed`: an existing assessment URL authorized by the same-browser session
-- `verification_required`: a cross-device match requiring Twilio Verify SMS verification
-- An idempotent replay of the original result for a duplicate submission UUID
+- `started`: set the assessment session and redirect to a new public assessment URL
+- `resumed`: redirect to an existing assessment after same-browser session authorization
+- `verification_required`: redirect to Twilio Verify SMS before releasing a rotated public assessment token
+- An idempotent replay of the original continuation URL for a duplicate submission UUID
 
 ### Assessment presentation
 
@@ -150,6 +150,17 @@ Create an idempotent consultation-intent record containing:
 - Status suitable for later booking handoff
 - Creation and update timestamps
 - Nullable future booking reference
+
+### `roof_assessment_access_attempts`
+
+Create a server-only operational table for the short-lived cross-origin continuation and resume decision:
+
+- Company, submission, assessment candidate, and attempt kind
+- Hash of the opaque continuation secret; the raw secret is returned only once
+- Normalized verification destination, request IP, expiry, send counters, and provider attempt metadata
+- Verification, consumption, and token-rotation timestamps
+
+This is not a marketing or CRM record. It exists so the main-site adapter never receives an existing assessment token and so the assessment origin can safely choose a new journey, same-browser resume, or Twilio verification.
 
 ### Consent evidence
 
