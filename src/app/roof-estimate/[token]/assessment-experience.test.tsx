@@ -1,0 +1,105 @@
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { getRoofAssessmentContext } from "@/config/roof-assessment";
+import { AssessmentExperience } from "./assessment-experience";
+
+const token = "11111111-1111-4111-8111-111111111111";
+const imageUrl = `/api/roof-estimate/${token}/house-image`;
+const context = getRoofAssessmentContext("for-every-season");
+
+describe("assessment property reveal", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  test("reveals the confirmed address and aerial after analysis completes", () => {
+    render(
+      <AssessmentExperience
+        token={token}
+        address="1 Main St, Newark, NJ 07102"
+        imageUrl={imageUrl}
+        context={context}
+        initialPropertyRevealed={false}
+        initialStep={0}
+      >
+        <p>Questions begin here</p>
+      </AssessmentExperience>,
+    );
+
+    fireEvent.load(screen.getByAltText("Aerial view loading for 1 Main St, Newark, NJ 07102"));
+    act(() => vi.advanceTimersByTime(5_000));
+
+    expect(screen.getByRole("heading", {name: "We found your property."})).toBeVisible();
+    expect(screen.getByText("1 Main St, Newark, NJ 07102")).toBeVisible();
+    expect(screen.getByRole("button", {name: "Start my assessment"})).toBeEnabled();
+  });
+
+  test("skips the analysis buffer after the property reveal was saved", () => {
+    render(
+      <AssessmentExperience
+        token={token}
+        address="1 Main St, Newark, NJ 07102"
+        imageUrl={imageUrl}
+        context={context}
+        initialPropertyRevealed
+        initialStep={0}
+      >
+        <p>Questions begin here</p>
+      </AssessmentExperience>,
+    );
+
+    expect(screen.queryByText("Analyzing your property.")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", {name: "We found your property."})).toBeVisible();
+  });
+
+  test("persists the reveal before opening the questions", async () => {
+    vi.useRealTimers();
+    const fetch = vi.fn(async () => Response.json({propertyRevealed: true}));
+    vi.stubGlobal("fetch", fetch);
+    render(
+      <AssessmentExperience
+        token={token}
+        address="1 Main St, Newark, NJ 07102"
+        imageUrl={imageUrl}
+        context={context}
+        initialPropertyRevealed
+        initialStep={0}
+      >
+        <p>Questions begin here</p>
+      </AssessmentExperience>,
+    );
+
+    fireEvent.click(screen.getByRole("button", {name: "Start my assessment"}));
+
+    await waitFor(() => expect(fetch).toHaveBeenCalledWith(`/api/roof-estimate/${token}/assessment`, {
+        method: "PATCH",
+        headers: {"content-type": "application/json"},
+        body: JSON.stringify({currentStep: 0, propertyRevealed: true, responses: {}}),
+      }));
+    expect(await screen.findByText("Questions begin here")).toBeVisible();
+  });
+
+  test("keeps the reveal visible when progress cannot be saved", async () => {
+    vi.useRealTimers();
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, {status: 503})));
+    render(
+      <AssessmentExperience
+        token={token}
+        address="1 Main St, Newark, NJ 07102"
+        imageUrl={imageUrl}
+        context={context}
+        initialPropertyRevealed
+        initialStep={0}
+      >
+        <p>Questions begin here</p>
+      </AssessmentExperience>,
+    );
+
+    fireEvent.click(screen.getByRole("button", {name: "Start my assessment"}));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("We could not save your progress");
+    expect(screen.getByRole("button", {name: "Try again"})).toBeEnabled();
+  });
+});
