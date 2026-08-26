@@ -11,15 +11,16 @@ const payload = {
 };
 
 function independentlySignedToken(value: unknown) {
-  const encoded = Buffer.from(JSON.stringify(value)).toString("base64url");
-  const signature = createHmac("sha256", signingKey).update(encoded).digest("base64url");
-  return `${encoded}.${signature}`;
+  const payload = JSON.stringify(value);
+  const signature = createHmac("sha256", signingKey).update(payload, "utf8").digest("base64url");
+  return Buffer.from(JSON.stringify({payload, signature}), "utf8").toString("base64url");
 }
 
 describe("assessment continuation tokens", () => {
   test("round-trips a valid continuation capability", async () => {
     const token = await signContinuation(payload, signingKey);
 
+    expect(token).toMatch(/^[A-Za-z0-9_-]+$/);
     await expect(verifyContinuation(token, signingKey, now)).resolves.toEqual(payload);
   });
 
@@ -54,11 +55,29 @@ describe("assessment continuation tokens", () => {
     },
   );
 
-  test.each(["", "one-part", "a.b.c", "***.***"])(
+  test.each(["", "one-part", "a.b.c", "***.***", "YWJj=", "YWJj%2FZGVm"])(
     "rejects malformed tokens without exposing parsing details",
     async (token) => {
       await expect(verifyContinuation(token, signingKey, now))
         .rejects.toThrow("Invalid continuation");
     },
   );
+
+  test("rejects a validly signed but non-canonical payload", async () => {
+    const token = independentlySignedToken({
+      secret: payload.secret,
+      attemptId: payload.attemptId,
+      expiresAt: payload.expiresAt,
+    });
+
+    await expect(verifyContinuation(token, signingKey, now))
+      .rejects.toThrow("Invalid continuation");
+  });
+
+  test("rejects a non-canonical outer base64url encoding", async () => {
+    const token = await signContinuation(payload, signingKey);
+
+    await expect(verifyContinuation(`${token}=`, signingKey, now))
+      .rejects.toThrow("Invalid continuation");
+  });
 });

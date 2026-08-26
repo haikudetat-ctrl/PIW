@@ -1,3 +1,11 @@
+import type { CampaignSlug } from "@/config/campaigns";
+import type {
+  AssessmentEntryPoint,
+  RoofAssessmentPresentationKey,
+  StartAssessmentInput,
+  StartAssessmentResult,
+} from "@/modules/roof-assessment/start-or-resume";
+
 export type CampaignAttribution = {
   utm_source: string | null;
   utm_medium: string | null;
@@ -11,7 +19,9 @@ export type CampaignAttribution = {
 
 export type AllSeasonCampaignEstimateLeadInput = {
   submissionId: string;
-  campaign: string;
+  campaign: CampaignSlug | null;
+  presentationKey: RoofAssessmentPresentationKey;
+  entryPoint: AssessmentEntryPoint;
   name: string;
   email: string;
   phone: string;
@@ -20,47 +30,38 @@ export type AllSeasonCampaignEstimateLeadInput = {
   clientIpAddress: string;
   clientUserAgent: string;
   submittedAt: string;
+  disclosureVersion: string;
+  referrer: string | null;
   attribution: CampaignAttribution;
 };
 
-type CreatedCampaignEstimateRecords = {
-  leadId: string;
-  propertyId: string;
-  pipelineRunId: string;
-  publicToken: string;
-  event: DomainEvent;
-  isDuplicate?: boolean;
-};
-
 export type AcceptAllSeasonCampaignEstimateDependencies = {
-  createEstimateRecords: (
-    input: AllSeasonCampaignEstimateLeadInput & {
-      correlationId: string;
-      disclosureVersion: "all-season-campaign-estimate-v1";
-    },
-  ) => Promise<CreatedCampaignEstimateRecords>;
-  publishPersistedLeadSubmitted: (event: DomainEvent) => Promise<void>;
+  companyId: string;
+  startAssessment: (input: StartAssessmentInput) => Promise<StartAssessmentResult>;
 };
 
 export async function acceptAllSeasonCampaignEstimate(
   input: AllSeasonCampaignEstimateLeadInput,
   dependencies: AcceptAllSeasonCampaignEstimateDependencies,
 ) {
-  const correlationId = input.submissionId;
-  const created = await dependencies.createEstimateRecords({
-    ...input,
-    correlationId,
-    disclosureVersion: "all-season-campaign-estimate-v1",
+  return dependencies.startAssessment({
+    submissionId: input.submissionId,
+    companyId: dependencies.companyId,
+    name: input.name,
+    email: input.email,
+    phone: input.phone,
+    submittedAddress: input.submittedAddress,
+    googlePlaceId: input.googlePlaceId,
+    campaign: input.campaign,
+    presentationKey: input.presentationKey,
+    entryPoint: input.entryPoint,
+    attribution: input.attribution,
+    referrer: input.referrer,
+    consent: {
+      disclosureVersion: input.disclosureVersion,
+      ipAddress: input.clientIpAddress,
+      userAgent: input.clientUserAgent,
+      grantedAt: input.submittedAt,
+    },
   });
-
-  if (!created.isDuplicate) {
-    await dependencies.publishPersistedLeadSubmitted(created.event);
-  }
-
-  return {
-    leadId: created.leadId,
-    publicToken: created.publicToken,
-    resultPath: `/roof-estimate/${created.publicToken}`,
-  };
 }
-import type { DomainEvent } from "@/domain/events";
