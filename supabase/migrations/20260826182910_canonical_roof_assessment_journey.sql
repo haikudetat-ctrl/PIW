@@ -592,6 +592,11 @@ declare
   v_attempt public.roof_assessment_access_attempts%rowtype;
   v_token uuid;
   v_rotated_at timestamptz;
+  v_was_abandoned boolean;
+  v_property_id uuid;
+  v_pipeline_run_id uuid;
+  v_event_id uuid;
+  v_event jsonb;
 begin
   select attempt.* into v_attempt
   from public.roof_assessment_access_attempts as attempt
@@ -610,6 +615,12 @@ begin
   if v_attempt.expires_at <= pg_catalog.now() then
     raise exception 'Assessment access attempt has expired';
   end if;
+
+  select assessment.status='abandoned' into v_was_abandoned
+  from public.roof_assessments assessment
+  where assessment.id=v_attempt.assessment_id and assessment.company_id=p_company_id
+  for update;
+  if not found then raise exception 'Roof assessment authorization failed'; end if;
 
   if v_attempt.token_rotated_at is null then
     v_token := extensions.gen_random_uuid();
@@ -634,6 +645,23 @@ begin
         consumed_at = coalesce(attempt.consumed_at, v_rotated_at),
         updated_at = v_rotated_at
     where attempt.id = p_attempt_id;
+
+    if v_was_abandoned then
+      select estimate.property_id into v_property_id from public.roof_estimates estimate
+      where estimate.id=v_attempt.estimate_id and estimate.company_id=p_company_id;
+      select run.id into v_pipeline_run_id from public.pipeline_runs run
+      where run.company_id=p_company_id and run.lead_id=v_attempt.lead_id
+      order by run.started_at desc,run.id limit 1;
+      v_event_id := extensions.gen_random_uuid();
+      v_event := pg_catalog.jsonb_build_object(
+        'id',v_event_id,'name','roof/assessment.resumed','schemaVersion',1,
+        'correlationId',v_attempt.assessment_id,'leadId',v_attempt.lead_id,
+        'propertyId',v_property_id,'pipelineRunId',v_pipeline_run_id,
+        'occurredAt',pg_catalog.to_char(v_rotated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+        'idempotencyKey','roof/assessment.resumed:'||v_attempt.assessment_id::text,
+        'data',pg_catalog.jsonb_build_object('assessmentId',v_attempt.assessment_id));
+      perform public.enqueue_domain_event(p_company_id,v_event);
+    end if;
   else
     select estimate.public_token into v_token
     from public.roof_estimates as estimate
@@ -663,6 +691,11 @@ declare
   v_attempt public.roof_assessment_access_attempts%rowtype;
   v_token uuid;
   v_rotated_at timestamptz;
+  v_was_abandoned boolean;
+  v_property_id uuid;
+  v_pipeline_run_id uuid;
+  v_event_id uuid;
+  v_event jsonb;
 begin
   select attempt.* into v_attempt
   from public.roof_assessment_access_attempts as attempt
@@ -694,6 +727,12 @@ begin
   then
     raise exception 'Assessment continuation is invalid';
   end if;
+
+  select assessment.status = 'abandoned' into v_was_abandoned
+  from public.roof_assessments assessment
+  where assessment.id=v_attempt.assessment_id and assessment.company_id=p_company_id
+  for update;
+  if not found then raise exception 'Roof assessment authorization failed'; end if;
 
   v_rotated_at := pg_catalog.clock_timestamp();
 
@@ -736,6 +775,23 @@ begin
     and attempt.company_id = p_company_id;
   if not found then
     raise exception 'Assessment access attempt consumption failed';
+  end if;
+
+  if v_was_abandoned then
+    select estimate.property_id into v_property_id from public.roof_estimates estimate
+    where estimate.id=v_attempt.estimate_id and estimate.company_id=p_company_id;
+    select run.id into v_pipeline_run_id from public.pipeline_runs run
+    where run.company_id=p_company_id and run.lead_id=v_attempt.lead_id
+    order by run.started_at desc,run.id limit 1;
+    v_event_id := extensions.gen_random_uuid();
+    v_event := pg_catalog.jsonb_build_object(
+      'id',v_event_id,'name','roof/assessment.resumed','schemaVersion',1,
+      'correlationId',v_attempt.assessment_id,'leadId',v_attempt.lead_id,
+      'propertyId',v_property_id,'pipelineRunId',v_pipeline_run_id,
+      'occurredAt',pg_catalog.to_char(v_rotated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+      'idempotencyKey','roof/assessment.resumed:'||v_attempt.assessment_id::text,
+      'data',pg_catalog.jsonb_build_object('assessmentId',v_attempt.assessment_id));
+    perform public.enqueue_domain_event(p_company_id,v_event);
   end if;
 
   return query select v_attempt.assessment_id, v_token, v_rotated_at;
@@ -941,6 +997,11 @@ declare
   v_send public.roof_assessment_verification_sends%rowtype;
   v_token uuid;
   v_rotated_at timestamptz := pg_catalog.clock_timestamp();
+  v_was_abandoned boolean;
+  v_property_id uuid;
+  v_pipeline_run_id uuid;
+  v_event_id uuid;
+  v_event jsonb;
 begin
   select attempt.* into v_attempt
   from public.roof_assessment_access_attempts as attempt
@@ -983,6 +1044,12 @@ begin
     raise exception 'Assessment verification is invalid';
   end if;
 
+  select assessment.status = 'abandoned' into v_was_abandoned
+  from public.roof_assessments assessment
+  where assessment.id=v_attempt.assessment_id and assessment.company_id=p_company_id
+  for update;
+  if not found then raise exception 'Roof assessment authorization failed'; end if;
+
   update public.roof_assessments as assessment
   set status = 'in_progress',
       presentation_key = v_attempt.requested_presentation_key,
@@ -1020,7 +1087,242 @@ begin
     raise exception 'Assessment verification evidence update failed';
   end if;
 
+  if v_was_abandoned then
+    select estimate.property_id into v_property_id from public.roof_estimates estimate
+    where estimate.id=v_attempt.estimate_id and estimate.company_id=p_company_id;
+    select run.id into v_pipeline_run_id from public.pipeline_runs run
+    where run.company_id=p_company_id and run.lead_id=v_attempt.lead_id
+    order by run.started_at desc,run.id limit 1;
+    v_event_id := extensions.gen_random_uuid();
+    v_event := pg_catalog.jsonb_build_object(
+      'id',v_event_id,'name','roof/assessment.resumed','schemaVersion',1,
+      'correlationId',v_attempt.assessment_id,'leadId',v_attempt.lead_id,
+      'propertyId',v_property_id,'pipelineRunId',v_pipeline_run_id,
+      'occurredAt',pg_catalog.to_char(v_rotated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+      'idempotencyKey','roof/assessment.resumed:'||v_attempt.assessment_id::text,
+      'data',pg_catalog.jsonb_build_object('assessmentId',v_attempt.assessment_id));
+    perform public.enqueue_domain_event(p_company_id,v_event);
+  end if;
+
   return query select v_attempt.assessment_id, v_token, v_rotated_at;
+end;
+$$;
+
+create function public.save_roof_assessment_progress(
+  p_company_id uuid,
+  p_assessment_id uuid,
+  p_current_step integer,
+  p_property_revealed_at timestamptz,
+  p_responses jsonb,
+  p_scores jsonb,
+  p_high_intent boolean
+) returns table (
+  id uuid, status text, current_step integer, property_revealed_at timestamptz,
+  last_answered_at timestamptz, responses jsonb, recommendation text
+)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_assessment public.roof_assessments%rowtype;
+  v_property_id uuid;
+  v_pipeline_run_id uuid;
+  v_now timestamptz := pg_catalog.clock_timestamp();
+  v_event_id uuid;
+  v_event jsonb;
+begin
+  if p_current_step not between 0 and 9
+    or pg_catalog.jsonb_typeof(p_responses) <> 'object'
+    or pg_catalog.jsonb_typeof(p_scores) <> 'object'
+  then
+    raise exception 'Invalid assessment progress';
+  end if;
+
+  select assessment.* into v_assessment
+  from public.roof_assessments as assessment
+  where assessment.id = p_assessment_id and assessment.company_id = p_company_id
+  for update;
+  if not found or v_assessment.status <> 'in_progress' then
+    raise exception 'Assessment progress is unavailable';
+  end if;
+
+  update public.roof_assessments as assessment
+  set current_step = p_current_step,
+      property_revealed_at = coalesce(assessment.property_revealed_at, p_property_revealed_at),
+      responses = p_responses,
+      scores = p_scores,
+      last_answered_at = v_now,
+      updated_at = v_now
+  where assessment.id = p_assessment_id and assessment.company_id = p_company_id
+  returning assessment.* into v_assessment;
+
+  if coalesce(p_high_intent, false) then
+    select estimate.property_id
+    into v_property_id
+    from public.roof_estimates as estimate
+    where estimate.id = v_assessment.estimate_id and estimate.company_id = p_company_id;
+    select run.id into v_pipeline_run_id
+    from public.pipeline_runs as run
+    where run.company_id = p_company_id and run.lead_id = v_assessment.lead_id
+    order by run.started_at desc, run.id limit 1;
+    v_event_id := extensions.gen_random_uuid();
+    v_event := pg_catalog.jsonb_build_object(
+      'id', v_event_id, 'name', 'roof/assessment.high_intent', 'schemaVersion', 1,
+      'correlationId', v_assessment.id, 'leadId', v_assessment.lead_id,
+      'propertyId', v_property_id, 'pipelineRunId', v_pipeline_run_id,
+      'occurredAt', pg_catalog.to_char(v_now at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+      'idempotencyKey', 'roof/assessment.high_intent:' || v_assessment.id::text,
+      'data', pg_catalog.jsonb_build_object(
+        'assessmentId', v_assessment.id,
+        'intent', coalesce((p_scores->>'intent')::integer, 0),
+        'urgency', coalesce((p_scores->>'urgency')::integer, 0)
+      )
+    );
+    perform public.enqueue_domain_event(p_company_id, v_event);
+  end if;
+
+  return query select v_assessment.id, v_assessment.status, v_assessment.current_step,
+    v_assessment.property_revealed_at, v_assessment.last_answered_at,
+    v_assessment.responses, v_assessment.recommendation;
+end;
+$$;
+
+create function public.complete_roof_assessment(
+  p_company_id uuid,
+  p_assessment_id uuid,
+  p_responses jsonb,
+  p_scores jsonb,
+  p_recommendation text,
+  p_high_intent boolean
+) returns table (
+  id uuid, status text, current_step integer, property_revealed_at timestamptz,
+  last_answered_at timestamptz, responses jsonb, recommendation text
+)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_assessment public.roof_assessments%rowtype;
+  v_property_id uuid;
+  v_pipeline_run_id uuid;
+  v_now timestamptz := pg_catalog.clock_timestamp();
+  v_event_id uuid;
+  v_event jsonb;
+begin
+  if pg_catalog.jsonb_typeof(p_responses) <> 'object'
+    or pg_catalog.jsonb_typeof(p_scores) <> 'object'
+    or p_recommendation not in ('monitor_or_repair','professional_inspection','replacement_may_make_sense')
+  then
+    raise exception 'Invalid assessment completion';
+  end if;
+  select assessment.* into v_assessment
+  from public.roof_assessments as assessment
+  where assessment.id = p_assessment_id and assessment.company_id = p_company_id
+  for update;
+  if not found or v_assessment.status = 'abandoned' then
+    raise exception 'Assessment completion is unavailable';
+  end if;
+  if v_assessment.status = 'completed' then
+    return query select v_assessment.id, v_assessment.status, v_assessment.current_step,
+      v_assessment.property_revealed_at, v_assessment.last_answered_at,
+      v_assessment.responses, v_assessment.recommendation;
+    return;
+  end if;
+
+  update public.roof_assessments as assessment
+  set status='completed', current_step=9, responses=p_responses, scores=p_scores,
+      recommendation=p_recommendation, assessment_version='roof-check-v1',
+      completed_at=v_now, abandoned_at=null, updated_at=v_now
+  where assessment.id=p_assessment_id and assessment.company_id=p_company_id
+  returning assessment.* into v_assessment;
+
+  select estimate.property_id into v_property_id
+  from public.roof_estimates estimate
+  where estimate.id=v_assessment.estimate_id and estimate.company_id=p_company_id;
+  select run.id into v_pipeline_run_id
+  from public.pipeline_runs run
+  where run.company_id=p_company_id and run.lead_id=v_assessment.lead_id
+  order by run.started_at desc,run.id limit 1;
+
+  if coalesce(p_high_intent,false) then
+    v_event_id := extensions.gen_random_uuid();
+    v_event := pg_catalog.jsonb_build_object(
+      'id',v_event_id,'name','roof/assessment.high_intent','schemaVersion',1,
+      'correlationId',v_assessment.id,'leadId',v_assessment.lead_id,
+      'propertyId',v_property_id,'pipelineRunId',v_pipeline_run_id,
+      'occurredAt',pg_catalog.to_char(v_now at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+      'idempotencyKey','roof/assessment.high_intent:'||v_assessment.id::text,
+      'data',pg_catalog.jsonb_build_object('assessmentId',v_assessment.id,'intent',coalesce((p_scores->>'intent')::integer,0),'urgency',coalesce((p_scores->>'urgency')::integer,0)));
+    perform public.enqueue_domain_event(p_company_id,v_event);
+  end if;
+  v_event_id := extensions.gen_random_uuid();
+  v_event := pg_catalog.jsonb_build_object(
+    'id',v_event_id,'name','roof/assessment.completed','schemaVersion',1,
+    'correlationId',v_assessment.id,'leadId',v_assessment.lead_id,
+    'propertyId',v_property_id,'pipelineRunId',v_pipeline_run_id,
+    'occurredAt',pg_catalog.to_char(v_now at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+    'idempotencyKey','roof/assessment.completed:'||v_assessment.id::text,
+    'data',pg_catalog.jsonb_build_object('assessmentId',v_assessment.id,'recommendation',p_recommendation));
+  perform public.enqueue_domain_event(p_company_id,v_event);
+
+  return query select v_assessment.id, v_assessment.status, v_assessment.current_step,
+    v_assessment.property_revealed_at, v_assessment.last_answered_at,
+    v_assessment.responses, v_assessment.recommendation;
+end;
+$$;
+
+create function public.abandon_inactive_roof_assessments(p_batch_size integer default 100)
+returns table (assessment_id uuid)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_record record;
+  v_now timestamptz := pg_catalog.clock_timestamp();
+  v_limit integer := least(greatest(coalesce(p_batch_size,100),1),500);
+  v_event_id uuid;
+  v_event jsonb;
+begin
+  for v_record in
+    select assessment.id,assessment.company_id,assessment.lead_id,
+           estimate.property_id,run.id as pipeline_run_id
+    from public.roof_assessments assessment
+    join public.roof_estimates estimate
+      on estimate.id=assessment.estimate_id and estimate.company_id=assessment.company_id
+    join lateral (
+      select pipeline.id
+      from public.pipeline_runs pipeline
+      where pipeline.company_id=assessment.company_id and pipeline.lead_id=assessment.lead_id
+      order by pipeline.started_at desc,pipeline.id limit 1
+    ) run on true
+    where assessment.status='in_progress'
+      and coalesce(assessment.last_answered_at,assessment.updated_at,assessment.started_at)
+        <= v_now - interval '24 hours'
+    order by coalesce(assessment.last_answered_at,assessment.updated_at,assessment.started_at),assessment.id
+    for update of assessment skip locked
+    limit v_limit
+  loop
+    update public.roof_assessments assessment
+    set status='abandoned',abandoned_at=v_now,updated_at=v_now
+    where assessment.id=v_record.id and assessment.company_id=v_record.company_id
+      and assessment.status='in_progress';
+    if found then
+      v_event_id := extensions.gen_random_uuid();
+      v_event := pg_catalog.jsonb_build_object(
+        'id',v_event_id,'name','roof/assessment.abandoned','schemaVersion',1,
+        'correlationId',v_record.id,'leadId',v_record.lead_id,
+        'propertyId',v_record.property_id,'pipelineRunId',v_record.pipeline_run_id,
+        'occurredAt',pg_catalog.to_char(v_now at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+        'idempotencyKey','roof/assessment.abandoned:'||v_record.id::text,
+        'data',pg_catalog.jsonb_build_object('assessmentId',v_record.id));
+      perform public.enqueue_domain_event(v_record.company_id,v_event);
+      assessment_id := v_record.id;
+      return next;
+    end if;
+  end loop;
 end;
 $$;
 
@@ -1134,4 +1436,23 @@ grant execute on function public.approve_verified_roof_assessment_resume(uuid, u
 revoke execute on function public.request_roof_consultation(uuid, uuid, text, text)
   from public, anon, authenticated;
 grant execute on function public.request_roof_consultation(uuid, uuid, text, text)
+  to service_role;
+
+revoke execute on function public.save_roof_assessment_progress(
+  uuid, uuid, integer, timestamptz, jsonb, jsonb, boolean
+) from public, anon, authenticated;
+grant execute on function public.save_roof_assessment_progress(
+  uuid, uuid, integer, timestamptz, jsonb, jsonb, boolean
+) to service_role;
+
+revoke execute on function public.complete_roof_assessment(
+  uuid, uuid, jsonb, jsonb, text, boolean
+) from public, anon, authenticated;
+grant execute on function public.complete_roof_assessment(
+  uuid, uuid, jsonb, jsonb, text, boolean
+) to service_role;
+
+revoke execute on function public.abandon_inactive_roof_assessments(integer)
+  from public, anon, authenticated;
+grant execute on function public.abandon_inactive_roof_assessments(integer)
   to service_role;

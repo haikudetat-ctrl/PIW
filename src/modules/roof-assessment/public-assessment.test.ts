@@ -37,6 +37,8 @@ const completeResponses: RoofAssessmentResponses = {
 class MemoryAssessmentRepository implements PublicAssessmentRepository {
   assessment: PersistedAssessment | null = null;
   completion: AssessmentCompletion | null = null;
+  lifecycleEvents = new Set<string>();
+  failNextSave = false;
 
   async findEstimateByToken(value: string) {
     return value === token ? context : null;
@@ -48,24 +50,40 @@ class MemoryAssessmentRepository implements PublicAssessmentRepository {
       status: "in_progress",
       currentStep: 0,
       propertyRevealedAt: null,
+      lastAnsweredAt: null,
       responses: {},
       recommendation: null,
     };
     return this.assessment;
   }
 
-  async saveProgress(_assessmentId: string, patch: AssessmentProgressPatch) {
+  async saveProgress(
+    _assessmentId: string,
+    patch: AssessmentProgressPatch,
+  ) {
+    if (this.failNextSave) {
+      this.failNextSave = false;
+      throw new Error("persistence unavailable");
+    }
     const current = await this.findOrCreateAssessment(context);
+    const lastAnsweredAt = new Date().toISOString();
     this.assessment = {
       ...current,
       currentStep: patch.currentStep,
       propertyRevealedAt: patch.propertyRevealedAt ?? current.propertyRevealedAt,
+      lastAnsweredAt,
       responses: {...current.responses, ...patch.responses},
     };
+    if (patch.signals.highIntent) {
+      this.lifecycleEvents.add(`roof/assessment.high_intent:${this.assessment.id}`);
+    }
     return this.assessment;
   }
 
-  async complete(_assessmentId: string, completion: AssessmentCompletion) {
+  async complete(
+    _assessmentId: string,
+    completion: AssessmentCompletion,
+  ) {
     const current = await this.findOrCreateAssessment(context);
     this.completion = completion;
     this.assessment = {
@@ -75,6 +93,10 @@ class MemoryAssessmentRepository implements PublicAssessmentRepository {
       responses: completion.responses,
       recommendation: completion.recommendation,
     };
+    if (completion.signals.highIntent) {
+      this.lifecycleEvents.add(`roof/assessment.high_intent:${this.assessment.id}`);
+    }
+    this.lifecycleEvents.add(`roof/assessment.completed:${this.assessment.id}`);
     return this.assessment;
   }
 }
@@ -87,6 +109,7 @@ describe("public roof assessment", () => {
       status: "in_progress",
       currentStep: 0,
       propertyRevealed: false,
+      lastAnsweredAt: null,
       responses: {},
       recommendation: null,
       campaign: "weather-report",
@@ -113,8 +136,40 @@ describe("public roof assessment", () => {
     expect(result).toMatchObject({
       currentStep: 2,
       propertyRevealed: true,
+      lastAnsweredAt: expect.any(String),
       responses: {reason: "roof_age", roofAge: "unknown"},
     });
+  });
+
+  test("does not advance persisted progress when a save fails", async () => {
+    const repository = new MemoryAssessmentRepository();
+    await getPublicAssessment(token, repository);
+    repository.failNextSave = true;
+
+    await expect(savePublicAssessmentProgress(token, {
+      currentStep: 1,
+      responses: {reason: "known_replacement"},
+    }, repository)).rejects.toThrow("persistence unavailable");
+    expect(repository.assessment).toMatchObject({
+      currentStep: 0,
+      lastAnsweredAt: null,
+      responses: {},
+    });
+  });
+
+  test("emits high intent once when progressive answers first cross the threshold", async () => {
+    const repository = new MemoryAssessmentRepository();
+    const input = {
+      currentStep: 1,
+      responses: {reason: "known_replacement" as const},
+    };
+
+    await savePublicAssessmentProgress(token, input, repository);
+    await savePublicAssessmentProgress(token, input, repository);
+
+    expect([...repository.lifecycleEvents]).toEqual([
+      "roof/assessment.high_intent:55555555-5555-4555-8555-555555555555",
+    ]);
   });
 
   test("rejects unrecognized partial response keys", async () => {
@@ -139,7 +194,21 @@ describe("public roof assessment", () => {
       recommendation: "replacement_may_make_sense",
       scores: {need: 17, urgency: 6},
       assessmentVersion: "roof-check-v1",
+      signals: {complete: true, highIntent: true},
     });
+    expect([...repository.lifecycleEvents]).toEqual([
+      "roof/assessment.high_intent:55555555-5555-4555-8555-555555555555",
+      "roof/assessment.completed:55555555-5555-4555-8555-555555555555",
+    ]);
+  });
+
+  test("completion retries do not duplicate lifecycle events", async () => {
+    const repository = new MemoryAssessmentRepository();
+
+    await completePublicAssessment(token, completeResponses, repository);
+    await completePublicAssessment(token, completeResponses, repository);
+
+    expect(repository.lifecycleEvents.size).toBe(2);
   });
 
   test("does not overwrite a completed assessment", async () => {

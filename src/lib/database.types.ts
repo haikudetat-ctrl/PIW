@@ -3900,6 +3900,12 @@ export type Database = {
       }
     }
     Functions: {
+      abandon_inactive_roof_assessments: {
+        Args: { p_batch_size?: number }
+        Returns: {
+          assessment_id: string
+        }[]
+      }
       approve_verified_roof_assessment_resume: {
         Args: {
           p_attempt_id: string
@@ -3976,6 +3982,25 @@ export type Database = {
       complete_outbox_event: {
         Args: { p_event_id: string }
         Returns: undefined
+      }
+      complete_roof_assessment: {
+        Args: {
+          p_assessment_id: string
+          p_company_id: string
+          p_high_intent: boolean
+          p_recommendation: string
+          p_responses: Json
+          p_scores: Json
+        }
+        Returns: {
+          current_step: number
+          id: string
+          last_answered_at: string
+          property_revealed_at: string
+          recommendation: string
+          responses: Json
+          status: string
+        }[]
       }
       current_company_id: { Args: never; Returns: string }
       enqueue_domain_event: {
@@ -4115,6 +4140,26 @@ export type Database = {
           assessment_id: string
           public_token: string
           token_rotated_at: string
+        }[]
+      }
+      save_roof_assessment_progress: {
+        Args: {
+          p_assessment_id: string
+          p_company_id: string
+          p_current_step: number
+          p_high_intent: boolean
+          p_property_revealed_at: string
+          p_responses: Json
+          p_scores: Json
+        }
+        Returns: {
+          current_step: number
+          id: string
+          last_answered_at: string
+          property_revealed_at: string
+          recommendation: string
+          responses: Json
+          status: string
         }[]
       }
       start_or_resume_roof_assessment: {

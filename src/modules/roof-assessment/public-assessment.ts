@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  calculateProgressSignals,
   calculateRoofAssessment,
   ROOF_ASSESSMENT_VERSION,
   roofAssessmentProgressSchema,
@@ -7,6 +8,7 @@ import {
   type RoofAssessmentRecommendation,
   type RoofAssessmentResponses,
   type RoofAssessmentScores,
+  type RoofAssessmentProgressSignals,
 } from "@/domain/roof-assessment";
 
 export type PublicEstimateContext = {
@@ -19,25 +21,30 @@ export type PublicEstimateContext = {
 
 export type PersistedAssessment = {
   id: string;
-  status: "in_progress" | "completed";
+  status: "in_progress" | "abandoned" | "completed";
   currentStep: number;
   propertyRevealedAt: string | null;
+  lastAnsweredAt: string | null;
   responses: Partial<RoofAssessmentResponses>;
   recommendation: RoofAssessmentRecommendation | null;
 };
 
 export type AssessmentProgressPatch = {
+  companyId: string;
   currentStep: number;
   propertyRevealedAt?: string;
   responses: Partial<RoofAssessmentResponses>;
+  signals: RoofAssessmentProgressSignals;
 };
 
 export type AssessmentCompletion = {
+  companyId: string;
   responses: RoofAssessmentResponses;
   scores: RoofAssessmentScores;
   recommendation: RoofAssessmentRecommendation;
   assessmentVersion: typeof ROOF_ASSESSMENT_VERSION;
   completedAt: string;
+  signals: RoofAssessmentProgressSignals;
 };
 
 export type PublicAssessmentRepository = {
@@ -54,9 +61,10 @@ export type PublicAssessmentRepository = {
 };
 
 export type PublicAssessmentState = {
-  status: "in_progress" | "completed";
+  status: "in_progress" | "abandoned" | "completed";
   currentStep: number;
   propertyRevealed: boolean;
+  lastAnsweredAt: string | null;
   responses: Partial<RoofAssessmentResponses>;
   recommendation: RoofAssessmentRecommendation | null;
   campaign: string | null;
@@ -98,6 +106,7 @@ function publicState(
     status: assessment.status,
     currentStep: assessment.currentStep,
     propertyRevealed: Boolean(assessment.propertyRevealedAt),
+    lastAnsweredAt: assessment.lastAnsweredAt,
     responses: assessment.responses,
     recommendation: assessment.recommendation,
     campaign: context.campaign,
@@ -122,16 +131,20 @@ export async function savePublicAssessmentProgress(
   const parsed = progressInputSchema.safeParse(input);
   if (!parsed.success) throw new PublicAssessmentError("Invalid assessment progress", 400);
   const {context, assessment} = await resolveAssessment(token, repository);
-  if (assessment.status === "completed") {
+  if (assessment.status !== "in_progress") {
     throw new PublicAssessmentError("Assessment is already complete", 409);
   }
 
+  const responses = {...assessment.responses, ...parsed.data.responses};
+
   const saved = await repository.saveProgress(assessment.id, {
+    companyId: context.companyId,
     currentStep: parsed.data.currentStep,
     propertyRevealedAt: parsed.data.propertyRevealed
       ? assessment.propertyRevealedAt ?? new Date().toISOString()
       : undefined,
-    responses: {...assessment.responses, ...parsed.data.responses},
+    responses,
+    signals: calculateProgressSignals(responses),
   });
   return publicState(token, context, saved);
 }
@@ -147,12 +160,15 @@ export async function completePublicAssessment(
   if (assessment.status === "completed") return publicState(token, context, assessment);
 
   const result = calculateRoofAssessment(parsed.data);
+  const signals = calculateProgressSignals(parsed.data);
   const completed = await repository.complete(assessment.id, {
+    companyId: context.companyId,
     responses: parsed.data,
     scores: result.scores,
     recommendation: result.recommendation,
     assessmentVersion: ROOF_ASSESSMENT_VERSION,
     completedAt: new Date().toISOString(),
+    signals,
   });
   return publicState(token, context, completed);
 }

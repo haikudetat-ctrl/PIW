@@ -37,6 +37,7 @@ class RouteRepository implements PublicAssessmentRepository {
     status: "in_progress",
     currentStep: 0,
     propertyRevealedAt: null,
+    lastAnsweredAt: null,
     responses: {},
     recommendation: null,
   };

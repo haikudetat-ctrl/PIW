@@ -1,6 +1,8 @@
 import { describe, expect, test } from "vitest";
 import {
+  calculateProgressSignals,
   calculateRoofAssessment,
+  calculationStateSchema,
   roofAssessmentResponsesSchema,
   type RoofAssessmentResponses,
 } from "./roof-assessment";
@@ -93,5 +95,45 @@ describe("roof assessment recommendation", () => {
       ...lowSignalResponses,
       conditionSignals: ["sagging"],
     }).recommendation).toBe("professional_inspection");
+  });
+});
+
+describe("progress signals", () => {
+  test("reports incomplete scores without pretending the assessment is complete", () => {
+    expect(calculateProgressSignals({reason: "known_replacement"})).toEqual({
+      complete: false,
+      highIntent: true,
+      scores: {need: 4, intent: 3, urgency: 0, propertyFit: 0, engagement: 0},
+    });
+  });
+
+  test("uses the canonical complete calculation when every answer is present", () => {
+    expect(calculateProgressSignals(lowSignalResponses)).toEqual({
+      complete: true,
+      highIntent: false,
+      scores: {need: 0, intent: 0, urgency: 0, propertyFit: 3, engagement: 2},
+    });
+  });
+});
+
+describe("property calculation state", () => {
+  test("accepts only a trustworthy Google-derived numeric range", () => {
+    expect(calculationStateSchema.parse({
+      status: "ready",
+      source: "google",
+      lowCents: 1_800_000,
+      highCents: 2_600_000,
+      roofSquares: 23,
+      generatedAt: "2026-08-26T13:00:00.000Z",
+    })).toMatchObject({status: "ready", source: "google"});
+  });
+
+  test.each([
+    {status: "pending", lowCents: 1, highCents: 2},
+    {status: "review_required", lowCents: 1, highCents: 2},
+    {status: "ready", source: "sample", lowCents: 1, highCents: 2, roofSquares: 1, generatedAt: "2026-08-26T13:00:00.000Z"},
+    {status: "ready", source: "google", lowCents: 200, highCents: 100, roofSquares: 1, generatedAt: "2026-08-26T13:00:00.000Z"},
+  ])("rejects an invented or invalid numeric range %#", (state) => {
+    expect(calculationStateSchema.safeParse(state).success).toBe(false);
   });
 });

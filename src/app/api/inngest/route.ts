@@ -11,6 +11,7 @@ import { estimateDeliverySender } from "@/inngest/functions/estimate-delivery-se
 import { contextDialerSlackSender } from "@/inngest/functions/context-dialer-slack-sender";
 import { costIntelligenceDigest } from "@/inngest/functions/cost-intelligence-digest";
 import { accessRouteReadSync } from "@/inngest/functions/access-route-read-sync";
+import { assessmentAbandonmentWorker } from "@/inngest/functions/assessment-abandonment-worker";
 
 export const maxDuration = 300;
 
@@ -28,5 +29,6 @@ export const { GET, POST, PUT } = serve({
     contextDialerSlackSender,
     costIntelligenceDigest,
     accessRouteReadSync,
+    assessmentAbandonmentWorker,
   ],
 });
