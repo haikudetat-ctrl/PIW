@@ -85,6 +85,24 @@ test("publishes and acknowledges the original persisted ID on idempotent replay"
   expect(repository.markPublished).toHaveBeenCalledWith(persistedId);
 });
 
+test("publishes an atomically persisted event without enqueueing it again", async () => {
+  const { repository } = makeRepository();
+  const send = vi.fn(async () => undefined);
+
+  const result = await enqueueAndPublishEvent({
+    repository,
+    event,
+    companyId,
+    send,
+    eventAlreadyPersisted: true,
+  });
+
+  expect(result).toEqual({ publishedImmediately: true });
+  expect(repository.enqueue).not.toHaveBeenCalled();
+  expect(send).toHaveBeenCalledWith({ name: event.name, data: event });
+  expect(repository.markPublished).toHaveBeenCalledWith(event.id);
+});
+
 test("keeps the durable row pending when immediate delivery fails", async () => {
   const { pending, repository } = makeRepository();
   const warn = vi.fn();

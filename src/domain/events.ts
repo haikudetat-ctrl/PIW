@@ -27,7 +27,7 @@ export const leadSubmittedDataSchema = z.object({
   email: z.email(),
   submittedAddress: z.string().min(1),
   googlePlaceId: z.string().min(1).optional(),
-  serviceRequested: z.literal("roofing"),
+  serviceRequested: z.enum(["roofing", "solar", "both"]),
   notes: z.string().optional(),
 });
 

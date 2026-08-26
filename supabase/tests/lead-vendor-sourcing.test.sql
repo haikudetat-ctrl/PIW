@@ -12,7 +12,7 @@ select is(
     join pg_catalog.pg_attribute as attribute
       on attribute.attrelid = index_metadata.indrelid
      and attribute.attnum = indexed_column.attnum
-    where index_metadata.indexrelid = 'public.leads_source_external_id_idx'::regclass
+    where index_metadata.indexrelid = 'public.leads_company_source_external_id_idx'::regclass
       and index_metadata.indisunique
   ),
   array['company_id', 'source_system', 'external_lead_id']::name[],
@@ -23,7 +23,7 @@ select matches(
   (
     select pg_get_expr(index_metadata.indpred, index_metadata.indrelid)
     from pg_catalog.pg_index as index_metadata
-    where index_metadata.indexrelid = 'public.leads_source_external_id_idx'::regclass
+    where index_metadata.indexrelid = 'public.leads_company_source_external_id_idx'::regclass
   ),
   'external_lead_id IS NOT NULL',
   'null external ids remain distinct submissions'
