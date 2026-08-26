@@ -136,15 +136,21 @@ export function AssessmentExperience({
           </div>
 
           <div className="assessment-reveal-copy flex flex-col justify-center border-t border-slate-200 bg-white p-7 sm:p-10 lg:border-l lg:border-t-0 lg:p-12">
-            <p className="assessment-context-kicker text-xs font-black uppercase tracking-[0.19em]">
-              {context.kicker}
-            </p>
-            <h1 className="assessment-display mt-5 w-full max-w-5xl text-[clamp(3.4rem,6vw,5.8rem)] leading-[0.9] tracking-[0.01em]">
-              Property confirmed.
-            </h1>
-            <p className="mt-5 text-xl font-semibold tracking-[-0.025em] text-slate-800">
-              {context.headline}
-            </p>
+            <div
+              role="group"
+              aria-label="Confirmed property summary"
+              className="assessment-confirmation-summary"
+            >
+              <p className="assessment-context-kicker text-xs font-black uppercase tracking-[0.19em]">
+                {context.kicker}
+              </p>
+              <h1 className="assessment-display w-full max-w-5xl text-[clamp(3.4rem,6vw,5.8rem)] leading-[0.9] tracking-[0.01em]">
+                Property confirmed.
+              </h1>
+              <p className="text-xl font-semibold tracking-[-0.025em] text-slate-800">
+                {context.headline}
+              </p>
+            </div>
             <p className="mt-4 max-w-lg text-base leading-7 text-slate-600">
               {context.intro}
             </p>
