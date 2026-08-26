@@ -23,7 +23,7 @@ const complexityFeatureSchema = z.enum([
   "none_or_unsure",
 ]);
 
-export const roofAssessmentResponsesSchema = z.object({
+export const roofAssessmentResponsesBaseSchema = z.object({
   reason: z.enum([
     "roof_age",
     "active_leak",
@@ -49,11 +49,16 @@ export const roofAssessmentResponsesSchema = z.object({
   ]),
   timeline: z.enum(["asap", "within_month", "this_season", "this_year", "researching"]),
   ownership: z.enum(["owner", "buying", "manager", "not_owner"]),
-}).superRefine((responses, context) => {
-  const exclusiveCondition = responses.conditionSignals.find(
+}).strict();
+
+function validateResponseRelationships(
+  responses: Partial<z.infer<typeof roofAssessmentResponsesBaseSchema>>,
+  context: z.RefinementCtx,
+) {
+  const exclusiveCondition = responses.conditionSignals?.find(
     (signal) => signal === "nothing_obvious" || signal === "unsure",
   );
-  if (exclusiveCondition && responses.conditionSignals.length > 1) {
+  if (exclusiveCondition && responses.conditionSignals && responses.conditionSignals.length > 1) {
     context.addIssue({
       code: "custom",
       path: ["conditionSignals"],
@@ -62,7 +67,7 @@ export const roofAssessmentResponsesSchema = z.object({
   }
 
   if (
-    responses.complexityFeatures.includes("none_or_unsure") &&
+    responses.complexityFeatures?.includes("none_or_unsure") &&
     responses.complexityFeatures.length > 1
   ) {
     context.addIssue({
@@ -72,7 +77,11 @@ export const roofAssessmentResponsesSchema = z.object({
     });
   }
 
-  if (responses.roofVisible === "no" && responses.visibleCondition !== "not_answered") {
+  if (
+    responses.roofVisible === "no" &&
+    responses.visibleCondition !== undefined &&
+    responses.visibleCondition !== "not_answered"
+  ) {
     context.addIssue({
       code: "custom",
       path: ["visibleCondition"],
@@ -87,7 +96,15 @@ export const roofAssessmentResponsesSchema = z.object({
       message: "Visible condition is required when the roof is visible",
     });
   }
-});
+}
+
+export const roofAssessmentResponsesSchema = roofAssessmentResponsesBaseSchema
+  .superRefine(validateResponseRelationships);
+
+export const roofAssessmentProgressSchema = roofAssessmentResponsesBaseSchema
+  .partial()
+  .strict()
+  .superRefine(validateResponseRelationships);
 
 export type RoofAssessmentResponses = z.infer<typeof roofAssessmentResponsesSchema>;
 export type RoofAssessmentRecommendation =
