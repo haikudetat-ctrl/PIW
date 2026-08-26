@@ -1,0 +1,159 @@
+/* Post-consent RoofCheck: restrained property analysis and vertically moving stages. */
+.assessment-analysis-shell { position: relative; isolation: isolate; }
+
+.assessment-analysis-image,
+.assessment-analysis-aerial,
+.assessment-analysis-scrim { position: absolute; inset: 0; }
+
+.assessment-analysis-image {
+  background:
+    radial-gradient(circle at 22% 18%, rgb(47 94 107 / 0.52), transparent 36%),
+    linear-gradient(145deg, #102f3d, #071923 62%, #06131a);
+}
+
+.assessment-analysis-grid {
+  width: 100%;
+  height: 100%;
+  opacity: 0.16;
+  background-image:
+    linear-gradient(rgb(255 255 255 / 0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 0.12) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: linear-gradient(to bottom right, black, transparent 72%);
+}
+
+.assessment-analysis-aerial {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  filter: saturate(0.72) contrast(1.08);
+  transition: opacity 1.4s ease;
+}
+
+.assessment-analysis-aerial.is-ready { opacity: 0.28; }
+
+.assessment-analysis-scrim {
+  background:
+    linear-gradient(90deg, rgb(3 17 25 / 0.96) 0%, rgb(3 17 25 / 0.72) 50%, rgb(3 17 25 / 0.5) 100%),
+    linear-gradient(0deg, rgb(3 17 25 / 0.78), transparent 45%);
+}
+
+.assessment-stage-card { border-radius: 1.25rem; }
+.assessment-stage-window { height: 3.25rem; overflow: hidden; }
+.assessment-stage-rail { transition: transform 680ms cubic-bezier(0.16, 1, 0.3, 1); }
+
+.assessment-stage-row {
+  display: grid;
+  grid-template-columns: 2rem 1fr;
+  align-items: center;
+  height: 3.25rem;
+  color: rgb(255 255 255 / 0.28);
+  transition: color 400ms ease, opacity 400ms ease;
+}
+
+.assessment-stage-row span {
+  color: rgb(190 242 100 / 0.72);
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.assessment-stage-row strong { font-size: 1rem; font-weight: 650; letter-spacing: -0.015em; }
+.assessment-stage-row[data-active="true"] { color: white; }
+.assessment-stage-row[data-complete="true"] { color: rgb(255 255 255 / 0.46); }
+
+.assessment-stage-pulse {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 999px;
+  background: #bef264;
+  box-shadow: 0 0 0 0.32rem rgb(190 242 100 / 0.12);
+  animation: assessment-stage-breathe 1.8s ease-in-out infinite;
+}
+
+.assessment-progress-line {
+  transform-origin: left;
+  animation: assessment-progress 5s linear both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .assessment-stage-rail,
+  .assessment-analysis-aerial { transition-duration: 1ms; }
+  .assessment-stage-pulse,
+  .assessment-progress-line { animation: none; }
+  .assessment-progress-line { width: 100%; }
+}
+
+@keyframes assessment-stage-breathe {
+  50% { opacity: 0.5; transform: scale(0.86); }
+}
+
+@keyframes assessment-progress {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+.assessment-reveal-shell { --assessment-accent: #3c7b36; }
+.assessment-reveal-shell.assessment-accent-cyan { --assessment-accent: #087c92; }
+.assessment-reveal-shell.assessment-accent-blue { --assessment-accent: #185d91; }
+.assessment-context-kicker { color: var(--assessment-accent); }
+
+.assessment-option-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.assessment-option {
+  display: grid;
+  grid-template-columns: 1.5rem 1fr;
+  align-items: center;
+  min-height: 4.25rem;
+  gap: 0.75rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid #ccd6da;
+  border-radius: 0.8rem;
+  background: rgb(255 255 255 / 0.78);
+  color: #263a43;
+  text-align: left;
+  font-size: 0.9rem;
+  font-weight: 700;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.assessment-option:hover { border-color: #79909b; transform: translateY(-1px); }
+
+.assessment-option[aria-pressed="true"] {
+  border-color: #173a49;
+  background: #f7faf9;
+  box-shadow: inset 0 0 0 1px #173a49;
+}
+
+.assessment-option-marker {
+  display: grid;
+  width: 1.35rem;
+  height: 1.35rem;
+  place-items: center;
+  border: 1px solid #a8b7bd;
+  border-radius: 999px;
+  color: white;
+  font-size: 0.65rem;
+}
+
+.assessment-option[aria-pressed="true"] .assessment-option-marker {
+  border-color: #173a49;
+  background: #173a49;
+}
+
+.assessment-reveal-media,
+.assessment-reveal-panel { border-radius: 1.25rem; }
+
+@media (max-width: 640px) {
+  .assessment-option-grid { grid-template-columns: 1fr; }
+}
+
+@media (min-width: 1024px) {
+  .assessment-reveal-media { border-radius: 1.5rem 0 0 1.5rem; }
+  .assessment-reveal-panel { border-radius: 0 1.5rem 1.5rem 0; }
+}
