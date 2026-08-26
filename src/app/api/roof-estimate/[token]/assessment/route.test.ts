@@ -35,6 +35,7 @@ class RouteRepository implements PublicAssessmentRepository {
   assessment: PersistedAssessment = {
     id: "55555555-5555-4555-8555-555555555555",
     status: "in_progress",
+    revision: 0,
     currentStep: 0,
     propertyRevealedAt: null,
     lastAnsweredAt: null,
@@ -49,23 +50,31 @@ class RouteRepository implements PublicAssessmentRepository {
     return this.assessment;
   }
   async saveProgress(_id: string, patch: AssessmentProgressPatch) {
+    if (patch.expectedRevision !== this.assessment.revision) {
+      return {assessment: this.assessment, applied: false};
+    }
     this.assessment = {
       ...this.assessment,
-      currentStep: patch.currentStep,
+      revision: this.assessment.revision + 1,
+      currentStep: Math.max(this.assessment.currentStep, patch.currentStep),
       propertyRevealedAt: patch.propertyRevealedAt ?? this.assessment.propertyRevealedAt,
-      responses: {...this.assessment.responses, ...patch.responses},
+      responses: {...this.assessment.responses, ...patch.responsePatch},
     };
-    return this.assessment;
+    return {assessment: this.assessment, applied: true};
   }
   async complete(_id: string, completion: AssessmentCompletion) {
+    if (completion.expectedRevision !== this.assessment.revision) {
+      return {assessment: this.assessment, applied: false};
+    }
     this.assessment = {
       ...this.assessment,
       status: "completed",
+      revision: this.assessment.revision + 1,
       currentStep: 9,
       responses: completion.responses,
       recommendation: completion.recommendation,
     };
-    return this.assessment;
+    return {assessment: this.assessment, applied: true};
   }
 }
 
@@ -99,13 +108,14 @@ describe("public roof assessment route", () => {
     const response = await handlePublicAssessmentRequest({
       method: "PATCH",
       token,
-      body: {currentStep: 1, propertyRevealed: true, responses: {reason: "planning"}},
+      body: {expectedRevision: 0, currentStep: 1, propertyRevealed: true, responsePatch: {reason: "planning"}},
       repository: new RouteRepository(),
     });
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual(expect.objectContaining({
       currentStep: 1,
+      revision: 1,
       propertyRevealed: true,
       responses: {reason: "planning"},
     }));
@@ -115,7 +125,7 @@ describe("public roof assessment route", () => {
     const response = await handlePublicAssessmentRequest({
       method: "PATCH",
       token,
-      body: {currentStep: 1, responses: {scores: {need: 99}}},
+      body: {expectedRevision: 0, currentStep: 1, responsePatch: {scores: {need: 99}}},
       repository: new RouteRepository(),
     });
 
@@ -123,17 +133,41 @@ describe("public roof assessment route", () => {
   });
 
   test("POST completes the assessment without returning internal scores", async () => {
+    const repository = new RouteRepository();
+    repository.assessment = {
+      ...repository.assessment,
+      currentStep: 8,
+      responses: {...responses, ownership: undefined},
+    };
     const response = await handlePublicAssessmentRequest({
       method: "POST",
       token,
-      body: responses,
-      repository: new RouteRepository(),
+      body: {expectedRevision: 0, responsePatch: {ownership: "owner"}},
+      repository,
     });
     const body = await response.json();
 
     expect(response.status).toBe(200);
     expect(body).toMatchObject({status: "completed", recommendation: "monitor_or_repair"});
     expect(body).not.toHaveProperty("scores");
+  });
+
+  test("PATCH returns canonical state with 409 for a stale revision", async () => {
+    const repository = new RouteRepository();
+    repository.assessment = {...repository.assessment, revision: 2, currentStep: 2, responses: {reason: "planning"}};
+    const response = await handlePublicAssessmentRequest({
+      method: "PATCH",
+      token,
+      body: {expectedRevision: 1, currentStep: 1, responsePatch: {reason: "roof_age"}},
+      repository,
+    });
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      revision: 2,
+      currentStep: 2,
+      responses: {reason: "planning"},
+    });
   });
 
   test("returns a stable unavailable response when persistence fails", async () => {

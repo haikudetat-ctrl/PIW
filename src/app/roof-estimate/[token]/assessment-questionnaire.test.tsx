@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import type { RoofAssessmentResponses } from "@/domain/roof-assessment";
+import {roofAssessmentQuestionSteps, type RoofAssessmentResponses} from "@/domain/roof-assessment";
 
 const refresh = vi.fn();
 vi.mock("next/navigation", () => ({useRouter: () => ({refresh})}));
@@ -28,8 +28,37 @@ afterEach(() => {
 });
 
 describe("roof assessment questionnaire", () => {
+  test("renders the shared nine-step model in its canonical order", () => {
+    expect(roofAssessmentQuestionSteps.map((step) => step.id)).toEqual([
+      "reason", "roofAge", "conditionSignals", "roofVisibility", "stories",
+      "complexityFeatures", "priority", "timeline", "ownership",
+    ]);
+    const expectedTitles = [
+      "What made you check your roof today?",
+      "About how old do you think the roof is?",
+      "Have you noticed any of these?",
+      "Can you see your roof from the ground?",
+      "Quick property check",
+      "Any sections like these?",
+      "What would make the project feel like the right decision?",
+      "How soon would a professional review be useful?",
+      "What is your role with this property?",
+    ];
+
+    expectedTitles.forEach((title, initialStep) => {
+      const view = render(<AssessmentQuestionnaire
+        preview
+        token={token}
+        initialStep={initialStep}
+        initialResponses={{}}
+      />);
+      expect(screen.getByRole("heading", {name: title})).toBeVisible();
+      view.unmount();
+    });
+  });
+
   test("saves the homeowner's reason before moving forward", async () => {
-    const fetch = vi.fn(async () => Response.json({currentStep: 1}));
+    const fetch = vi.fn(async () => Response.json({currentStep: 1, revision: 1, responses: {reason: "active_leak"}}));
     vi.stubGlobal("fetch", fetch);
     render(<AssessmentQuestionnaire token={token} initialStep={0} initialResponses={{}} />);
 
@@ -42,8 +71,9 @@ describe("roof assessment questionnaire", () => {
       expect.objectContaining({
         method: "PATCH",
         body: JSON.stringify({
+          expectedRevision: 0,
           currentStep: 1,
-          responses: {reason: "active_leak"},
+          responsePatch: {reason: "active_leak"},
         }),
       }),
     ));
@@ -172,15 +202,41 @@ describe("roof assessment questionnaire", () => {
     expect(screen.getByRole("button", {name: "Just planning ahead"})).toHaveAttribute("aria-pressed", "true");
   });
 
+  test("retains the losing tab's selected answer while reconciling a canonical revision conflict", async () => {
+    const fetch = vi.fn(async () => Response.json({
+      status: "in_progress",
+      revision: 2,
+      currentStep: 1,
+      responses: {reason: "planning"},
+    }, {status: 409}));
+    vi.stubGlobal("fetch", fetch);
+    render(<AssessmentQuestionnaire
+      token={token}
+      initialRevision={1}
+      initialStep={0}
+      initialResponses={{}}
+    />);
+
+    fireEvent.click(screen.getByRole("button", {name: "Roof is getting old"}));
+    fireEvent.click(screen.getByRole("button", {name: "Continue"}));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("updated in another tab");
+    expect(screen.getByRole("button", {name: "Roof is getting old"})).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", {name: "Try again"})).toBeEnabled();
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
   test("completes the assessment on the ownership step and refreshes the result", async () => {
     const fetch = vi.fn(async () => Response.json({
       status: "completed",
+      revision: 1,
       recommendation: "monitor_or_repair",
     }));
     vi.stubGlobal("fetch", fetch);
     render(<AssessmentQuestionnaire
       token={token}
       initialStep={8}
+      initialRevision={0}
       initialResponses={completeExceptOwnership}
     />);
 
@@ -189,7 +245,13 @@ describe("roof assessment questionnaire", () => {
 
     await waitFor(() => expect(fetch).toHaveBeenCalledWith(
       `/api/roof-estimate/${token}/assessment`,
-      expect.objectContaining({method: "POST"}),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          expectedRevision: 0,
+          responsePatch: {ownership: "owner"},
+        }),
+      }),
     ));
     await waitFor(() => expect(refresh).toHaveBeenCalledOnce());
   });

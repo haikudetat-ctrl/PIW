@@ -1,4 +1,4 @@
-import type { RoofAssessmentResponses } from "@/domain/roof-assessment";
+import type { RoofAssessmentQuestionId, RoofAssessmentResponses } from "@/domain/roof-assessment";
 
 export type AssessmentOption<T extends string = string> = {
   value: T;
@@ -76,14 +76,14 @@ export const ownershipOptions: AssessmentOption<RoofAssessmentResponses["ownersh
   {value: "not_owner", label: "No"},
 ];
 
-export const assessmentQuestionTitles = [
-  "What made you check your roof today?",
-  "About how old do you think the roof is?",
-  "Have you noticed any of these?",
-  "Can you see your roof from the ground?",
-  "Quick property check",
-  "Any sections like these?",
-  "What would make the project feel like the right decision?",
-  "How soon would a professional review be useful?",
-  "What is your role with this property?",
-] as const;
+export const assessmentQuestionTitles = {
+  reason: "What made you check your roof today?",
+  roofAge: "About how old do you think the roof is?",
+  conditionSignals: "Have you noticed any of these?",
+  roofVisibility: "Can you see your roof from the ground?",
+  stories: "Quick property check",
+  complexityFeatures: "Any sections like these?",
+  priority: "What would make the project feel like the right decision?",
+  timeline: "How soon would a professional review be useful?",
+  ownership: "What is your role with this property?",
+} as const satisfies Record<RoofAssessmentQuestionId, string>;

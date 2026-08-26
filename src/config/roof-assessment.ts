@@ -1,4 +1,10 @@
 import { campaignSlugs, type CampaignSlug } from "@/config/campaigns";
+import {
+  roofAssessmentQuestionIds,
+  type RoofAssessmentQuestionId,
+} from "@/domain/roof-assessment";
+
+export {roofAssessmentQuestionIds} from "@/domain/roof-assessment";
 
 export const assessmentLoadingStages = [
   "Confirming the address",
@@ -7,19 +13,7 @@ export const assessmentLoadingStages = [
   "Preparing the assessment",
 ] as const;
 
-export const roofAssessmentQuestionIds = [
-  "reason",
-  "roofAge",
-  "conditionSignals",
-  "roofVisibility",
-  "stories",
-  "complexityFeatures",
-  "priority",
-  "timeline",
-  "ownership",
-] as const;
-
-export type RoofAssessmentQuestionId = (typeof roofAssessmentQuestionIds)[number];
+export type {RoofAssessmentQuestionId} from "@/domain/roof-assessment";
 export type RoofAssessmentPresentationKey = "all-season-main" | CampaignSlug;
 export type RoofAssessmentCampaignSlug = CampaignSlug;
 export type AssessmentEntryPoint =
@@ -69,7 +63,7 @@ export type RoofAssessmentContext = {
   fallbackImage: string;
   fallbackImageAlt: string;
   loadingStages: typeof assessmentLoadingStages;
-  questionIds: typeof roofAssessmentQuestionIds;
+  questionIds: readonly RoofAssessmentQuestionId[];
 };
 
 const shared = {

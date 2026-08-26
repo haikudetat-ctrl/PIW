@@ -35,7 +35,7 @@ export async function handlePublicAssessmentRequest({
     return NextResponse.json(state);
   } catch (error) {
     if (error instanceof PublicAssessmentError) {
-      return NextResponse.json({error: error.message}, {status: error.status});
+      return NextResponse.json(error.state ?? {error: error.message}, {status: error.status});
     }
     return NextResponse.json(
       {error: "Roof assessment is temporarily unavailable"},

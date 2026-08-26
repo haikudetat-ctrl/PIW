@@ -24,6 +24,7 @@ const recommendationSchema = z.enum([
 function persistedAssessment(row: {
   id: string;
   status: string;
+  revision: number;
   current_step: number;
   property_revealed_at: string | null;
   last_answered_at: string | null;
@@ -34,6 +35,7 @@ function persistedAssessment(row: {
   const recommendation = recommendationSchema.safeParse(row.recommendation);
   return {
     id: row.id,
+    revision: row.revision,
     status: row.status === "completed"
       ? "completed"
       : row.status === "abandoned"
@@ -50,7 +52,7 @@ function persistedAssessment(row: {
 }
 
 const assessmentSelection =
-  "id, status, current_step, property_revealed_at, last_answered_at, responses, recommendation";
+  "id, revision, status, current_step, property_revealed_at, last_answered_at, responses, recommendation";
 
 export class SupabasePublicAssessmentRepository implements PublicAssessmentRepository {
   constructor(private readonly service: ServiceClient = createServiceClient()) {}
@@ -119,14 +121,16 @@ export class SupabasePublicAssessmentRepository implements PublicAssessmentRepos
     const {data, error} = await this.service.rpc("save_roof_assessment_progress", {
       p_company_id: patch.companyId,
       p_assessment_id: assessmentId,
+      p_expected_revision: patch.expectedRevision,
       p_current_step: patch.currentStep,
       p_property_revealed_at: (patch.propertyRevealedAt ?? null) as never,
-      p_responses: patch.responses as Json,
+      p_response_patch: patch.responsePatch as Json,
+      p_expected_responses: patch.expectedResponses as Json,
       p_scores: patch.signals.scores as unknown as Json,
       p_high_intent: patch.signals.highIntent,
     });
     if (error || !data || data.length !== 1) throw new Error("Assessment progress persistence failed");
-    return persistedAssessment(data[0]);
+    return {assessment: persistedAssessment(data[0]), applied: data[0].applied};
   }
 
   async complete(
@@ -136,13 +140,15 @@ export class SupabasePublicAssessmentRepository implements PublicAssessmentRepos
     const {data, error} = await this.service.rpc("complete_roof_assessment", {
       p_company_id: completion.companyId,
       p_assessment_id: assessmentId,
-      p_responses: completion.responses as Json,
+      p_expected_revision: completion.expectedRevision,
+      p_response_patch: completion.responsePatch as Json,
+      p_expected_responses: completion.responses as Json,
       p_scores: completion.scores as unknown as Json,
       p_recommendation: completion.recommendation,
       p_high_intent: completion.signals.highIntent,
     });
     if (error || !data || data.length !== 1) throw new Error("Assessment completion persistence failed");
-    return persistedAssessment(data[0]);
+    return {assessment: persistedAssessment(data[0]), applied: data[0].applied};
   }
 
   private async readAssessment(estimateId: string) {

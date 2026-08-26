@@ -101,7 +101,7 @@ describe("assessment property reveal", () => {
 
   test("persists the reveal before opening the questions", async () => {
     vi.useRealTimers();
-    const fetch = vi.fn(async () => Response.json({propertyRevealed: true}));
+    const fetch = vi.fn(async () => Response.json({propertyRevealed: true, revision: 4}));
     vi.stubGlobal("fetch", fetch);
     render(
       <AssessmentExperience
@@ -111,6 +111,7 @@ describe("assessment property reveal", () => {
         context={context}
         initialPropertyRevealed
         initialStep={0}
+        initialRevision={3}
       >
         <p>Questions begin here</p>
       </AssessmentExperience>,
@@ -121,7 +122,12 @@ describe("assessment property reveal", () => {
     await waitFor(() => expect(fetch).toHaveBeenCalledWith(`/api/roof-estimate/${token}/assessment`, {
         method: "PATCH",
         headers: {"content-type": "application/json"},
-        body: JSON.stringify({currentStep: 0, propertyRevealed: true, responses: {}}),
+        body: JSON.stringify({
+          expectedRevision: 3,
+          currentStep: 0,
+          propertyRevealed: true,
+          responsePatch: {},
+        }),
       }));
     expect(await screen.findByText("Questions begin here")).toBeVisible();
   });

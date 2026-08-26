@@ -7,6 +7,7 @@ select extensions.no_plan();
 select has_column('public', 'roof_assessments', 'presentation_key', 'assessments retain presentation context');
 select has_column('public', 'roof_assessments', 'entry_point', 'assessments retain their entry point');
 select has_column('public', 'roof_assessments', 'last_answered_at', 'assessments retain progressive-answer time');
+select has_column('public', 'roof_assessments', 'revision', 'assessments retain a monotonic persistence revision');
 select has_column('public', 'roof_assessments', 'result_viewed_at', 'assessments retain result-view time');
 select has_column('public', 'roof_assessments', 'abandoned_at', 'assessments retain abandonment time');
 select has_table('public', 'lead_attribution_touches', 'attribution history exists');
@@ -41,8 +42,8 @@ select has_function(
   'public', 'approve_verified_roof_assessment_resume', array['uuid','uuid','text'],
   'atomic verified resume approval RPC exists'
 );
-select has_function('public', 'save_roof_assessment_progress', array['uuid','uuid','integer','timestamp with time zone','jsonb','jsonb','boolean'], 'atomic progressive assessment save RPC exists');
-select has_function('public', 'complete_roof_assessment', array['uuid','uuid','jsonb','jsonb','text','boolean'], 'atomic assessment completion RPC exists');
+select has_function('public', 'save_roof_assessment_progress', array['uuid','uuid','bigint','integer','timestamp with time zone','jsonb','jsonb','jsonb','boolean'], 'revision-safe atomic progressive assessment save RPC exists');
+select has_function('public', 'complete_roof_assessment', array['uuid','uuid','bigint','jsonb','jsonb','jsonb','text','boolean'], 'revision-safe atomic assessment completion RPC exists');
 select has_function('public', 'abandon_inactive_roof_assessments', array['integer'], 'atomic bounded abandonment RPC exists');
 
 select is((select relrowsecurity from pg_catalog.pg_class where oid = 'public.lead_attribution_touches'::regclass), true, 'attribution has RLS');
@@ -104,6 +105,14 @@ select function_privs_are(
   'public', 'approve_verified_roof_assessment_resume', array['uuid','uuid','text'],
   'service_role', array['EXECUTE'], 'service role alone approves verified resumes'
 );
+select function_privs_are('public', 'save_roof_assessment_progress', array['uuid','uuid','bigint','integer','timestamp with time zone','jsonb','jsonb','jsonb','boolean'], 'public', array[]::text[], 'public cannot save assessment progress');
+select function_privs_are('public', 'save_roof_assessment_progress', array['uuid','uuid','bigint','integer','timestamp with time zone','jsonb','jsonb','jsonb','boolean'], 'anon', array[]::text[], 'anon cannot save assessment progress');
+select function_privs_are('public', 'save_roof_assessment_progress', array['uuid','uuid','bigint','integer','timestamp with time zone','jsonb','jsonb','jsonb','boolean'], 'authenticated', array[]::text[], 'authenticated cannot save assessment progress');
+select function_privs_are('public', 'save_roof_assessment_progress', array['uuid','uuid','bigint','integer','timestamp with time zone','jsonb','jsonb','jsonb','boolean'], 'service_role', array['EXECUTE'], 'service role alone saves assessment progress');
+select function_privs_are('public', 'complete_roof_assessment', array['uuid','uuid','bigint','jsonb','jsonb','jsonb','text','boolean'], 'public', array[]::text[], 'public cannot complete assessments');
+select function_privs_are('public', 'complete_roof_assessment', array['uuid','uuid','bigint','jsonb','jsonb','jsonb','text','boolean'], 'anon', array[]::text[], 'anon cannot complete assessments');
+select function_privs_are('public', 'complete_roof_assessment', array['uuid','uuid','bigint','jsonb','jsonb','jsonb','text','boolean'], 'authenticated', array[]::text[], 'authenticated cannot complete assessments');
+select function_privs_are('public', 'complete_roof_assessment', array['uuid','uuid','bigint','jsonb','jsonb','jsonb','text','boolean'], 'service_role', array['EXECUTE'], 'service role alone completes assessments');
 select function_privs_are('public', 'abandon_inactive_roof_assessments', array['integer'], 'public', array[]::text[], 'public cannot sweep assessment lifecycle state');
 select function_privs_are('public', 'abandon_inactive_roof_assessments', array['integer'], 'anon', array[]::text[], 'anon cannot sweep assessment lifecycle state');
 select function_privs_are('public', 'abandon_inactive_roof_assessments', array['integer'], 'authenticated', array[]::text[], 'authenticated cannot sweep assessment lifecycle state');
@@ -150,6 +159,18 @@ select ok(
    from pg_catalog.pg_proc as proc
    where proc.oid = 'public.approve_verified_roof_assessment_resume(uuid,uuid,text)'::regprocedure),
   'verified resume approval is security definer with an empty search path'
+);
+select ok(
+  (select proc.prosecdef and proc.proconfig = array['search_path=""']
+   from pg_catalog.pg_proc as proc
+   where proc.oid = 'public.save_roof_assessment_progress(uuid,uuid,bigint,integer,timestamptz,jsonb,jsonb,jsonb,boolean)'::regprocedure),
+  'progress CAS is security definer with an empty search path'
+);
+select ok(
+  (select proc.prosecdef and proc.proconfig = array['search_path=""']
+   from pg_catalog.pg_proc as proc
+   where proc.oid = 'public.complete_roof_assessment(uuid,uuid,bigint,jsonb,jsonb,jsonb,text,boolean)'::regprocedure),
+  'completion CAS is security definer with an empty search path'
 );
 select ok(
   (select proc.prosecdef and proc.proconfig = array['search_path=""']
@@ -1592,6 +1613,24 @@ select ok(extensions.dblink_disconnect('abandonment_race_a')='OK','first abandon
 select ok(extensions.dblink_disconnect('abandonment_race_b')='OK','second abandonment worker disconnects');
 select ok(extensions.dblink_disconnect('abandonment_race_gate')='OK','abandonment race gate disconnects');
 
+select lives_ok($$select extensions.dblink_connect('progress_race_gate','host=host.docker.internal port=56322 dbname=postgres user=postgres password=postgres')$$,'progress race gate connects');
+select lives_ok($$select extensions.dblink_connect('progress_race_a','host=host.docker.internal port=56322 dbname=postgres user=postgres password=postgres')$$,'first progress writer connects');
+select lives_ok($$select extensions.dblink_connect('progress_race_b','host=host.docker.internal port=56322 dbname=postgres user=postgres password=postgres')$$,'second progress writer connects');
+select is(extensions.dblink_exec('progress_race_gate',$$insert into public.companies(id,name) values('f7100000-0000-4000-8000-000000000001','Progress Race Company'); do $remote$ declare v record; begin select * into v from public.start_or_resume_roof_assessment('f7100000-0000-4000-8000-000000000001','f7100000-0000-4000-8000-000000000002','Progress Homeowner','+12015550710','race-progress@example.com','710 Race St, Newark, NJ 07102','ChIJ-progress-race','all-season-main','main-home','{}'::jsonb,null,'all-season-assessment-v1',clock_timestamp(),'127.7.1.1','pgtap'); end $remote$;$$),'DO','committed progress race fixture is prepared');
+select is(extensions.dblink_send_query('progress_race_a',$$select applied from public.save_roof_assessment_progress('f7100000-0000-4000-8000-000000000001',(select id from public.roof_assessments where company_id='f7100000-0000-4000-8000-000000000001'),0,1,null,'{"reason":"known_replacement"}'::jsonb,'{"reason":"known_replacement"}'::jsonb,'{"need":4,"intent":3,"urgency":0,"propertyFit":0,"engagement":0}'::jsonb,true)$$),1,'first progress writer is dispatched');
+select is(extensions.dblink_send_query('progress_race_b',$$select applied from public.save_roof_assessment_progress('f7100000-0000-4000-8000-000000000001',(select id from public.roof_assessments where company_id='f7100000-0000-4000-8000-000000000001'),0,2,null,'{"roofAge":"20_plus"}'::jsonb,'{"roofAge":"20_plus"}'::jsonb,'{"need":6,"intent":0,"urgency":0,"propertyFit":0,"engagement":1}'::jsonb,false)$$),1,'second progress writer is dispatched');
+create temp table progress_race_results(applied boolean);
+insert into progress_race_results select applied from extensions.dblink_get_result('progress_race_a') as row(applied boolean);
+insert into progress_race_results select applied from extensions.dblink_get_result('progress_race_b') as row(applied boolean);
+select is((select count(*) from progress_race_results where applied),1::bigint,'exactly one concurrent writer wins revision zero');
+select ok((select revision=1 and responses in ('{"reason":"known_replacement"}'::jsonb,'{"roofAge":"20_plus"}'::jsonb) and current_step in (1,2) from public.roof_assessments where company_id='f7100000-0000-4000-8000-000000000001'),'the losing tab cannot erase or regress the winning canonical state');
+select ok((select (responses ? 'reason' and scores->>'intent'='3') or (responses ? 'roofAge' and scores->>'need'='6') from public.roof_assessments where company_id='f7100000-0000-4000-8000-000000000001'),'scores belong to the exact response snapshot that won the CAS');
+select ok((select count(event.id) = case when assessment.responses ? 'reason' then 1 else 0 end from public.roof_assessments assessment left join public.domain_events event on event.company_id=assessment.company_id and event.event_name='roof/assessment.high_intent' where assessment.company_id='f7100000-0000-4000-8000-000000000001' group by assessment.responses),'the stale loser emits no high-intent event');
+select is(extensions.dblink_exec('progress_race_gate',$$do $cleanup$ begin delete from public.event_outbox where event_id in(select id from public.domain_events where company_id='f7100000-0000-4000-8000-000000000001'); delete from public.domain_events where company_id='f7100000-0000-4000-8000-000000000001'; delete from public.roof_assessment_access_attempts where company_id='f7100000-0000-4000-8000-000000000001'; delete from public.lead_consent_evidence where company_id='f7100000-0000-4000-8000-000000000001'; delete from public.lead_attribution_touches where company_id='f7100000-0000-4000-8000-000000000001'; delete from public.roof_assessments where company_id='f7100000-0000-4000-8000-000000000001'; delete from public.roof_estimates where company_id='f7100000-0000-4000-8000-000000000001'; delete from public.pipeline_runs where company_id='f7100000-0000-4000-8000-000000000001'; delete from public.lead_consents where company_id='f7100000-0000-4000-8000-000000000001'; delete from public.leads where company_id='f7100000-0000-4000-8000-000000000001'; delete from public.properties where company_id='f7100000-0000-4000-8000-000000000001'; delete from public.companies where id='f7100000-0000-4000-8000-000000000001'; end $cleanup$;$$),'DO','progress race fixtures are removed');
+select ok(extensions.dblink_disconnect('progress_race_a')='OK','first progress writer disconnects');
+select ok(extensions.dblink_disconnect('progress_race_b')='OK','second progress writer disconnects');
+select ok(extensions.dblink_disconnect('progress_race_gate')='OK','progress race gate disconnects');
+
 -- Run the forced downstream failure after remote concurrency coverage because
 -- PostgreSQL retains the trigger DDL relation lock until this test rolls back.
 create temp table same_browser_failure_snapshot as
@@ -2023,16 +2062,37 @@ create temp table lifecycle_new as select * from public.start_or_resume_roof_ass
 select * from public.save_roof_assessment_progress(
   'd0000000-0000-4000-8000-000000000001',
   (select assessment_id from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_old)),
-  1,null,'{"reason":"known_replacement"}'::jsonb,
+  0,1,null,'{"reason":"known_replacement"}'::jsonb,'{"reason":"known_replacement"}'::jsonb,
   '{"need":4,"intent":3,"urgency":0,"propertyFit":0,"engagement":0}'::jsonb,true);
 select ok((select last_answered_at is not null and current_step=1 from public.roof_assessments where id=(select assessment_id from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_old))), 'successful progressive save stamps last answered time');
 select is((select count(*) from public.domain_events where idempotency_key='roof/assessment.high_intent:'||(select assessment_id::text from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_old))),1::bigint,'first progressive threshold emits high intent once');
+create temp table lifecycle_progress_winner as
+select revision,current_step,responses,scores,property_revealed_at,last_answered_at,updated_at
+from public.roof_assessments
+where id=(select assessment_id from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_old));
+select throws_ok(
+  $$select * from public.save_roof_assessment_progress(
+    'd0000000-0000-4000-8000-000000000002',
+    (select assessment_id from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_old)),
+    1,2,null,'{"roofAge":"20_plus"}'::jsonb,
+    '{"reason":"known_replacement","roofAge":"20_plus"}'::jsonb,
+    '{"need":10,"intent":3,"urgency":0,"propertyFit":0,"engagement":1}'::jsonb,true
+  )$$,
+  'Assessment progress is unavailable',
+  'a different tenant cannot spend or inspect an assessment revision'
+);
 select * from public.save_roof_assessment_progress(
   'd0000000-0000-4000-8000-000000000001',
   (select assessment_id from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_old)),
-  1,null,'{"reason":"known_replacement"}'::jsonb,
-  '{"need":4,"intent":3,"urgency":0,"propertyFit":0,"engagement":0}'::jsonb,true);
+  0,0,null,'{"reason":"planning"}'::jsonb,'{"reason":"planning"}'::jsonb,
+  '{"need":0,"intent":0,"urgency":0,"propertyFit":0,"engagement":0}'::jsonb,false);
+select results_eq(
+  $$select revision,current_step,responses,scores,property_revealed_at,last_answered_at,updated_at from public.roof_assessments where id=(select assessment_id from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_old))$$,
+  $$select * from lifecycle_progress_winner$$,
+  'a delayed stale save changes no revision, step, answers, scores, or timestamps'
+);
 select is((select count(*) from public.domain_events where idempotency_key='roof/assessment.high_intent:'||(select assessment_id::text from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_old))),1::bigint,'progress retry does not duplicate high intent');
+select is((select count(*) from public.event_outbox outbox join public.domain_events event on event.id=outbox.event_id where event.idempotency_key='roof/assessment.high_intent:'||(select assessment_id::text from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_old))),1::bigint,'stale progress creates no duplicate outbox work');
 
 update public.roof_assessments set last_answered_at=clock_timestamp(),updated_at=clock_timestamp() where status='in_progress';
 update public.roof_assessments set last_answered_at=clock_timestamp()-interval '24 hours 1 second',updated_at=clock_timestamp()-interval '24 hours 1 second' where id=(select assessment_id from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_old));
@@ -2047,16 +2107,17 @@ select ok((select event.company_id=assessment.company_id from public.domain_even
 select * from public.complete_roof_assessment(
   'd0000000-0000-4000-8000-000000000001',
   (select assessment_id from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_new)),
-  '{"reason":"active_leak"}'::jsonb,
+  0,'{"reason":"active_leak"}'::jsonb,'{"reason":"active_leak"}'::jsonb,
   '{"need":3,"intent":0,"urgency":4,"propertyFit":0,"engagement":0}'::jsonb,
   'professional_inspection',true);
 select * from public.complete_roof_assessment(
   'd0000000-0000-4000-8000-000000000001',
   (select assessment_id from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_new)),
-  '{"reason":"active_leak"}'::jsonb,
+  0,'{"reason":"planning"}'::jsonb,'{"reason":"planning"}'::jsonb,
   '{"need":3,"intent":0,"urgency":4,"propertyFit":0,"engagement":0}'::jsonb,
   'professional_inspection',true);
 select is((select status from public.roof_assessments where id=(select assessment_id from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_new))),'completed','completion persists the terminal lifecycle state');
+select is((select responses from public.roof_assessments where id=(select assessment_id from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_new))),'{"reason":"active_leak"}'::jsonb,'a stale completion cannot overwrite the winning completed answers');
 select is((select count(*) from public.domain_events where idempotency_key='roof/assessment.completed:'||(select assessment_id::text from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_new))),1::bigint,'completion retry emits one completed event');
 select is((select count(*) from public.domain_events where idempotency_key='roof/assessment.high_intent:'||(select assessment_id::text from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_new))),1::bigint,'completion can emit the first high-intent event once');
 

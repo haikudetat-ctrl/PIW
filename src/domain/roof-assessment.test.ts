@@ -3,6 +3,9 @@ import {
   calculateProgressSignals,
   calculateRoofAssessment,
   calculationStateSchema,
+  isRoofAssessmentStepAnswered,
+  roofAssessmentQuestionSteps,
+  roofAssessmentResponsesBaseSchema,
   roofAssessmentResponsesSchema,
   type RoofAssessmentResponses,
 } from "./roof-assessment";
@@ -21,6 +24,24 @@ const lowSignalResponses: RoofAssessmentResponses = {
 };
 
 describe("roof assessment responses", () => {
+  test("assigns every response-schema key to exactly one of nine ordered steps", () => {
+    const responseKeys = roofAssessmentQuestionSteps.flatMap((step) => [...step.responseKeys]);
+
+    expect(roofAssessmentQuestionSteps).toHaveLength(9);
+    expect(responseKeys).toEqual(Object.keys(roofAssessmentResponsesBaseSchema.shape));
+    expect(new Set(responseKeys).size).toBe(responseKeys.length);
+    expect(roofAssessmentQuestionSteps[3]).toEqual({
+      id: "roofVisibility",
+      responseKeys: ["roofVisible", "visibleCondition"],
+    });
+  });
+
+  test("answers the composite visibility step only when its conditional fields are coherent", () => {
+    expect(isRoofAssessmentStepAnswered(3, {roofVisible: "no", visibleCondition: "not_answered"})).toBe(true);
+    expect(isRoofAssessmentStepAnswered(3, {roofVisible: "yes"})).toBe(false);
+    expect(isRoofAssessmentStepAnswered(3, {roofVisible: "yes", visibleCondition: "healthy"})).toBe(true);
+  });
+
   test("accepts uncertainty as a complete homeowner answer", () => {
     expect(roofAssessmentResponsesSchema.safeParse({
       ...lowSignalResponses,
