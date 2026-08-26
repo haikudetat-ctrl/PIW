@@ -1195,6 +1195,155 @@ select is(
 );
 select ok(extensions.dblink_disconnect('resume_race_gate') = 'OK', 'same-browser gate disconnects');
 
+-- Real reservation races prove the phone and IP advisory buckets serialize
+-- different attempts, rather than relying on one candidate row lock.
+select lives_ok(
+  $$select extensions.dblink_connect('verification_reserve_gate', 'host=host.docker.internal port=56322 dbname=postgres user=postgres password=postgres')$$,
+  'verification reservation race gate connects'
+);
+select lives_ok(
+  $$select extensions.dblink_connect('verification_reserve_a', 'host=host.docker.internal port=56322 dbname=postgres user=postgres password=postgres')$$,
+  'verification reservation first worker connects'
+);
+select lives_ok(
+  $$select extensions.dblink_connect('verification_reserve_b', 'host=host.docker.internal port=56322 dbname=postgres user=postgres password=postgres')$$,
+  'verification reservation second worker connects'
+);
+select is(
+  extensions.dblink_exec('verification_reserve_gate', $$do $setup$
+  declare
+    v_new record;
+    v_resume record;
+  begin
+    select * into v_new from public.start_or_resume_roof_assessment(
+      '00000000-0000-4000-8000-000000000001',
+      'e0000000-0000-4000-8000-000000000051',
+      'Reservation Race', '+12015551051', 'reservation-race@example.com',
+      '505 Reservation Race Way, Newark, NJ 07102', 'ChIJ-reservation-race',
+      'all-season-main', 'race:reservation-new', '{}'::jsonb,
+      null, 'all-season-assessment-v1', now(), '127.0.1.51', 'pgtap-race'
+    );
+    update public.roof_assessments set status = 'abandoned', abandoned_at = now()
+    where id = (select assessment_id from public.roof_assessment_access_attempts where id = v_new.attempt_id);
+    select * into v_resume from public.start_or_resume_roof_assessment(
+      '00000000-0000-4000-8000-000000000001',
+      'e0000000-0000-4000-8000-000000000052',
+      'Reservation Race', '+12015551051', 'reservation-race@example.com',
+      '505 Reservation Race Way, Newark, NJ 07102', 'ChIJ-reservation-race',
+      'all-season-main', 'race:reservation-candidate', '{}'::jsonb,
+      null, 'all-season-assessment-v1', now(), '127.0.1.52', 'pgtap-race'
+    );
+    insert into public.roof_assessment_access_attempts (
+      id, company_id, submission_id, lead_id, property_id, estimate_id, assessment_id,
+      attempt_kind, continuation_secret_hash, destination_phone_e164,
+      requested_presentation_key, requested_entry_point, request_ip, expires_at
+    )
+    select clone.id, source.company_id, clone.submission_id, source.lead_id,
+           source.property_id, source.estimate_id, source.assessment_id,
+           'resume_candidate', extensions.digest(clone.id::text, 'sha256'),
+           clone.phone, source.requested_presentation_key, source.requested_entry_point,
+           clone.ip, now() + interval '15 minutes'
+    from public.roof_assessment_access_attempts as source
+    cross join (values
+      ('a5000000-0000-4000-8000-000000000053'::uuid, 'e0000000-0000-4000-8000-000000000053'::uuid, '+12015551051', '127.0.1.53'::inet),
+      ('a5000000-0000-4000-8000-000000000054'::uuid, 'e0000000-0000-4000-8000-000000000054'::uuid, '+12015551054', '127.0.1.99'::inet),
+      ('a5000000-0000-4000-8000-000000000055'::uuid, 'e0000000-0000-4000-8000-000000000055'::uuid, '+12015551055', '127.0.1.99'::inet)
+    ) as clone(id, submission_id, phone, ip)
+    where source.id = v_resume.attempt_id;
+    insert into public.roof_assessment_verification_sends (
+      company_id, attempt_id, destination_phone_e164, request_ip, reserved_at
+    )
+    select attempt.company_id, attempt.id, attempt.destination_phone_e164,
+           '127.0.1.99'::inet, now() - series.ordinal * interval '5 minutes'
+    from pg_catalog.generate_series(1, 4) as series(ordinal)
+    join public.roof_assessment_access_attempts as attempt
+      on attempt.id = 'a5000000-0000-4000-8000-000000000054';
+    execute $function$
+      create function public.pgtap_try_verification_reservation(p_attempt_id uuid, p_ip inet)
+      returns boolean language plpgsql set search_path = '' as $body$
+      begin
+        perform public.reserve_roof_assessment_verification_start(p_attempt_id, p_ip);
+        return true;
+      exception when others then return false;
+      end;
+      $body$
+    $function$;
+  end $setup$;$$),
+  'DO',
+  'verification reservation race fixtures are committed'
+);
+select is(
+  extensions.dblink_exec('verification_reserve_gate', $$begin; do $lock$ begin
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
+      'roof-verification-phone:00000000-0000-4000-8000-000000000001:+12015551051', 0
+    )); end $lock$;$$),
+  'DO',
+  'phone reservation gate locks the shared destination bucket'
+);
+select is(extensions.dblink_send_query('verification_reserve_a', $$select public.pgtap_try_verification_reservation(
+  (select id from public.roof_assessment_access_attempts where submission_id = 'e0000000-0000-4000-8000-000000000052'), '127.0.1.52')$$), 1, 'first same-phone reservation is dispatched');
+select is(extensions.dblink_send_query('verification_reserve_b', $$select public.pgtap_try_verification_reservation(
+  'a5000000-0000-4000-8000-000000000053', '127.0.1.53')$$), 1, 'second same-phone reservation is dispatched');
+select is(extensions.dblink_is_busy('verification_reserve_a'), 1, 'first same-phone worker waits on the bucket');
+select is(extensions.dblink_is_busy('verification_reserve_b'), 1, 'second same-phone worker waits on the bucket');
+select is(extensions.dblink_exec('verification_reserve_gate', 'commit'), 'COMMIT', 'phone bucket gate releases both workers');
+create temp table reserve_phone_result_a as select * from extensions.dblink_get_result('verification_reserve_a') as result(succeeded boolean);
+create temp table reserve_phone_result_b as select * from extensions.dblink_get_result('verification_reserve_b') as result(succeeded boolean);
+select is((select count(*) from (select succeeded from reserve_phone_result_a union all select succeeded from reserve_phone_result_b) results where succeeded), 1::bigint, 'same-phone race has exactly one reservation winner');
+select is((select count(*) from public.roof_assessment_verification_sends where destination_phone_e164 = '+12015551051'), 1::bigint, 'same-phone race records one evidence row');
+select ok(extensions.dblink_disconnect('verification_reserve_a') = 'OK', 'phone-race first worker disconnects');
+select ok(extensions.dblink_disconnect('verification_reserve_b') = 'OK', 'phone-race second worker disconnects');
+select lives_ok(
+  $$select extensions.dblink_connect('verification_reserve_a', 'host=host.docker.internal port=56322 dbname=postgres user=postgres password=postgres')$$,
+  'IP-race first worker reconnects'
+);
+select lives_ok(
+  $$select extensions.dblink_connect('verification_reserve_b', 'host=host.docker.internal port=56322 dbname=postgres user=postgres password=postgres')$$,
+  'IP-race second worker reconnects'
+);
+
+select is(
+  extensions.dblink_exec('verification_reserve_gate', $$begin; do $lock$ begin
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
+      'roof-verification-ip:00000000-0000-4000-8000-000000000001:127.0.1.99', 0
+    )); end $lock$;$$),
+  'DO',
+  'IP reservation gate locks the shared request bucket'
+);
+select is(extensions.dblink_send_query('verification_reserve_a', $$select public.pgtap_try_verification_reservation(
+  'a5000000-0000-4000-8000-000000000054', '127.0.1.99')$$), 1, 'first fifth-slot IP reservation is dispatched');
+select is(extensions.dblink_send_query('verification_reserve_b', $$select public.pgtap_try_verification_reservation(
+  'a5000000-0000-4000-8000-000000000055', '127.0.1.99')$$), 1, 'second fifth-slot IP reservation is dispatched');
+select is(extensions.dblink_is_busy('verification_reserve_a'), 1, 'first shared-IP worker waits on the bucket');
+select is(extensions.dblink_is_busy('verification_reserve_b'), 1, 'second shared-IP worker waits on the bucket');
+select is(extensions.dblink_exec('verification_reserve_gate', 'commit'), 'COMMIT', 'IP bucket gate releases both workers');
+create temp table reserve_ip_result_a as select * from extensions.dblink_get_result('verification_reserve_a') as result(succeeded boolean);
+create temp table reserve_ip_result_b as select * from extensions.dblink_get_result('verification_reserve_b') as result(succeeded boolean);
+select is((select count(*) from (select succeeded from reserve_ip_result_a union all select succeeded from reserve_ip_result_b) results where succeeded), 1::bigint, 'shared-IP fifth-slot race has exactly one winner');
+select is((select count(*) from public.roof_assessment_verification_sends where request_ip = '127.0.1.99'), 5::bigint, 'shared-IP race stops at five hourly reservations');
+select ok(extensions.dblink_disconnect('verification_reserve_a') = 'OK', 'first reservation worker disconnects');
+select ok(extensions.dblink_disconnect('verification_reserve_b') = 'OK', 'second reservation worker disconnects');
+select is(extensions.dblink_exec('verification_reserve_gate', $$do $cleanup$
+declare v_lead uuid; v_property uuid;
+begin
+  select lead_id, property_id into v_lead, v_property from public.roof_assessment_access_attempts
+  where submission_id = 'e0000000-0000-4000-8000-000000000051';
+  delete from public.event_outbox where event_id in (select id from public.domain_events where correlation_id in ('e0000000-0000-4000-8000-000000000051','e0000000-0000-4000-8000-000000000052'));
+  delete from public.domain_events where correlation_id in ('e0000000-0000-4000-8000-000000000051','e0000000-0000-4000-8000-000000000052');
+  delete from public.roof_assessment_verification_sends where attempt_id in (select id from public.roof_assessment_access_attempts where lead_id = v_lead);
+  delete from public.roof_assessment_access_attempts where lead_id = v_lead;
+  delete from public.lead_consent_evidence where submission_id in ('e0000000-0000-4000-8000-000000000051','e0000000-0000-4000-8000-000000000052');
+  delete from public.lead_attribution_touches where submission_id in ('e0000000-0000-4000-8000-000000000051','e0000000-0000-4000-8000-000000000052');
+  delete from public.roof_assessments where lead_id = v_lead;
+  delete from public.roof_estimates where lead_id = v_lead;
+  delete from public.pipeline_runs where lead_id = v_lead;
+  delete from public.lead_consents where lead_id = v_lead;
+  delete from public.leads where id = v_lead;
+  delete from public.properties where id = v_property;
+  drop function public.pgtap_try_verification_reservation(uuid, inet);
+end $cleanup$;$$), 'DO', 'verification reservation race fixtures are removed');
+select ok(extensions.dblink_disconnect('verification_reserve_gate') = 'OK', 'verification reservation race gate disconnects');
+
 -- Real two-session Twilio approval race. Both workers observe the same
 -- provider-approved artifact; the exact candidate row lock permits one winner.
 select lives_ok(
@@ -1552,14 +1701,17 @@ select
   'resume_candidate', extensions.digest('verification-' || series.ordinal::text, 'sha256'),
   case
     when series.ordinal between 2 and 7 then '+12015552002'
+    when series.ordinal between 16 and 17 then '+12015552016'
+    when series.ordinal between 20 and 21 then '+12015552020'
     else '+12015552' || pg_catalog.lpad(series.ordinal::text, 3, '0')
   end,
   'weather-report', 'campaign:weather-report',
   case when series.ordinal between 8 and 13 then '127.2.0.99'::inet
+       when series.ordinal between 18 and 19 then '127.2.0.88'::inet
        else ('127.2.0.' || series.ordinal::text)::inet end,
   pg_catalog.now() + interval '15 minutes'
 from public.roof_assessment_access_attempts as source
-cross join pg_catalog.generate_series(1, 15) as series(ordinal)
+cross join pg_catalog.generate_series(1, 21) as series(ordinal)
 where source.id = (select attempt_id from phone_only_resume);
 
 create temp table verification_cooldown_reservation as
@@ -1578,6 +1730,25 @@ select is(
    where attempt_id = 'a4000000-0000-4000-8000-000000000001'),
   1::bigint,
   'a rejected cooldown does not record extra send evidence'
+);
+update public.roof_assessment_verification_sends
+set reserved_at = pg_catalog.clock_timestamp() - interval '60 seconds'
+where id = (select reservation_id from verification_cooldown_reservation);
+select lives_ok(
+  $$select * from public.reserve_roof_assessment_verification_start(
+    'a4000000-0000-4000-8000-000000000001', '127.2.0.1'
+  )$$,
+  'the exact 60-second boundary permits another reservation'
+);
+update public.roof_assessment_verification_sends
+set reserved_at = pg_catalog.clock_timestamp() - interval '60 seconds' + interval '1 millisecond'
+where attempt_id = 'a4000000-0000-4000-8000-000000000001';
+select throws_ok(
+  $$select * from public.reserve_roof_assessment_verification_start(
+    'a4000000-0000-4000-8000-000000000001', '127.2.0.1'
+  )$$,
+  'verification_start_cooldown',
+  'one millisecond inside the 60-second boundary remains throttled'
 );
 
 insert into public.roof_assessment_verification_sends (
@@ -1614,6 +1785,70 @@ select throws_ok(
   'a request address cannot exceed five verification starts per hour'
 );
 
+insert into public.roof_assessment_verification_sends (
+  company_id, attempt_id, destination_phone_e164, request_ip, reserved_at
+)
+select attempt.company_id, attempt.id, attempt.destination_phone_e164,
+       '127.2.0.88'::inet, pg_catalog.clock_timestamp() - interval '1 hour'
+from pg_catalog.generate_series(1, 5) as series(ordinal)
+join public.roof_assessment_access_attempts as attempt
+  on attempt.id = 'a4000000-0000-4000-8000-000000000018';
+select lives_ok(
+  $$select * from public.reserve_roof_assessment_verification_start(
+    'a4000000-0000-4000-8000-000000000019', '127.2.0.88'
+  )$$,
+  'the exact one-hour boundary no longer occupies the IP bucket'
+);
+delete from public.roof_assessment_verification_sends
+where attempt_id in (
+  'a4000000-0000-4000-8000-000000000018',
+  'a4000000-0000-4000-8000-000000000019'
+);
+insert into public.roof_assessment_verification_sends (
+  company_id, attempt_id, destination_phone_e164, request_ip, reserved_at
+)
+select attempt.company_id, attempt.id, attempt.destination_phone_e164,
+       '127.2.0.88'::inet,
+       pg_catalog.clock_timestamp() - interval '1 hour' + interval '1 millisecond'
+from pg_catalog.generate_series(1, 5) as series(ordinal)
+join public.roof_assessment_access_attempts as attempt
+  on attempt.id = 'a4000000-0000-4000-8000-000000000018';
+select throws_ok(
+  $$select * from public.reserve_roof_assessment_verification_start(
+    'a4000000-0000-4000-8000-000000000019', '127.2.0.88'
+  )$$,
+  'verification_ip_hourly_limit',
+  'one millisecond inside the one-hour boundary remains in the IP bucket'
+);
+
+create temp table stale_cross_attempt_reservation as
+select * from public.reserve_roof_assessment_verification_start(
+  'a4000000-0000-4000-8000-000000000020', '127.2.0.20'
+);
+update public.roof_assessment_verification_sends
+set reserved_at = pg_catalog.clock_timestamp() - interval '61 seconds'
+where id = (select reservation_id from stale_cross_attempt_reservation);
+create temp table newest_cross_attempt_reservation as
+select * from public.reserve_roof_assessment_verification_start(
+  'a4000000-0000-4000-8000-000000000021', '127.2.0.21'
+);
+select public.record_roof_assessment_verification_start(
+  (select company_id from newest_cross_attempt_reservation),
+  'a4000000-0000-4000-8000-000000000021',
+  (select reservation_id from newest_cross_attempt_reservation),
+  'VEdddddddddddddddddddddddddddddddd'
+);
+select throws_ok(
+  $$select public.record_roof_assessment_verification_start(
+    (select company_id from stale_cross_attempt_reservation),
+    'a4000000-0000-4000-8000-000000000020',
+    (select reservation_id from stale_cross_attempt_reservation),
+    'VEeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
+  )$$,
+  'verification_start_unavailable',
+  'a delayed provider response cannot supersede a newer send for the same destination and assessment'
+);
+
 create temp table verification_approval_reservation as
 select * from public.reserve_roof_assessment_verification_start(
   'a4000000-0000-4000-8000-000000000014', '127.2.0.14'
@@ -1643,6 +1878,15 @@ select estimate.public_token
 from public.roof_assessment_access_attempts as attempt
 join public.roof_estimates as estimate on estimate.id = attempt.estimate_id
 where attempt.id = 'a4000000-0000-4000-8000-000000000014';
+select throws_ok(
+  $$select * from public.approve_verified_roof_assessment_resume(
+    (select company_id from verification_approval_reservation),
+    'a4000000-0000-4000-8000-000000000014',
+    'VEffffffffffffffffffffffffffffffff'
+  )$$,
+  'Assessment verification is invalid',
+  'atomic approval rejects a provider-approved SID that does not match the stored send'
+);
 create temp table verification_approval as
 select * from public.approve_verified_roof_assessment_resume(
   (select company_id from verification_approval_reservation),

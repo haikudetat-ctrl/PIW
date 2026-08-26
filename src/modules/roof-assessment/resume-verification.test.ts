@@ -11,21 +11,24 @@ const assessmentId = "33333333-3333-4333-8333-333333333333";
 const publicToken = "44444444-4444-4444-8444-444444444444";
 const reservationId = "55555555-5555-4555-8555-555555555555";
 const to = "+16095550100";
+const providerAttemptId = "VE0123456789abcdef0123456789abcdef";
 
-function dependencies(overrides: Partial<ResumeVerificationDependencies> = {}) {
+function dependencies(
+  overrides: Partial<ResumeVerificationDependencies> = {},
+): ResumeVerificationDependencies {
   return {
     repository: {
       reserveStart: vi.fn(async () => ({reservationId, companyId, to})),
       recordProviderStart: vi.fn(async () => undefined),
-      findCheckContext: vi.fn(async () => ({companyId, to, providerAttemptId: "VEattempt"})),
+      findCheckContext: vi.fn(async () => ({companyId, to, providerAttemptId})),
       approve: vi.fn(async () => ({assessmentId, publicToken})),
     },
     provider: {
-      start: vi.fn(async () => ({providerAttemptId: "VEattempt", status: "pending" as const})),
-      check: vi.fn(async () => ({approved: true})),
+      start: vi.fn(async () => ({providerAttemptId, status: "pending" as const})),
+      check: vi.fn(async () => ({approved: true, providerAttemptId} as const)),
     },
     ...overrides,
-  } satisfies ResumeVerificationDependencies;
+  };
 }
 
 describe("resume verification use cases", () => {
@@ -38,7 +41,7 @@ describe("resume verification use cases", () => {
     });
     vi.mocked(deps.provider.start).mockImplementation(async () => {
       order.push("provider");
-      return {providerAttemptId: "VEattempt", status: "pending"};
+      return {providerAttemptId, status: "pending"};
     });
     vi.mocked(deps.repository.recordProviderStart).mockImplementation(async () => {
       order.push("record");
@@ -51,7 +54,7 @@ describe("resume verification use cases", () => {
       attemptId,
       companyId,
       reservationId,
-      providerAttemptId: "VEattempt",
+      providerAttemptId,
     });
   });
 
@@ -92,10 +95,27 @@ describe("resume verification use cases", () => {
 
     await expect(checkResumeVerification({attemptId, code: "314159"}, deps))
       .resolves.toEqual({approved: true, assessmentId, publicToken});
+    expect(deps.provider.check).toHaveBeenCalledWith({to, code: "314159", providerAttemptId});
     expect(deps.repository.approve).toHaveBeenCalledWith({
       attemptId,
       companyId,
-      providerAttemptId: "VEattempt",
+      providerAttemptId,
+    });
+  });
+
+  test("approves only the SID returned by the provider after a resend interleaving", async () => {
+    const deps = dependencies();
+    vi.mocked(deps.provider.check).mockResolvedValue({
+      approved: true,
+      providerAttemptId: "VEffffffffffffffffffffffffffffffff",
+    });
+
+    await expect(checkResumeVerification({attemptId, code: "314159"}, deps))
+      .resolves.toEqual({approved: true, assessmentId, publicToken});
+    expect(deps.repository.approve).toHaveBeenCalledWith({
+      attemptId,
+      companyId,
+      providerAttemptId: "VEffffffffffffffffffffffffffffffff",
     });
   });
 

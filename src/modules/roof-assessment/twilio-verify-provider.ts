@@ -1,13 +1,24 @@
 import "server-only";
+import {timingSafeEqual} from "node:crypto";
 import {z} from "zod";
 import type {ResumeVerificationProvider} from "./resume-verification";
 
 const phoneSchema = z.string().regex(/^\+[1-9][0-9]{7,14}$/);
-const startResponseSchema = z.strictObject({
-  sid: z.string().regex(/^VE[A-Za-z0-9]{2,64}$/),
+const providerAttemptIdSchema = z.string().regex(/^VE[0-9a-fA-F]{32}$/);
+const startResponseSchema = z.object({
+  sid: providerAttemptIdSchema,
   status: z.literal("pending"),
-});
-const checkResponseSchema = z.object({status: z.string()}).passthrough();
+}).passthrough();
+const checkResponseSchema = z.object({
+  sid: providerAttemptIdSchema,
+  status: z.string(),
+}).passthrough();
+
+function sameProviderAttempt(expected: string, actual: string) {
+  const expectedBytes = Buffer.from(expected, "ascii");
+  const actualBytes = Buffer.from(actual, "ascii");
+  return expectedBytes.length === actualBytes.length && timingSafeEqual(expectedBytes, actualBytes);
+}
 
 export class ResumeVerificationProviderUnavailableError extends Error {
   constructor() {
@@ -85,20 +96,26 @@ export class TwilioVerifyProvider implements ResumeVerificationProvider {
     }
   }
 
-  async check(input: {to: string; code: string}) {
+  async check(input: {to: string; code: string; providerAttemptId: string}) {
     const parsed = z.strictObject({
       to: phoneSchema,
       code: z.string().regex(/^[0-9]{6}$/),
+      providerAttemptId: providerAttemptIdSchema,
     }).safeParse(input);
-    if (!parsed.success) return {approved: false};
+    if (!parsed.success) return {approved: false} as const;
     const response = await this.post("/VerificationCheck", new URLSearchParams({
-      To: parsed.data.to,
+      VerificationSid: parsed.data.providerAttemptId,
       Code: parsed.data.code,
     }));
-    if ([404, 409, 410, 429].includes(response.status)) return {approved: false};
+    if ([404, 409, 410, 429].includes(response.status)) return {approved: false} as const;
     if (!response.ok) throw new ResumeVerificationProviderUnavailableError();
     try {
-      return {approved: checkResponseSchema.parse(await response.json()).status === "approved"};
+      const result = checkResponseSchema.parse(await response.json());
+      if (
+        result.status !== "approved"
+        || !sameProviderAttempt(parsed.data.providerAttemptId, result.sid)
+      ) return {approved: false} as const;
+      return {approved: true, providerAttemptId: result.sid} as const;
     } catch {
       throw new ResumeVerificationProviderUnavailableError();
     }
