@@ -188,6 +188,16 @@ describe("parseServerEnv", () => {
       }),
     ).toThrow("All Season intake requires both its company ID and shared secret");
   });
+
+  test("accepts only a configured roof assessment signing secret of at least 32 bytes", () => {
+    expect(() =>
+      parseServerEnv({...base, ROOF_ASSESSMENT_SIGNING_SECRET: "short-secret"}),
+    ).toThrow("Roof assessment signing secret must be at least 32 bytes");
+    expect(
+      parseServerEnv({...base, ROOF_ASSESSMENT_SIGNING_SECRET: "é".repeat(16)})
+        .ROOF_ASSESSMENT_SIGNING_SECRET,
+    ).toBe("é".repeat(16));
+  });
 });
 
 describe("parseClientEnv", () => {
