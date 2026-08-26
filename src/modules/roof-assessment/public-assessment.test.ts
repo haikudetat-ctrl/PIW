@@ -156,13 +156,13 @@ describe("public roof assessment", () => {
     const repository = new MemoryAssessmentRepository();
     await savePublicAssessmentProgress(token, {
       expectedRevision: 0,
-      currentStep: 1,
+      questionId: "reason",
       propertyRevealed: true,
       responsePatch: {reason: "roof_age"},
     }, repository);
     const result = await savePublicAssessmentProgress(token, {
       expectedRevision: 1,
-      currentStep: 2,
+      questionId: "roofAge",
       responsePatch: {roofAge: "unknown"},
     }, repository);
 
@@ -182,7 +182,7 @@ describe("public roof assessment", () => {
 
     await expect(savePublicAssessmentProgress(token, {
       expectedRevision: 0,
-      currentStep: 1,
+      questionId: "reason",
       responsePatch: {reason: "known_replacement"},
     }, repository)).rejects.toThrow("persistence unavailable");
     expect(repository.assessment).toMatchObject({
@@ -196,7 +196,7 @@ describe("public roof assessment", () => {
     const repository = new MemoryAssessmentRepository();
     const input = {
       expectedRevision: 0,
-      currentStep: 1,
+      questionId: "reason",
       responsePatch: {reason: "known_replacement" as const},
     };
 
@@ -214,7 +214,7 @@ describe("public roof assessment", () => {
   test("rejects unrecognized partial response keys", async () => {
     await expect(savePublicAssessmentProgress(token, {
       expectedRevision: 0,
-      currentStep: 1,
+      questionId: "reason",
       responsePatch: {leadScore: 99} as never,
     }, new MemoryAssessmentRepository())).rejects.toEqual(
       expect.objectContaining<Partial<PublicAssessmentError>>({status: 400}),
@@ -263,7 +263,7 @@ describe("public roof assessment", () => {
 
     await expect(savePublicAssessmentProgress(token, {
       expectedRevision: 1,
-      currentStep: 2,
+      questionId: "roofAge",
       responsePatch: {roofAge: "under_5"},
     }, repository)).rejects.toEqual(
       expect.objectContaining<Partial<PublicAssessmentError>>({status: 409}),
@@ -274,18 +274,18 @@ describe("public roof assessment", () => {
     const repository = new MemoryAssessmentRepository();
     await savePublicAssessmentProgress(token, {
       expectedRevision: 0,
-      currentStep: 1,
+      questionId: "reason",
       responsePatch: {reason: "planning"},
     }, repository);
     await savePublicAssessmentProgress(token, {
       expectedRevision: 1,
-      currentStep: 2,
+      questionId: "roofAge",
       responsePatch: {roofAge: "20_plus"},
     }, repository);
 
     await expect(savePublicAssessmentProgress(token, {
       expectedRevision: 0,
-      currentStep: 1,
+      questionId: "reason",
       responsePatch: {reason: "roof_age"},
     }, repository)).rejects.toMatchObject({status: 409});
     expect(repository.assessment).toMatchObject({
@@ -293,5 +293,21 @@ describe("public roof assessment", () => {
       currentStep: 2,
       responses: {reason: "planning", roofAge: "20_plus"},
     });
+  });
+
+  test("rejects a future-step jump before persistence", async () => {
+    const repository = new MemoryAssessmentRepository();
+    await getPublicAssessment(token, repository);
+    const before = structuredClone(repository.assessment);
+
+    await expect(savePublicAssessmentProgress(token, {
+      expectedRevision: 0,
+      questionId: "timeline",
+      responsePatch: {timeline: "asap"},
+    }, repository)).rejects.toMatchObject({
+      status: 409,
+      state: {currentStep: 0, revision: 0},
+    });
+    expect(repository.assessment).toEqual(before);
   });
 });

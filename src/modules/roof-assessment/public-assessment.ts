@@ -4,6 +4,7 @@ import {
   calculateRoofAssessment,
   ROOF_ASSESSMENT_VERSION,
   roofAssessmentProgressSchema,
+  roofAssessmentQuestionIds,
   roofAssessmentQuestionSteps,
   roofAssessmentResponsesSchema,
   type RoofAssessmentRecommendation,
@@ -91,7 +92,7 @@ export class PublicAssessmentError extends Error {
 
 const progressInputSchema = z.object({
   expectedRevision: z.number().int().nonnegative(),
-  currentStep: z.number().int().min(0).max(9),
+  questionId: z.enum(roofAssessmentQuestionIds).nullable(),
   propertyRevealed: z.boolean().optional(),
   responsePatch: roofAssessmentProgressSchema,
 }).strict();
@@ -101,13 +102,13 @@ const completionInputSchema = z.object({
   responsePatch: roofAssessmentProgressSchema,
 }).strict();
 
-function patchMatchesStep(
-  currentStep: number,
+function patchMatchesQuestion(
+  questionIndex: number,
   responsePatch: Partial<RoofAssessmentResponses>,
 ) {
-  const expectedKeys = currentStep === 0
+  const expectedKeys = questionIndex < 0
     ? []
-    : [...(roofAssessmentQuestionSteps[currentStep - 1]?.responseKeys ?? [])];
+    : [...(roofAssessmentQuestionSteps[questionIndex]?.responseKeys ?? [])];
   const actualKeys = Object.keys(responsePatch);
   return actualKeys.length === expectedKeys.length &&
     actualKeys.every((key) => expectedKeys.includes(key as never));
@@ -157,12 +158,23 @@ export async function savePublicAssessmentProgress(
 ) {
   const parsed = progressInputSchema.safeParse(input);
   if (!parsed.success) throw new PublicAssessmentError("Invalid assessment progress", 400);
-  if (!patchMatchesStep(parsed.data.currentStep, parsed.data.responsePatch)) {
+  const questionIndex = parsed.data.questionId === null
+    ? -1
+    : roofAssessmentQuestionSteps.findIndex((step) => step.id === parsed.data.questionId);
+  if (!patchMatchesQuestion(questionIndex, parsed.data.responsePatch)) {
     throw new PublicAssessmentError("Invalid assessment progress", 400);
   }
   const {context, assessment} = await resolveAssessment(token, repository);
   if (assessment.status !== "in_progress") {
     throw new PublicAssessmentError("Assessment is already complete", 409);
+  }
+  const requestedCurrentStep = questionIndex + 1;
+  if (requestedCurrentStep > assessment.currentStep + 1) {
+    throw new PublicAssessmentError(
+      "Assessment cannot skip unanswered questions",
+      409,
+      publicState(token, context, assessment),
+    );
   }
 
   const responses = {...assessment.responses, ...parsed.data.responsePatch};
@@ -170,7 +182,7 @@ export async function savePublicAssessmentProgress(
   const saved = await repository.saveProgress(assessment.id, {
     companyId: context.companyId,
     expectedRevision: parsed.data.expectedRevision,
-    currentStep: parsed.data.currentStep,
+    currentStep: requestedCurrentStep,
     propertyRevealedAt: parsed.data.propertyRevealed
       ? assessment.propertyRevealedAt ?? new Date().toISOString()
       : undefined,
@@ -192,7 +204,7 @@ export async function completePublicAssessment(
 ) {
   const parsed = completionInputSchema.safeParse(input);
   if (!parsed.success) throw new PublicAssessmentError("Invalid assessment responses", 400);
-  if (!patchMatchesStep(roofAssessmentQuestionSteps.length, parsed.data.responsePatch)) {
+  if (!patchMatchesQuestion(roofAssessmentQuestionSteps.length - 1, parsed.data.responsePatch)) {
     throw new PublicAssessmentError("Invalid assessment responses", 400);
   }
   const {context, assessment} = await resolveAssessment(token, repository);

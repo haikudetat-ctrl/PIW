@@ -81,7 +81,7 @@ export function AssessmentExperience({
       headers: {"content-type": "application/json"},
       body: JSON.stringify({
         expectedRevision: revision,
-        currentStep: 0,
+        questionId: null,
         propertyRevealed: true,
         responsePatch: {},
       }),

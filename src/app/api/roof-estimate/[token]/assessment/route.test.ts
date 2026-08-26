@@ -108,7 +108,7 @@ describe("public roof assessment route", () => {
     const response = await handlePublicAssessmentRequest({
       method: "PATCH",
       token,
-      body: {expectedRevision: 0, currentStep: 1, propertyRevealed: true, responsePatch: {reason: "planning"}},
+      body: {expectedRevision: 0, questionId: "reason", propertyRevealed: true, responsePatch: {reason: "planning"}},
       repository: new RouteRepository(),
     });
 
@@ -125,7 +125,7 @@ describe("public roof assessment route", () => {
     const response = await handlePublicAssessmentRequest({
       method: "PATCH",
       token,
-      body: {expectedRevision: 0, currentStep: 1, responsePatch: {scores: {need: 99}}},
+      body: {expectedRevision: 0, questionId: "reason", responsePatch: {scores: {need: 99}}},
       repository: new RouteRepository(),
     });
 
@@ -158,7 +158,7 @@ describe("public roof assessment route", () => {
     const response = await handlePublicAssessmentRequest({
       method: "PATCH",
       token,
-      body: {expectedRevision: 1, currentStep: 1, responsePatch: {reason: "roof_age"}},
+      body: {expectedRevision: 1, questionId: "reason", responsePatch: {reason: "roof_age"}},
       repository,
     });
 
@@ -168,6 +168,25 @@ describe("public roof assessment route", () => {
       currentStep: 2,
       responses: {reason: "planning"},
     });
+  });
+
+  test("PATCH rejects a revision-zero jump to a future question without mutation", async () => {
+    const repository = new RouteRepository();
+    const before = structuredClone(repository.assessment);
+    const response = await handlePublicAssessmentRequest({
+      method: "PATCH",
+      token,
+      body: {
+        expectedRevision: 0,
+        questionId: "timeline",
+        responsePatch: {timeline: "asap"},
+      },
+      repository,
+    });
+
+    expect(response.status).toBe(409);
+    expect(repository.assessment).toEqual(before);
+    await expect(response.json()).resolves.toMatchObject({revision: 0, currentStep: 0});
   });
 
   test("returns a stable unavailable response when persistence fails", async () => {

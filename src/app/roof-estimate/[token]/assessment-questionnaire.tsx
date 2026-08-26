@@ -189,7 +189,7 @@ export function AssessmentQuestionnaire({
       headers: {"content-type": "application/json"},
       body: JSON.stringify(completing
         ? {expectedRevision: revision, responsePatch}
-        : {expectedRevision: revision, currentStep: step + 1, responsePatch}),
+        : {expectedRevision: revision, questionId: currentQuestion.id, responsePatch}),
     }).catch(() => null);
 
     if (!response?.ok) {

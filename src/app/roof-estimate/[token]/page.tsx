@@ -1,10 +1,18 @@
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { roofEstimateBrand } from "@/config/roof-estimate-brand";
+import { getRoofAssessmentContext } from "@/config/roof-assessment";
+import { roofAssessmentProgressSchema, roofAssessmentResponsesSchema } from "@/domain/roof-assessment";
+import { parseServerEnv } from "@/lib/env/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { AssessmentExperience } from "./assessment-experience";
+import { AssessmentQuestionnaire } from "./assessment-questionnaire";
+import { AssessmentResult } from "./assessment-result";
 import { EstimateStatusRefresh } from "./estimate-status-refresh";
 import { EstimateWaitExperience } from "./estimate-wait-experience";
 import { PropertySatelliteImage } from "./property-satellite-image";
+import { getAssessmentResultCopy, getAssessmentResultRange, selectPublicEstimateView } from "./public-estimate-flow";
+import { QuoteLoadingView } from "./quote-loading-view";
 
 const money = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -30,26 +38,6 @@ function PropertyMedia({ token, address }: { token: string; address: string }) {
   );
 }
 
-function PropertyMediaSkeleton() {
-  return (
-    <div className="overflow-hidden rounded-2xl bg-slate-900 shadow-[0_28px_80px_rgba(15,42,74,0.2)]">
-      <div className="estimate-map-skeleton relative aspect-[4/3] min-h-[22rem] lg:min-h-[34rem]">
-        <div className="estimate-scan absolute inset-x-0 top-0 h-px bg-cyan-200/80 shadow-[0_0_22px_rgba(165,243,252,0.75)]" />
-        <div className="absolute inset-x-4 bottom-5 rounded-2xl border border-white/10 bg-slate-950/55 p-4 backdrop-blur-md sm:inset-x-8 sm:bottom-8 sm:p-5">
-          <p className="text-sm font-semibold text-white">Preparing the property view</p>
-          <p className="mt-2 max-w-sm text-sm leading-6 text-slate-300">
-            Google is matching the address to the correct building and roof planes.
-          </p>
-        </div>
-      </div>
-      <div className="flex flex-col gap-1 px-5 py-4 text-xs text-slate-300 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-        <span>Property match in progress</span>
-        <span>Usually ready in under a minute</span>
-      </div>
-    </div>
-  );
-}
-
 export default async function RoofEstimateResultPage({
   params,
 }: {
@@ -61,12 +49,12 @@ export default async function RoofEstimateResultPage({
   const service = createServiceClient();
   const { data: estimate } = await service
     .from("roof_estimates")
-    .select("status, range_low_cents, range_high_cents, roof_squares, failure_reason, lead_id, property_id")
+    .select("id, status, range_low_cents, range_high_cents, roof_squares, failure_reason, lead_id, property_id")
     .eq("public_token", token)
     .maybeSingle();
   if (!estimate) notFound();
 
-  const [{ data: pipeline }, { data: property }, { data: lead }] = await Promise.all([
+  const [{ data: pipeline }, { data: property }, { data: lead }, { data: assessment }] = await Promise.all([
     service
       .from("pipeline_runs")
       .select("status")
@@ -81,8 +69,13 @@ export default async function RoofEstimateResultPage({
       .maybeSingle(),
     service
       .from("leads")
-      .select("submitted_address")
+      .select("submitted_address, campaign")
       .eq("id", estimate.lead_id)
+      .maybeSingle(),
+    service
+      .from("roof_assessments")
+      .select("status, revision, current_step, property_revealed_at, responses, recommendation")
+      .eq("estimate_id", estimate.id)
       .maybeSingle(),
   ]);
 
@@ -98,6 +91,77 @@ export default async function RoofEstimateResultPage({
     estimate.range_low_cents !== null &&
     estimate.range_high_cents !== null;
   const address = property?.canonical_address ?? lead?.submitted_address ?? "your property";
+  const assessmentStatus = z.enum(["in_progress", "completed"]).safeParse(assessment?.status);
+  const assessmentRecommendation = z.enum([
+    "monitor_or_repair",
+    "professional_inspection",
+    "replacement_may_make_sense",
+  ]).safeParse(assessment?.recommendation);
+  const assessmentResponses = roofAssessmentProgressSchema.safeParse(assessment?.responses);
+  const completedAssessmentResponses = roofAssessmentResponsesSchema.safeParse(assessment?.responses);
+  const view = selectPublicEstimateView({
+    assessmentEnabled: parseServerEnv(process.env).ROOF_ASSESSMENT_ENABLED,
+    assessmentStatus: assessmentStatus.success ? assessmentStatus.data : null,
+  });
+  const assessmentCopy = view === "result" && assessmentRecommendation.success
+    ? getAssessmentResultCopy(assessmentRecommendation.data)
+    : null;
+
+  if (view === "assessment") {
+    return (
+      <AssessmentExperience
+        token={token}
+        address={address}
+        imageUrl={`/api/roof-estimate/${token}/house-image`}
+        context={getRoofAssessmentContext(lead?.campaign)}
+        initialPropertyRevealed={Boolean(assessment?.property_revealed_at)}
+        initialStep={assessment?.current_step ?? 0}
+        initialRevision={assessment?.revision ?? 0}
+      >
+        <AssessmentQuestionnaire
+          token={token}
+          address={address}
+          imageUrl={`/api/roof-estimate/${token}/house-image`}
+          initialStep={assessment?.current_step ?? 0}
+          initialResponses={assessmentResponses.success ? assessmentResponses.data : {}}
+        />
+      </AssessmentExperience>
+    );
+  }
+
+  if (
+    view === "result" &&
+    assessmentRecommendation.success &&
+    completedAssessmentResponses.success
+  ) {
+    return (
+      <>
+        <EstimateStatusRefresh pending={pending} />
+        <AssessmentResult
+          address={address}
+          imageUrl={`/api/roof-estimate/${token}/house-image`}
+          recommendation={assessmentRecommendation.data}
+          responses={completedAssessmentResponses.data}
+          range={getAssessmentResultRange({
+            ready,
+            lowCents: estimate.range_low_cents,
+            highCents: estimate.range_high_cents,
+            roofSquares: estimate.roof_squares === null ? null : Number(estimate.roof_squares),
+          })}
+          consultationHref={roofEstimateBrand.phoneHref}
+        />
+      </>
+    );
+  }
+
+  if (pending && view === "legacy") {
+    return (
+      <>
+        <EstimateStatusRefresh pending />
+        <QuoteLoadingView brand={roofEstimateBrand} address={address} />
+      </>
+    );
+  }
 
   return (
     <main className="min-h-[100dvh] bg-[#eef3f5] px-4 py-6 text-slate-950 dark:bg-slate-950 dark:text-slate-100 sm:px-6 sm:py-10">
@@ -117,46 +181,29 @@ export default async function RoofEstimateResultPage({
         </header>
 
         <section className="grid gap-6 lg:grid-cols-[minmax(0,1.18fr)_minmax(24rem,0.82fr)] lg:items-stretch">
-          {ready || manualReview ? (
-            <PropertyMedia token={token} address={address} />
-          ) : (
-            <PropertyMediaSkeleton />
-          )}
+          <PropertyMedia token={token} address={address} />
 
           <div className="estimate-reveal flex min-h-[34rem] flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_20px_60px_rgba(15,42,74,0.08)] dark:border-slate-800 dark:bg-slate-900 sm:p-9 lg:p-10">
-            {pending ? (
+            {manualReview ? (
               <>
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-cyan-700 dark:text-cyan-300">
-                  Measurement in progress
-                </p>
-                <h1 className="mt-5 max-w-lg text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">
-                  Your roof is being measured.
-                </h1>
-                <p className="mt-5 max-w-md text-base leading-7 text-slate-600 dark:text-slate-300">
-                  Keep your phone close. Our team may call while Google prepares the measurement.
-                </p>
-                <EstimateWaitExperience brand={roofEstimateBrand} />
-              </>
-            ) : manualReview ? (
-              <>
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-cyan-700 dark:text-cyan-300">
-                  Professional review
+                  {assessmentCopy?.eyebrow ?? "Professional review"}
                 </p>
                 <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">
-                  We are checking the property match.
+                  {assessmentCopy?.headline ?? "We are checking the property match."}
                 </h1>
                 <p className="mt-5 text-base leading-7 text-slate-600 dark:text-slate-300">
-                  Google did not return a measurement we trust enough to price automatically. Your request is saved for a roofing professional.
+                  {assessmentCopy?.body ?? "Google did not return a measurement we trust enough to price automatically. Your request is saved for a roofing professional."}
                 </p>
                 <EstimateWaitExperience brand={roofEstimateBrand} manualReview />
               </>
             ) : ready ? (
               <>
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-cyan-700 dark:text-cyan-300">
-                  Preliminary roof estimate
+                  {assessmentCopy?.eyebrow ?? "Preliminary roof estimate"}
                 </p>
                 <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">
-                  Your range is ready.
+                  {assessmentCopy?.headline ?? "Your range is ready."}
                 </h1>
                 <p className="mt-8 text-4xl font-semibold tracking-[-0.05em] text-slate-950 dark:text-white sm:text-5xl">
                   {money.format(estimate.range_low_cents! / 100)} <span className="text-slate-400">to</span> {money.format(estimate.range_high_cents! / 100)}
@@ -180,7 +227,7 @@ export default async function RoofEstimateResultPage({
                   href={roofEstimateBrand.phoneHref}
                   className="mt-7 w-full rounded-2xl bg-slate-950 px-5 py-3.5 text-center text-sm font-bold text-white transition hover:bg-slate-800 active:translate-y-px dark:bg-cyan-300 dark:text-slate-950 dark:hover:bg-cyan-200"
                 >
-                  Talk with a roofing specialist
+                  {assessmentCopy?.cta ?? "Talk with a roofing specialist"}
                 </a>
                 <p className="mt-5 text-xs leading-5 text-slate-500 dark:text-slate-400">
                   Preliminary sales estimate only. Decking, tear-off layers, access, permits, and field conditions can change the final proposal.
@@ -189,14 +236,22 @@ export default async function RoofEstimateResultPage({
             ) : (
               <>
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-cyan-700 dark:text-cyan-300">
-                  Request received
+                  {assessmentCopy?.eyebrow ?? "Request received"}
                 </p>
                 <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">
-                  Your request is with our team.
+                  {assessmentCopy?.headline ?? "Your request is with our team."}
                 </h1>
                 <p className="mt-5 text-base leading-7 text-slate-600 dark:text-slate-300">
-                  We could not create a reliable instant range. A roofing professional can review the property and follow up.
+                  {assessmentCopy?.body ?? "We could not create a reliable instant range. A roofing professional can review the property and follow up."}
                 </p>
+                {assessmentCopy ? (
+                  <a
+                    href={roofEstimateBrand.phoneHref}
+                    className="mt-7 w-full rounded-2xl bg-slate-950 px-5 py-3.5 text-center text-sm font-bold text-white transition hover:bg-slate-800 active:translate-y-px dark:bg-cyan-300 dark:text-slate-950 dark:hover:bg-cyan-200"
+                  >
+                    {assessmentCopy.cta}
+                  </a>
+                ) : null}
               </>
             )}
           </div>

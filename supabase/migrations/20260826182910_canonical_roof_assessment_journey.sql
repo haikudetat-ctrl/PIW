@@ -1138,6 +1138,8 @@ declare
   v_now timestamptz := pg_catalog.clock_timestamp();
   v_event_id uuid;
   v_event jsonb;
+  v_patch_keys text[];
+  v_expected_patch_keys text[];
 begin
   if p_expected_revision < 0
     or p_current_step not between 0 and 9
@@ -1169,6 +1171,35 @@ begin
       v_assessment.property_revealed_at, v_assessment.last_answered_at,
       v_assessment.responses, v_assessment.recommendation;
     return;
+  end if;
+
+  if p_current_step > v_assessment.current_step + 1 then
+    return query select false, v_assessment.id, v_assessment.revision,
+      v_assessment.status, v_assessment.current_step,
+      v_assessment.property_revealed_at, v_assessment.last_answered_at,
+      v_assessment.responses, v_assessment.recommendation;
+    return;
+  end if;
+
+  select coalesce(pg_catalog.array_agg(patch.key order by patch.key), array[]::text[])
+  into v_patch_keys
+  from pg_catalog.jsonb_object_keys(p_response_patch) as patch(key);
+  v_expected_patch_keys := case p_current_step
+    when 0 then array[]::text[]
+    when 1 then array['reason']::text[]
+    when 2 then array['roofAge']::text[]
+    when 3 then array['conditionSignals']::text[]
+    when 4 then array['roofVisible','visibleCondition']::text[]
+    when 5 then array['stories']::text[]
+    when 6 then array['complexityFeatures']::text[]
+    when 7 then array['priority']::text[]
+    when 8 then array['timeline']::text[]
+    when 9 then array['ownership']::text[]
+  end;
+  select pg_catalog.array_agg(key order by key) into v_expected_patch_keys
+  from pg_catalog.unnest(v_expected_patch_keys) as expected(key);
+  if v_patch_keys <> v_expected_patch_keys then
+    raise exception 'Assessment response patch does not match edited step';
   end if;
 
   if (coalesce(v_assessment.responses, '{}'::jsonb) || p_response_patch) <> p_expected_responses then
