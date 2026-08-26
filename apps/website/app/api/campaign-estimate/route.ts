@@ -30,11 +30,11 @@ const campaignEstimateSchema = z.object({
   email: z.email().max(320),
   phone: z.string().trim().min(7).max(40),
   address: z.string().trim().min(5).max(500),
-  google_place_id: z.string().trim().min(1).max(500).nullish(),
+  google_place_id: z.string().trim().min(1).max(300).nullish(),
   address_line_1: z.string().trim().min(3).max(200).optional(),
   address_line_2: z.string().trim().max(200).nullish(),
   city: z.string().trim().min(2).max(100).optional(),
-  state: z.string().trim().max(2).optional(),
+  state: z.literal("NJ").optional(),
   postal_code: z.string().trim().optional(),
   consent_to_contact: z.literal(true),
   consent_to_process_property: z.literal(true),
@@ -96,6 +96,13 @@ async function jsonObject(response: Response) {
   return response.json().catch(() => null) as Promise<unknown>;
 }
 
+function noStoreJson(body: unknown, status: number) {
+  return NextResponse.json(body, {
+    status,
+    headers: {"cache-control": "no-store"},
+  });
+}
+
 function configuredPiwOrigin(
   value: string,
   nodeEnv: "development" | "test" | "production",
@@ -126,7 +133,7 @@ export async function handleCampaignEstimateRequest(
 ) {
   const parsed = campaignEstimateSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
-    return NextResponse.json({error: "Invalid estimate submission"}, {status: 400});
+    return noStoreJson({error: "Invalid estimate submission"}, 400);
   }
 
   const input = parsed.data;
@@ -138,12 +145,29 @@ export async function handleCampaignEstimateRequest(
     fbc: request.cookies.get("_fbc")?.value,
   });
   if (!evidence.success) {
-    return NextResponse.json({error: "Invalid estimate submission"}, {status: 400});
+    return noStoreJson({error: "Invalid estimate submission"}, 400);
+  }
+  const origin = configuredPiwOrigin(publicAppUrl, nodeEnv);
+  if (!origin) {
+    return noStoreJson({error: "Estimate intake is temporarily unavailable"}, 502);
   }
   const payload = {
-    ...input,
+    submission_id: input.submission_id,
+    campaign: input.campaign,
+    presentation_key: input.presentation_key,
+    entry_point: input.entry_point,
+    name: input.name,
+    email: input.email,
+    phone: input.phone,
     address: input.google_place_id ? input.address : manualAddress(input),
     google_place_id: input.google_place_id ?? null,
+    address_line_1: input.address_line_1,
+    address_line_2: input.address_line_2,
+    city: input.city,
+    state: input.state,
+    postal_code: input.postal_code,
+    consent_to_contact: input.consent_to_contact,
+    consent_to_process_property: input.consent_to_process_property,
     client_ip_address: evidence.data.clientIpAddress,
     client_user_agent: evidence.data.clientUserAgent,
     attribution: {
@@ -164,34 +188,33 @@ export async function handleCampaignEstimateRequest(
 
   const upstream = await forward(payload).catch(() => null);
   if (!upstream) {
-    return NextResponse.json({error: "Estimate intake is temporarily unavailable"}, {status: 502});
+    return noStoreJson({error: "Estimate intake is temporarily unavailable"}, 502);
   }
 
   if (upstream.status === 400) {
-    return NextResponse.json({error: "Invalid estimate submission"}, {status: 400});
+    return noStoreJson({error: "Invalid estimate submission"}, 400);
   }
 
   if (upstream.status === 409) {
-    return NextResponse.json(
+    return noStoreJson(
       {error: "Please restart this estimate request.", retryable: true},
-      {status: 409},
+      409,
     );
   }
 
   if (!upstream.ok) {
-    return NextResponse.json({error: "Estimate intake is temporarily unavailable"}, {status: 502});
+    return noStoreJson({error: "Estimate intake is temporarily unavailable"}, 502);
   }
 
   const accepted = acceptedResponseSchema.safeParse(await jsonObject(upstream));
-  const origin = configuredPiwOrigin(publicAppUrl, nodeEnv);
-  const estimateUrl = accepted.success && origin
+  const estimateUrl = accepted.success
     ? new URL(accepted.data.continuationPath, `${origin}/`).toString()
     : null;
   if (!estimateUrl) {
-    return NextResponse.json({error: "Estimate intake is temporarily unavailable"}, {status: 502});
+    return noStoreJson({error: "Estimate intake is temporarily unavailable"}, 502);
   }
 
-  return NextResponse.json({accepted: true, estimateUrl}, {status: 202});
+  return noStoreJson({accepted: true, estimateUrl}, 202);
 }
 
 export async function POST(request: NextRequest) {
@@ -199,7 +222,7 @@ export async function POST(request: NextRequest) {
   const sharedSecret = process.env.INTAKE_WEBHOOK_SHARED_SECRET;
   const publicAppUrl = process.env.PIW_PUBLIC_APP_URL;
   if (!webhookUrl || !sharedSecret || !publicAppUrl) {
-    return NextResponse.json({error: "Estimate intake is not configured"}, {status: 503});
+    return noStoreJson({error: "Estimate intake is not configured"}, 503);
   }
 
   return handleCampaignEstimateRequest(
