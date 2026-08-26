@@ -9,10 +9,11 @@ import {
   calculateRoofAssessment,
   roofAssessmentResponsesSchema,
   type RoofAssessmentRecommendation,
+  type RoofAssessmentResponses,
 } from "@/domain/roof-assessment";
 import {AssessmentExperience} from "../[token]/assessment-experience";
 import {AssessmentQuestionnaire} from "../[token]/assessment-questionnaire";
-import {getAssessmentResultCopy} from "../[token]/public-estimate-flow";
+import {AssessmentResult} from "../[token]/assessment-result";
 
 const campaigns: Array<{slug: RoofAssessmentCampaignSlug; label: string}> = [
   {slug: "for-every-season", label: "Main website"},
@@ -24,7 +25,10 @@ const campaigns: Array<{slug: RoofAssessmentCampaignSlug; label: string}> = [
 export function AssessmentSandbox() {
   const [campaign, setCampaign] = useState<RoofAssessmentCampaignSlug>("for-every-season");
   const [run, setRun] = useState(0);
-  const [recommendation, setRecommendation] = useState<RoofAssessmentRecommendation | null>(null);
+  const [result, setResult] = useState<{
+    recommendation: RoofAssessmentRecommendation;
+    responses: RoofAssessmentResponses;
+  } | null>(null);
   const context = getRoofAssessmentContext(campaign);
   const imageUrl = campaign === "for-every-season" || campaign === "do-it-right-once"
     ? "/campaigns/every-season.jpg"
@@ -32,24 +36,26 @@ export function AssessmentSandbox() {
 
   function restart(nextCampaign = campaign) {
     setCampaign(nextCampaign);
-    setRecommendation(null);
+    setResult(null);
     setRun((value) => value + 1);
   }
 
-  if (recommendation) {
-    const copy = getAssessmentResultCopy(recommendation);
+  if (result) {
     return (
-      <main className="min-h-[100dvh] bg-[#edf2f3] px-5 py-8 text-slate-950 sm:px-8">
-        <section className="mx-auto flex min-h-[calc(100dvh-4rem)] max-w-4xl flex-col justify-center">
-          <p className="text-xs font-black uppercase tracking-[0.2em] text-cyan-700">{copy.eyebrow}</p>
-          <h1 className="mt-5 max-w-3xl text-5xl font-semibold tracking-[-0.055em] sm:text-7xl">{copy.headline}</h1>
-          <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-600">{copy.body}</p>
-          <div className="mt-10 flex flex-wrap gap-3">
-            <button type="button" className="rounded-xl bg-slate-950 px-6 py-4 text-sm font-black text-white" onClick={() => restart()}>{copy.cta}</button>
-            <button type="button" className="rounded-xl border border-slate-300 bg-white px-6 py-4 text-sm font-black" onClick={() => restart()}>Replay flow</button>
-          </div>
-        </section>
-      </main>
+      <AssessmentResult
+        address="18 Harbor View Drive, Red Bank, NJ 07701"
+        imageUrl={imageUrl}
+        recommendation={result.recommendation}
+        responses={result.responses}
+        range={{
+          lowCents: 1_800_000,
+          highCents: 2_600_000,
+          roofSquares: 23,
+          source: "sample",
+        }}
+        consultationHref="tel:+18888325050"
+        onReplay={() => restart()}
+      />
     );
   }
 
@@ -85,7 +91,12 @@ export function AssessmentSandbox() {
           initialResponses={{}}
           onPreviewComplete={(responses) => {
             const parsed = roofAssessmentResponsesSchema.safeParse(responses);
-            if (parsed.success) setRecommendation(calculateRoofAssessment(parsed.data).recommendation);
+            if (parsed.success) {
+              setResult({
+                recommendation: calculateRoofAssessment(parsed.data).recommendation,
+                responses: parsed.data,
+              });
+            }
           }}
         />
       </AssessmentExperience>

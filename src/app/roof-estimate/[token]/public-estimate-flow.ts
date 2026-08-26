@@ -40,3 +40,23 @@ const resultCopy: Record<RoofAssessmentRecommendation, {
 export function getAssessmentResultCopy(recommendation: RoofAssessmentRecommendation) {
   return resultCopy[recommendation];
 }
+
+export function getAssessmentResultRange({
+  ready,
+  lowCents,
+  highCents,
+  roofSquares,
+}: {
+  ready: boolean;
+  lowCents: number | null;
+  highCents: number | null;
+  roofSquares: number | null;
+}) {
+  if (!ready || lowCents === null || highCents === null || roofSquares === null) return null;
+  return {
+    lowCents,
+    highCents,
+    roofSquares,
+    source: "google" as const,
+  };
+}
