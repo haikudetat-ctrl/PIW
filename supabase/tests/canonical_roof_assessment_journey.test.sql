@@ -1623,9 +1623,13 @@ create temp table progress_race_results(applied boolean);
 insert into progress_race_results select applied from extensions.dblink_get_result('progress_race_a') as row(applied boolean);
 insert into progress_race_results select applied from extensions.dblink_get_result('progress_race_b') as row(applied boolean);
 select is((select count(*) from progress_race_results where applied),1::bigint,'exactly one concurrent writer wins revision zero');
-select ok((select revision=1 and responses in ('{"reason":"known_replacement"}'::jsonb,'{"roofAge":"20_plus"}'::jsonb) and current_step in (1,2) from public.roof_assessments where company_id='f7100000-0000-4000-8000-000000000001'),'the losing tab cannot erase or regress the winning canonical state');
-select ok((select (responses ? 'reason' and scores->>'intent'='3') or (responses ? 'roofAge' and scores->>'need'='6') from public.roof_assessments where company_id='f7100000-0000-4000-8000-000000000001'),'scores belong to the exact response snapshot that won the CAS');
-select ok((select count(event.id) = case when assessment.responses ? 'reason' then 1 else 0 end from public.roof_assessments assessment left join public.domain_events event on event.company_id=assessment.company_id and event.event_name='roof/assessment.high_intent' where assessment.company_id='f7100000-0000-4000-8000-000000000001' group by assessment.responses),'the stale loser emits no high-intent event');
+select results_eq(
+  $$select revision,current_step,responses from public.roof_assessments where company_id='f7100000-0000-4000-8000-000000000001'$$,
+  $$values (1::bigint,1,'{"reason":"known_replacement"}'::jsonb)$$,
+  'the concurrent future-step writer cannot beat or erase the valid next step'
+);
+select is((select scores->>'intent' from public.roof_assessments where company_id='f7100000-0000-4000-8000-000000000001'),'3','scores belong to the valid next-step CAS winner');
+select is((select count(*) from public.domain_events where company_id='f7100000-0000-4000-8000-000000000001' and event_name='roof/assessment.high_intent'),1::bigint,'the rejected concurrent jump emits no event');
 select is(extensions.dblink_exec('progress_race_gate',$$do $cleanup$ begin delete from public.event_outbox where event_id in(select id from public.domain_events where company_id='f7100000-0000-4000-8000-000000000001'); delete from public.domain_events where company_id='f7100000-0000-4000-8000-000000000001'; delete from public.roof_assessment_access_attempts where company_id='f7100000-0000-4000-8000-000000000001'; delete from public.lead_consent_evidence where company_id='f7100000-0000-4000-8000-000000000001'; delete from public.lead_attribution_touches where company_id='f7100000-0000-4000-8000-000000000001'; delete from public.roof_assessments where company_id='f7100000-0000-4000-8000-000000000001'; delete from public.roof_estimates where company_id='f7100000-0000-4000-8000-000000000001'; delete from public.pipeline_runs where company_id='f7100000-0000-4000-8000-000000000001'; delete from public.lead_consents where company_id='f7100000-0000-4000-8000-000000000001'; delete from public.leads where company_id='f7100000-0000-4000-8000-000000000001'; delete from public.properties where company_id='f7100000-0000-4000-8000-000000000001'; delete from public.companies where id='f7100000-0000-4000-8000-000000000001'; end $cleanup$;$$),'DO','progress race fixtures are removed');
 select ok(extensions.dblink_disconnect('progress_race_a')='OK','first progress writer disconnects');
 select ok(extensions.dblink_disconnect('progress_race_b')='OK','second progress writer disconnects');
@@ -2059,6 +2063,24 @@ create temp table lifecycle_new as select * from public.start_or_resume_roof_ass
   'Lifecycle New','+12015550602','lifecycle-new@example.com','602 New St, Newark, NJ 07102','ChIJ-lifecycle-new',
   'weather-report','campaign:weather-report','{}'::jsonb,null,'all-season-assessment-v1',clock_timestamp(),'127.6.0.2','pgtap');
 
+create temp table lifecycle_jump_before as
+select revision,current_step,responses,scores,last_answered_at,updated_at
+from public.roof_assessments
+where id=(select assessment_id from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_new));
+create temp table lifecycle_jump_result as
+select applied from public.save_roof_assessment_progress(
+  'd0000000-0000-4000-8000-000000000001',
+  (select assessment_id from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_new)),
+  0,2,null,'{"roofAge":"20_plus"}'::jsonb,'{"roofAge":"20_plus"}'::jsonb,
+  '{"need":6,"intent":0,"urgency":0,"propertyFit":0,"engagement":1}'::jsonb,false);
+select is((select applied from lifecycle_jump_result),false,'revision zero cannot jump ahead to progress step two');
+select results_eq(
+  $$select revision,current_step,responses,scores,last_answered_at,updated_at from public.roof_assessments where id=(select assessment_id from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_new))$$,
+  $$select * from lifecycle_jump_before$$,
+  'a rejected forward jump changes no revision, step, answers, scores, or timestamps'
+);
+select is((select count(*) from public.domain_events where correlation_id=(select assessment_id from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_new)) and event_name='roof/assessment.high_intent'),0::bigint,'a rejected forward jump emits no lifecycle event');
+
 select * from public.save_roof_assessment_progress(
   'd0000000-0000-4000-8000-000000000001',
   (select assessment_id from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_old)),
@@ -2093,6 +2115,23 @@ select results_eq(
 );
 select is((select count(*) from public.domain_events where idempotency_key='roof/assessment.high_intent:'||(select assessment_id::text from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_old))),1::bigint,'progress retry does not duplicate high intent');
 select is((select count(*) from public.event_outbox outbox join public.domain_events event on event.id=outbox.event_id where event.idempotency_key='roof/assessment.high_intent:'||(select assessment_id::text from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_old))),1::bigint,'stale progress creates no duplicate outbox work');
+select * from public.save_roof_assessment_progress(
+  'd0000000-0000-4000-8000-000000000001',
+  (select assessment_id from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_old)),
+  1,2,null,'{"roofAge":"20_plus"}'::jsonb,
+  '{"reason":"known_replacement","roofAge":"20_plus"}'::jsonb,
+  '{"need":10,"intent":3,"urgency":0,"propertyFit":0,"engagement":1}'::jsonb,true);
+select * from public.save_roof_assessment_progress(
+  'd0000000-0000-4000-8000-000000000001',
+  (select assessment_id from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_old)),
+  2,1,null,'{"reason":"planning"}'::jsonb,
+  '{"reason":"planning","roofAge":"20_plus"}'::jsonb,
+  '{"need":6,"intent":0,"urgency":0,"propertyFit":0,"engagement":1}'::jsonb,false);
+select results_eq(
+  $$select revision,current_step,responses from public.roof_assessments where id=(select assessment_id from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_old))$$,
+  $$values (3::bigint,2,'{"reason":"planning","roofAge":"20_plus"}'::jsonb)$$,
+  'an explicit back edit succeeds without regressing canonical progress'
+);
 
 update public.roof_assessments set last_answered_at=clock_timestamp(),updated_at=clock_timestamp() where status='in_progress';
 update public.roof_assessments set last_answered_at=clock_timestamp()-interval '24 hours 1 second',updated_at=clock_timestamp()-interval '24 hours 1 second' where id=(select assessment_id from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_old));

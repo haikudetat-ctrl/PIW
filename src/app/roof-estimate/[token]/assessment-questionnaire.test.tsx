@@ -72,7 +72,7 @@ describe("roof assessment questionnaire", () => {
         method: "PATCH",
         body: JSON.stringify({
           expectedRevision: 0,
-          currentStep: 1,
+          questionId: "reason",
           responsePatch: {reason: "active_leak"},
         }),
       }),

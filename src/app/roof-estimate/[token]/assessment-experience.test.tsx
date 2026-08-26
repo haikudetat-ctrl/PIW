@@ -1,11 +1,18 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {useContext} from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { getRoofAssessmentContext } from "@/config/roof-assessment";
 import { AssessmentExperience } from "./assessment-experience";
+import {AssessmentRevisionContext} from "./assessment-revision-context";
 
 const token = "11111111-1111-4111-8111-111111111111";
 const imageUrl = `/api/roof-estimate/${token}/house-image`;
 const context = getRoofAssessmentContext("for-every-season");
+
+function RevisionProbe() {
+  const revision = useContext(AssessmentRevisionContext);
+  return <p>Questionnaire revision {revision}</p>;
+}
 
 describe("assessment property reveal", () => {
   beforeEach(() => {
@@ -55,6 +62,24 @@ describe("assessment property reveal", () => {
 
     expect(screen.queryByText("Analyzing your property.")).not.toBeInTheDocument();
     expect(screen.getByRole("heading", {name: "Property confirmed."})).toBeVisible();
+  });
+
+  test("provides a resumed nonzero revision directly to the questionnaire stage", () => {
+    render(
+      <AssessmentExperience
+        token={token}
+        address="1 Main St, Newark, NJ 07102"
+        imageUrl={imageUrl}
+        context={context}
+        initialPropertyRevealed
+        initialStep={4}
+        initialRevision={7}
+      >
+        <RevisionProbe />
+      </AssessmentExperience>,
+    );
+
+    expect(screen.getByText("Questionnaire revision 7")).toBeVisible();
   });
 
   test("unifies the property and assessment in one card with a correction link", () => {
@@ -124,7 +149,7 @@ describe("assessment property reveal", () => {
         headers: {"content-type": "application/json"},
         body: JSON.stringify({
           expectedRevision: 3,
-          currentStep: 0,
+          questionId: null,
           propertyRevealed: true,
           responsePatch: {},
         }),
