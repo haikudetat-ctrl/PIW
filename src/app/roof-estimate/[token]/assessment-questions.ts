@@ -53,12 +53,12 @@ export const complexityOptions: AssessmentOption<RoofAssessmentResponses["comple
 ];
 
 export const priorityOptions: AssessmentOption<RoofAssessmentResponses["priority"]>[] = [
-  {value: "reasonable_cost", label: "Lowest reasonable cost"},
-  {value: "long_warranty", label: "Long-term warranty"},
-  {value: "appearance", label: "Best-looking roof"},
-  {value: "speed", label: "Get it done quickly"},
-  {value: "financing", label: "Financing or payment options"},
-  {value: "understand_options", label: "I mostly want to know what I'm dealing with"},
+  {value: "reasonable_cost", label: "Best value over time"},
+  {value: "long_warranty", label: "Strongest long-term warranty"},
+  {value: "appearance", label: "A roof that fits the home"},
+  {value: "speed", label: "A clear, efficient installation"},
+  {value: "financing", label: "Flexible payment planning"},
+  {value: "understand_options", label: "A recommendation I can trust"},
 ];
 
 export const timelineOptions: AssessmentOption<RoofAssessmentResponses["timeline"]>[] = [
@@ -83,7 +83,7 @@ export const assessmentQuestionTitles = [
   "Can you see your roof from the ground?",
   "Quick property check",
   "Any sections like these?",
-  "What's most important to you if the roof needs work?",
-  "How soon would you want to deal with it if work is needed?",
-  "Is this your home?",
+  "What would make the project feel like the right decision?",
+  "How soon would a professional review be useful?",
+  "What is your role with this property?",
 ] as const;

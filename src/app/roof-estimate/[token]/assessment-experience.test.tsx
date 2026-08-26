@@ -8,7 +8,10 @@ const imageUrl = `/api/roof-estimate/${token}/house-image`;
 const context = getRoofAssessmentContext("for-every-season");
 
 describe("assessment property reveal", () => {
-  beforeEach(() => vi.useFakeTimers());
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.stubGlobal("scrollTo", vi.fn());
+  });
   afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
@@ -31,7 +34,7 @@ describe("assessment property reveal", () => {
     fireEvent.load(screen.getByAltText("Aerial view loading for 1 Main St, Newark, NJ 07102"));
     act(() => vi.advanceTimersByTime(5_000));
 
-    expect(screen.getByRole("heading", {name: "We found your property."})).toBeVisible();
+    expect(screen.getByRole("heading", {name: "Property confirmed."})).toBeVisible();
     expect(screen.getByText("1 Main St, Newark, NJ 07102")).toBeVisible();
     expect(screen.getByRole("button", {name: "Start my assessment"})).toBeEnabled();
   });
@@ -51,7 +54,7 @@ describe("assessment property reveal", () => {
     );
 
     expect(screen.queryByText("Analyzing your property.")).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", {name: "We found your property."})).toBeVisible();
+    expect(screen.getByRole("heading", {name: "Property confirmed."})).toBeVisible();
   });
 
   test("unifies the property and assessment in one card with a correction link", () => {
@@ -71,7 +74,7 @@ describe("assessment property reveal", () => {
     const card = screen.getByRole("region", {name: "Confirmed property assessment"});
     expect(card).toHaveClass("assessment-reveal-card");
     expect(card).toContainElement(screen.getByAltText("Aerial view of 1 Main St, Newark, NJ 07102"));
-    expect(card).toContainElement(screen.getByRole("heading", {name: "We found your property."}));
+    expect(card).toContainElement(screen.getByRole("heading", {name: "Property confirmed."}));
     expect(screen.getByRole("link", {name: "Not your property? Update the address"}))
       .toHaveAttribute("href", "/roof-estimate");
   });
@@ -105,7 +108,9 @@ describe("assessment property reveal", () => {
 
   test("opens the questions without persistence in the development preview", () => {
     const fetch = vi.fn();
+    const scrollTo = vi.fn();
     vi.stubGlobal("fetch", fetch);
+    vi.stubGlobal("scrollTo", scrollTo);
     render(
       <AssessmentExperience
         preview
@@ -124,6 +129,7 @@ describe("assessment property reveal", () => {
 
     expect(screen.getByText("Questions begin here")).toBeVisible();
     expect(fetch).not.toHaveBeenCalled();
+    expect(scrollTo).toHaveBeenCalledWith({top: 0, behavior: "smooth"});
   });
 
   test("keeps the reveal visible when progress cannot be saved", async () => {

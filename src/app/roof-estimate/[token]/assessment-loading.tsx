@@ -48,7 +48,7 @@ export function AssessmentLoading({
   const activeLabel = stages[activeStage] ?? "Preparing the assessment";
 
   return (
-    <main className="assessment-analysis-shell min-h-[100dvh] overflow-hidden bg-[#071f2e] text-white">
+    <main className="assessment-flow assessment-analysis-shell min-h-[100dvh] w-full max-w-full overflow-x-hidden bg-[#071f2e] text-white">
       <div className="assessment-analysis-image" aria-hidden="true">
         <div className="assessment-analysis-grid" />
       </div>
@@ -64,7 +64,7 @@ export function AssessmentLoading({
       <div className="assessment-analysis-scrim" />
 
       <div className="relative z-10 mx-auto flex min-h-[100dvh] w-full max-w-7xl flex-col px-5 py-6 sm:px-8 sm:py-8 lg:px-12">
-        <header className="flex items-center justify-between border-b border-white/15 pb-5">
+        <header className="assessment-nav assessment-nav-dark flex items-center justify-between border-b border-white/15 pb-5">
           <div>
             <p className="text-xs font-black tracking-[0.2em]">ALL SEASON</p>
             <p className="mt-1 text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-white/55">
@@ -79,7 +79,7 @@ export function AssessmentLoading({
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-lime-300">
               Building your personalized roof assessment
             </p>
-            <h1 className="mt-5 text-5xl font-semibold tracking-[-0.055em] sm:text-6xl lg:text-7xl">
+            <h1 className="assessment-display mt-5 w-full max-w-6xl text-[clamp(4rem,8vw,8rem)] leading-[0.86] tracking-[0.01em]">
               Analyzing your property.
             </h1>
             <p className="mt-6 max-w-xl text-base leading-7 text-white/68 sm:text-lg">

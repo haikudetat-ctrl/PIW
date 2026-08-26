@@ -74,4 +74,22 @@ describe("assessment result payoff", () => {
     expect(screen.getByText("Finalizing your property calculation")).toBeVisible();
     expect(screen.getByText("Prompt professional review")).toBeVisible();
   });
+
+  test("presents the final action as a professional review rather than a price-only handoff", () => {
+    render(
+      <AssessmentResult
+        address="18 Harbor View Drive, Red Bank, NJ 07701"
+        imageUrl="/campaigns/every-season.jpg"
+        recommendation="replacement_may_make_sense"
+        responses={responses}
+        range={{lowCents: 1_800_000, highCents: 2_600_000, roofSquares: 23, source: "sample"}}
+        consultationHref="tel:+18888325050"
+      />,
+    );
+
+    const action = screen.getByRole("link", {name: "Turn this range into an exact quote"});
+    expect(action).toHaveAttribute("aria-describedby", "assessment-consultation-note");
+    expect(screen.getByText(/A roofing specialist will review the property details and your priorities/i))
+      .toHaveAttribute("id", "assessment-consultation-note");
+  });
 });

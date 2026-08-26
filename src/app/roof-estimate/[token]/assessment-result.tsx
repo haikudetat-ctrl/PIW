@@ -1,6 +1,9 @@
 "use client";
 
+import {useRef} from "react";
 import Link from "next/link";
+import {useGSAP} from "@gsap/react";
+import gsap from "gsap";
 import type {
   RoofAssessmentRecommendation,
   RoofAssessmentResponses,
@@ -75,11 +78,20 @@ export function AssessmentResult({
 }) {
   const copy = getAssessmentResultCopy(recommendation);
   const outlook = getProjectOutlook(responses, recommendation);
+  const resultRef = useRef<HTMLElement>(null);
+
+  useGSAP(() => {
+    if (!window.matchMedia || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const timeline = gsap.timeline({defaults: {ease: "power3.out"}});
+    timeline
+      .fromTo(".assessment-result-image", {scale: 0.96, opacity: 0.58}, {scale: 1, opacity: 1, duration: 0.9})
+      .fromTo(".assessment-result-copy > *", {y: 14, opacity: 0}, {y: 0, opacity: 1, duration: 0.45, stagger: 0.045}, "-=0.58");
+  }, {scope: resultRef});
 
   return (
-    <main className="min-h-[100dvh] bg-[#edf2f3] px-4 py-5 text-slate-950 sm:px-7 sm:py-8">
+    <main ref={resultRef} className="assessment-flow min-h-[100dvh] w-full max-w-full overflow-x-hidden bg-[#edf2f3] px-4 py-5 text-slate-950 sm:px-7 sm:py-8">
       <div className="mx-auto max-w-7xl">
-        <header className="flex items-center justify-between border-b border-slate-300/80 pb-5">
+        <header className="assessment-nav flex items-center justify-between border-b border-slate-300/80 pb-5">
           <div>
             <p className="text-xs font-black tracking-[0.2em]">ALL SEASON</p>
             <p className="mt-1 text-[0.65rem] font-bold uppercase tracking-[0.18em] text-slate-500">Personalized RoofCheck</p>
@@ -88,10 +100,10 @@ export function AssessmentResult({
         </header>
 
         <section className="py-9 sm:py-12">
-          <div className="grid overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_28px_90px_rgba(15,42,55,0.13)] lg:grid-cols-[minmax(0,0.88fr)_minmax(30rem,1.12fr)]">
-            <div className="relative min-h-[22rem] bg-[#102f3d] sm:min-h-[30rem] lg:min-h-[44rem]">
+          <div className="assessment-result-card grid overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_28px_90px_rgba(15,42,55,0.13)] lg:grid-cols-[minmax(0,0.88fr)_minmax(30rem,1.12fr)]">
+            <div className="assessment-result-visual relative min-h-[22rem] bg-[#102f3d] sm:min-h-[30rem] lg:min-h-[44rem]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={imageUrl} alt={`Aerial view of ${address}`} className="absolute inset-0 size-full object-cover" />
+              <img src={imageUrl} alt={`Aerial view of ${address}`} className="assessment-result-image absolute inset-0 size-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/10 to-transparent" />
               <div className="absolute inset-x-0 bottom-0 p-6 text-white sm:p-8">
                 <p className="text-lg font-semibold tracking-[-0.02em]">{address}</p>
@@ -101,11 +113,11 @@ export function AssessmentResult({
               </div>
             </div>
 
-            <div className="p-6 sm:p-9 lg:p-11">
-              <h1 className="max-w-2xl text-4xl font-semibold tracking-[-0.05em] sm:text-5xl">{copy.headline}</h1>
+            <div className="assessment-result-copy p-6 sm:p-9 lg:p-11">
+              <h1 className="assessment-display w-full max-w-5xl text-[clamp(3.2rem,5vw,5.5rem)] leading-[0.92] tracking-[0.01em]">{copy.headline}</h1>
               <p className="mt-5 max-w-2xl text-base leading-7 text-slate-600">{copy.body}</p>
 
-              <div className="mt-8 rounded-2xl bg-[#0a2634] p-6 text-white sm:p-7">
+              <div className="assessment-range-panel mt-8 rounded-2xl bg-[#0a2634] p-6 text-white sm:p-7">
                 {range ? (
                   <>
                     <p className="text-sm font-semibold text-white/65">Preliminary project range</p>
@@ -145,7 +157,11 @@ export function AssessmentResult({
               </div>
 
               <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:items-center">
-                <a href={consultationHref} className="rounded-xl bg-slate-950 px-6 py-4 text-center text-sm font-black text-white transition hover:bg-slate-800 active:-translate-y-px">
+                <a
+                  href={consultationHref}
+                  aria-describedby="assessment-consultation-note"
+                  className="assessment-conversion-action rounded-xl bg-slate-950 px-6 py-4 text-center text-sm font-black text-white transition hover:bg-slate-800 active:-translate-y-px"
+                >
                   {copy.cta}
                 </a>
                 {onReplay ? (
@@ -154,6 +170,9 @@ export function AssessmentResult({
                   </button>
                 ) : null}
               </div>
+              <p id="assessment-consultation-note" className="mt-4 max-w-xl text-xs leading-5 text-slate-500">
+                A roofing specialist will review the property details and your priorities before recommending a scope.
+              </p>
               <p className="mt-5 text-xs leading-5 text-slate-500">Preliminary planning guidance only. A field inspection confirms scope, materials, and final pricing.</p>
             </div>
           </div>
