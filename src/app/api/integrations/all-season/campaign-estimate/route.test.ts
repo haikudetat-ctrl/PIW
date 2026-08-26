@@ -2,16 +2,15 @@ import { NextRequest } from "next/server";
 import { describe, expect, test, vi } from "vitest";
 import {
   handleAllSeasonCampaignEstimateRequest,
-  submitWithCampaignRpcFallback,
-  toCachedCampaignBridgeRpcArgs,
-  toCampaignEstimateRpcArgs,
   toCampaignEstimateLeadInput,
   type AllSeasonCampaignEstimateInput,
 } from "./route";
 
 const validPayload = {
   submission_id: "11111111-1111-4111-8111-111111111111",
-  campaign: "do-it-right-once" as const,
+  campaign: "weather-report" as const,
+  presentation_key: "weather-report" as const,
+  entry_point: "campaign:weather-report" as const,
   name: "Alex Rivera",
   email: "alex@example.com",
   phone: "201-555-0100",
@@ -26,8 +25,10 @@ const validPayload = {
   consent_to_process_property: true as const,
   source: "all-season-campaign" as const,
   submittedAt: "2026-08-24T14:00:00.000Z",
+  disclosure_version: "all-season-campaign-estimate-v1" as const,
   client_ip_address: "203.0.113.10",
   client_user_agent: "homeowner-browser",
+  referrer: "https://allseason.example/campaigns/weather-report",
   attribution: {
     utm_source: "facebook",
     utm_medium: "paid-social",
@@ -54,19 +55,15 @@ function request(body: unknown, secret = "shared-secret") {
   );
 }
 
-const accepted = {
-  leadId: "22222222-2222-4222-8222-222222222222",
-  publicToken: "33333333-3333-4333-8333-333333333333",
-  resultPath: "/roof-estimate/33333333-3333-4333-8333-333333333333",
-};
-
 describe("All Season campaign estimate intake", () => {
-  test("maps the website proxy payload to the estimate creation contract", () => {
+  test("maps every external evidence field to the canonical campaign adapter", () => {
     const parsed = validPayload satisfies AllSeasonCampaignEstimateInput;
 
     expect(toCampaignEstimateLeadInput(parsed)).toEqual({
       submissionId: validPayload.submission_id,
-      campaign: "do-it-right-once",
+      campaign: "weather-report",
+      presentationKey: "weather-report",
+      entryPoint: "campaign:weather-report",
       name: "Alex Rivera",
       email: "alex@example.com",
       phone: "201-555-0100",
@@ -75,100 +72,14 @@ describe("All Season campaign estimate intake", () => {
       clientIpAddress: validPayload.client_ip_address,
       clientUserAgent: validPayload.client_user_agent,
       submittedAt: validPayload.submittedAt,
+      disclosureVersion: validPayload.disclosure_version,
+      referrer: validPayload.referrer,
       attribution: validPayload.attribution,
-    });
-  });
-
-  test("maps a campaign lead to the atomic Supabase transaction", () => {
-    const parsed = validPayload satisfies AllSeasonCampaignEstimateInput;
-
-    expect(toCampaignEstimateRpcArgs({
-      input: toCampaignEstimateLeadInput(parsed),
-      companyId: "99999999-9999-4999-8999-999999999999",
-    })).toEqual({
-      p_company_id: "99999999-9999-4999-8999-999999999999",
-      p_submission_id: validPayload.submission_id,
-      p_name: validPayload.name,
-      p_phone: validPayload.phone,
-      p_email: validPayload.email,
-      p_submitted_address: validPayload.address,
-      p_campaign_slug: validPayload.campaign,
-      p_submitted_at: validPayload.submittedAt,
-      p_attribution: validPayload.attribution,
-      p_disclosure_version: "all-season-campaign-estimate-v1",
-      p_ip_address: validPayload.client_ip_address,
-      p_user_agent: validPayload.client_user_agent,
-      p_correlation_id: validPayload.submission_id,
-      p_pipeline_version: 2,
-      p_google_place_id: validPayload.google_place_id,
-    });
-  });
-
-  test("falls back through the cached All Season RPC when PostgREST cannot discover the campaign RPC", async () => {
-    const bridgeRow = {
-      lead_id: "22222222-2222-4222-8222-222222222222",
-      property_id: "33333333-3333-4333-8333-333333333333",
-      pipeline_run_id: "44444444-4444-4444-8444-444444444444",
-      is_duplicate: false,
-    };
-    const result = await submitWithCampaignRpcFallback({
-      submitCampaign: async () => ({
-        data: null,
-        error: { code: "PGRST202", message: "function missing from schema cache" },
-      }),
-      submitBridge: async () => ({ data: [bridgeRow], error: null }),
-    });
-
-    expect(result).toEqual({ source: "cached-bridge", data: [bridgeRow], error: null });
-  });
-
-  test("does not hide campaign RPC failures unrelated to schema discovery", async () => {
-    const result = await submitWithCampaignRpcFallback({
-      submitCampaign: async () => ({
-        data: null,
-        error: { code: "42501", message: "permission denied" },
-      }),
-      submitBridge: async () => {
-        throw new Error("bridge must not run");
-      },
-    });
-
-    expect(result).toEqual({
-      source: "campaign-rpc",
-      data: null,
-      error: { code: "42501", message: "permission denied" },
-    });
-  });
-
-  test("marks cached bridge calls so the existing RPC invokes the atomic campaign transaction", () => {
-    const input = toCampaignEstimateLeadInput(validPayload);
-
-    expect(toCachedCampaignBridgeRpcArgs({
-      input,
-      companyId: "99999999-9999-4999-8999-999999999999",
-    })).toEqual({
-      p_company_id: "99999999-9999-4999-8999-999999999999",
-      p_submission_id: validPayload.submission_id,
-      p_name: validPayload.name,
-      p_phone: validPayload.phone,
-      p_email: validPayload.email,
-      p_submitted_address: validPayload.address,
-      p_service_requested: "roofing",
-      p_submitted_at: validPayload.submittedAt,
-      p_attribution: { ...validPayload.attribution, _campaign_slug: "do-it-right-once" },
-      p_disclosure_version: "all-season-campaign-estimate-v1",
-      p_ip_address: validPayload.client_ip_address,
-      p_user_agent: validPayload.client_user_agent,
-      p_pipeline_version: 2,
-      p_phone_e164: "",
-      p_email_normalized: "alex@example.com",
-      p_google_place_id: validPayload.google_place_id,
     });
   });
 
   test("rejects a request with the wrong shared secret", async () => {
     const accept = vi.fn();
-
     const response = await handleAllSeasonCampaignEstimateRequest(
       request(validPayload, "wrong-secret"),
       { expectedSecret: "shared-secret", accept },
@@ -178,51 +89,75 @@ describe("All Season campaign estimate intake", () => {
     expect(accept).not.toHaveBeenCalled();
   });
 
-  test("accepts a normalized Google address and returns the estimate continuation", async () => {
-    const accept = vi.fn(async () => accepted);
-
+  test("returns only the canonical continuation path for a first issue", async () => {
+    const accept = vi.fn(async () => ({
+      kind: "continue" as const,
+      continuationPath: "/roof-estimate/continue/signed_token-123" as const,
+    }));
     const response = await handleAllSeasonCampaignEstimateRequest(
       request(validPayload),
       { expectedSecret: "shared-secret", accept },
     );
 
     expect(response.status).toBe(202);
-    await expect(response.json()).resolves.toEqual({ accepted: true, ...accepted });
+    await expect(response.json()).resolves.toEqual({
+      accepted: true,
+      continuationPath: "/roof-estimate/continue/signed_token-123",
+    });
     expect(accept).toHaveBeenCalledWith(expect.objectContaining({
-      campaign: "do-it-right-once",
-      address: validPayload.address,
-      google_place_id: validPayload.google_place_id,
+      campaign: "weather-report",
+      presentation_key: "weather-report",
+      entry_point: "campaign:weather-report",
     }));
   });
 
-  test("accepts a complete manual New Jersey address without a Place ID", async () => {
-    const accept = vi.fn(async () => accepted);
-    const manualPayload = {
-      ...validPayload,
-      campaign: "weather-report",
-      address: "1 Main St, Unit 2, Newark, NJ 07102",
-      google_place_id: null,
-      address_line_2: "Unit 2",
-    };
-
+  test("accepts the canonical main-site framing without campaign attribution", async () => {
+    const accept = vi.fn(async () => ({
+      kind: "continue" as const,
+      continuationPath: "/roof-estimate/continue/main_token" as const,
+    }));
     const response = await handleAllSeasonCampaignEstimateRequest(
-      request(manualPayload),
-      { expectedSecret: "shared-secret", accept },
+      request({
+        ...validPayload,
+        campaign: null,
+        presentation_key: "all-season-main",
+        entry_point: "main-drawer",
+      }),
+      {expectedSecret: "shared-secret", accept},
     );
 
     expect(response.status).toBe(202);
     expect(accept).toHaveBeenCalledWith(expect.objectContaining({
-      address: manualPayload.address,
-      google_place_id: null,
-      state: "NJ",
-      postal_code: "07102",
+      campaign: null,
+      presentation_key: "all-season-main",
+      entry_point: "main-drawer",
     }));
   });
 
+  test("maps an idempotent replay to an explicit non-success restart response", async () => {
+    const response = await handleAllSeasonCampaignEstimateRequest(
+      request(validPayload),
+      {
+        expectedSecret: "shared-secret",
+        accept: async () => ({kind: "duplicate_requires_restart"}),
+      },
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      error: "Please restart this estimate request.",
+      retryable: true,
+    });
+  });
+
   test.each([
-    [{ ...validPayload, campaign: "twenty-year" }, "campaign whitelist"],
+    [{ ...validPayload, campaign: "do-it-right-once" }, "unknown campaign"],
+    [{ ...validPayload, presentation_key: "seasonal-shield" }, "mismatched presentation"],
+    [{ ...validPayload, entry_point: "campaign:seasonal-shield" }, "mismatched entry point"],
     [{ ...validPayload, consent_to_contact: false }, "contact consent"],
     [{ ...validPayload, consent_to_process_property: false }, "property consent"],
+    [{ ...validPayload, client_ip_address: "not-an-ip" }, "client IP"],
+    [{ ...validPayload, extra_secret: "must-not-pass" }, "unknown field"],
     [
       {
         ...validPayload,
@@ -234,20 +169,8 @@ describe("All Season campaign estimate intake", () => {
       },
       "manual address",
     ],
-    [
-      {
-        ...validPayload,
-        consent_to_contact: undefined,
-        consent_to_process_property: undefined,
-        consent_estimate: true,
-        consent_email: true,
-        consent_sms: true,
-      },
-      "legacy consent contract",
-    ],
   ] as const)("rejects an invalid %s (%s)", async (payload, label) => {
     const accept = vi.fn();
-
     const response = await handleAllSeasonCampaignEstimateRequest(
       request(payload),
       { expectedSecret: "shared-secret", accept },
@@ -258,20 +181,21 @@ describe("All Season campaign estimate intake", () => {
     expect(accept).not.toHaveBeenCalled();
   });
 
-  test("returns a retryable response when estimate creation fails", async () => {
+  test("returns a generic retryable response without leaking a dependency error", async () => {
     const response = await handleAllSeasonCampaignEstimateRequest(
       request(validPayload),
       {
         expectedSecret: "shared-secret",
         accept: async () => {
-          throw new Error("database unavailable");
+          throw new Error("database host secret-123 alex@example.com");
         },
       },
     );
 
     expect(response.status).toBe(503);
-    await expect(response.json()).resolves.toEqual({
-      error: "Campaign estimate intake is temporarily unavailable",
-    });
+    const body = await response.text();
+    expect(body).toBe('{"error":"Campaign estimate intake is temporarily unavailable"}');
+    expect(body).not.toContain("secret-123");
+    expect(body).not.toContain("alex@example.com");
   });
 });

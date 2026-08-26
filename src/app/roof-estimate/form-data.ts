@@ -1,6 +1,9 @@
 import { z } from "zod";
+import { campaignSlugs, type CampaignSlug } from "@/config/campaigns";
+import type { CampaignAttribution } from "@/modules/leads/accept-all-season-campaign-estimate";
 
 export const publicRoofEstimateInputSchema = z.object({
+  campaign: z.enum(campaignSlugs),
   name: z.string().trim().min(2, "Enter your full name"),
   phone: z.string().trim().min(7, "Enter a valid phone number"),
   email: z.email("Enter a valid email address"),
@@ -35,8 +38,52 @@ export const publicRoofEstimateInputSchema = z.object({
 
 export type PublicRoofEstimateInput = z.infer<typeof publicRoofEstimateInputSchema>;
 
+export function resolveRoofEstimateEntryContext(
+  referrer: string | null,
+  campaign: CampaignSlug,
+) {
+  try {
+    if (referrer && new URL(referrer).pathname === `/campaigns/${campaign}`) {
+      return {
+        campaign,
+        presentationKey: campaign,
+        entryPoint: `campaign:${campaign}` as const,
+      };
+    }
+  } catch {
+    // Invalid or unavailable referrers use the non-campaign assessment frame.
+  }
+
+  return {
+    campaign: null,
+    presentationKey: "all-season-main" as const,
+    entryPoint: "roof-estimate" as const,
+  };
+}
+
+export function readRoofEstimateAttribution(referrer: string | null): CampaignAttribution {
+  let params: URLSearchParams | null = null;
+  try {
+    params = referrer ? new URL(referrer).searchParams : null;
+  } catch {
+    params = null;
+  }
+  const value = (key: string) => params?.get(key)?.trim() || null;
+  return {
+    utm_source: value("utm_source"),
+    utm_medium: value("utm_medium"),
+    utm_campaign: value("utm_campaign"),
+    utm_term: value("utm_term"),
+    utm_content: value("utm_content"),
+    fbclid: value("fbclid"),
+    fbp: value("fbp"),
+    fbc: value("fbc"),
+  };
+}
+
 export function parsePublicRoofEstimateFormData(formData: FormData) {
   return publicRoofEstimateInputSchema.parse({
+    campaign: formData.get("campaign"),
     name: formData.get("name"),
     phone: formData.get("phone"),
     email: formData.get("email"),

@@ -2,11 +2,14 @@ import { describe, expect, test } from "vitest";
 import {
   formatSubmittedAddress,
   parsePublicRoofEstimateFormData,
+  readRoofEstimateAttribution,
+  resolveRoofEstimateEntryContext,
 } from "./form-data";
 
 function validFormData() {
   const data = new FormData();
   Object.entries({
+    campaign: "for-every-season",
     name: "Jordan Homeowner",
     phone: "609-555-0100",
     email: "jordan@example.com",
@@ -44,5 +47,50 @@ describe("public roof estimate form", () => {
     const parsed = parsePublicRoofEstimateFormData(data);
     expect(parsed.googlePlaceId).toBe("ChIJ-selected");
     expect(formatSubmittedAddress(parsed)).toBe("132 Windsor Ave, Haddon Township, NJ 08108, USA");
+  });
+
+  test("only accepts configured campaign attribution", () => {
+    const data = validFormData();
+    data.set("campaign", "made-up-campaign");
+    expect(() => parsePublicRoofEstimateFormData(data)).toThrow();
+  });
+
+  test("maps an exact campaign referrer to its matching presentation literals", () => {
+    expect(resolveRoofEstimateEntryContext(
+      "https://piw.example/campaigns/weather-report?utm_source=facebook",
+      "weather-report",
+    )).toEqual({
+      campaign: "weather-report",
+      presentationKey: "weather-report",
+      entryPoint: "campaign:weather-report",
+    });
+  });
+
+  test.each([
+    "https://piw.example/roof-estimate",
+    "https://piw.example/campaigns/seasonal-shield",
+    "not a URL",
+    null,
+  ])("fails closed to the main roof-estimate context for a nonmatching referrer", (referrer) => {
+    expect(resolveRoofEstimateEntryContext(referrer, "weather-report")).toEqual({
+      campaign: null,
+      presentationKey: "all-season-main",
+      entryPoint: "roof-estimate",
+    });
+  });
+
+  test("preserves UTM and click attribution from the submitting page referrer", () => {
+    expect(readRoofEstimateAttribution(
+      "https://piw.example/campaigns/weather-report?utm_source=facebook&utm_medium=paid-social&utm_campaign=storm&utm_term=roof&utm_content=hero&fbclid=click-123",
+    )).toEqual({
+      utm_source: "facebook",
+      utm_medium: "paid-social",
+      utm_campaign: "storm",
+      utm_term: "roof",
+      utm_content: "hero",
+      fbclid: "click-123",
+      fbp: null,
+      fbc: null,
+    });
   });
 });
