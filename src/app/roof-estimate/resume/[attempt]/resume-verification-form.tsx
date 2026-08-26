@@ -40,6 +40,7 @@ export function ResumeVerificationForm({attemptId, onApproved}: Props) {
   async function requestCode() {
     setBusy(true);
     setError("");
+    setStatus("Securely requesting a code. This can take a few seconds.");
     try {
       await post({action: "start"});
       setRequested(true);
@@ -62,6 +63,7 @@ export function ResumeVerificationForm({attemptId, onApproved}: Props) {
     }
     setBusy(true);
     setError("");
+    setStatus("Securely confirming your code. This can take a few seconds.");
     try {
       const result = await post({action: "check", code});
       if (
@@ -83,9 +85,13 @@ export function ResumeVerificationForm({attemptId, onApproved}: Props) {
   return (
     <main
       data-testid="resume-verification-card"
-      className="min-h-[100svh] overflow-hidden bg-[#071724] px-4 py-4 [font-family:var(--font-montserrat)] sm:grid sm:place-items-center sm:px-6"
+      data-overflow-fallback="compact-height-landscape-zoom"
+      className="h-[100svh] min-h-[100svh] overflow-hidden bg-[#071724] px-4 py-4 [font-family:var(--font-montserrat)] [@media(max-height:640px)]:h-auto [@media(max-height:640px)]:overflow-y-auto sm:grid sm:place-items-center sm:px-6"
     >
-      <section className="mx-auto flex h-[calc(100svh-2rem)] w-full max-w-lg flex-col justify-between overflow-hidden rounded-[1.75rem] border border-white/10 bg-[#f7f5ef] p-5 shadow-[0_30px_90px_rgba(0,0,0,0.35)] sm:h-auto sm:min-h-[37rem] sm:p-8">
+      <section
+        data-testid="resume-verification-panel"
+        className="mx-auto flex h-[calc(100svh-2rem)] w-full max-w-lg flex-col justify-between overflow-hidden rounded-[1.75rem] border border-white/10 bg-[#f7f5ef] p-5 shadow-[0_30px_90px_rgba(0,0,0,0.35)] [@media(max-height:640px)]:h-auto [@media(max-height:640px)]:min-h-[calc(100svh-2rem)] [@media(max-height:640px)]:overflow-visible sm:h-auto sm:min-h-[37rem] sm:p-8"
+      >
         <div>
           <div className="flex items-center justify-between border-b border-[#d9d4c8] pb-4">
             <div>

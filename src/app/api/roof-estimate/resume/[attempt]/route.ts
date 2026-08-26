@@ -24,6 +24,10 @@ type StartResult = {sent: boolean};
 export type ResumeVerificationRouteDependencies = {
   signingKey: string;
   nodeEnv: "development" | "test" | "production";
+  deploymentEnv: "development" | "test" | "preview" | "production";
+  minimumResponseMs: number;
+  nowMs: () => number;
+  sleep: (milliseconds: number) => Promise<void>;
   start: (input: {attemptId: string; requestIp: string}) => Promise<StartResult>;
   check: (input: {attemptId: string; code: string}) => Promise<CheckResumeVerificationResult>;
 };
@@ -35,11 +39,31 @@ function json(body: unknown, status = 200) {
   });
 }
 
-function requestIp(request: NextRequest) {
+function requestIp(
+  request: NextRequest,
+  deploymentEnv: ResumeVerificationRouteDependencies["deploymentEnv"],
+) {
+  if (deploymentEnv === "production") {
+    // Vercel overwrites x-vercel-forwarded-for with the public client IP.
+    // Never fall back to client-controlled x-forwarded-for in production.
+    const marker = request.headers.get("x-vercel-id")?.trim();
+    const vercelIp = request.headers.get("x-vercel-forwarded-for")?.trim();
+    if (!marker || marker.length > 512 || !vercelIp || vercelIp.includes(",")) return null;
+    const parsed = ipSchema.safeParse(vercelIp);
+    return parsed.success ? parsed.data : null;
+  }
   const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
   const direct = request.headers.get("x-real-ip")?.trim();
   const parsed = ipSchema.safeParse(forwarded || direct);
   return parsed.success ? parsed.data : null;
+}
+
+async function equalizeResponseTime(
+  dependencies: ResumeVerificationRouteDependencies,
+  startedAt: number,
+) {
+  const elapsed = Math.max(0, dependencies.nowMs() - startedAt);
+  await dependencies.sleep(Math.max(0, dependencies.minimumResponseMs - elapsed));
 }
 
 export async function handleResumeVerification(
@@ -47,37 +71,62 @@ export async function handleResumeVerification(
   rawParams: {attempt: string},
   dependencies: ResumeVerificationRouteDependencies,
 ) {
+  const contentType = request.headers.get("content-type")?.split(";")[0]?.trim().toLowerCase();
+  if (contentType !== "application/json") return json({status: "invalid_request"}, 400);
+  const params = paramsSchema.safeParse(rawParams);
+  let rawBody: unknown;
   try {
-    const params = paramsSchema.safeParse(rawParams);
-    const body = requestSchema.safeParse(await request.json());
-    if (!params.success || !body.success) return json({status: "invalid_request"}, 400);
+    rawBody = await request.json();
+  } catch {
+    return json({status: "invalid_request"}, 400);
+  }
+  const body = requestSchema.safeParse(rawBody);
+  if (!params.success || !body.success) return json({status: "invalid_request"}, 400);
+
+  const startedAt = dependencies.nowMs();
+  let response: NextResponse;
+  try {
 
     if (body.data.action === "start") {
-      const ip = requestIp(request);
+      const ip = requestIp(request, dependencies.deploymentEnv);
       if (!ip) return json({status: "invalid_request"}, 400);
-      await dependencies.start({attemptId: params.data.attempt, requestIp: ip});
+      try {
+        await dependencies.start({attemptId: params.data.attempt, requestIp: ip});
+      } catch {
+        // Keep dependency/provider failures indistinguishable from accepted work.
+      }
       // A valid, throttled, unknown, or provider-failed attempt is deliberately
       // indistinguishable so the endpoint cannot enumerate homeowners.
-      return json({status: "pending", cooldownSeconds: 60}, 202);
+      response = json({status: "pending", cooldownSeconds: 60}, 202);
+    } else {
+      let checked: CheckResumeVerificationResult = {approved: false};
+      try {
+        checked = await dependencies.check({
+          attemptId: params.data.attempt,
+          code: body.data.code,
+        });
+      } catch {
+        // Generic pending is the only externally visible failure.
+      }
+      if (!checked.approved) {
+        response = json({status: "pending"});
+      } else {
+        response = json({
+          status: "approved",
+          redirectTo: `/roof-estimate/${checked.publicToken}`,
+        });
+        await setAssessmentSession(response, checked.assessmentId, dependencies.signingKey, {
+          nodeEnv: dependencies.nodeEnv,
+        });
+      }
     }
-
-    const checked = await dependencies.check({
-      attemptId: params.data.attempt,
-      code: body.data.code,
-    });
-    if (!checked.approved) return json({status: "pending"});
-
-    const response = json({
-      status: "approved",
-      redirectTo: `/roof-estimate/${checked.publicToken}`,
-    });
-    await setAssessmentSession(response, checked.assessmentId, dependencies.signingKey, {
-      nodeEnv: dependencies.nodeEnv,
-    });
-    return response;
   } catch {
-    return json({status: "pending"});
+    response = body.data.action === "start"
+      ? json({status: "pending", cooldownSeconds: 60}, 202)
+      : json({status: "pending"});
   }
+  await equalizeResponseTime(dependencies, startedAt);
+  return response;
 }
 
 function createRepository(): ResumeVerificationRepository {
@@ -137,7 +186,7 @@ function createRepository(): ResumeVerificationRepository {
   };
 }
 
-function createDependencies(): ResumeVerificationRouteDependencies | null {
+function createDependencies(): ResumeVerificationRouteDependencies {
   const env = parseServerEnv(process.env);
   if (
     !env.TWILIO_VERIFY_ENABLED
@@ -145,7 +194,18 @@ function createDependencies(): ResumeVerificationRouteDependencies | null {
     || !env.TWILIO_API_KEY_SECRET
     || !env.TWILIO_VERIFY_SERVICE_SID
     || !env.ROOF_ASSESSMENT_SIGNING_SECRET
-  ) return null;
+  ) {
+    return {
+      signingKey: "verification-disabled-signing-key-32-bytes",
+      nodeEnv: env.NODE_ENV,
+      deploymentEnv: env.DEPLOYMENT_ENV,
+      minimumResponseMs: 8_250,
+      nowMs: () => Date.now(),
+      sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+      start: async () => ({sent: false}),
+      check: async () => ({approved: false}),
+    };
+  }
   const useCases: ResumeVerificationDependencies = {
     repository: createRepository(),
     provider: new TwilioVerifyProvider({
@@ -157,6 +217,10 @@ function createDependencies(): ResumeVerificationRouteDependencies | null {
   return {
     signingKey: env.ROOF_ASSESSMENT_SIGNING_SECRET,
     nodeEnv: env.NODE_ENV,
+    deploymentEnv: env.DEPLOYMENT_ENV,
+    minimumResponseMs: 8_250,
+    nowMs: () => Date.now(),
+    sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
     start: (input) => startResumeVerification(input, useCases),
     check: (input) => checkResumeVerification(input, useCases),
   };
@@ -168,7 +232,6 @@ export async function POST(
 ) {
   try {
     const dependencies = createDependencies();
-    if (!dependencies) return json({status: "pending"}, 202);
     return handleResumeVerification(request, await context.params, dependencies);
   } catch {
     return json({status: "pending"}, 202);

@@ -856,7 +856,7 @@ declare
   v_now timestamptz := pg_catalog.clock_timestamp();
 begin
   if p_provider_attempt_id is null
-    or p_provider_attempt_id !~ '^VE[A-Za-z0-9]{2,64}$'
+    or p_provider_attempt_id !~ '^VE[0-9a-fA-F]{32}$'
   then
     raise exception 'verification_start_unavailable';
   end if;
@@ -884,10 +884,16 @@ begin
     raise exception 'verification_start_unavailable';
   end if;
   if exists (
-    select 1 from public.roof_assessment_verification_sends as newer
+    select 1
+    from public.roof_assessment_verification_sends as newer
+    join public.roof_assessment_access_attempts as newer_attempt
+      on newer_attempt.id = newer.attempt_id
+     and newer_attempt.company_id = newer.company_id
     where newer.company_id = p_company_id
-      and newer.attempt_id = p_attempt_id
-      and (newer.reserved_at, newer.id) > (v_reservation.reserved_at, v_reservation.id)
+      and newer.destination_phone_e164 = v_attempt.destination_phone_e164
+      and newer_attempt.assessment_id = v_attempt.assessment_id
+      and newer.id <> v_reservation.id
+      and newer.reserved_at >= v_reservation.reserved_at
   ) then
     raise exception 'verification_start_unavailable';
   end if;

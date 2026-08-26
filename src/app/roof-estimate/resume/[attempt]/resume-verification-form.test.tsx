@@ -14,6 +14,10 @@ describe("ResumeVerificationForm", () => {
     expect(screen.getByText(/number on file/i)).toBeVisible();
     expect(screen.queryByText(/\+1|609|555/)).not.toBeInTheDocument();
     expect(screen.getByTestId("resume-verification-card")).toHaveClass("min-h-[100svh]");
+    expect(screen.getByTestId("resume-verification-card")).toHaveAttribute(
+      "data-overflow-fallback",
+      "compact-height-landscape-zoom",
+    );
     expect(screen.getByRole("button", {name: "Send verification code"})).toBeVisible();
   });
 
@@ -25,6 +29,7 @@ describe("ResumeVerificationForm", () => {
     render(<ResumeVerificationForm attemptId={attemptId} />);
 
     fireEvent.click(screen.getByRole("button", {name: "Send verification code"}));
+    expect(screen.getByRole("status")).toHaveTextContent(/securely requesting/i);
     const input = await screen.findByLabelText("Six-digit verification code");
     expect(input).toHaveAttribute("inputmode", "numeric");
     expect(input).toHaveAttribute("autocomplete", "one-time-code");
@@ -32,6 +37,19 @@ describe("ResumeVerificationForm", () => {
     expect(input).toHaveValue("314159");
     expect(screen.getByRole("status")).toHaveTextContent(/code was requested/i);
     expect(screen.getByRole("button", {name: /send again/i})).toBeDisabled();
+  });
+
+  test("keeps controls and live feedback reachable through the compact-height overflow fallback", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({status: "pending", cooldownSeconds: 60}, {status: 202})));
+    render(<ResumeVerificationForm attemptId={attemptId} />);
+    fireEvent.click(screen.getByRole("button", {name: "Send verification code"}));
+
+    const shell = screen.getByTestId("resume-verification-card");
+    const card = await screen.findByTestId("resume-verification-panel");
+    expect(shell.className).toContain("[@media(max-height:640px)]:overflow-y-auto");
+    expect(card.className).toContain("[@media(max-height:640px)]:overflow-visible");
+    expect(card).toContainElement(screen.getByRole("button", {name: "Verify and continue"}));
+    expect(card).toContainElement(screen.getByRole("status"));
   });
 
   test("redirects only after an approved response", async () => {

@@ -3,6 +3,7 @@ import {z} from "zod";
 
 const uuidSchema = z.uuid();
 const phoneSchema = z.string().regex(/^\+[1-9][0-9]{7,14}$/);
+const providerAttemptIdSchema = z.string().regex(/^VE[0-9a-fA-F]{32}$/);
 
 const reservationSchema = z.strictObject({
   reservationId: z.uuid(),
@@ -12,7 +13,7 @@ const reservationSchema = z.strictObject({
 const checkContextSchema = z.strictObject({
   companyId: z.uuid(),
   to: phoneSchema,
-  providerAttemptId: z.string().regex(/^VE[A-Za-z0-9]{2,64}$/),
+  providerAttemptId: providerAttemptIdSchema,
 });
 const approvalSchema = z.strictObject({
   assessmentId: z.uuid(),
@@ -21,7 +22,9 @@ const approvalSchema = z.strictObject({
 
 export interface ResumeVerificationProvider {
   start(input: {to: string}): Promise<{providerAttemptId: string; status: "pending"}>;
-  check(input: {to: string; code: string}): Promise<{approved: boolean}>;
+  check(input: {to: string; code: string; providerAttemptId: string}): Promise<
+    {approved: false} | {approved: true; providerAttemptId: string}
+  >;
 }
 
 export interface ResumeVerificationRepository {
@@ -60,7 +63,7 @@ export async function startResumeVerification(
       await dependencies.repository.reserveStart(parsed.data),
     );
     const started = await dependencies.provider.start({to: reservation.to});
-    const providerAttemptId = z.string().regex(/^VE[A-Za-z0-9]{2,64}$/).parse(
+    const providerAttemptId = providerAttemptIdSchema.parse(
       started.providerAttemptId,
     );
     await dependencies.repository.recordProviderStart({
@@ -96,12 +99,13 @@ export async function checkResumeVerification(
     const checked = await dependencies.provider.check({
       to: context.to,
       code: parsed.data.code,
+      providerAttemptId: context.providerAttemptId,
     });
     if (!checked.approved) return {approved: false};
     const approval = approvalSchema.parse(await dependencies.repository.approve({
       attemptId: parsed.data.attemptId,
       companyId: context.companyId,
-      providerAttemptId: context.providerAttemptId,
+      providerAttemptId: checked.providerAttemptId,
     }));
     return {approved: true, ...approval};
   } catch {

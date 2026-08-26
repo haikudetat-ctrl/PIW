@@ -5,6 +5,22 @@ import {
 } from "./twilio-verify-provider";
 
 const to = "+16095550100";
+const providerAttemptId = "VE0123456789abcdef0123456789abcdef";
+
+const documentedVerification = {
+  sid: providerAttemptId,
+  service_sid: "VA0123456789abcdef0123456789abcdef",
+  account_sid: ["AC", "0123456789abcdef0123456789abcdef"].join(""),
+  to,
+  channel: "sms",
+  status: "pending",
+  valid: false,
+  date_created: "2026-08-26T20:00:00Z",
+  date_updated: "2026-08-26T20:00:00Z",
+  lookup: {carrier: null},
+  send_code_attempts: [{attempt_sid: "VL0123456789abcdef0123456789abcdef"}],
+  url: `https://verify.twilio.com/v2/Services/VA0123456789abcdef0123456789abcdef/Verifications/${providerAttemptId}`,
+};
 
 function provider(fetchImpl: typeof fetch, timeoutMs = 2_000) {
   return new TwilioVerifyProvider({
@@ -18,13 +34,10 @@ function provider(fetchImpl: typeof fetch, timeoutMs = 2_000) {
 
 describe("TwilioVerifyProvider", () => {
   test("starts an SMS verification with server-side Basic auth and form encoding", async () => {
-    const fetchImpl = vi.fn<typeof fetch>(async () => Response.json({
-      sid: "VEtestattempt",
-      status: "pending",
-    }));
+    const fetchImpl = vi.fn<typeof fetch>(async () => Response.json(documentedVerification));
 
     await expect(provider(fetchImpl).start({to})).resolves.toEqual({
-      providerAttemptId: "VEtestattempt",
+      providerAttemptId,
       status: "pending",
     });
 
@@ -43,10 +56,16 @@ describe("TwilioVerifyProvider", () => {
   });
 
   test("checks a six-digit code against the configured service and destination", async () => {
-    const fetchImpl = vi.fn<typeof fetch>(async () => Response.json({status: "approved"}));
+    const fetchImpl = vi.fn<typeof fetch>(async () => Response.json({
+      ...documentedVerification,
+      status: "approved",
+      valid: true,
+    }));
 
-    await expect(provider(fetchImpl).check({to, code: "314159"})).resolves.toEqual({
+    await expect(provider(fetchImpl).check({to, code: "314159", providerAttemptId}))
+      .resolves.toEqual({
       approved: true,
+      providerAttemptId,
     });
 
     const [url, init] = vi.mocked(fetchImpl).mock.calls[0];
@@ -54,9 +73,21 @@ describe("TwilioVerifyProvider", () => {
       "https://verify.twilio.com/v2/Services/VA_test_service/VerificationCheck",
     );
     expect(Object.fromEntries(new URLSearchParams(init?.body as string))).toEqual({
-      To: to,
+      VerificationSid: providerAttemptId,
       Code: "314159",
     });
+  });
+
+  test("rejects an approved response for a different verification SID", async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () => Response.json({
+      ...documentedVerification,
+      sid: "VEffffffffffffffffffffffffffffffff",
+      status: "approved",
+      valid: true,
+    }));
+
+    await expect(provider(fetchImpl).check({to, code: "314159", providerAttemptId}))
+      .resolves.toEqual({approved: false});
   });
 
   test.each([
@@ -65,10 +96,10 @@ describe("TwilioVerifyProvider", () => {
     ["max attempts", 429],
   ])("maps %s checks to the same non-approved result", async (_label, status) => {
     const fetchImpl = vi.fn<typeof fetch>(async () => status === 200
-      ? Response.json({status: "pending"})
+      ? Response.json(documentedVerification)
       : Response.json({code: 20404, message: "provider detail"}, {status}));
 
-    await expect(provider(fetchImpl).check({to, code: "314159"})).resolves.toEqual({
+    await expect(provider(fetchImpl).check({to, code: "314159", providerAttemptId})).resolves.toEqual({
       approved: false,
     });
   });
@@ -84,7 +115,7 @@ describe("TwilioVerifyProvider", () => {
     await expect(provider(timeoutFetch, 1).start({to})).rejects.toEqual(
       new ResumeVerificationProviderUnavailableError(),
     );
-    await expect(provider(networkFetch).check({to, code: "314159"})).rejects.toEqual(
+    await expect(provider(networkFetch).check({to, code: "314159", providerAttemptId})).rejects.toEqual(
       new ResumeVerificationProviderUnavailableError(),
     );
   });
