@@ -5,6 +5,13 @@ import { booleanString, deploymentEnvironmentSchema } from "./shared";
 const optionalString = z.preprocess((value) => value === "" ? undefined : value, z.string().min(1).optional());
 const optionalUrl = z.preprocess((value) => value === "" ? undefined : value, z.url().optional());
 const optionalUuid = z.preprocess((value) => value === "" ? undefined : value, z.uuid().optional());
+const optionalSigningSecret = z.preprocess(
+  (value) => value === "" ? undefined : value,
+  z.string().optional().refine(
+    (value) => value === undefined || Buffer.byteLength(value, "utf8") >= 32,
+    "Roof assessment signing secret must be at least 32 bytes",
+  ),
+);
 
 const serverEnvSchema = z
   .object({
@@ -17,6 +24,7 @@ const serverEnvSchema = z
     INNGEST_SIGNING_KEY: z.string().min(1),
     PAID_PROVIDERS_ENABLED: booleanString,
     ROOF_ASSESSMENT_ENABLED: booleanString,
+    ROOF_ASSESSMENT_SIGNING_SECRET: optionalSigningSecret,
     INTEGRATIONS_LEADCONDUIT_ENABLED: booleanString,
     LEADCONDUIT_FILTER_CAVEAT_ACTIVE: z.enum(["true", "false"]).default("true")
       .transform((value) => value === "true"),
