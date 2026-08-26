@@ -24,28 +24,74 @@ alter table public.roof_assessments
     )
   );
 
--- Consent evidence is append-only per accepted submission. Legacy rows remain
--- valid with a null submission_id.
+-- Every tenant-scoped relationship below is enforced by the database rather
+-- than relying on service-role callers to keep company_id columns consistent.
+alter table public.properties
+  add constraint properties_company_id_id_key unique (company_id, id);
+alter table public.leads
+  add constraint leads_company_id_id_key unique (company_id, id),
+  drop constraint leads_property_id_fkey,
+  add constraint leads_company_property_fkey
+    foreign key (company_id, property_id)
+    references public.properties(company_id, id);
+alter table public.roof_estimates
+  add constraint roof_estimates_company_id_id_key unique (company_id, id),
+  drop constraint roof_estimates_lead_id_fkey,
+  drop constraint roof_estimates_property_id_fkey,
+  add constraint roof_estimates_company_lead_fkey
+    foreign key (company_id, lead_id)
+    references public.leads(company_id, id) on delete cascade,
+  add constraint roof_estimates_company_property_fkey
+    foreign key (company_id, property_id)
+    references public.properties(company_id, id) on delete cascade;
+alter table public.roof_assessments
+  add constraint roof_assessments_company_id_id_key unique (company_id, id),
+  drop constraint roof_assessments_estimate_id_fkey,
+  drop constraint roof_assessments_lead_id_fkey,
+  add constraint roof_assessments_company_estimate_fkey
+    foreign key (company_id, estimate_id)
+    references public.roof_estimates(company_id, id) on delete cascade,
+  add constraint roof_assessments_company_lead_fkey
+    foreign key (company_id, lead_id)
+    references public.leads(company_id, id) on delete cascade;
 alter table public.lead_consents
-  add column submission_id uuid;
+  drop constraint lead_consents_lead_id_fkey,
+  add constraint lead_consents_company_lead_fkey
+    foreign key (company_id, lead_id)
+    references public.leads(company_id, id) on delete cascade;
 
-alter table public.lead_consents
-  drop constraint lead_consents_lead_id_consent_type_key;
+-- lead_consents remains the single-row current projection expected by existing
+-- consumers. This table is the immutable, submission-scoped evidence ledger.
+create table public.lead_consent_evidence (
+  id uuid primary key default extensions.gen_random_uuid(),
+  company_id uuid not null references public.companies(id) on delete cascade,
+  lead_id uuid not null,
+  submission_id uuid not null,
+  consent_type text not null check (
+    consent_type in ('estimate_processing', 'email_contact', 'sms_contact')
+  ),
+  granted boolean not null,
+  disclosure_version text not null
+    check (pg_catalog.length(pg_catalog.btrim(disclosure_version)) > 0),
+  source text not null check (pg_catalog.length(pg_catalog.btrim(source)) > 0),
+  ip_address inet,
+  user_agent text,
+  granted_at timestamptz not null,
+  recorded_at timestamptz not null default pg_catalog.now(),
+  unique (company_id, submission_id, consent_type),
+  foreign key (company_id, lead_id)
+    references public.leads(company_id, id) on delete cascade
+);
 
-create unique index lead_consents_company_submission_type_key
-  on public.lead_consents(company_id, submission_id, consent_type)
-  where submission_id is not null;
-
-create index lead_consents_submission_id_idx
-  on public.lead_consents(company_id, submission_id)
-  where submission_id is not null;
+create index lead_consent_evidence_lead_granted_idx
+  on public.lead_consent_evidence(company_id, lead_id, granted_at desc);
 
 create table public.lead_attribution_touches (
   id uuid primary key default extensions.gen_random_uuid(),
   company_id uuid not null references public.companies(id) on delete cascade,
-  lead_id uuid not null references public.leads(id) on delete cascade,
-  estimate_id uuid references public.roof_estimates(id) on delete set null,
-  assessment_id uuid references public.roof_assessments(id) on delete set null,
+  lead_id uuid not null,
+  estimate_id uuid,
+  assessment_id uuid,
   submission_id uuid not null,
   entry_point text not null check (pg_catalog.length(pg_catalog.btrim(entry_point)) > 0),
   presentation_key text not null check (pg_catalog.length(pg_catalog.btrim(presentation_key)) > 0),
@@ -53,16 +99,22 @@ create table public.lead_attribution_touches (
     check (pg_catalog.jsonb_typeof(attribution) = 'object'),
   referrer text,
   occurred_at timestamptz not null default pg_catalog.now(),
-  unique (company_id, submission_id)
+  unique (company_id, submission_id),
+  foreign key (company_id, lead_id)
+    references public.leads(company_id, id) on delete cascade,
+  foreign key (company_id, estimate_id)
+    references public.roof_estimates(company_id, id),
+  foreign key (company_id, assessment_id)
+    references public.roof_assessments(company_id, id)
 );
 
 create table public.consultation_requests (
   id uuid primary key default extensions.gen_random_uuid(),
   company_id uuid not null references public.companies(id) on delete cascade,
-  lead_id uuid not null references public.leads(id) on delete cascade,
-  property_id uuid not null references public.properties(id) on delete cascade,
-  estimate_id uuid not null references public.roof_estimates(id) on delete cascade,
-  assessment_id uuid not null references public.roof_assessments(id) on delete cascade,
+  lead_id uuid not null,
+  property_id uuid not null,
+  estimate_id uuid not null,
+  assessment_id uuid not null,
   contact_method text not null check (contact_method in ('call', 'text', 'email')),
   call_window text check (call_window in ('asap', 'morning', 'midday', 'afternoon', 'evening')),
   timezone text not null default 'America/New_York'
@@ -73,6 +125,14 @@ create table public.consultation_requests (
   created_at timestamptz not null default pg_catalog.now(),
   updated_at timestamptz not null default pg_catalog.now(),
   unique (assessment_id),
+  foreign key (company_id, lead_id)
+    references public.leads(company_id, id) on delete cascade,
+  foreign key (company_id, property_id)
+    references public.properties(company_id, id) on delete cascade,
+  foreign key (company_id, estimate_id)
+    references public.roof_estimates(company_id, id) on delete cascade,
+  foreign key (company_id, assessment_id)
+    references public.roof_assessments(company_id, id) on delete cascade,
   check (
     (contact_method = 'call' and call_window is not null)
     or (contact_method in ('text', 'email') and call_window is null)
@@ -83,15 +143,19 @@ create table public.roof_assessment_access_attempts (
   id uuid primary key default extensions.gen_random_uuid(),
   company_id uuid not null references public.companies(id) on delete cascade,
   submission_id uuid not null,
-  lead_id uuid not null references public.leads(id) on delete cascade,
-  property_id uuid not null references public.properties(id) on delete cascade,
-  estimate_id uuid not null references public.roof_estimates(id) on delete cascade,
-  assessment_id uuid not null references public.roof_assessments(id) on delete cascade,
+  lead_id uuid not null,
+  property_id uuid not null,
+  estimate_id uuid not null,
+  assessment_id uuid not null,
   attempt_kind text not null check (attempt_kind in ('new', 'resume_candidate')),
   continuation_secret_hash bytea not null
     check (pg_catalog.octet_length(continuation_secret_hash) = 32),
   destination_phone_e164 text not null
     check (destination_phone_e164 ~ '^[+][1-9][0-9]{7,14}$'),
+  requested_presentation_key text not null
+    check (pg_catalog.length(pg_catalog.btrim(requested_presentation_key)) > 0),
+  requested_entry_point text not null
+    check (pg_catalog.length(pg_catalog.btrim(requested_entry_point)) > 0),
   request_ip inet not null,
   provider_attempt_id text,
   provider_attempt_metadata jsonb not null default '{}'::jsonb
@@ -106,7 +170,14 @@ create table public.roof_assessment_access_attempts (
   token_rotated_at timestamptz,
   created_at timestamptz not null default pg_catalog.now(),
   updated_at timestamptz not null default pg_catalog.now(),
-  unique (company_id, submission_id)
+  foreign key (company_id, lead_id)
+    references public.leads(company_id, id) on delete cascade,
+  foreign key (company_id, property_id)
+    references public.properties(company_id, id) on delete cascade,
+  foreign key (company_id, estimate_id)
+    references public.roof_estimates(company_id, id) on delete cascade,
+  foreign key (company_id, assessment_id)
+    references public.roof_assessments(company_id, id) on delete cascade
 );
 
 create index lead_attribution_touches_lead_occurred_idx
@@ -115,19 +186,24 @@ create index consultation_requests_company_created_idx
   on public.consultation_requests(company_id, created_at desc);
 create index roof_assessment_access_attempts_assessment_idx
   on public.roof_assessment_access_attempts(company_id, assessment_id, created_at desc);
+create index roof_assessment_access_attempts_submission_idx
+  on public.roof_assessment_access_attempts(company_id, submission_id, created_at, id);
 create index roof_assessment_access_attempts_phone_throttle_idx
   on public.roof_assessment_access_attempts(destination_phone_e164, created_at desc);
 create index roof_assessment_access_attempts_ip_throttle_idx
   on public.roof_assessment_access_attempts(request_ip, created_at desc);
 
+alter table public.lead_consent_evidence enable row level security;
 alter table public.lead_attribution_touches enable row level security;
 alter table public.consultation_requests enable row level security;
 alter table public.roof_assessment_access_attempts enable row level security;
 
+revoke all on public.lead_consent_evidence from public, anon, authenticated;
 revoke all on public.lead_attribution_touches from public, anon, authenticated;
 revoke all on public.consultation_requests from public, anon, authenticated;
 revoke all on public.roof_assessment_access_attempts from public, anon, authenticated;
 
+grant all on public.lead_consent_evidence to service_role;
 grant all on public.lead_attribution_touches to service_role;
 grant all on public.consultation_requests to service_role;
 grant all on public.roof_assessment_access_attempts to service_role;
@@ -165,6 +241,7 @@ declare
   v_expires_at timestamptz;
   v_request_ip inet;
   v_phone text;
+  v_destination_phone text;
   v_email text;
   v_address text;
   v_normalized_address text;
@@ -176,7 +253,7 @@ declare
   v_assessment_id uuid;
   v_event_id uuid;
   v_event_payload jsonb;
-  v_now timestamptz := pg_catalog.clock_timestamp();
+  v_now timestamptz := pg_catalog.now();
 begin
   if p_company_id is null or not exists (
     select 1 from public.companies as company where company.id = p_company_id
@@ -235,33 +312,57 @@ begin
   from public.roof_assessment_access_attempts as attempt
   where attempt.company_id = p_company_id
     and attempt.submission_id = p_submission_id
-  for update;
+  order by attempt.created_at, attempt.id
+  limit 1;
 
   if found then
+    -- A retry gets a fresh credential without mutating, extending, or
+    -- resurrecting any previously issued or consumed attempt.
     v_secret := pg_catalog.encode(extensions.gen_random_bytes(32), 'hex');
     v_expires_at := v_now + interval '15 minutes';
-    update public.roof_assessment_access_attempts as attempt
-    set continuation_secret_hash = extensions.digest(v_secret, 'sha256'),
-        expires_at = v_expires_at,
-        consumed_at = null,
-        updated_at = v_now
-    where attempt.id = v_attempt.id;
+    v_attempt_id := extensions.gen_random_uuid();
+    insert into public.roof_assessment_access_attempts (
+      id, company_id, submission_id, lead_id, property_id, estimate_id,
+      assessment_id, attempt_kind, continuation_secret_hash,
+      destination_phone_e164, requested_presentation_key,
+      requested_entry_point, request_ip, expires_at
+    ) values (
+      v_attempt_id, v_attempt.company_id, v_attempt.submission_id,
+      v_attempt.lead_id, v_attempt.property_id, v_attempt.estimate_id,
+      v_attempt.assessment_id, v_attempt.attempt_kind,
+      extensions.digest(v_secret, 'sha256'),
+      v_attempt.destination_phone_e164, v_attempt.requested_presentation_key,
+      v_attempt.requested_entry_point, v_request_ip, v_expires_at
+    );
 
-    return query select v_attempt.id, v_secret, v_expires_at;
+    return query select v_attempt_id, v_secret, v_expires_at;
     return;
   end if;
 
+  -- The normalized property address is the common boundary for one-sided
+  -- Place-ID fallback. The optional Place-ID lock also serializes same-Place
+  -- requests whose submitted address formatting differs.
   perform pg_catalog.pg_advisory_xact_lock(
     pg_catalog.hashtextextended(
-      p_company_id::text || ':roof-assessment-identity:'
-      || coalesce(v_google_place_id, v_normalized_address) || ':'
-      || v_phone || ':' || v_email,
+      p_company_id::text || ':roof-assessment-property-address:'
+      || v_normalized_address,
       0
     )
   );
+  if v_google_place_id is not null then
+    perform pg_catalog.pg_advisory_xact_lock(
+      pg_catalog.hashtextextended(
+        p_company_id::text || ':roof-assessment-property-place:'
+        || v_google_place_id,
+        0
+      )
+    );
+  end if;
 
-  select assessment.id, assessment.estimate_id, assessment.lead_id, estimate.property_id
-  into v_assessment_id, v_estimate_id, v_lead_id, v_property_id
+  select assessment.id, assessment.estimate_id, assessment.lead_id,
+         estimate.property_id, lead.phone_e164
+  into v_assessment_id, v_estimate_id, v_lead_id, v_property_id,
+       v_destination_phone
   from public.roof_assessments as assessment
   join public.roof_estimates as estimate
     on estimate.id = assessment.estimate_id
@@ -273,9 +374,13 @@ begin
     and assessment.status in ('in_progress', 'abandoned')
     and assessment.updated_at >= v_now - interval '30 days'
     and (
-      (v_google_place_id is not null and estimate.google_place_id = v_google_place_id)
+      (
+        v_google_place_id is not null
+        and estimate.google_place_id is not null
+        and estimate.google_place_id = v_google_place_id
+      )
       or (
-        v_google_place_id is null
+        (v_google_place_id is null or estimate.google_place_id is null)
         and public.normalize_property_address(lead.submitted_address) = v_normalized_address
       )
     )
@@ -290,13 +395,11 @@ begin
 
   if found then
     v_attempt_kind := 'resume_candidate';
-    update public.roof_assessments as assessment
-    set status = 'in_progress',
-        presentation_key = pg_catalog.btrim(p_presentation_key),
-        entry_point = pg_catalog.btrim(p_entry_point),
-        abandoned_at = null,
-        updated_at = v_now
-    where assessment.id = v_assessment_id;
+    if v_destination_phone is null
+      or v_destination_phone !~ '^[+][1-9][0-9]{7,14}$'
+    then
+      raise exception 'Resume candidate has no usable existing phone';
+    end if;
 
     select run.id into v_pipeline_run_id
     from public.pipeline_runs as run
@@ -305,6 +408,7 @@ begin
     limit 1;
   else
     v_attempt_kind := 'new';
+    v_destination_phone := v_phone;
 
     insert into public.properties (company_id, canonical_address, resolution_status)
     values (p_company_id, v_address, 'unresolved')
@@ -356,6 +460,25 @@ begin
   end if;
 
   insert into public.lead_consents (
+    company_id, lead_id, consent_type, granted,
+    disclosure_version, source, ip_address, user_agent, granted_at
+  )
+  select p_company_id, v_lead_id, consent_type, true,
+         pg_catalog.btrim(p_disclosure_version), pg_catalog.btrim(p_entry_point),
+         v_request_ip, pg_catalog.btrim(p_user_agent), p_consent_granted_at
+  from pg_catalog.unnest(array[
+    'estimate_processing', 'email_contact', 'sms_contact'
+  ]) as consent_type
+  on conflict (lead_id, consent_type) do update
+  set company_id = excluded.company_id,
+      granted = excluded.granted,
+      disclosure_version = excluded.disclosure_version,
+      source = excluded.source,
+      ip_address = excluded.ip_address,
+      user_agent = excluded.user_agent,
+      granted_at = excluded.granted_at;
+
+  insert into public.lead_consent_evidence (
     company_id, lead_id, submission_id, consent_type, granted,
     disclosure_version, source, ip_address, user_agent, granted_at
   )
@@ -383,18 +506,21 @@ begin
   insert into public.roof_assessment_access_attempts (
     id, company_id, submission_id, lead_id, property_id, estimate_id,
     assessment_id, attempt_kind, continuation_secret_hash,
-    destination_phone_e164, request_ip, expires_at
+    destination_phone_e164, requested_presentation_key,
+    requested_entry_point, request_ip, expires_at
   ) values (
     v_attempt_id, p_company_id, p_submission_id, v_lead_id, v_property_id,
     v_estimate_id, v_assessment_id, v_attempt_kind,
-    extensions.digest(v_secret, 'sha256'), v_phone, v_request_ip, v_expires_at
+    extensions.digest(v_secret, 'sha256'), v_destination_phone,
+    pg_catalog.btrim(p_presentation_key), pg_catalog.btrim(p_entry_point),
+    v_request_ip, v_expires_at
   );
 
   if v_attempt_kind = 'new' then
     v_event_id := extensions.gen_random_uuid();
     v_event_payload := pg_catalog.jsonb_build_object(
       'id', v_event_id,
-      'name', 'roof-assessment/started',
+      'name', 'roof/assessment.started',
       'schemaVersion', 1,
       'correlationId', p_submission_id,
       'leadId', v_lead_id,
@@ -403,7 +529,7 @@ begin
       'occurredAt', pg_catalog.to_char(
         v_now at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'
       ),
-      'idempotencyKey', 'roof-assessment/started:' || v_assessment_id::text,
+      'idempotencyKey', 'roof/assessment.started:' || v_assessment_id::text,
       'data', pg_catalog.jsonb_build_object(
         'assessmentId', v_assessment_id,
         'entryPoint', pg_catalog.btrim(p_entry_point),
@@ -416,8 +542,8 @@ begin
       correlation_id, idempotency_key, payload, occurred_at
     ) values (
       v_event_id, p_company_id, v_pipeline_run_id,
-      'roof-assessment/started', 1, p_submission_id,
-      'roof-assessment/started:' || v_assessment_id::text,
+      'roof/assessment.started', 1, p_submission_id,
+      'roof/assessment.started:' || v_assessment_id::text,
       v_event_payload, v_now
     );
 
@@ -463,6 +589,16 @@ begin
   if v_attempt.token_rotated_at is null then
     v_token := extensions.gen_random_uuid();
     v_rotated_at := pg_catalog.clock_timestamp();
+
+    update public.roof_assessments as assessment
+    set status = 'in_progress',
+        presentation_key = v_attempt.requested_presentation_key,
+        entry_point = v_attempt.requested_entry_point,
+        abandoned_at = null,
+        updated_at = v_rotated_at
+    where assessment.id = v_attempt.assessment_id
+      and assessment.company_id = p_company_id;
+
     update public.roof_estimates as estimate
     set public_token = v_token, updated_at = v_rotated_at
     where estimate.id = v_attempt.estimate_id
