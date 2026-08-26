@@ -110,6 +110,15 @@ const entryPointSchema = z.enum([
   ...campaignSlugs.map((campaign) => `campaign:${campaign}` as const),
 ]);
 
+// Task 6 will centralize this alongside the full presentation configuration.
+// Keeping the map explicit here prevents independent campaign fields from
+// silently selecting conflicting homeowner framing in the meantime.
+export const roofAssessmentPresentationByCampaign = {
+  "weather-report": "weather-report",
+  "seasonal-shield": "seasonal-shield",
+  "for-every-season": "for-every-season",
+} as const satisfies Record<CampaignSlug, RoofAssessmentPresentationKey>;
+
 const startAssessmentInputSchema = z.object({
   submissionId: z.uuid(),
   companyId: z.uuid(),
@@ -129,7 +138,30 @@ const startAssessmentInputSchema = z.object({
     userAgent: z.string().trim().min(1).max(1_000),
     grantedAt: z.iso.datetime({offset: true}),
   }).strict(),
-}).strict();
+}).strict().superRefine((value, context) => {
+  if (value.entryPoint.startsWith("campaign:")) {
+    const routeCampaign = value.entryPoint.slice("campaign:".length) as CampaignSlug;
+    if (
+      value.campaign !== routeCampaign
+      || value.presentationKey !== roofAssessmentPresentationByCampaign[routeCampaign]
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["campaign"],
+        message: "Campaign context does not match the assessment entry point",
+      });
+    }
+    return;
+  }
+
+  if (value.campaign !== null || value.presentationKey !== "all-season-main") {
+    context.addIssue({
+      code: "custom",
+      path: ["presentationKey"],
+      message: "Main assessment entry points require the All Season presentation",
+    });
+  }
+});
 
 const firstAttemptSchema = z.object({
   attemptId: z.uuid(),
@@ -194,13 +226,18 @@ export async function startOrResumeRoofAssessment(
     return {kind: "duplicate_requires_restart"};
   }
 
-  const token = continuationTokenSchema.safeParse(
-    await dependencies.tokenIssuer.issue({
+  let issuedToken: string;
+  try {
+    issuedToken = await dependencies.tokenIssuer.issue({
       attemptId: repositoryResult.data.attemptId,
       secret: repositoryResult.data.continuationSecret,
       expiresAt: repositoryResult.data.expiresAt,
-    }),
-  );
+    });
+  } catch {
+    throw new StartAssessmentInternalError();
+  }
+
+  const token = continuationTokenSchema.safeParse(issuedToken);
   if (!token.success) throw new StartAssessmentInternalError();
 
   return {

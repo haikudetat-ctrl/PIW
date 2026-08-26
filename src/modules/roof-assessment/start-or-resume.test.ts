@@ -131,6 +131,50 @@ describe("startOrResumeRoofAssessment", () => {
   });
 
   test.each([
+    [
+      "campaign slug does not match the route",
+      {
+        campaign: "weather-report",
+        presentationKey: "weather-report",
+        entryPoint: "campaign:seasonal-shield",
+      },
+    ],
+    [
+      "campaign presentation does not match the route",
+      {
+        campaign: "weather-report",
+        presentationKey: "for-every-season",
+        entryPoint: "campaign:weather-report",
+      },
+    ],
+    [
+      "main route carries campaign framing",
+      {
+        campaign: "weather-report",
+        presentationKey: "weather-report",
+        entryPoint: "main-home",
+      },
+    ],
+    [
+      "main route carries a campaign presentation",
+      {
+        campaign: null,
+        presentationKey: "weather-report",
+        entryPoint: "roof-estimate",
+      },
+    ],
+  ] as const)("rejects mismatched campaign context: %s", async (_label, context) => {
+    const deps = dependencies();
+
+    await expect(startOrResumeRoofAssessment({
+      ...input,
+      ...context,
+    }, deps)).rejects.toBeInstanceOf(StartAssessmentInputError);
+    expect(deps.repository.startOrResume).not.toHaveBeenCalled();
+    expect(deps.tokenIssuer.issue).not.toHaveBeenCalled();
+  });
+
+  test.each([
     ["a non-UUID attempt", {...firstAttempt, attemptId: "attempt-123"}],
     ["an invalid expiry", {...firstAttempt, expiresAt: "tomorrow"}],
     ["a first attempt without a secret", {...firstAttempt, continuationSecret: null}],
@@ -169,6 +213,20 @@ describe("startOrResumeRoofAssessment", () => {
 
     await expect(startOrResumeRoofAssessment(input, deps)).rejects.toBeInstanceOf(
       StartAssessmentInternalError,
+    );
+  });
+
+  test("sanitizes a rejected token issuer error", async () => {
+    const deps = dependencies();
+    vi.mocked(deps.tokenIssuer.issue).mockRejectedValue(
+      new Error("sensitive signing key path /private/keys/continuation.key"),
+    );
+
+    await expect(startOrResumeRoofAssessment(input, deps)).rejects.toEqual(
+      expect.objectContaining<Partial<StartAssessmentInternalError>>({
+        name: "StartAssessmentInternalError",
+        message: "Unable to start roof assessment",
+      }),
     );
   });
 });
@@ -225,6 +283,85 @@ describe("SupabaseAssessmentIntakeRepository", () => {
   test("turns a Supabase RPC failure into a safe persistence error", async () => {
     const repository = new SupabaseAssessmentIntakeRepository({
       rpc: vi.fn().mockResolvedValue({data: null, error: {message: "sensitive database detail"}}),
+    } as never);
+
+    await expect(repository.startOrResume(normalizedInput)).rejects.toEqual(
+      expect.objectContaining<Partial<AssessmentIntakePersistenceError>>({
+        name: "AssessmentIntakePersistenceError",
+        message: "Assessment intake persistence failed",
+      }),
+    );
+  });
+
+  test.each([
+    ["zero rows", []],
+    ["multiple rows", [
+      {
+        attempt_id: "33333333-3333-4333-8333-333333333333",
+        continuation_secret: "one-time-secret",
+        expires_at: "2026-08-26T15:19:05.000+00:00",
+        is_replay: false,
+      },
+      {
+        attempt_id: "44444444-4444-4444-8444-444444444444",
+        continuation_secret: "another-secret",
+        expires_at: "2026-08-26T15:19:05.000+00:00",
+        is_replay: false,
+      },
+    ]],
+    ["an extra lead identifier", [{
+      attempt_id: "33333333-3333-4333-8333-333333333333",
+      continuation_secret: "one-time-secret",
+      expires_at: "2026-08-26T15:19:05.000+00:00",
+      is_replay: false,
+      lead_id: "55555555-5555-4555-8555-555555555555",
+    }]],
+    ["an extra public token", [{
+      attempt_id: "33333333-3333-4333-8333-333333333333",
+      continuation_secret: "one-time-secret",
+      expires_at: "2026-08-26T15:19:05.000+00:00",
+      is_replay: false,
+      public_token: "not-allowed",
+    }]],
+    ["a malformed attempt identifier", [{
+      attempt_id: "attempt-123",
+      continuation_secret: "one-time-secret",
+      expires_at: "2026-08-26T15:19:05.000+00:00",
+      is_replay: false,
+    }]],
+    ["a malformed expiry", [{
+      attempt_id: "33333333-3333-4333-8333-333333333333",
+      continuation_secret: "one-time-secret",
+      expires_at: "tomorrow",
+      is_replay: false,
+    }]],
+    ["a first issue with no secret", [{
+      attempt_id: "33333333-3333-4333-8333-333333333333",
+      continuation_secret: null,
+      expires_at: "2026-08-26T15:19:05.000+00:00",
+      is_replay: false,
+    }]],
+    ["a replay carrying a secret", [{
+      attempt_id: "33333333-3333-4333-8333-333333333333",
+      continuation_secret: "one-time-secret",
+      expires_at: "2026-08-26T15:19:05.000+00:00",
+      is_replay: true,
+    }]],
+  ])("rejects malformed raw RPC output: %s", async (_label, data) => {
+    const repository = new SupabaseAssessmentIntakeRepository({
+      rpc: vi.fn().mockResolvedValue({data, error: null}),
+    } as never);
+
+    await expect(repository.startOrResume(normalizedInput)).rejects.toBeInstanceOf(
+      AssessmentIntakePersistenceError,
+    );
+  });
+
+  test("sanitizes a rejected Supabase client error", async () => {
+    const repository = new SupabaseAssessmentIntakeRepository({
+      rpc: vi.fn().mockRejectedValue(
+        new Error("fetch failed for https://secret-project.supabase.co/rest/v1/rpc"),
+      ),
     } as never);
 
     await expect(repository.startOrResume(normalizedInput)).rejects.toEqual(
