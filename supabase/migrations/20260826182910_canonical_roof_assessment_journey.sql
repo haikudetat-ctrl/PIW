@@ -610,6 +610,103 @@ begin
 end;
 $$;
 
+create function public.authorize_same_browser_roof_assessment_resume(
+  p_company_id uuid,
+  p_attempt_id uuid,
+  p_assessment_id uuid,
+  p_continuation_secret_hash bytea
+) returns table (
+  assessment_id uuid,
+  public_token uuid,
+  token_rotated_at timestamptz
+)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_attempt public.roof_assessment_access_attempts%rowtype;
+  v_token uuid;
+  v_rotated_at timestamptz;
+begin
+  select attempt.* into v_attempt
+  from public.roof_assessment_access_attempts as attempt
+  where attempt.id = p_attempt_id
+    and attempt.company_id = p_company_id
+  for update;
+
+  if not found then
+    raise exception 'Assessment access attempt not found';
+  end if;
+  if v_attempt.consumed_at is not null then
+    raise exception 'Assessment access attempt has already been consumed';
+  end if;
+  if v_attempt.attempt_kind <> 'resume_candidate' then
+    raise exception 'Assessment access attempt is not a resume candidate';
+  end if;
+  if v_attempt.verified_at is not null then
+    raise exception 'Assessment access attempt has already been verified';
+  end if;
+  if v_attempt.expires_at <= pg_catalog.clock_timestamp() then
+    raise exception 'Assessment access attempt has expired';
+  end if;
+  if v_attempt.assessment_id <> p_assessment_id then
+    raise exception 'Assessment browser session does not match';
+  end if;
+  if p_continuation_secret_hash is null
+    or pg_catalog.octet_length(p_continuation_secret_hash) <> 32
+    or v_attempt.continuation_secret_hash <> p_continuation_secret_hash
+  then
+    raise exception 'Assessment continuation is invalid';
+  end if;
+
+  v_rotated_at := pg_catalog.clock_timestamp();
+
+  update public.roof_assessment_access_attempts as attempt
+  set verified_at = v_rotated_at,
+      updated_at = v_rotated_at
+  where attempt.id = v_attempt.id
+    and attempt.company_id = p_company_id;
+  if not found then
+    raise exception 'Assessment access attempt authorization failed';
+  end if;
+
+  update public.roof_assessments as assessment
+  set status = 'in_progress',
+      presentation_key = v_attempt.requested_presentation_key,
+      entry_point = v_attempt.requested_entry_point,
+      abandoned_at = null,
+      updated_at = v_rotated_at
+  where assessment.id = v_attempt.assessment_id
+    and assessment.company_id = p_company_id;
+  if not found then
+    raise exception 'Roof assessment authorization failed';
+  end if;
+
+  v_token := extensions.gen_random_uuid();
+  update public.roof_estimates as estimate
+  set public_token = v_token,
+      updated_at = v_rotated_at
+  where estimate.id = v_attempt.estimate_id
+    and estimate.company_id = p_company_id;
+  if not found then
+    raise exception 'Roof estimate token rotation failed';
+  end if;
+
+  update public.roof_assessment_access_attempts as attempt
+  set token_rotated_at = v_rotated_at,
+      consumed_at = v_rotated_at,
+      updated_at = v_rotated_at
+  where attempt.id = v_attempt.id
+    and attempt.company_id = p_company_id;
+  if not found then
+    raise exception 'Assessment access attempt consumption failed';
+  end if;
+
+  return query select v_attempt.assessment_id, v_token, v_rotated_at;
+end;
+$$;
+
 create function public.request_roof_consultation(
   p_company_id uuid,
   p_assessment_id uuid,
@@ -694,6 +791,13 @@ revoke execute on function public.rotate_roof_estimate_public_token(uuid, uuid)
   from public, anon, authenticated;
 grant execute on function public.rotate_roof_estimate_public_token(uuid, uuid)
   to service_role;
+
+revoke execute on function public.authorize_same_browser_roof_assessment_resume(
+  uuid, uuid, uuid, bytea
+) from public, anon, authenticated;
+grant execute on function public.authorize_same_browser_roof_assessment_resume(
+  uuid, uuid, uuid, bytea
+) to service_role;
 
 revoke execute on function public.request_roof_consultation(uuid, uuid, text, text)
   from public, anon, authenticated;

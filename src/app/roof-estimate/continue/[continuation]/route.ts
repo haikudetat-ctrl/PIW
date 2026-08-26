@@ -47,7 +47,7 @@ export type ContinuationRouteDependencies = {
     attemptId: string;
     companyId: string;
     assessmentId: string;
-    authorizedAt: string;
+    expectedSecretHash: string;
   }) => Promise<unknown>;
 };
 
@@ -72,7 +72,9 @@ function continuationSecretMatches(secret: string, storedHash: string) {
 }
 
 function relativeRedirect(request: NextRequest, path: string) {
-  return NextResponse.redirect(new URL(path, request.url), 307);
+  const response = NextResponse.redirect(new URL(path, request.url), 307);
+  response.headers.set("cache-control", "no-store");
+  return response;
 }
 
 async function assessmentRedirect(
@@ -140,7 +142,7 @@ export async function handleAssessmentContinuation(
       attemptId: attempt.id,
       companyId: attempt.companyId,
       assessmentId: attempt.assessmentId,
-      authorizedAt: now.toISOString(),
+      expectedSecretHash: normalizedHash(attempt.continuationSecretHash),
     }));
     if (resumed.assessmentId !== attempt.assessmentId) return invalidLinkResponse();
     return assessmentRedirect(request, resumed, dependencies, now);
@@ -207,22 +209,11 @@ function createRouteDependencies(
       return {assessmentId: data.assessment_id, publicToken: estimate.public_token};
     },
     async resumeWithSession(input) {
-      const {data: authorized, error: authorizeError} = await service
-        .from("roof_assessment_access_attempts")
-        .update({verified_at: input.authorizedAt, updated_at: input.authorizedAt})
-        .eq("id", input.attemptId)
-        .eq("company_id", input.companyId)
-        .eq("assessment_id", input.assessmentId)
-        .eq("attempt_kind", "resume_candidate")
-        .is("consumed_at", null)
-        .gt("expires_at", input.authorizedAt)
-        .select("id")
-        .maybeSingle();
-      if (authorizeError || !authorized) throw new Error("Assessment continuation unavailable");
-
-      const {data, error} = await service.rpc("rotate_roof_estimate_public_token", {
+      const {data, error} = await service.rpc("authorize_same_browser_roof_assessment_resume", {
         p_company_id: input.companyId,
         p_attempt_id: input.attemptId,
+        p_assessment_id: input.assessmentId,
+        p_continuation_secret_hash: `\\x${input.expectedSecretHash}`,
       });
       if (error || !data || data.length !== 1) {
         throw new Error("Assessment continuation unavailable");

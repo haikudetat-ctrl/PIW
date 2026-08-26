@@ -121,7 +121,11 @@ describe("parseServerEnv", () => {
   });
 
   test("enables the public roof assessment explicitly", () => {
-    expect(parseServerEnv({...base, ROOF_ASSESSMENT_ENABLED: "true"}).ROOF_ASSESSMENT_ENABLED).toBe(true);
+    expect(parseServerEnv({
+      ...base,
+      ROOF_ASSESSMENT_ENABLED: "true",
+      ROOF_ASSESSMENT_SIGNING_SECRET: "a".repeat(32),
+    }).ROOF_ASSESSMENT_ENABLED).toBe(true);
   });
 
   test("rejects paid providers in preview", () => {
@@ -197,6 +201,16 @@ describe("parseServerEnv", () => {
       parseServerEnv({...base, ROOF_ASSESSMENT_SIGNING_SECRET: "é".repeat(16)})
         .ROOF_ASSESSMENT_SIGNING_SECRET,
     ).toBe("é".repeat(16));
+  });
+
+  test("requires the signing secret when roof assessments are enabled", () => {
+    expect(() =>
+      parseServerEnv({...base, ROOF_ASSESSMENT_ENABLED: "true"}),
+    ).toThrow("Roof assessment signing secret is required when assessments are enabled");
+  });
+
+  test("allows disabled environments to omit the signing secret", () => {
+    expect(parseServerEnv(base).ROOF_ASSESSMENT_SIGNING_SECRET).toBeUndefined();
   });
 });
 
