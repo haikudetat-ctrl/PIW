@@ -249,7 +249,7 @@
   .assessment-result-visual { order: 2; min-height: 12rem; }
 
   .assessment-question-shell {
-    height: 100dvh;
+    height: 100svh;
     min-height: 0;
     overflow: hidden;
     padding-top: max(0.75rem, env(safe-area-inset-top));
@@ -299,15 +299,39 @@
     min-height: 0;
     flex: 1 1 auto;
     margin-top: 0.85rem;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    padding: 0.15rem 0.25rem 1rem 0;
-    scrollbar-width: thin;
-    scrollbar-color: rgb(10 32 42 / 0.3) transparent;
+    overflow: hidden;
+    padding: 0.15rem 0.1rem 0.4rem;
   }
 
-  .assessment-option-grid { grid-template-columns: 1fr; }
+  .assessment-option-grid {
+    grid-template-columns: 1fr;
+    gap: clamp(0.35rem, 0.9vh, 0.55rem);
+  }
+
+  .assessment-option-grid[data-columns="two"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .assessment-option { min-height: 3.85rem; padding-block: 0.72rem; }
+  .assessment-option-grid[data-density="compact"] .assessment-option {
+    min-height: clamp(2.9rem, 7.2vh, 3.6rem);
+    gap: 0.45rem;
+    padding: 0.45rem 0.55rem;
+    font-size: clamp(0.72rem, 3vw, 0.82rem);
+    line-height: 1.18;
+  }
+
+  .assessment-option-grid[data-density="compact"] .assessment-option-marker {
+    width: 1.1rem;
+    height: 1.1rem;
+  }
+
+  .assessment-answer-scroll:has(.assessment-option-grid[data-density="compact"]) > p {
+    margin-top: 0.55rem;
+    font-size: 0.72rem;
+    line-height: 1.25rem;
+  }
+
   .assessment-display { text-wrap: pretty; }
   .assessment-reveal-visual { min-height: 17rem; }
 
@@ -318,6 +342,55 @@
   }
 
   .assessment-question-actions .assessment-primary-action { min-height: 3.25rem; }
+}
+
+@media (max-width: 640px) and (max-height: 700px) {
+  .assessment-question-shell .assessment-nav {
+    min-height: 2.35rem;
+    padding-bottom: 0.45rem;
+  }
+
+  .assessment-question-shell .assessment-nav p:first-child { font-size: 0.65rem; }
+  .assessment-question-shell .assessment-nav p:nth-child(2) { display: none; }
+  .assessment-question-shell .assessment-progress-track { margin-top: 0.45rem; }
+  .assessment-question-stage { padding-top: 0.55rem; }
+
+  .assessment-question-panel > div:first-child p:first-child {
+    max-width: 80%;
+    font-size: 0.58rem;
+    line-height: 0.78rem;
+    letter-spacing: 0.13em;
+  }
+
+  .assessment-question-panel h1 {
+    margin-top: 0.35rem;
+    font-size: clamp(2rem, 10.5vw, 2.6rem);
+    line-height: 0.88;
+  }
+
+  .assessment-answer-scroll { margin-top: 0.55rem; }
+  .assessment-answer-scroll > p:not([role="alert"]) { display: none; }
+  .assessment-option { min-height: 3.1rem; padding-block: 0.5rem; }
+
+  .assessment-visibility-options {
+    display: grid;
+    gap: 0.45rem;
+  }
+
+  .assessment-visibility-options > * { margin: 0; }
+  .assessment-visibility-options .assessment-option-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .assessment-question-actions {
+    margin-top: 0.4rem;
+    padding-top: 0.45rem;
+  }
+
+  .assessment-question-actions .assessment-primary-action {
+    min-height: 2.85rem;
+    padding-block: 0.65rem;
+  }
 }
 
 @media (min-width: 641px) and (max-width: 1023px) {

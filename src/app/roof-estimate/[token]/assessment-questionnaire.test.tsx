@@ -147,6 +147,20 @@ describe("roof assessment questionnaire", () => {
     expect(controls).toContainElement(screen.getByRole("button", {name: "Continue"}));
   });
 
+  test("marks dense answer sets for a screen-fit mobile bento", () => {
+    render(<AssessmentQuestionnaire
+      preview
+      token={token}
+      initialStep={2}
+      initialResponses={{reason: "planning", roofAge: "unknown"}}
+    />);
+
+    const choices = screen.getByRole("group", {name: "Select all that apply"});
+    expect(choices).toHaveAttribute("data-option-count", "9");
+    expect(choices).toHaveAttribute("data-columns", "two");
+    expect(choices).toHaveAttribute("data-density", "compact");
+  });
+
   test("retains the selected answer when a partial save fails", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(null, {status: 503})));
     render(<AssessmentQuestionnaire token={token} initialStep={0} initialResponses={{}} />);
