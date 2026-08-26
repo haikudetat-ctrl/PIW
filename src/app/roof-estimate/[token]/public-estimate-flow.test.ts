@@ -1,5 +1,9 @@
 import {describe, expect, test} from "vitest";
-import {getAssessmentResultCopy, selectPublicEstimateView} from "./public-estimate-flow";
+import {
+  getAssessmentResultCopy,
+  getAssessmentResultRange,
+  selectPublicEstimateView,
+} from "./public-estimate-flow";
 
 describe("public estimate assessment flow", () => {
   test("preserves the legacy estimate when the feature is disabled", () => {
@@ -22,5 +26,28 @@ describe("public estimate assessment flow", () => {
     ["replacement_may_make_sense", "Replacement may make economic sense.", "Turn this range into an exact quote"],
   ] as const)("uses cautious copy for %s", (recommendation, headline, cta) => {
     expect(getAssessmentResultCopy(recommendation)).toMatchObject({headline, cta});
+  });
+
+  test("maps a ready Google estimate into the assessment payoff", () => {
+    expect(getAssessmentResultRange({
+      ready: true,
+      lowCents: 1_850_000,
+      highCents: 2_475_000,
+      roofSquares: 24.5,
+    })).toEqual({
+      lowCents: 1_850_000,
+      highCents: 2_475_000,
+      roofSquares: 24.5,
+      source: "google",
+    });
+  });
+
+  test("keeps the payoff visible without a range while Google is still running", () => {
+    expect(getAssessmentResultRange({
+      ready: false,
+      lowCents: null,
+      highCents: null,
+      roofSquares: null,
+    })).toBeNull();
   });
 });
