@@ -79,6 +79,7 @@ describe("assessment continuation route", () => {
     expect(response.headers.get("location")).toBe(
       `https://roof.example/roof-estimate/${publicToken}`,
     );
+    expect(response.headers.get("cache-control")).toBe("no-store");
     expect(response.headers.get("set-cookie")).toContain("as_roof_assessment=");
     expect(deps.consumeNewAttempt).toHaveBeenCalledWith({
       attemptId,
@@ -103,6 +104,7 @@ describe("assessment continuation route", () => {
     expect(response.headers.get("location")).toBe(
       `https://roof.example/roof-estimate/resume/${attemptId}`,
     );
+    expect(response.headers.get("cache-control")).toBe("no-store");
     expect(deps.resumeWithSession).not.toHaveBeenCalled();
   });
 
@@ -119,11 +121,12 @@ describe("assessment continuation route", () => {
     expect(response.headers.get("location")).toBe(
       `https://roof.example/roof-estimate/${publicToken}`,
     );
+    expect(response.headers.get("cache-control")).toBe("no-store");
     expect(deps.resumeWithSession).toHaveBeenCalledWith({
       attemptId,
       companyId,
       assessmentId,
-      authorizedAt: now.toISOString(),
+      expectedSecretHash: secretHash,
     });
   });
 

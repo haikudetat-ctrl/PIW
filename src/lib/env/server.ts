@@ -91,6 +91,13 @@ const serverEnvSchema = z
         message: "Google Maps API key is required when paid providers are enabled",
       });
     }
+    if (value.ROOF_ASSESSMENT_ENABLED && !value.ROOF_ASSESSMENT_SIGNING_SECRET) {
+      context.addIssue({
+        code: "custom",
+        path: ["ROOF_ASSESSMENT_SIGNING_SECRET"],
+        message: "Roof assessment signing secret is required when assessments are enabled",
+      });
+    }
     const readIntegrations = [
       [value.INTEGRATIONS_LEADCONDUIT_ENABLED, value.LEADCONDUIT_API_KEY, "LEADCONDUIT_API_KEY"],
       [value.INTEGRATIONS_LEADMASTER_ENABLED, value.LEADMASTER_ACCESS_TOKEN, "LEADMASTER_ACCESS_TOKEN"],

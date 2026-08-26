@@ -22,6 +22,11 @@ select has_function(
   'canonical intake RPC exists'
 );
 select has_function('public', 'rotate_roof_estimate_public_token', array['uuid','uuid'], 'token rotation RPC exists');
+select has_function(
+  'public', 'authorize_same_browser_roof_assessment_resume',
+  array['uuid','uuid','uuid','bytea'],
+  'atomic same-browser resume RPC exists'
+);
 select has_function('public', 'request_roof_consultation', array['uuid','uuid','text','text'], 'consultation RPC exists');
 
 select is((select relrowsecurity from pg_catalog.pg_class where oid = 'public.lead_attribution_touches'::regclass), true, 'attribution has RLS');
@@ -49,6 +54,16 @@ select function_privs_are(
   'service_role', array['EXECUTE'], 'service role alone invokes canonical intake'
 );
 select function_privs_are('public', 'rotate_roof_estimate_public_token', array['uuid','uuid'], 'public', array[]::text[], 'public cannot rotate tokens');
+select function_privs_are(
+  'public', 'authorize_same_browser_roof_assessment_resume',
+  array['uuid','uuid','uuid','bytea'],
+  'public', array[]::text[], 'public cannot authorize same-browser resume'
+);
+select function_privs_are(
+  'public', 'authorize_same_browser_roof_assessment_resume',
+  array['uuid','uuid','uuid','bytea'],
+  'service_role', array['EXECUTE'], 'service role alone authorizes same-browser resume'
+);
 select function_privs_are('public', 'request_roof_consultation', array['uuid','uuid','text','text'], 'public', array[]::text[], 'public cannot create consultations');
 
 select ok(
@@ -62,6 +77,12 @@ select ok(
    from pg_catalog.pg_proc as proc
    where proc.oid = 'public.rotate_roof_estimate_public_token(uuid,uuid)'::regprocedure),
   'token rotation is security definer with an empty search path'
+);
+select ok(
+  (select proc.prosecdef and proc.proconfig = array['search_path=""']
+   from pg_catalog.pg_proc as proc
+   where proc.oid = 'public.authorize_same_browser_roof_assessment_resume(uuid,uuid,uuid,bytea)'::regprocedure),
+  'same-browser authorization is security definer with an empty search path'
 );
 select ok(
   (select proc.prosecdef and proc.proconfig = array['search_path=""']
@@ -489,7 +510,8 @@ create temp table unverified_rotation_before as
 select assessment.status, assessment.presentation_key, assessment.entry_point,
        assessment.abandoned_at, assessment.updated_at as assessment_updated_at,
        estimate.public_token, estimate.updated_at as estimate_updated_at,
-       attempt.consumed_at, attempt.token_rotated_at, attempt.updated_at as attempt_updated_at
+       attempt.verified_at, attempt.consumed_at, attempt.token_rotated_at,
+       attempt.updated_at as attempt_updated_at
 from public.roof_assessment_access_attempts as attempt
 join public.roof_assessments as assessment on assessment.id = attempt.assessment_id
 join public.roof_estimates as estimate on estimate.id = attempt.estimate_id
@@ -505,7 +527,8 @@ select results_eq(
   $$select assessment.status, assessment.presentation_key, assessment.entry_point,
            assessment.abandoned_at, assessment.updated_at,
            estimate.public_token, estimate.updated_at,
-           attempt.consumed_at, attempt.token_rotated_at, attempt.updated_at
+           attempt.verified_at, attempt.consumed_at, attempt.token_rotated_at,
+           attempt.updated_at
     from public.roof_assessment_access_attempts as attempt
     join public.roof_assessments as assessment on assessment.id = attempt.assessment_id
     join public.roof_estimates as estimate on estimate.id = attempt.estimate_id
@@ -910,6 +933,337 @@ select is(
   'concurrency fixtures are removed from the committed test database'
 );
 select ok(extensions.dblink_disconnect('race_phone_gate') = 'OK', 'phone-branch gate disconnects');
+
+-- Real two-session authorization race. The helper converts the expected
+-- loser exception to false so both asynchronous results remain assertable.
+select lives_ok(
+  $$select extensions.dblink_connect('resume_race_gate', 'host=host.docker.internal port=56322 dbname=postgres user=postgres password=postgres')$$,
+  'same-browser race gate connects'
+);
+select lives_ok(
+  $$select extensions.dblink_connect('resume_race_a', 'host=host.docker.internal port=56322 dbname=postgres user=postgres password=postgres')$$,
+  'same-browser first worker connects'
+);
+select lives_ok(
+  $$select extensions.dblink_connect('resume_race_b', 'host=host.docker.internal port=56322 dbname=postgres user=postgres password=postgres')$$,
+  'same-browser second worker connects'
+);
+select is(
+  extensions.dblink_exec(
+    'resume_race_gate',
+    $$do $setup$
+    declare
+      v_new record;
+    begin
+      select * into v_new from public.start_or_resume_roof_assessment(
+        '00000000-0000-4000-8000-000000000001',
+        'e0000000-0000-4000-8000-000000000031',
+        'Resume Race', '+12015551031', 'resume-race@example.com',
+        '303 Resume Race Way, Newark, NJ 07102', 'ChIJ-resume-race',
+        'all-season-main', 'race:resume-new', '{}'::jsonb,
+        null, 'all-season-assessment-v1', now(), '127.0.1.31', 'pgtap-race'
+      );
+      update public.roof_assessments
+      set status = 'abandoned', abandoned_at = now(), updated_at = now()
+      where id = (
+        select assessment_id from public.roof_assessment_access_attempts
+        where id = v_new.attempt_id
+      );
+      perform public.start_or_resume_roof_assessment(
+        '00000000-0000-4000-8000-000000000001',
+        'e0000000-0000-4000-8000-000000000032',
+        'Resume Race', '+12015551031', 'resume-race@example.com',
+        '303 Resume Race Way, Newark, NJ 07102', 'ChIJ-resume-race',
+        'seasonal-shield', 'race:resume-candidate', '{}'::jsonb,
+        null, 'all-season-assessment-v1', now(), '127.0.1.32', 'pgtap-race'
+      );
+      execute $function$
+        create function public.pgtap_try_same_browser_resume(
+          p_attempt_id uuid, p_assessment_id uuid, p_hash bytea
+        ) returns boolean
+        language plpgsql
+        set search_path = ''
+        as $body$
+        begin
+          perform public.authorize_same_browser_roof_assessment_resume(
+            '00000000-0000-4000-8000-000000000001',
+            p_attempt_id, p_assessment_id, p_hash
+          );
+          return true;
+        exception when others then
+          return false;
+        end;
+        $body$
+      $function$;
+    end
+    $setup$;$$
+  ),
+  'DO',
+  'same-browser race fixtures are committed'
+);
+create temp table resume_race_before as
+select estimate.public_token
+from public.roof_assessment_access_attempts as attempt
+join public.roof_estimates as estimate on estimate.id = attempt.estimate_id
+where attempt.submission_id = 'e0000000-0000-4000-8000-000000000032';
+select is(
+  extensions.dblink_exec(
+    'resume_race_gate',
+    $$begin;
+      do $lock$
+      begin
+        perform 1 from public.roof_assessment_access_attempts
+        where submission_id = 'e0000000-0000-4000-8000-000000000032'
+        for update;
+      end
+      $lock$;$$
+  ),
+  'DO',
+  'same-browser race gate locks the exact candidate'
+);
+select is(
+  extensions.dblink_send_query(
+    'resume_race_a',
+    $$select public.pgtap_try_same_browser_resume(
+      attempt.id, attempt.assessment_id, attempt.continuation_secret_hash
+    )
+    from public.roof_assessment_access_attempts as attempt
+    where attempt.submission_id = 'e0000000-0000-4000-8000-000000000032'$$
+  ),
+  1,
+  'first same-browser authorization is dispatched'
+);
+select is(
+  extensions.dblink_send_query(
+    'resume_race_b',
+    $$select public.pgtap_try_same_browser_resume(
+      attempt.id, attempt.assessment_id, attempt.continuation_secret_hash
+    )
+    from public.roof_assessment_access_attempts as attempt
+    where attempt.submission_id = 'e0000000-0000-4000-8000-000000000032'$$
+  ),
+  1,
+  'second same-browser authorization is dispatched'
+);
+select is(extensions.dblink_is_busy('resume_race_a'), 1, 'first authorization waits on the exact attempt lock');
+select is(extensions.dblink_is_busy('resume_race_b'), 1, 'second authorization waits on the exact attempt lock');
+select is(extensions.dblink_exec('resume_race_gate', 'commit'), 'COMMIT', 'same-browser gate releases both workers');
+create temp table resume_race_result_a as
+select * from extensions.dblink_get_result('resume_race_a') as result(succeeded boolean);
+create temp table resume_race_result_b as
+select * from extensions.dblink_get_result('resume_race_b') as result(succeeded boolean);
+select is(
+  (select count(*) from (
+    select succeeded from resume_race_result_a
+    union all
+    select succeeded from resume_race_result_b
+  ) as results where succeeded),
+  1::bigint,
+  'exactly one concurrent same-browser authorization wins'
+);
+select is(
+  (select count(*) from (
+    select succeeded from resume_race_result_a
+    union all
+    select succeeded from resume_race_result_b
+  ) as results where not succeeded),
+  1::bigint,
+  'the concurrent replay loses without a result'
+);
+select isnt(
+  (select estimate.public_token
+   from public.roof_assessment_access_attempts as attempt
+   join public.roof_estimates as estimate on estimate.id = attempt.estimate_id
+   where attempt.submission_id = 'e0000000-0000-4000-8000-000000000032'),
+  (select public_token from resume_race_before),
+  'the concurrent winner rotates the token once'
+);
+select ok(
+  (select attempt.verified_at = attempt.token_rotated_at
+          and attempt.consumed_at = attempt.token_rotated_at
+          and attempt.updated_at = attempt.token_rotated_at
+          and assessment.updated_at = attempt.token_rotated_at
+          and estimate.updated_at = attempt.token_rotated_at
+   from public.roof_assessment_access_attempts as attempt
+   join public.roof_assessments as assessment on assessment.id = attempt.assessment_id
+   join public.roof_estimates as estimate on estimate.id = attempt.estimate_id
+   where attempt.submission_id = 'e0000000-0000-4000-8000-000000000032'),
+  'the concurrent loser cannot add a second mutation after the atomic winner'
+);
+select ok(extensions.dblink_disconnect('resume_race_a') = 'OK', 'first same-browser worker disconnects');
+select ok(extensions.dblink_disconnect('resume_race_b') = 'OK', 'second same-browser worker disconnects');
+select is(
+  extensions.dblink_exec(
+    'resume_race_gate',
+    $$do $cleanup$
+    declare
+      v_lead_id uuid;
+      v_property_id uuid;
+    begin
+      select lead_id, property_id into v_lead_id, v_property_id
+      from public.roof_assessment_access_attempts
+      where submission_id = 'e0000000-0000-4000-8000-000000000031';
+      delete from public.event_outbox where event_id in (
+        select id from public.domain_events
+        where correlation_id in (
+          'e0000000-0000-4000-8000-000000000031',
+          'e0000000-0000-4000-8000-000000000032'
+        )
+      );
+      delete from public.domain_events where correlation_id in (
+        'e0000000-0000-4000-8000-000000000031',
+        'e0000000-0000-4000-8000-000000000032'
+      );
+      delete from public.roof_assessment_access_attempts where submission_id in (
+        'e0000000-0000-4000-8000-000000000031',
+        'e0000000-0000-4000-8000-000000000032'
+      );
+      delete from public.lead_consent_evidence where submission_id in (
+        'e0000000-0000-4000-8000-000000000031',
+        'e0000000-0000-4000-8000-000000000032'
+      );
+      delete from public.lead_attribution_touches where submission_id in (
+        'e0000000-0000-4000-8000-000000000031',
+        'e0000000-0000-4000-8000-000000000032'
+      );
+      delete from public.roof_assessments where lead_id = v_lead_id;
+      delete from public.roof_estimates where lead_id = v_lead_id;
+      delete from public.pipeline_runs where lead_id = v_lead_id;
+      delete from public.lead_consents where lead_id = v_lead_id;
+      delete from public.leads where id = v_lead_id;
+      delete from public.properties where id = v_property_id;
+      drop function public.pgtap_try_same_browser_resume(uuid, uuid, bytea);
+    end
+    $cleanup$;$$
+  ),
+  'DO',
+  'same-browser concurrency fixtures are removed'
+);
+select ok(extensions.dblink_disconnect('resume_race_gate') = 'OK', 'same-browser gate disconnects');
+
+-- Run the forced downstream failure after remote concurrency coverage because
+-- PostgreSQL retains the trigger DDL relation lock until this test rolls back.
+create temp table same_browser_failure_snapshot as
+select assessment.status, assessment.presentation_key, assessment.entry_point,
+       assessment.abandoned_at, assessment.updated_at as assessment_updated_at,
+       estimate.public_token, estimate.updated_at as estimate_updated_at,
+       attempt.verified_at, attempt.consumed_at, attempt.token_rotated_at,
+       attempt.updated_at as attempt_updated_at
+from public.roof_assessment_access_attempts as attempt
+join public.roof_assessments as assessment on assessment.id = attempt.assessment_id
+join public.roof_estimates as estimate on estimate.id = attempt.estimate_id
+where attempt.id = (select attempt_id from phone_only_resume);
+
+create temp table same_browser_failure_estimate as
+select estimate_id from public.roof_assessment_access_attempts
+where id = (select attempt_id from phone_only_resume);
+
+select throws_ok(
+  $$select * from public.authorize_same_browser_roof_assessment_resume(
+    'd0000000-0000-4000-8000-000000000001',
+    (select attempt_id from phone_only_resume),
+    (select assessment_id from public.roof_assessment_access_attempts where id = (select attempt_id from phone_only_resume)),
+    extensions.digest('wrong continuation secret', 'sha256')
+  )$$,
+  'Assessment continuation is invalid',
+  'same-browser authorization requires the exact continuation hash'
+);
+select throws_ok(
+  $$select * from public.authorize_same_browser_roof_assessment_resume(
+    'd0000000-0000-4000-8000-000000000001',
+    (select attempt_id from phone_only_resume),
+    '00000000-0000-4000-8000-000000000099',
+    extensions.digest((select continuation_secret from phone_only_resume), 'sha256')
+  )$$,
+  'Assessment browser session does not match',
+  'same-browser authorization requires the exact session-bound assessment'
+);
+select results_eq(
+  $$select assessment.status, assessment.presentation_key, assessment.entry_point,
+           assessment.abandoned_at, assessment.updated_at,
+           estimate.public_token, estimate.updated_at,
+           attempt.verified_at, attempt.consumed_at, attempt.token_rotated_at,
+           attempt.updated_at
+    from public.roof_assessment_access_attempts as attempt
+    join public.roof_assessments as assessment on assessment.id = attempt.assessment_id
+    join public.roof_estimates as estimate on estimate.id = attempt.estimate_id
+    where attempt.id = (select attempt_id from phone_only_resume)$$,
+  $$select * from same_browser_failure_snapshot$$,
+  'hash and assessment mismatch rejections leave the entire journey unchanged'
+);
+
+create function pg_temp.reject_same_browser_estimate_rotation()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.id = (select estimate_id from same_browser_failure_estimate) then
+    raise exception 'forced estimate rotation failure';
+  end if;
+  return new;
+end;
+$$;
+
+create trigger reject_same_browser_estimate_rotation
+before update on public.roof_estimates
+for each row execute function pg_temp.reject_same_browser_estimate_rotation();
+
+select throws_ok(
+  $$select * from public.authorize_same_browser_roof_assessment_resume(
+    'd0000000-0000-4000-8000-000000000001',
+    (select attempt_id from phone_only_resume),
+    (select assessment_id from public.roof_assessment_access_attempts where id = (select attempt_id from phone_only_resume)),
+    extensions.digest((select continuation_secret from phone_only_resume), 'sha256')
+  )$$,
+  'forced estimate rotation failure',
+  'a downstream rotation failure rolls back same-browser authorization'
+);
+
+select results_eq(
+  $$select assessment.status, assessment.presentation_key, assessment.entry_point,
+           assessment.abandoned_at, assessment.updated_at,
+           estimate.public_token, estimate.updated_at,
+           attempt.verified_at, attempt.consumed_at, attempt.token_rotated_at,
+           attempt.updated_at
+    from public.roof_assessment_access_attempts as attempt
+    join public.roof_assessments as assessment on assessment.id = attempt.assessment_id
+    join public.roof_estimates as estimate on estimate.id = attempt.estimate_id
+    where attempt.id = (select attempt_id from phone_only_resume)$$,
+  $$select * from same_browser_failure_snapshot$$,
+  'failed atomic resume leaves authorization, lifecycle, estimate, and attempt unchanged'
+);
+
+drop trigger reject_same_browser_estimate_rotation on public.roof_estimates;
+
+create temp table same_browser_rotation as
+select * from public.authorize_same_browser_roof_assessment_resume(
+  'd0000000-0000-4000-8000-000000000001',
+  (select attempt_id from phone_only_resume),
+  (select assessment_id from public.roof_assessment_access_attempts where id = (select attempt_id from phone_only_resume)),
+  extensions.digest((select continuation_secret from phone_only_resume), 'sha256')
+);
+
+select isnt(
+  (select public_token from same_browser_rotation),
+  (select public_token from same_browser_failure_snapshot),
+  'atomic same-browser authorization rotates the public token'
+);
+select ok(
+  (select verified_at is not null and consumed_at is not null and token_rotated_at is not null
+   from public.roof_assessment_access_attempts
+   where id = (select attempt_id from phone_only_resume)),
+  'atomic same-browser authorization verifies, rotates, and consumes once'
+);
+select throws_ok(
+  $$select * from public.authorize_same_browser_roof_assessment_resume(
+    'd0000000-0000-4000-8000-000000000001',
+    (select attempt_id from phone_only_resume),
+    (select assessment_id from public.roof_assessment_access_attempts where id = (select attempt_id from phone_only_resume)),
+    extensions.digest((select continuation_secret from phone_only_resume), 'sha256')
+  )$$,
+  'Assessment access attempt has already been consumed',
+  'a consumed same-browser resume cannot be replayed'
+);
 
 select * from extensions.finish();
 rollback;

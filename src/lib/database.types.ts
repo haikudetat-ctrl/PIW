@@ -3593,6 +3593,19 @@ export type Database = {
       }
     }
     Functions: {
+      authorize_same_browser_roof_assessment_resume: {
+        Args: {
+          p_assessment_id: string
+          p_attempt_id: string
+          p_company_id: string
+          p_continuation_secret_hash: string
+        }
+        Returns: {
+          assessment_id: string
+          public_token: string
+          token_rotated_at: string
+        }[]
+      }
       change_lead_stage: {
         Args: {
           p_changed_by: string
