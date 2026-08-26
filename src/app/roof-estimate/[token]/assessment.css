@@ -130,6 +130,15 @@
 .assessment-reveal-shell.assessment-accent-blue { --assessment-accent: #185d91; }
 .assessment-context-kicker { color: var(--assessment-accent); }
 
+.assessment-confirmation-summary {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.assessment-confirmation-summary .assessment-context-kicker {
+  margin-bottom: 0.75rem;
+}
+
 .assessment-reveal-card,
 .assessment-result-card {
   border-radius: 0.35rem;

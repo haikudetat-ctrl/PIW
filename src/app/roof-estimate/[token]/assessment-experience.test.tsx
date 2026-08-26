@@ -79,6 +79,26 @@ describe("assessment property reveal", () => {
       .toHaveAttribute("href", "/roof-estimate");
   });
 
+  test("groups the confirmation hierarchy as one property summary", () => {
+    render(
+      <AssessmentExperience
+        token={token}
+        address="1 Main St, Newark, NJ 07102"
+        imageUrl={imageUrl}
+        context={context}
+        initialPropertyRevealed
+        initialStep={0}
+      >
+        <p>Questions begin here</p>
+      </AssessmentExperience>,
+    );
+
+    const summary = screen.getByRole("group", {name: "Confirmed property summary"});
+    expect(summary).toContainElement(screen.getByText(context.kicker));
+    expect(summary).toContainElement(screen.getByRole("heading", {name: "Property confirmed."}));
+    expect(summary).toContainElement(screen.getByText(context.headline));
+  });
+
   test("persists the reveal before opening the questions", async () => {
     vi.useRealTimers();
     const fetch = vi.fn(async () => Response.json({propertyRevealed: true}));
