@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { RoofAssessmentResponses } from "@/domain/roof-assessment";
 
 const refresh = vi.fn();
@@ -19,6 +19,8 @@ const completeExceptOwnership: Partial<RoofAssessmentResponses> = {
   priority: "understand_options",
   timeline: "researching",
 };
+
+beforeEach(() => vi.stubGlobal("scrollTo", vi.fn()));
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -50,7 +52,9 @@ describe("roof assessment questionnaire", () => {
 
   test("moves through questions without API calls in the development preview", () => {
     const fetch = vi.fn();
+    const scrollTo = vi.fn();
     vi.stubGlobal("fetch", fetch);
+    vi.stubGlobal("scrollTo", scrollTo);
     render(<AssessmentQuestionnaire preview token={token} initialStep={0} initialResponses={{}} />);
 
     fireEvent.click(screen.getByRole("button", {name: "Just planning ahead"}));
@@ -58,6 +62,7 @@ describe("roof assessment questionnaire", () => {
 
     expect(screen.getByRole("heading", {name: "About how old do you think the roof is?"})).toBeVisible();
     expect(fetch).not.toHaveBeenCalled();
+    expect(scrollTo).toHaveBeenCalledWith({top: 0, behavior: "smooth"});
   });
 
   test("treats no idea as a useful roof-age answer", async () => {
@@ -102,8 +107,44 @@ describe("roof assessment questionnaire", () => {
       timeline: undefined,
     }} />);
 
-    expect(screen.getByRole("heading", {name: "How soon would you want to deal with it if work is needed?"})).toBeVisible();
-    expect(screen.getByText("Question 8 of 9")).toBeVisible();
+    expect(screen.getByRole("heading", {name: "How soon would a professional review be useful?"})).toBeVisible();
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "8");
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuemax", "9");
+  });
+
+  test("keeps the confirmed property visible while the homeowner answers", () => {
+    render(
+      <AssessmentQuestionnaire
+        preview
+        token={token}
+        address="1 Main St, Newark, NJ 07102"
+        imageUrl="/campaigns/every-season.jpg"
+        initialStep={0}
+        initialResponses={{}}
+      />,
+    );
+
+    expect(screen.getByText("1 Main St, Newark, NJ 07102")).toBeVisible();
+    expect(screen.getByAltText("Confirmed property at 1 Main St, Newark, NJ 07102")).toBeVisible();
+  });
+
+  test("uses a meaningful progress description instead of mechanical question labels", () => {
+    render(<AssessmentQuestionnaire preview token={token} initialStep={0} initialResponses={{}} />);
+
+    expect(screen.getByRole("progressbar")).toHaveAttribute(
+      "aria-valuetext",
+      "Understanding what brought you here, 1 of 9",
+    );
+    expect(screen.queryByText("Question 1 of 9")).not.toBeInTheDocument();
+    expect(screen.queryByText("Step 01")).not.toBeInTheDocument();
+  });
+
+  test("keeps the question controls in a dedicated navigation region", () => {
+    render(<AssessmentQuestionnaire preview token={token} initialStep={0} initialResponses={{}} />);
+
+    const controls = screen.getByRole("navigation", {name: "Assessment controls"});
+    expect(controls).toContainElement(screen.getByRole("button", {name: "Back"}));
+    expect(controls).toContainElement(screen.getByRole("button", {name: "Continue"}));
   });
 
   test("retains the selected answer when a partial save fails", async () => {

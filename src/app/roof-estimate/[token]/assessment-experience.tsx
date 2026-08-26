@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { useGSAP } from "@gsap/react";
+import gsap from "gsap";
 import type { RoofAssessmentContext } from "@/config/roof-assessment";
 import { AssessmentLoading } from "./assessment-loading";
 import "./assessment.css";
@@ -33,6 +35,15 @@ export function AssessmentExperience({
   const [imageAvailable, setImageAvailable] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(false);
+  const revealRef = useRef<HTMLElement>(null);
+
+  useGSAP(() => {
+    if (stage !== "reveal" || !window.matchMedia || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const timeline = gsap.timeline({defaults: {ease: "power3.out"}});
+    timeline
+      .fromTo(".assessment-reveal-visual img", {scale: 0.96, opacity: 0.5}, {scale: 1, opacity: 1, duration: 0.9})
+      .fromTo(".assessment-reveal-copy > *", {y: 16, opacity: 0}, {y: 0, opacity: 1, duration: 0.46, stagger: 0.055}, "-=0.55");
+  }, {scope: revealRef, dependencies: [stage]});
 
   if (stage === "loading") {
     return (
@@ -54,6 +65,7 @@ export function AssessmentExperience({
     if (saving) return;
     if (preview) {
       setStage("questions");
+      window.scrollTo({top: 0, behavior: "smooth"});
       return;
     }
     setSaving(true);
@@ -70,12 +82,13 @@ export function AssessmentExperience({
       return;
     }
     setStage("questions");
+    window.scrollTo({top: 0, behavior: "smooth"});
   }
 
   return (
-    <main className={`assessment-reveal-shell ${context.accentClass} min-h-[100dvh] bg-[#edf2f3] px-4 py-5 text-slate-950 sm:px-7 sm:py-8`}>
+    <main ref={revealRef} className={`assessment-flow assessment-reveal-shell ${context.accentClass} min-h-[100dvh] w-full max-w-full overflow-x-hidden bg-[#edf2f3] px-4 py-5 text-slate-950 sm:px-7 sm:py-8`}>
       <div className="mx-auto flex min-h-[calc(100dvh-2.5rem)] max-w-7xl flex-col">
-        <header className="flex items-center justify-between border-b border-slate-300/80 pb-5">
+        <header className="assessment-nav flex items-center justify-between border-b border-slate-300/80 pb-5">
           <div>
             <p className="text-xs font-black tracking-[0.2em] text-slate-900">ALL SEASON</p>
             <p className="mt-1 text-[0.65rem] font-bold uppercase tracking-[0.18em] text-slate-500">
@@ -126,8 +139,8 @@ export function AssessmentExperience({
             <p className="assessment-context-kicker text-xs font-black uppercase tracking-[0.19em]">
               {context.kicker}
             </p>
-            <h1 className="mt-5 text-4xl font-semibold tracking-[-0.05em] sm:text-5xl">
-              We found your property.
+            <h1 className="assessment-display mt-5 w-full max-w-5xl text-[clamp(3.4rem,6vw,5.8rem)] leading-[0.9] tracking-[0.01em]">
+              Property confirmed.
             </h1>
             <p className="mt-5 text-xl font-semibold tracking-[-0.025em] text-slate-800">
               {context.headline}

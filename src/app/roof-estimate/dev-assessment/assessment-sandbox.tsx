@@ -61,19 +61,24 @@ export function AssessmentSandbox() {
 
   return (
     <div>
-      <nav className="fixed inset-x-0 bottom-4 z-50 mx-auto flex w-fit max-w-[calc(100%-2rem)] gap-1 overflow-x-auto rounded-full border border-slate-300 bg-white/95 p-1.5 shadow-xl backdrop-blur" aria-label="Assessment preview campaign">
-        {campaigns.map((item) => (
-          <button
-            key={item.slug}
-            type="button"
-            aria-pressed={campaign === item.slug}
-            onClick={() => restart(item.slug)}
-            className="whitespace-nowrap rounded-full px-3 py-2 text-xs font-bold text-slate-600 aria-pressed:bg-slate-950 aria-pressed:text-white"
-          >
-            {item.label}
-          </button>
-        ))}
-      </nav>
+      <details className="group fixed bottom-4 right-4 z-50 hidden font-sans sm:block">
+        <summary className="cursor-pointer list-none rounded-md border border-slate-300 bg-white/95 px-4 py-3 text-xs font-bold text-slate-800 shadow-xl backdrop-blur marker:hidden">
+          Preview campaign
+        </summary>
+        <nav className="absolute bottom-[calc(100%+0.5rem)] right-0 grid min-w-48 overflow-hidden rounded-md border border-slate-200 bg-white p-1 shadow-2xl" aria-label="Assessment preview campaign">
+          {campaigns.map((item) => (
+            <button
+              key={item.slug}
+              type="button"
+              aria-pressed={campaign === item.slug}
+              onClick={() => restart(item.slug)}
+              className="whitespace-nowrap rounded-sm px-3 py-2.5 text-left text-xs font-bold text-slate-600 hover:bg-slate-100 aria-pressed:bg-slate-950 aria-pressed:text-white"
+            >
+              {item.label}
+            </button>
+          ))}
+        </nav>
+      </details>
       <AssessmentExperience
         key={`${campaign}-${run}`}
         preview
@@ -87,6 +92,8 @@ export function AssessmentSandbox() {
         <AssessmentQuestionnaire
           preview
           token="11111111-1111-4111-8111-111111111111"
+          address="18 Harbor View Drive, Red Bank, NJ 07701"
+          imageUrl={imageUrl}
           initialStep={0}
           initialResponses={{}}
           onPreviewComplete={(responses) => {
