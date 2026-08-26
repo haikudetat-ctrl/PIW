@@ -48,8 +48,6 @@ describe("roof assessment lifecycle events", () => {
     ["roof/assessment.consultation_requested", {
       assessmentId,
       consultationRequestId: "88888888-8888-4888-8888-888888888888",
-      contactMethod: "call",
-      callWindow: "morning",
     }],
   ] as const)("creates sparse %s events idempotent by assessment", (name, data) => {
     const event = createEventEnvelope({

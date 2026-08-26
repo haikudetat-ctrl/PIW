@@ -1,39 +1,66 @@
 import {z} from "zod";
 import {createServiceClient} from "@/lib/supabase/service";
-
-export const consultationContactMethods = ["call", "text", "email"] as const;
-export const consultationCallWindows = ["asap", "morning", "midday", "afternoon", "evening"] as const;
-export type ConsultationContactMethod = typeof consultationContactMethods[number];
-export type ConsultationCallWindow = typeof consultationCallWindows[number];
+import {
+  consultationCallWindows,
+  consultationContactMethods,
+  type ConsultationPreference,
+  type ConsultationSummary,
+} from "./consultation-preference";
+export type {ConsultationCallWindow, ConsultationContactMethod, ConsultationPreference, ConsultationSummary} from "./consultation-preference";
 
 export type CompletedAssessmentContext = {
   companyId: string;
   assessmentId: string;
   estimateId: string;
 };
-export type ConsultationPreference = {
-  contactMethod: ConsultationContactMethod;
-  callWindow: ConsultationCallWindow | null;
-};
-export type ConsultationSummary = ConsultationPreference & {
-  status: "requested";
-  timezone: "America/New_York";
-};
 
 export type AssessmentResultRepository = {
   findCompletedByToken(token: string): Promise<CompletedAssessmentContext | null>;
-  requestConsultation(context: CompletedAssessmentContext, preference: ConsultationPreference): Promise<ConsultationSummary>;
+  requestConsultation(context: CompletedAssessmentContext, preference: ConsultationPreference, requestIp: string): Promise<ConsultationSummary>;
   markResultViewed(context: CompletedAssessmentContext): Promise<{resultViewedAt: string}>;
 };
 
 export class AssessmentResultAccessError extends Error {
-  constructor(message: string, readonly status: 400 | 404 | 503) { super(message); }
+  constructor(message: string, readonly status: 400 | 404 | 429 | 503) { super(message); }
 }
+
+export class ConsultationRateLimitError extends Error {}
 
 const preferenceSchema = z.object({
   contactMethod: z.enum(consultationContactMethods),
   callWindow: z.enum(consultationCallWindows).nullable(),
 }).strict();
+const ipSchema = z.union([z.ipv4(), z.ipv6()]);
+const workflowStatusSchema = z.enum(["requested", "contacted", "booked", "closed"]);
+const estimateRowSchema = z.object({id: z.uuid(), company_id: z.uuid()}).strict();
+const assessmentRowSchema = z.object({id: z.uuid()}).strict();
+const consultationRpcSchema = z.array(z.object({
+  request_id: z.uuid(),
+  status: workflowStatusSchema,
+  created_at: z.iso.datetime({offset: true}),
+  contact_method: z.enum(consultationContactMethods),
+  call_window: z.enum(consultationCallWindows).nullable(),
+  timezone: z.literal("America/New_York"),
+}).strict()).length(1);
+const resultViewedRpcSchema = z.array(z.object({
+  result_viewed_at: z.iso.datetime({offset: true}),
+}).strict()).length(1);
+
+export function parseConsultationRpcResult(data: unknown, preference: ConsultationPreference): ConsultationSummary {
+  const parsed = consultationRpcSchema.safeParse(data);
+  if (!parsed.success) throw new Error("Consultation persistence failed");
+  const row = parsed.data[0];
+  if (row.contact_method !== preference.contactMethod || row.call_window !== preference.callWindow) {
+    throw new Error("Consultation persistence failed");
+  }
+  return {status: row.status, contactMethod: row.contact_method, callWindow: row.call_window, timezone: row.timezone};
+}
+
+export function parseResultViewedRpcResult(data: unknown) {
+  const parsed = resultViewedRpcSchema.safeParse(data);
+  if (!parsed.success) throw new Error("Result view persistence failed");
+  return {resultViewedAt: parsed.data[0].result_viewed_at};
+}
 
 function parsePreference(input: unknown): ConsultationPreference {
   const parsed = preferenceSchema.safeParse(input);
@@ -59,12 +86,16 @@ async function resolveCompleted(token: string, repository: AssessmentResultRepos
   }
 }
 
-export async function requestRoofConsultation(token: string, input: unknown, repository: AssessmentResultRepository) {
+export async function requestRoofConsultation(token: string, input: unknown, requestIp: string, repository: AssessmentResultRepository) {
   const preference = parsePreference(input);
+  if (!ipSchema.safeParse(requestIp).success) throw new AssessmentResultAccessError("Invalid request", 400);
   const context = await resolveCompleted(token, repository);
   try {
-    return await repository.requestConsultation(context, preference);
-  } catch {
+    return await repository.requestConsultation(context, preference, requestIp);
+  } catch (error) {
+    if (error instanceof ConsultationRateLimitError) {
+      throw new AssessmentResultAccessError("Request limit reached. Please try again later.", 429);
+    }
     throw new AssessmentResultAccessError("Assessment result is temporarily unavailable", 503);
   }
 }
@@ -89,14 +120,19 @@ export class SupabaseAssessmentResultRepository implements AssessmentResultRepos
       .select("id, company_id").eq("public_token", token).maybeSingle();
     if (error) throw error;
     if (!estimate) return null;
+    const parsedEstimate = estimateRowSchema.safeParse(estimate);
+    if (!parsedEstimate.success) throw new Error("Malformed estimate result");
     const {data: assessment, error: assessmentError} = await this.service.from("roof_assessments")
-      .select("id").eq("company_id", estimate.company_id).eq("estimate_id", estimate.id)
+      .select("id").eq("company_id", parsedEstimate.data.company_id).eq("estimate_id", parsedEstimate.data.id)
       .eq("status", "completed").maybeSingle();
     if (assessmentError) throw assessmentError;
-    return assessment ? {companyId: estimate.company_id, estimateId: estimate.id, assessmentId: assessment.id} : null;
+    if (!assessment) return null;
+    const parsedAssessment = assessmentRowSchema.safeParse(assessment);
+    if (!parsedAssessment.success) throw new Error("Malformed assessment result");
+    return {companyId: parsedEstimate.data.company_id, estimateId: parsedEstimate.data.id, assessmentId: parsedAssessment.data.id};
   }
 
-  async requestConsultation(context: CompletedAssessmentContext, preference: ConsultationPreference): Promise<ConsultationSummary> {
+  async requestConsultation(context: CompletedAssessmentContext, preference: ConsultationPreference, requestIp: string): Promise<ConsultationSummary> {
     const {data, error} = await this.service.rpc("request_roof_consultation", {
       p_company_id: context.companyId,
       p_assessment_id: context.assessmentId,
@@ -104,9 +140,11 @@ export class SupabaseAssessmentResultRepository implements AssessmentResultRepos
       p_contact_method: preference.contactMethod,
       p_call_window: preference.callWindow as never,
       p_timezone: "America/New_York",
+      p_request_ip: requestIp,
     });
-    if (error || !data || data.length !== 1 || data[0].status !== "requested") throw new Error("Consultation persistence failed");
-    return {...preference, status: "requested" as const, timezone: "America/New_York" as const};
+    if (error?.message === "Consultation rate limit exceeded") throw new ConsultationRateLimitError();
+    if (error) throw new Error("Consultation persistence failed");
+    return parseConsultationRpcResult(data, preference);
   }
 
   async markResultViewed(context: CompletedAssessmentContext) {
@@ -115,7 +153,7 @@ export class SupabaseAssessmentResultRepository implements AssessmentResultRepos
       p_assessment_id: context.assessmentId,
       p_estimate_id: context.estimateId,
     });
-    if (error || !data || data.length !== 1) throw new Error("Result view persistence failed");
-    return {resultViewedAt: data[0].result_viewed_at};
+    if (error) throw new Error("Result view persistence failed");
+    return parseResultViewedRpcResult(data);
   }
 }

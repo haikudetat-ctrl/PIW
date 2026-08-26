@@ -1,5 +1,5 @@
 import {describe, expect, test, vi} from "vitest";
-import type {AssessmentResultRepository} from "@/modules/roof-assessment/request-consultation";
+import {ConsultationRateLimitError, type AssessmentResultRepository} from "@/modules/roof-assessment/request-consultation";
 import {handleConsultationRequest} from "./route";
 
 const token = "11111111-1111-4111-8111-111111111111";
@@ -13,7 +13,7 @@ function repo(): AssessmentResultRepository {
 
 describe("token-scoped consultation route", () => {
   test("returns only the safe preference summary with no-store", async () => {
-    const response = await handleConsultationRequest({token, body: {contactMethod: "text", callWindow: null}, repository: repo()});
+    const response = await handleConsultationRequest({token, body: {contactMethod: "text", callWindow: null}, requestIp: "127.0.0.1", repository: repo()});
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
     const body = await response.json();
@@ -24,8 +24,17 @@ describe("token-scoped consultation route", () => {
   test.each(["not-a-uuid", "00000000-0000-0000-0000-000000000000"])("uses one generic not-found response for %s", async (value) => {
     const repository = repo();
     if (value.startsWith("0000")) repository.findCompletedByToken = vi.fn(async () => null);
-    const response = await handleConsultationRequest({token: value, body: {contactMethod: "email", callWindow: null}, repository});
+    const response = await handleConsultationRequest({token: value, body: {contactMethod: "email", callWindow: null}, requestIp: "127.0.0.1", repository});
     expect(response.status).toBe(404);
     expect(await response.json()).toEqual({error: "Assessment not found"});
+  });
+
+  test("returns a privacy-safe no-store throttle response", async () => {
+    const repository=repo();
+    repository.requestConsultation=vi.fn(async()=>{throw new ConsultationRateLimitError();});
+    const response=await handleConsultationRequest({token,body:{contactMethod:"email",callWindow:null},requestIp:"127.0.0.1",repository});
+    expect(response.status).toBe(429);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(await response.json()).toEqual({error:"Request limit reached. Please try again later."});
   });
 });

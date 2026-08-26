@@ -66,4 +66,18 @@ describe("assessment result payoff",()=>{
     expect(await screen.findByRole("alert")).toHaveTextContent("We could not save your preference");
     expect(screen.getByRole("radio",{name:"Text me"})).toBeChecked();
   });
+
+  test.each([
+    [{},"missing fields"],
+    [{status:"requested",contactMethod:"email",callWindow:null,timezone:"America/New_York"},"mismatched canonical preference"],
+    [{status:"requested",contactMethod:"text",callWindow:null,timezone:"America/New_York",requestId:token},"extra internal field"],
+  ] as Array<[unknown,string]>)('retains controls when a 2xx response has $1',async(body)=>{
+    const fetch=vi.fn(async(input:RequestInfo|URL)=>String(input).endsWith("result-view")?Response.json({resultViewed:true}):Response.json(body));
+    renderResult({status:"pending"},fetch);
+    fireEvent.click(screen.getByRole("button",{name:"Get a professional roof assessment"}));
+    fireEvent.click(screen.getByRole("radio",{name:"Text me"}));
+    fireEvent.click(screen.getByRole("button",{name:"Request my consultation"}));
+    expect(await screen.findByRole("alert")).toHaveTextContent("We could not save your preference");
+    expect(screen.getByRole("radio",{name:"Text me"})).toBeChecked();
+  });
 });

@@ -2898,6 +2898,45 @@ export type Database = {
           },
         ]
       }
+      roof_assessment_consultation_attempts: {
+        Row: {
+          assessment_id: string
+          company_id: string
+          id: string
+          request_ip: unknown
+          reserved_at: string
+        }
+        Insert: {
+          assessment_id: string
+          company_id: string
+          id?: string
+          request_ip: unknown
+          reserved_at?: string
+        }
+        Update: {
+          assessment_id?: string
+          company_id?: string
+          id?: string
+          request_ip?: unknown
+          reserved_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "roof_assessment_consultation_atte_company_id_assessment_id_fkey"
+            columns: ["company_id", "assessment_id"]
+            isOneToOne: false
+            referencedRelation: "roof_assessments"
+            referencedColumns: ["company_id", "id"]
+          },
+          {
+            foreignKeyName: "roof_assessment_consultation_attempts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       roof_assessment_verification_sends: {
         Row: {
           approved_at: string | null
@@ -3139,17 +3178,17 @@ export type Database = {
             referencedColumns: ["company_id", "id"]
           },
           {
+            foreignKeyName: "roof_estimates_company_property_insight_fkey"
+            columns: ["company_id", "property_id", "roof_insight_id"]
+            isOneToOne: false
+            referencedRelation: "roof_insights"
+            referencedColumns: ["company_id", "property_id", "id"]
+          },
+          {
             foreignKeyName: "roof_estimates_reused_from_estimate_id_fkey"
             columns: ["reused_from_estimate_id"]
             isOneToOne: false
             referencedRelation: "roof_estimates"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "roof_estimates_roof_insight_id_fkey"
-            columns: ["roof_insight_id"]
-            isOneToOne: false
-            referencedRelation: "roof_insights"
             referencedColumns: ["id"]
           },
         ]
@@ -3230,11 +3269,11 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "roof_insights_property_id_fkey"
-            columns: ["property_id"]
+            foreignKeyName: "roof_insights_company_property_fkey"
+            columns: ["company_id", "property_id"]
             isOneToOne: false
             referencedRelation: "properties"
-            referencedColumns: ["id"]
+            referencedColumns: ["company_id", "id"]
           },
         ]
       }
@@ -3865,6 +3904,7 @@ export type Database = {
           p_company_id: string
           p_contact_method: string
           p_estimate_id: string
+          p_request_ip: unknown
           p_timezone: string
         }
         Returns: {
