@@ -6,6 +6,7 @@ import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
 import type { RoofAssessmentContext } from "@/config/roof-assessment";
 import { AssessmentLoading } from "./assessment-loading";
+import { AssessmentRevisionContext } from "./assessment-revision-context";
 import "./assessment.css";
 
 type ExperienceStage = "loading" | "reveal" | "questions";
@@ -18,6 +19,7 @@ export function AssessmentExperience({
   context,
   initialPropertyRevealed,
   initialStep,
+  initialRevision = 0,
   children,
 }: {
   preview?: boolean;
@@ -27,6 +29,7 @@ export function AssessmentExperience({
   context: RoofAssessmentContext;
   initialPropertyRevealed: boolean;
   initialStep: number;
+  initialRevision?: number;
   children: ReactNode;
 }) {
   const [stage, setStage] = useState<ExperienceStage>(
@@ -35,6 +38,7 @@ export function AssessmentExperience({
   const [imageAvailable, setImageAvailable] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(false);
+  const [revision, setRevision] = useState(initialRevision);
   const revealRef = useRef<HTMLElement>(null);
 
   useGSAP(() => {
@@ -59,7 +63,9 @@ export function AssessmentExperience({
     );
   }
 
-  if (stage === "questions") return <>{children}</>;
+  if (stage === "questions") {
+    return <AssessmentRevisionContext value={revision}>{children}</AssessmentRevisionContext>;
+  }
 
   async function startAssessment() {
     if (saving) return;
@@ -73,7 +79,12 @@ export function AssessmentExperience({
     const response = await fetch(`/api/roof-estimate/${token}/assessment`, {
       method: "PATCH",
       headers: {"content-type": "application/json"},
-      body: JSON.stringify({currentStep: 0, propertyRevealed: true, responses: {}}),
+      body: JSON.stringify({
+        expectedRevision: revision,
+        currentStep: 0,
+        propertyRevealed: true,
+        responsePatch: {},
+      }),
     }).catch(() => null);
 
     if (!response?.ok) {
@@ -81,6 +92,8 @@ export function AssessmentExperience({
       setSaveError(true);
       return;
     }
+    const canonical = await response.json().catch(() => null) as {revision?: number} | null;
+    if (typeof canonical?.revision === "number") setRevision(canonical.revision);
     setStage("questions");
     window.scrollTo({top: 0, behavior: "smooth"});
   }

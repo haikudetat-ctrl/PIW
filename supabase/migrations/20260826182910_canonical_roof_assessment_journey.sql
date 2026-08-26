@@ -6,6 +6,7 @@ alter table public.roof_assessments
     check (pg_catalog.length(pg_catalog.btrim(presentation_key)) > 0),
   add column entry_point text not null default 'roof-estimate'
     check (pg_catalog.length(pg_catalog.btrim(entry_point)) > 0),
+  add column revision bigint not null default 0 check (revision >= 0),
   add column last_answered_at timestamptz,
   add column result_viewed_at timestamptz,
   add column abandoned_at timestamptz;
@@ -628,6 +629,7 @@ begin
 
     update public.roof_assessments as assessment
     set status = 'in_progress',
+        revision = assessment.revision + case when v_was_abandoned then 1 else 0 end,
         presentation_key = v_attempt.requested_presentation_key,
         entry_point = v_attempt.requested_entry_point,
         abandoned_at = null,
@@ -747,6 +749,7 @@ begin
 
   update public.roof_assessments as assessment
   set status = 'in_progress',
+      revision = assessment.revision + case when v_was_abandoned then 1 else 0 end,
       presentation_key = v_attempt.requested_presentation_key,
       entry_point = v_attempt.requested_entry_point,
       abandoned_at = null,
@@ -1052,6 +1055,7 @@ begin
 
   update public.roof_assessments as assessment
   set status = 'in_progress',
+      revision = assessment.revision + case when v_was_abandoned then 1 else 0 end,
       presentation_key = v_attempt.requested_presentation_key,
       entry_point = v_attempt.requested_entry_point,
       abandoned_at = null,
@@ -1111,14 +1115,17 @@ $$;
 create function public.save_roof_assessment_progress(
   p_company_id uuid,
   p_assessment_id uuid,
+  p_expected_revision bigint,
   p_current_step integer,
   p_property_revealed_at timestamptz,
-  p_responses jsonb,
+  p_response_patch jsonb,
+  p_expected_responses jsonb,
   p_scores jsonb,
   p_high_intent boolean
 ) returns table (
-  id uuid, status text, current_step integer, property_revealed_at timestamptz,
-  last_answered_at timestamptz, responses jsonb, recommendation text
+  applied boolean, id uuid, revision bigint, status text, current_step integer,
+  property_revealed_at timestamptz, last_answered_at timestamptz,
+  responses jsonb, recommendation text
 )
 language plpgsql
 security definer
@@ -1132,9 +1139,18 @@ declare
   v_event_id uuid;
   v_event jsonb;
 begin
-  if p_current_step not between 0 and 9
-    or pg_catalog.jsonb_typeof(p_responses) <> 'object'
+  if p_expected_revision < 0
+    or p_current_step not between 0 and 9
+    or pg_catalog.jsonb_typeof(p_response_patch) <> 'object'
+    or pg_catalog.jsonb_typeof(p_expected_responses) <> 'object'
     or pg_catalog.jsonb_typeof(p_scores) <> 'object'
+    or exists (
+      select 1 from pg_catalog.jsonb_object_keys(p_response_patch) as patch(key)
+      where patch.key not in (
+        'reason','roofAge','conditionSignals','roofVisible','visibleCondition',
+        'stories','complexityFeatures','priority','timeline','ownership'
+      )
+    )
   then
     raise exception 'Invalid assessment progress';
   end if;
@@ -1147,10 +1163,23 @@ begin
     raise exception 'Assessment progress is unavailable';
   end if;
 
+  if v_assessment.revision <> p_expected_revision then
+    return query select false, v_assessment.id, v_assessment.revision,
+      v_assessment.status, v_assessment.current_step,
+      v_assessment.property_revealed_at, v_assessment.last_answered_at,
+      v_assessment.responses, v_assessment.recommendation;
+    return;
+  end if;
+
+  if (coalesce(v_assessment.responses, '{}'::jsonb) || p_response_patch) <> p_expected_responses then
+    raise exception 'Assessment response snapshot does not match patch';
+  end if;
+
   update public.roof_assessments as assessment
-  set current_step = p_current_step,
+  set current_step = greatest(assessment.current_step, p_current_step),
+      revision = assessment.revision + 1,
       property_revealed_at = coalesce(assessment.property_revealed_at, p_property_revealed_at),
-      responses = p_responses,
+      responses = p_expected_responses,
       scores = p_scores,
       last_answered_at = v_now,
       updated_at = v_now
@@ -1182,7 +1211,8 @@ begin
     perform public.enqueue_domain_event(p_company_id, v_event);
   end if;
 
-  return query select v_assessment.id, v_assessment.status, v_assessment.current_step,
+  return query select true, v_assessment.id, v_assessment.revision,
+    v_assessment.status, v_assessment.current_step,
     v_assessment.property_revealed_at, v_assessment.last_answered_at,
     v_assessment.responses, v_assessment.recommendation;
 end;
@@ -1191,13 +1221,16 @@ $$;
 create function public.complete_roof_assessment(
   p_company_id uuid,
   p_assessment_id uuid,
-  p_responses jsonb,
+  p_expected_revision bigint,
+  p_response_patch jsonb,
+  p_expected_responses jsonb,
   p_scores jsonb,
   p_recommendation text,
   p_high_intent boolean
 ) returns table (
-  id uuid, status text, current_step integer, property_revealed_at timestamptz,
-  last_answered_at timestamptz, responses jsonb, recommendation text
+  applied boolean, id uuid, revision bigint, status text, current_step integer,
+  property_revealed_at timestamptz, last_answered_at timestamptz,
+  responses jsonb, recommendation text
 )
 language plpgsql
 security definer
@@ -1211,7 +1244,9 @@ declare
   v_event_id uuid;
   v_event jsonb;
 begin
-  if pg_catalog.jsonb_typeof(p_responses) <> 'object'
+  if p_expected_revision < 0
+    or pg_catalog.jsonb_typeof(p_response_patch) <> 'object'
+    or pg_catalog.jsonb_typeof(p_expected_responses) <> 'object'
     or pg_catalog.jsonb_typeof(p_scores) <> 'object'
     or p_recommendation not in ('monitor_or_repair','professional_inspection','replacement_may_make_sense')
   then
@@ -1225,14 +1260,28 @@ begin
     raise exception 'Assessment completion is unavailable';
   end if;
   if v_assessment.status = 'completed' then
-    return query select v_assessment.id, v_assessment.status, v_assessment.current_step,
+    return query select false, v_assessment.id, v_assessment.revision,
+      v_assessment.status, v_assessment.current_step,
       v_assessment.property_revealed_at, v_assessment.last_answered_at,
       v_assessment.responses, v_assessment.recommendation;
     return;
   end if;
 
+  if v_assessment.revision <> p_expected_revision then
+    return query select false, v_assessment.id, v_assessment.revision,
+      v_assessment.status, v_assessment.current_step,
+      v_assessment.property_revealed_at, v_assessment.last_answered_at,
+      v_assessment.responses, v_assessment.recommendation;
+    return;
+  end if;
+
+  if (coalesce(v_assessment.responses, '{}'::jsonb) || p_response_patch) <> p_expected_responses then
+    raise exception 'Assessment response snapshot does not match patch';
+  end if;
+
   update public.roof_assessments as assessment
-  set status='completed', current_step=9, responses=p_responses, scores=p_scores,
+  set status='completed', current_step=9, revision=assessment.revision+1,
+      responses=p_expected_responses, scores=p_scores,
       recommendation=p_recommendation, assessment_version='roof-check-v1',
       completed_at=v_now, abandoned_at=null, updated_at=v_now
   where assessment.id=p_assessment_id and assessment.company_id=p_company_id
@@ -1267,7 +1316,8 @@ begin
     'data',pg_catalog.jsonb_build_object('assessmentId',v_assessment.id,'recommendation',p_recommendation));
   perform public.enqueue_domain_event(p_company_id,v_event);
 
-  return query select v_assessment.id, v_assessment.status, v_assessment.current_step,
+  return query select true, v_assessment.id, v_assessment.revision,
+    v_assessment.status, v_assessment.current_step,
     v_assessment.property_revealed_at, v_assessment.last_answered_at,
     v_assessment.responses, v_assessment.recommendation;
 end;
@@ -1306,7 +1356,7 @@ begin
     limit v_limit
   loop
     update public.roof_assessments assessment
-    set status='abandoned',abandoned_at=v_now,updated_at=v_now
+    set status='abandoned',revision=assessment.revision+1,abandoned_at=v_now,updated_at=v_now
     where assessment.id=v_record.id and assessment.company_id=v_record.company_id
       and assessment.status='in_progress';
     if found then
@@ -1439,17 +1489,17 @@ grant execute on function public.request_roof_consultation(uuid, uuid, text, tex
   to service_role;
 
 revoke execute on function public.save_roof_assessment_progress(
-  uuid, uuid, integer, timestamptz, jsonb, jsonb, boolean
+  uuid, uuid, bigint, integer, timestamptz, jsonb, jsonb, jsonb, boolean
 ) from public, anon, authenticated;
 grant execute on function public.save_roof_assessment_progress(
-  uuid, uuid, integer, timestamptz, jsonb, jsonb, boolean
+  uuid, uuid, bigint, integer, timestamptz, jsonb, jsonb, jsonb, boolean
 ) to service_role;
 
 revoke execute on function public.complete_roof_assessment(
-  uuid, uuid, jsonb, jsonb, text, boolean
+  uuid, uuid, bigint, jsonb, jsonb, jsonb, text, boolean
 ) from public, anon, authenticated;
 grant execute on function public.complete_roof_assessment(
-  uuid, uuid, jsonb, jsonb, text, boolean
+  uuid, uuid, bigint, jsonb, jsonb, jsonb, text, boolean
 ) to service_role;
 
 revoke execute on function public.abandon_inactive_roof_assessments(integer)

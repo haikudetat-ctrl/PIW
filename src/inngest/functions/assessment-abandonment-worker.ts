@@ -34,6 +34,34 @@ export async function abandonInactiveAssessments(
   return {abandoned: abandoned.length};
 }
 
+type RunPage = (
+  id: string,
+  operation: () => Promise<{abandoned: number}>,
+) => Promise<{abandoned: number}>;
+
+export async function drainInactiveAssessments(
+  repository: AssessmentAbandonmentRepository,
+  runPage: RunPage,
+  options: {batchSize?: number; maxPages?: number} = {},
+) {
+  const batchSize = Math.max(1, Math.min(500, Math.trunc(options.batchSize ?? 500)));
+  const maxPages = Math.max(1, Math.min(20, Math.trunc(options.maxPages ?? 10)));
+  let abandoned = 0;
+  let pages = 0;
+  let lastPageWasFull = false;
+
+  for (let page = 1; page <= maxPages; page += 1) {
+    const result = await runPage(`abandon-page-${page}`, () =>
+      abandonInactiveAssessments(repository, batchSize));
+    abandoned += result.abandoned;
+    pages = page;
+    lastPageWasFull = result.abandoned === batchSize;
+    if (!lastPageWasFull) break;
+  }
+
+  return {abandoned, pages, maxPagesReached: pages === maxPages && lastPageWasFull};
+}
+
 type InngestLike = Pick<typeof inngest, "createFunction">;
 
 export function createAssessmentAbandonmentWorker(
@@ -42,10 +70,10 @@ export function createAssessmentAbandonmentWorker(
 ) {
   return client.createFunction(
     {id: "assessment-abandonment-worker", triggers: {cron: "0 * * * *"}},
-    async ({step}) => step.run("abandon-inactive-assessments", () =>
-      abandonInactiveAssessments(
-        repository ?? new SupabaseAssessmentAbandonmentRepository(),
-      )),
+    async ({step}) => drainInactiveAssessments(
+      repository ?? new SupabaseAssessmentAbandonmentRepository(),
+      (id, operation) => step.run(id, operation),
+    ),
   );
 }
 

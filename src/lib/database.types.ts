@@ -2975,6 +2975,7 @@ export type Database = {
           recommendation: string | null
           responses: Json
           result_viewed_at: string | null
+          revision: number
           scores: Json
           started_at: string
           status: string
@@ -2996,6 +2997,7 @@ export type Database = {
           recommendation?: string | null
           responses?: Json
           result_viewed_at?: string | null
+          revision?: number
           scores?: Json
           started_at?: string
           status?: string
@@ -3017,6 +3019,7 @@ export type Database = {
           recommendation?: string | null
           responses?: Json
           result_viewed_at?: string | null
+          revision?: number
           scores?: Json
           started_at?: string
           status?: string
@@ -3740,18 +3743,22 @@ export type Database = {
         Args: {
           p_assessment_id: string
           p_company_id: string
+          p_expected_responses: Json
+          p_expected_revision: number
           p_high_intent: boolean
           p_recommendation: string
-          p_responses: Json
+          p_response_patch: Json
           p_scores: Json
         }
         Returns: {
+          applied: boolean
           current_step: number
           id: string
           last_answered_at: string
           property_revealed_at: string
           recommendation: string
           responses: Json
+          revision: number
           status: string
         }[]
       }
@@ -3900,18 +3907,22 @@ export type Database = {
           p_assessment_id: string
           p_company_id: string
           p_current_step: number
+          p_expected_responses: Json
+          p_expected_revision: number
           p_high_intent: boolean
           p_property_revealed_at: string
-          p_responses: Json
+          p_response_patch: Json
           p_scores: Json
         }
         Returns: {
+          applied: boolean
           current_step: number
           id: string
           last_answered_at: string
           property_revealed_at: string
           recommendation: string
           responses: Json
+          revision: number
           status: string
         }[]
       }

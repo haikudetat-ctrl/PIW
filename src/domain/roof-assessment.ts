@@ -107,6 +107,59 @@ export const roofAssessmentProgressSchema = roofAssessmentResponsesBaseSchema
   .superRefine(validateResponseRelationships);
 
 export type RoofAssessmentResponses = z.infer<typeof roofAssessmentResponsesSchema>;
+
+export const roofAssessmentQuestionSteps = [
+  {id: "reason", responseKeys: ["reason"]},
+  {id: "roofAge", responseKeys: ["roofAge"]},
+  {id: "conditionSignals", responseKeys: ["conditionSignals"]},
+  {id: "roofVisibility", responseKeys: ["roofVisible", "visibleCondition"]},
+  {id: "stories", responseKeys: ["stories"]},
+  {id: "complexityFeatures", responseKeys: ["complexityFeatures"]},
+  {id: "priority", responseKeys: ["priority"]},
+  {id: "timeline", responseKeys: ["timeline"]},
+  {id: "ownership", responseKeys: ["ownership"]},
+] as const satisfies readonly {
+  id: string;
+  responseKeys: readonly (keyof RoofAssessmentResponses)[];
+}[];
+
+export type RoofAssessmentQuestionStep = (typeof roofAssessmentQuestionSteps)[number];
+export type RoofAssessmentQuestionId = RoofAssessmentQuestionStep["id"];
+
+export const roofAssessmentQuestionIds = roofAssessmentQuestionSteps.map(
+  (step) => step.id,
+) as [RoofAssessmentQuestionId, ...RoofAssessmentQuestionId[]];
+
+export function isRoofAssessmentStepAnswered(
+  stepIndex: number,
+  responses: Partial<RoofAssessmentResponses>,
+) {
+  const step = roofAssessmentQuestionSteps[stepIndex];
+  if (!step) return false;
+  if (step.id === "roofVisibility") {
+    return responses.roofVisible === "no"
+      ? responses.visibleCondition === "not_answered"
+      : responses.roofVisible === "yes" &&
+          Boolean(responses.visibleCondition && responses.visibleCondition !== "not_answered");
+  }
+  return step.responseKeys.every((key) => {
+    const value = responses[key];
+    return Array.isArray(value) ? value.length > 0 : value !== undefined;
+  });
+}
+
+export function roofAssessmentStepResponsePatch(
+  stepIndex: number,
+  responses: Partial<RoofAssessmentResponses>,
+): Partial<RoofAssessmentResponses> {
+  const step = roofAssessmentQuestionSteps[stepIndex];
+  if (!step) return {};
+  return Object.fromEntries(
+    step.responseKeys
+      .filter((key) => responses[key] !== undefined)
+      .map((key) => [key, responses[key]]),
+  ) as Partial<RoofAssessmentResponses>;
+}
 export type RoofAssessmentRecommendation =
   | "monitor_or_repair"
   | "professional_inspection"

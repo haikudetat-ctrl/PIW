@@ -33,6 +33,23 @@ const completeResponses: RoofAssessmentResponses = {
   timeline: "asap",
   ownership: "owner",
 };
+const completeExceptOwnership: Partial<RoofAssessmentResponses> = {
+  ...completeResponses,
+  ownership: undefined,
+};
+
+function seedFinalStep(repository: MemoryAssessmentRepository) {
+  repository.assessment = {
+    id: "55555555-5555-4555-8555-555555555555",
+    status: "in_progress",
+    revision: 0,
+    currentStep: 8,
+    propertyRevealedAt: null,
+    lastAnsweredAt: null,
+    responses: completeExceptOwnership,
+    recommendation: null,
+  };
+}
 
 class MemoryAssessmentRepository implements PublicAssessmentRepository {
   assessment: PersistedAssessment | null = null;
@@ -48,6 +65,7 @@ class MemoryAssessmentRepository implements PublicAssessmentRepository {
     this.assessment ??= {
       id: "55555555-5555-4555-8555-555555555555",
       status: "in_progress",
+      revision: 0,
       currentStep: 0,
       propertyRevealedAt: null,
       lastAnsweredAt: null,
@@ -66,18 +84,22 @@ class MemoryAssessmentRepository implements PublicAssessmentRepository {
       throw new Error("persistence unavailable");
     }
     const current = await this.findOrCreateAssessment(context);
+    if (patch.expectedRevision !== current.revision) {
+      return {assessment: current, applied: false};
+    }
     const lastAnsweredAt = new Date().toISOString();
     this.assessment = {
       ...current,
-      currentStep: patch.currentStep,
+      revision: current.revision + 1,
+      currentStep: Math.max(current.currentStep, patch.currentStep),
       propertyRevealedAt: patch.propertyRevealedAt ?? current.propertyRevealedAt,
       lastAnsweredAt,
-      responses: {...current.responses, ...patch.responses},
+      responses: {...current.responses, ...patch.responsePatch},
     };
     if (patch.signals.highIntent) {
       this.lifecycleEvents.add(`roof/assessment.high_intent:${this.assessment.id}`);
     }
-    return this.assessment;
+    return {assessment: this.assessment, applied: true};
   }
 
   async complete(
@@ -85,10 +107,14 @@ class MemoryAssessmentRepository implements PublicAssessmentRepository {
     completion: AssessmentCompletion,
   ) {
     const current = await this.findOrCreateAssessment(context);
+    if (completion.expectedRevision !== current.revision) {
+      return {assessment: current, applied: false};
+    }
     this.completion = completion;
     this.assessment = {
       ...current,
       status: "completed",
+      revision: current.revision + 1,
       currentStep: 9,
       responses: completion.responses,
       recommendation: completion.recommendation,
@@ -97,7 +123,7 @@ class MemoryAssessmentRepository implements PublicAssessmentRepository {
       this.lifecycleEvents.add(`roof/assessment.high_intent:${this.assessment.id}`);
     }
     this.lifecycleEvents.add(`roof/assessment.completed:${this.assessment.id}`);
-    return this.assessment;
+    return {assessment: this.assessment, applied: true};
   }
 }
 
@@ -107,6 +133,7 @@ describe("public roof assessment", () => {
 
     expect(result).toEqual({
       status: "in_progress",
+      revision: 0,
       currentStep: 0,
       propertyRevealed: false,
       lastAnsweredAt: null,
@@ -127,14 +154,21 @@ describe("public roof assessment", () => {
 
   test("merges a validated partial response and marks the property revealed", async () => {
     const repository = new MemoryAssessmentRepository();
-    const result = await savePublicAssessmentProgress(token, {
-      currentStep: 2,
+    await savePublicAssessmentProgress(token, {
+      expectedRevision: 0,
+      currentStep: 1,
       propertyRevealed: true,
-      responses: {reason: "roof_age", roofAge: "unknown"},
+      responsePatch: {reason: "roof_age"},
+    }, repository);
+    const result = await savePublicAssessmentProgress(token, {
+      expectedRevision: 1,
+      currentStep: 2,
+      responsePatch: {roofAge: "unknown"},
     }, repository);
 
     expect(result).toMatchObject({
       currentStep: 2,
+      revision: 2,
       propertyRevealed: true,
       lastAnsweredAt: expect.any(String),
       responses: {reason: "roof_age", roofAge: "unknown"},
@@ -147,8 +181,9 @@ describe("public roof assessment", () => {
     repository.failNextSave = true;
 
     await expect(savePublicAssessmentProgress(token, {
+      expectedRevision: 0,
       currentStep: 1,
-      responses: {reason: "known_replacement"},
+      responsePatch: {reason: "known_replacement"},
     }, repository)).rejects.toThrow("persistence unavailable");
     expect(repository.assessment).toMatchObject({
       currentStep: 0,
@@ -160,12 +195,16 @@ describe("public roof assessment", () => {
   test("emits high intent once when progressive answers first cross the threshold", async () => {
     const repository = new MemoryAssessmentRepository();
     const input = {
+      expectedRevision: 0,
       currentStep: 1,
-      responses: {reason: "known_replacement" as const},
+      responsePatch: {reason: "known_replacement" as const},
     };
 
     await savePublicAssessmentProgress(token, input, repository);
-    await savePublicAssessmentProgress(token, input, repository);
+    await expect(savePublicAssessmentProgress(token, input, repository)).rejects.toMatchObject({
+      status: 409,
+      state: {revision: 1, responses: {reason: "known_replacement"}},
+    });
 
     expect([...repository.lifecycleEvents]).toEqual([
       "roof/assessment.high_intent:55555555-5555-4555-8555-555555555555",
@@ -174,8 +213,9 @@ describe("public roof assessment", () => {
 
   test("rejects unrecognized partial response keys", async () => {
     await expect(savePublicAssessmentProgress(token, {
+      expectedRevision: 0,
       currentStep: 1,
-      responses: {leadScore: 99} as never,
+      responsePatch: {leadScore: 99} as never,
     }, new MemoryAssessmentRepository())).rejects.toEqual(
       expect.objectContaining<Partial<PublicAssessmentError>>({status: 400}),
     );
@@ -183,7 +223,11 @@ describe("public roof assessment", () => {
 
   test("derives scores on completion without exposing them publicly", async () => {
     const repository = new MemoryAssessmentRepository();
-    const result = await completePublicAssessment(token, completeResponses, repository);
+    seedFinalStep(repository);
+    const result = await completePublicAssessment(token, {
+      expectedRevision: 0,
+      responsePatch: {ownership: "owner"},
+    }, repository);
 
     expect(result).toMatchObject({
       status: "completed",
@@ -204,22 +248,50 @@ describe("public roof assessment", () => {
 
   test("completion retries do not duplicate lifecycle events", async () => {
     const repository = new MemoryAssessmentRepository();
+    seedFinalStep(repository);
 
-    await completePublicAssessment(token, completeResponses, repository);
-    await completePublicAssessment(token, completeResponses, repository);
+    await completePublicAssessment(token, {expectedRevision: 0, responsePatch: {ownership: "owner"}}, repository);
+    await completePublicAssessment(token, {expectedRevision: 0, responsePatch: {ownership: "owner"}}, repository);
 
     expect(repository.lifecycleEvents.size).toBe(2);
   });
 
   test("does not overwrite a completed assessment", async () => {
     const repository = new MemoryAssessmentRepository();
-    await completePublicAssessment(token, completeResponses, repository);
+    seedFinalStep(repository);
+    await completePublicAssessment(token, {expectedRevision: 0, responsePatch: {ownership: "owner"}}, repository);
 
     await expect(savePublicAssessmentProgress(token, {
-      currentStep: 3,
-      responses: {roofAge: "under_5"},
+      expectedRevision: 1,
+      currentStep: 2,
+      responsePatch: {roofAge: "under_5"},
     }, repository)).rejects.toEqual(
       expect.objectContaining<Partial<PublicAssessmentError>>({status: 409}),
     );
+  });
+
+  test("rejects a delayed stale save without changing canonical answers, step, or revision", async () => {
+    const repository = new MemoryAssessmentRepository();
+    await savePublicAssessmentProgress(token, {
+      expectedRevision: 0,
+      currentStep: 1,
+      responsePatch: {reason: "planning"},
+    }, repository);
+    await savePublicAssessmentProgress(token, {
+      expectedRevision: 1,
+      currentStep: 2,
+      responsePatch: {roofAge: "20_plus"},
+    }, repository);
+
+    await expect(savePublicAssessmentProgress(token, {
+      expectedRevision: 0,
+      currentStep: 1,
+      responsePatch: {reason: "roof_age"},
+    }, repository)).rejects.toMatchObject({status: 409});
+    expect(repository.assessment).toMatchObject({
+      revision: 2,
+      currentStep: 2,
+      responses: {reason: "planning", roofAge: "20_plus"},
+    });
   });
 });
