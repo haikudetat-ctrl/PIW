@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import type { RoofAssessmentContext } from "@/config/roof-assessment";
 import { AssessmentLoading } from "./assessment-loading";
+import "./assessment.css";
 
 type ExperienceStage = "loading" | "reveal" | "questions";
 
