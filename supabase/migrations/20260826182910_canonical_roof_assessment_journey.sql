@@ -164,13 +164,14 @@ create table public.roof_assessment_access_attempts (
   verification_sent_at timestamptz,
   verified_at timestamptz,
   verification_send_count integer not null default 0
-    check (verification_send_count between 0 and 5),
+    check (verification_send_count >= 0),
   expires_at timestamptz not null,
   consumed_at timestamptz,
   token_rotated_at timestamptz,
   created_at timestamptz not null default pg_catalog.now(),
   updated_at timestamptz not null default pg_catalog.now(),
   unique (company_id, submission_id),
+  unique (company_id, id),
   foreign key (company_id, lead_id)
     references public.leads(company_id, id) on delete cascade,
   foreign key (company_id, property_id)
@@ -179,6 +180,31 @@ create table public.roof_assessment_access_attempts (
     references public.roof_estimates(company_id, id) on delete cascade,
   foreign key (company_id, assessment_id)
     references public.roof_assessments(company_id, id) on delete cascade
+);
+
+create table public.roof_assessment_verification_sends (
+  id uuid primary key default extensions.gen_random_uuid(),
+  company_id uuid not null references public.companies(id) on delete cascade,
+  attempt_id uuid not null,
+  destination_phone_e164 text not null
+    check (destination_phone_e164 ~ '^[+][1-9][0-9]{7,14}$'),
+  request_ip inet not null,
+  provider_attempt_id text,
+  provider_status text not null default 'reserved'
+    check (provider_status in ('reserved', 'pending', 'approved')),
+  reserved_at timestamptz not null default pg_catalog.now(),
+  sent_at timestamptz,
+  approved_at timestamptz,
+  created_at timestamptz not null default pg_catalog.now(),
+  updated_at timestamptz not null default pg_catalog.now(),
+  unique (company_id, id),
+  foreign key (company_id, attempt_id)
+    references public.roof_assessment_access_attempts(company_id, id) on delete cascade,
+  check (
+    (provider_status = 'reserved' and provider_attempt_id is null and sent_at is null and approved_at is null)
+    or (provider_status = 'pending' and provider_attempt_id is not null and sent_at is not null and approved_at is null)
+    or (provider_status = 'approved' and provider_attempt_id is not null and sent_at is not null and approved_at is not null)
+  )
 );
 
 create index lead_attribution_touches_lead_occurred_idx
@@ -193,21 +219,30 @@ create index roof_assessment_access_attempts_phone_throttle_idx
   on public.roof_assessment_access_attempts(destination_phone_e164, created_at desc);
 create index roof_assessment_access_attempts_ip_throttle_idx
   on public.roof_assessment_access_attempts(request_ip, created_at desc);
+create index roof_assessment_verification_sends_phone_idx
+  on public.roof_assessment_verification_sends(company_id, destination_phone_e164, reserved_at desc);
+create index roof_assessment_verification_sends_ip_idx
+  on public.roof_assessment_verification_sends(company_id, request_ip, reserved_at desc);
+create index roof_assessment_verification_sends_attempt_idx
+  on public.roof_assessment_verification_sends(company_id, attempt_id, reserved_at desc);
 
 alter table public.lead_consent_evidence enable row level security;
 alter table public.lead_attribution_touches enable row level security;
 alter table public.consultation_requests enable row level security;
 alter table public.roof_assessment_access_attempts enable row level security;
+alter table public.roof_assessment_verification_sends enable row level security;
 
 revoke all on public.lead_consent_evidence from public, anon, authenticated;
 revoke all on public.lead_attribution_touches from public, anon, authenticated;
 revoke all on public.consultation_requests from public, anon, authenticated;
 revoke all on public.roof_assessment_access_attempts from public, anon, authenticated;
+revoke all on public.roof_assessment_verification_sends from public, anon, authenticated;
 
 grant all on public.lead_consent_evidence to service_role;
 grant all on public.lead_attribution_touches to service_role;
 grant all on public.consultation_requests to service_role;
 grant all on public.roof_assessment_access_attempts to service_role;
+grant all on public.roof_assessment_verification_sends to service_role;
 
 create function public.start_or_resume_roof_assessment(
   p_company_id uuid,
@@ -707,6 +742,282 @@ begin
 end;
 $$;
 
+create function public.reserve_roof_assessment_verification_start(
+  p_attempt_id uuid,
+  p_request_ip inet
+) returns table (
+  reservation_id uuid,
+  company_id uuid,
+  destination_phone_e164 text,
+  reserved_at timestamptz
+)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_attempt public.roof_assessment_access_attempts%rowtype;
+  v_reservation public.roof_assessment_verification_sends%rowtype;
+  v_now timestamptz := pg_catalog.clock_timestamp();
+begin
+  if p_attempt_id is null or p_request_ip is null then
+    raise exception 'verification_start_unavailable';
+  end if;
+
+  select attempt.* into v_attempt
+  from public.roof_assessment_access_attempts as attempt
+  where attempt.id = p_attempt_id
+  for update;
+
+  if not found
+    or v_attempt.attempt_kind <> 'resume_candidate'
+    or v_attempt.consumed_at is not null
+    or v_attempt.verified_at is not null
+    or v_attempt.expires_at <= v_now
+  then
+    raise exception 'verification_start_unavailable';
+  end if;
+
+  -- Serialize destination and IP buckets across different assessment attempts.
+  perform pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended(
+      'roof-verification-phone:' || v_attempt.company_id::text || ':' || v_attempt.destination_phone_e164,
+      0
+    )
+  );
+  perform pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended(
+      'roof-verification-ip:' || v_attempt.company_id::text || ':' || p_request_ip::text,
+      0
+    )
+  );
+
+  if exists (
+    select 1 from public.roof_assessment_verification_sends as send
+    where send.company_id = v_attempt.company_id
+      and send.destination_phone_e164 = v_attempt.destination_phone_e164
+      and send.reserved_at > v_now - interval '1 minute'
+  ) then
+    raise exception 'verification_start_cooldown';
+  end if;
+  if (
+    select pg_catalog.count(*)
+    from public.roof_assessment_verification_sends as send
+    where send.company_id = v_attempt.company_id
+      and send.destination_phone_e164 = v_attempt.destination_phone_e164
+      and send.reserved_at > v_now - interval '1 hour'
+  ) >= 5 then
+    raise exception 'verification_phone_hourly_limit';
+  end if;
+  if (
+    select pg_catalog.count(*)
+    from public.roof_assessment_verification_sends as send
+    where send.company_id = v_attempt.company_id
+      and send.request_ip = p_request_ip
+      and send.reserved_at > v_now - interval '1 hour'
+  ) >= 5 then
+    raise exception 'verification_ip_hourly_limit';
+  end if;
+
+  insert into public.roof_assessment_verification_sends (
+    company_id, attempt_id, destination_phone_e164, request_ip, reserved_at
+  ) values (
+    v_attempt.company_id, v_attempt.id, v_attempt.destination_phone_e164,
+    p_request_ip, v_now
+  ) returning * into v_reservation;
+
+  update public.roof_assessment_access_attempts as attempt
+  set verification_started_at = v_now,
+      verification_send_count = attempt.verification_send_count + 1,
+      updated_at = v_now
+  where attempt.id = v_attempt.id and attempt.company_id = v_attempt.company_id;
+  if not found then
+    raise exception 'verification_start_unavailable';
+  end if;
+
+  return query select v_reservation.id, v_reservation.company_id,
+                      v_reservation.destination_phone_e164, v_reservation.reserved_at;
+end;
+$$;
+
+create function public.record_roof_assessment_verification_start(
+  p_company_id uuid,
+  p_attempt_id uuid,
+  p_reservation_id uuid,
+  p_provider_attempt_id text
+) returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_attempt public.roof_assessment_access_attempts%rowtype;
+  v_reservation public.roof_assessment_verification_sends%rowtype;
+  v_now timestamptz := pg_catalog.clock_timestamp();
+begin
+  if p_provider_attempt_id is null
+    or p_provider_attempt_id !~ '^VE[A-Za-z0-9]{2,64}$'
+  then
+    raise exception 'verification_start_unavailable';
+  end if;
+
+  select attempt.* into v_attempt
+  from public.roof_assessment_access_attempts as attempt
+  where attempt.id = p_attempt_id and attempt.company_id = p_company_id
+  for update;
+  if not found
+    or v_attempt.attempt_kind <> 'resume_candidate'
+    or v_attempt.consumed_at is not null
+    or v_attempt.verified_at is not null
+    or v_attempt.expires_at <= v_now
+  then
+    raise exception 'verification_start_unavailable';
+  end if;
+
+  select send.* into v_reservation
+  from public.roof_assessment_verification_sends as send
+  where send.id = p_reservation_id
+    and send.company_id = p_company_id
+    and send.attempt_id = p_attempt_id
+  for update;
+  if not found or v_reservation.provider_status <> 'reserved' then
+    raise exception 'verification_start_unavailable';
+  end if;
+  if exists (
+    select 1 from public.roof_assessment_verification_sends as newer
+    where newer.company_id = p_company_id
+      and newer.attempt_id = p_attempt_id
+      and (newer.reserved_at, newer.id) > (v_reservation.reserved_at, v_reservation.id)
+  ) then
+    raise exception 'verification_start_unavailable';
+  end if;
+
+  update public.roof_assessment_verification_sends as send
+  set provider_attempt_id = p_provider_attempt_id,
+      provider_status = 'pending',
+      sent_at = v_now,
+      updated_at = v_now
+  where send.id = v_reservation.id and send.company_id = p_company_id;
+  if not found then
+    raise exception 'verification_start_unavailable';
+  end if;
+
+  update public.roof_assessment_access_attempts as attempt
+  set provider_attempt_id = p_provider_attempt_id,
+      provider_attempt_metadata = pg_catalog.jsonb_build_object(
+        'reservationId', v_reservation.id,
+        'provider', 'twilio_verify'
+      ),
+      verification_sent_at = v_now,
+      updated_at = v_now
+  where attempt.id = p_attempt_id and attempt.company_id = p_company_id;
+  if not found then
+    raise exception 'verification_start_unavailable';
+  end if;
+end;
+$$;
+
+create function public.approve_verified_roof_assessment_resume(
+  p_company_id uuid,
+  p_attempt_id uuid,
+  p_provider_attempt_id text
+) returns table (
+  assessment_id uuid,
+  public_token uuid,
+  token_rotated_at timestamptz
+)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_attempt public.roof_assessment_access_attempts%rowtype;
+  v_send public.roof_assessment_verification_sends%rowtype;
+  v_token uuid;
+  v_rotated_at timestamptz := pg_catalog.clock_timestamp();
+begin
+  select attempt.* into v_attempt
+  from public.roof_assessment_access_attempts as attempt
+  where attempt.id = p_attempt_id and attempt.company_id = p_company_id
+  for update;
+
+  if not found then
+    raise exception 'Assessment access attempt not found';
+  end if;
+  if v_attempt.consumed_at is not null then
+    raise exception 'Assessment access attempt has already been consumed';
+  end if;
+  if v_attempt.attempt_kind <> 'resume_candidate' then
+    raise exception 'Assessment access attempt is not a resume candidate';
+  end if;
+  if v_attempt.verified_at is not null then
+    raise exception 'Assessment access attempt has already been verified';
+  end if;
+  if v_attempt.expires_at <= v_rotated_at then
+    raise exception 'Assessment access attempt has expired';
+  end if;
+  if p_provider_attempt_id is null
+    or v_attempt.provider_attempt_id is null
+    or v_attempt.provider_attempt_id <> p_provider_attempt_id
+    or v_attempt.verification_sent_at is null
+  then
+    raise exception 'Assessment verification is invalid';
+  end if;
+
+  select send.* into v_send
+  from public.roof_assessment_verification_sends as send
+  where send.company_id = p_company_id
+    and send.attempt_id = p_attempt_id
+    and send.provider_attempt_id = p_provider_attempt_id
+    and send.provider_status = 'pending'
+  order by send.sent_at desc, send.id desc
+  limit 1
+  for update;
+  if not found or v_send.destination_phone_e164 <> v_attempt.destination_phone_e164 then
+    raise exception 'Assessment verification is invalid';
+  end if;
+
+  update public.roof_assessments as assessment
+  set status = 'in_progress',
+      presentation_key = v_attempt.requested_presentation_key,
+      entry_point = v_attempt.requested_entry_point,
+      abandoned_at = null,
+      updated_at = v_rotated_at
+  where assessment.id = v_attempt.assessment_id
+    and assessment.company_id = p_company_id;
+  if not found then
+    raise exception 'Roof assessment authorization failed';
+  end if;
+
+  v_token := extensions.gen_random_uuid();
+  update public.roof_estimates as estimate
+  set public_token = v_token, updated_at = v_rotated_at
+  where estimate.id = v_attempt.estimate_id and estimate.company_id = p_company_id;
+  if not found then
+    raise exception 'Roof estimate token rotation failed';
+  end if;
+
+  update public.roof_assessment_access_attempts as attempt
+  set verified_at = v_rotated_at,
+      token_rotated_at = v_rotated_at,
+      consumed_at = v_rotated_at,
+      updated_at = v_rotated_at
+  where attempt.id = p_attempt_id and attempt.company_id = p_company_id;
+  if not found then
+    raise exception 'Assessment access attempt consumption failed';
+  end if;
+
+  update public.roof_assessment_verification_sends as send
+  set provider_status = 'approved', approved_at = v_rotated_at, updated_at = v_rotated_at
+  where send.id = v_send.id and send.company_id = p_company_id;
+  if not found then
+    raise exception 'Assessment verification evidence update failed';
+  end if;
+
+  return query select v_attempt.assessment_id, v_token, v_rotated_at;
+end;
+$$;
+
 create function public.request_roof_consultation(
   p_company_id uuid,
   p_assessment_id uuid,
@@ -798,6 +1109,21 @@ revoke execute on function public.authorize_same_browser_roof_assessment_resume(
 grant execute on function public.authorize_same_browser_roof_assessment_resume(
   uuid, uuid, uuid, bytea
 ) to service_role;
+
+revoke execute on function public.reserve_roof_assessment_verification_start(uuid, inet)
+  from public, anon, authenticated;
+grant execute on function public.reserve_roof_assessment_verification_start(uuid, inet)
+  to service_role;
+
+revoke execute on function public.record_roof_assessment_verification_start(uuid, uuid, uuid, text)
+  from public, anon, authenticated;
+grant execute on function public.record_roof_assessment_verification_start(uuid, uuid, uuid, text)
+  to service_role;
+
+revoke execute on function public.approve_verified_roof_assessment_resume(uuid, uuid, text)
+  from public, anon, authenticated;
+grant execute on function public.approve_verified_roof_assessment_resume(uuid, uuid, text)
+  to service_role;
 
 revoke execute on function public.request_roof_consultation(uuid, uuid, text, text)
   from public, anon, authenticated;

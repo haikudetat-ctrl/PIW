@@ -212,6 +212,21 @@ describe("parseServerEnv", () => {
   test("allows disabled environments to omit the signing secret", () => {
     expect(parseServerEnv(base).ROOF_ASSESSMENT_SIGNING_SECRET).toBeUndefined();
   });
+
+  test("requires complete Twilio Verify and assessment session configuration when enabled", () => {
+    expect(() => parseServerEnv({...base, TWILIO_VERIFY_ENABLED: "true"}))
+      .toThrow("Twilio Verify requires API credentials, a service SID, and assessment signing");
+
+    expect(parseServerEnv({
+      ...base,
+      ROOF_ASSESSMENT_ENABLED: "true",
+      ROOF_ASSESSMENT_SIGNING_SECRET: "a".repeat(32),
+      TWILIO_VERIFY_ENABLED: "true",
+      TWILIO_API_KEY_SID: "SK_test_key",
+      TWILIO_API_KEY_SECRET: "test-secret",
+      TWILIO_VERIFY_SERVICE_SID: "VA_test_service",
+    }).TWILIO_VERIFY_ENABLED).toBe(true);
+  });
 });
 
 describe("parseClientEnv", () => {

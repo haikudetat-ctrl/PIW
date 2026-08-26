@@ -13,6 +13,7 @@ select has_table('public', 'lead_attribution_touches', 'attribution history exis
 select has_table('public', 'lead_consent_evidence', 'append-only consent evidence exists');
 select has_table('public', 'consultation_requests', 'consultation intent exists');
 select has_table('public', 'roof_assessment_access_attempts', 'continuation access attempts exist');
+select has_table('public', 'roof_assessment_verification_sends', 'verification send evidence exists');
 select hasnt_column('public', 'lead_consents', 'submission_id', 'current consent projection keeps its one-row contract');
 select hasnt_column('public', 'roof_assessment_access_attempts', 'continuation_secret', 'raw continuation secrets are never stored');
 
@@ -28,11 +29,24 @@ select has_function(
   'atomic same-browser resume RPC exists'
 );
 select has_function('public', 'request_roof_consultation', array['uuid','uuid','text','text'], 'consultation RPC exists');
+select has_function(
+  'public', 'reserve_roof_assessment_verification_start', array['uuid','inet'],
+  'atomic verification reservation RPC exists'
+);
+select has_function(
+  'public', 'record_roof_assessment_verification_start', array['uuid','uuid','uuid','text'],
+  'provider start evidence RPC exists'
+);
+select has_function(
+  'public', 'approve_verified_roof_assessment_resume', array['uuid','uuid','text'],
+  'atomic verified resume approval RPC exists'
+);
 
 select is((select relrowsecurity from pg_catalog.pg_class where oid = 'public.lead_attribution_touches'::regclass), true, 'attribution has RLS');
 select is((select relrowsecurity from pg_catalog.pg_class where oid = 'public.lead_consent_evidence'::regclass), true, 'consent evidence has RLS');
 select is((select relrowsecurity from pg_catalog.pg_class where oid = 'public.consultation_requests'::regclass), true, 'consultation requests have RLS');
 select is((select relrowsecurity from pg_catalog.pg_class where oid = 'public.roof_assessment_access_attempts'::regclass), true, 'access attempts have RLS');
+select is((select relrowsecurity from pg_catalog.pg_class where oid = 'public.roof_assessment_verification_sends'::regclass), true, 'verification evidence has RLS');
 
 select table_privs_are('public', 'lead_attribution_touches', 'anon', array[]::text[], 'anon cannot access attribution');
 select table_privs_are('public', 'lead_attribution_touches', 'authenticated', array[]::text[], 'authenticated cannot access attribution');
@@ -42,6 +56,8 @@ select table_privs_are('public', 'consultation_requests', 'anon', array[]::text[
 select table_privs_are('public', 'consultation_requests', 'authenticated', array[]::text[], 'authenticated cannot access consultations');
 select table_privs_are('public', 'roof_assessment_access_attempts', 'anon', array[]::text[], 'anon cannot access access attempts');
 select table_privs_are('public', 'roof_assessment_access_attempts', 'authenticated', array[]::text[], 'authenticated cannot access access attempts');
+select table_privs_are('public', 'roof_assessment_verification_sends', 'anon', array[]::text[], 'anon cannot access verification evidence');
+select table_privs_are('public', 'roof_assessment_verification_sends', 'authenticated', array[]::text[], 'authenticated cannot access verification evidence');
 
 select function_privs_are(
   'public', 'start_or_resume_roof_assessment',
@@ -65,6 +81,26 @@ select function_privs_are(
   'service_role', array['EXECUTE'], 'service role alone authorizes same-browser resume'
 );
 select function_privs_are('public', 'request_roof_consultation', array['uuid','uuid','text','text'], 'public', array[]::text[], 'public cannot create consultations');
+select function_privs_are(
+  'public', 'reserve_roof_assessment_verification_start', array['uuid','inet'],
+  'public', array[]::text[], 'public cannot reserve verification starts'
+);
+select function_privs_are(
+  'public', 'reserve_roof_assessment_verification_start', array['uuid','inet'],
+  'service_role', array['EXECUTE'], 'service role alone reserves verification starts'
+);
+select function_privs_are(
+  'public', 'record_roof_assessment_verification_start', array['uuid','uuid','uuid','text'],
+  'public', array[]::text[], 'public cannot record provider starts'
+);
+select function_privs_are(
+  'public', 'approve_verified_roof_assessment_resume', array['uuid','uuid','text'],
+  'public', array[]::text[], 'public cannot approve verified resumes'
+);
+select function_privs_are(
+  'public', 'approve_verified_roof_assessment_resume', array['uuid','uuid','text'],
+  'service_role', array['EXECUTE'], 'service role alone approves verified resumes'
+);
 
 select ok(
   (select proc.prosecdef and proc.proconfig = array['search_path=""']
@@ -89,6 +125,24 @@ select ok(
    from pg_catalog.pg_proc as proc
    where proc.oid = 'public.request_roof_consultation(uuid,uuid,text,text)'::regprocedure),
   'consultation RPC is security definer with an empty search path'
+);
+select ok(
+  (select proc.prosecdef and proc.proconfig = array['search_path=""']
+   from pg_catalog.pg_proc as proc
+   where proc.oid = 'public.reserve_roof_assessment_verification_start(uuid,inet)'::regprocedure),
+  'verification reservation is security definer with an empty search path'
+);
+select ok(
+  (select proc.prosecdef and proc.proconfig = array['search_path=""']
+   from pg_catalog.pg_proc as proc
+   where proc.oid = 'public.record_roof_assessment_verification_start(uuid,uuid,uuid,text)'::regprocedure),
+  'provider evidence recording is security definer with an empty search path'
+);
+select ok(
+  (select proc.prosecdef and proc.proconfig = array['search_path=""']
+   from pg_catalog.pg_proc as proc
+   where proc.oid = 'public.approve_verified_roof_assessment_resume(uuid,uuid,text)'::regprocedure),
+  'verified resume approval is security definer with an empty search path'
 );
 
 insert into public.companies (id, name) values
@@ -1141,6 +1195,223 @@ select is(
 );
 select ok(extensions.dblink_disconnect('resume_race_gate') = 'OK', 'same-browser gate disconnects');
 
+-- Real two-session Twilio approval race. Both workers observe the same
+-- provider-approved artifact; the exact candidate row lock permits one winner.
+select lives_ok(
+  $$select extensions.dblink_connect('verification_race_gate', 'host=host.docker.internal port=56322 dbname=postgres user=postgres password=postgres')$$,
+  'verified resume race gate connects'
+);
+select lives_ok(
+  $$select extensions.dblink_connect('verification_race_a', 'host=host.docker.internal port=56322 dbname=postgres user=postgres password=postgres')$$,
+  'verified resume first worker connects'
+);
+select lives_ok(
+  $$select extensions.dblink_connect('verification_race_b', 'host=host.docker.internal port=56322 dbname=postgres user=postgres password=postgres')$$,
+  'verified resume second worker connects'
+);
+select is(
+  extensions.dblink_exec(
+    'verification_race_gate',
+    $$do $setup$
+    declare
+      v_new record;
+      v_resume record;
+      v_reservation record;
+    begin
+      select * into v_new from public.start_or_resume_roof_assessment(
+        '00000000-0000-4000-8000-000000000001',
+        'e0000000-0000-4000-8000-000000000041',
+        'Verified Race', '+12015551041', 'verified-race@example.com',
+        '404 Verified Race Way, Newark, NJ 07102', 'ChIJ-verified-race',
+        'all-season-main', 'race:verified-new', '{}'::jsonb,
+        null, 'all-season-assessment-v1', now(), '127.0.1.41', 'pgtap-race'
+      );
+      update public.roof_assessments
+      set status = 'abandoned', abandoned_at = now(), updated_at = now()
+      where id = (
+        select assessment_id from public.roof_assessment_access_attempts
+        where id = v_new.attempt_id
+      );
+      select * into v_resume from public.start_or_resume_roof_assessment(
+        '00000000-0000-4000-8000-000000000001',
+        'e0000000-0000-4000-8000-000000000042',
+        'Verified Race', '+12015551041', 'verified-race@example.com',
+        '404 Verified Race Way, Newark, NJ 07102', 'ChIJ-verified-race',
+        'seasonal-shield', 'race:verified-candidate', '{}'::jsonb,
+        null, 'all-season-assessment-v1', now(), '127.0.1.42', 'pgtap-race'
+      );
+      select * into v_reservation
+      from public.reserve_roof_assessment_verification_start(
+        v_resume.attempt_id, '127.0.1.42'
+      );
+      perform public.record_roof_assessment_verification_start(
+        v_reservation.company_id, v_resume.attempt_id, v_reservation.reservation_id,
+        'VEcccccccccccccccccccccccccccccccc'
+      );
+      execute $function$
+        create function public.pgtap_try_verified_resume(p_attempt_id uuid)
+        returns boolean
+        language plpgsql
+        set search_path = ''
+        as $body$
+        begin
+          perform public.approve_verified_roof_assessment_resume(
+            '00000000-0000-4000-8000-000000000001',
+            p_attempt_id, 'VEcccccccccccccccccccccccccccccccc'
+          );
+          return true;
+        exception when others then
+          return false;
+        end;
+        $body$
+      $function$;
+    end
+    $setup$;$$
+  ),
+  'DO',
+  'verified resume race fixtures are committed'
+);
+create temp table verification_race_before as
+select estimate.public_token
+from public.roof_assessment_access_attempts as attempt
+join public.roof_estimates as estimate on estimate.id = attempt.estimate_id
+where attempt.submission_id = 'e0000000-0000-4000-8000-000000000042';
+select is(
+  extensions.dblink_exec(
+    'verification_race_gate',
+    $$begin;
+      do $lock$
+      begin
+        perform 1 from public.roof_assessment_access_attempts
+        where submission_id = 'e0000000-0000-4000-8000-000000000042'
+        for update;
+      end
+      $lock$;$$
+  ),
+  'DO',
+  'verified resume race gate locks the exact candidate'
+);
+select is(
+  extensions.dblink_send_query(
+    'verification_race_a',
+    $$select public.pgtap_try_verified_resume(attempt.id)
+      from public.roof_assessment_access_attempts as attempt
+      where attempt.submission_id = 'e0000000-0000-4000-8000-000000000042'$$
+  ),
+  1,
+  'first verified approval is dispatched'
+);
+select is(
+  extensions.dblink_send_query(
+    'verification_race_b',
+    $$select public.pgtap_try_verified_resume(attempt.id)
+      from public.roof_assessment_access_attempts as attempt
+      where attempt.submission_id = 'e0000000-0000-4000-8000-000000000042'$$
+  ),
+  1,
+  'second verified approval is dispatched'
+);
+select is(extensions.dblink_is_busy('verification_race_a'), 1, 'first verified approval waits on the candidate lock');
+select is(extensions.dblink_is_busy('verification_race_b'), 1, 'second verified approval waits on the candidate lock');
+select is(extensions.dblink_exec('verification_race_gate', 'commit'), 'COMMIT', 'verified resume gate releases both workers');
+create temp table verification_race_result_a as
+select * from extensions.dblink_get_result('verification_race_a') as result(succeeded boolean);
+create temp table verification_race_result_b as
+select * from extensions.dblink_get_result('verification_race_b') as result(succeeded boolean);
+select is(
+  (select count(*) from (
+    select succeeded from verification_race_result_a
+    union all
+    select succeeded from verification_race_result_b
+  ) as results where succeeded),
+  1::bigint,
+  'exactly one concurrent verified approval wins'
+);
+select is(
+  (select count(*) from (
+    select succeeded from verification_race_result_a
+    union all
+    select succeeded from verification_race_result_b
+  ) as results where not succeeded),
+  1::bigint,
+  'the concurrent verified approval replay loses'
+);
+select isnt(
+  (select estimate.public_token
+   from public.roof_assessment_access_attempts as attempt
+   join public.roof_estimates as estimate on estimate.id = attempt.estimate_id
+   where attempt.submission_id = 'e0000000-0000-4000-8000-000000000042'),
+  (select public_token from verification_race_before),
+  'the verified approval race rotates the token once'
+);
+select ok(
+  (select attempt.verified_at = attempt.token_rotated_at
+          and attempt.consumed_at = attempt.token_rotated_at
+          and send.provider_status = 'approved'
+          and send.approved_at = attempt.token_rotated_at
+   from public.roof_assessment_access_attempts as attempt
+   join public.roof_assessment_verification_sends as send
+     on send.attempt_id = attempt.id and send.company_id = attempt.company_id
+   where attempt.submission_id = 'e0000000-0000-4000-8000-000000000042'),
+  'the concurrent loser cannot add a second verification or token mutation'
+);
+select ok(extensions.dblink_disconnect('verification_race_a') = 'OK', 'first verified worker disconnects');
+select ok(extensions.dblink_disconnect('verification_race_b') = 'OK', 'second verified worker disconnects');
+select is(
+  extensions.dblink_exec(
+    'verification_race_gate',
+    $$do $cleanup$
+    declare
+      v_lead_id uuid;
+      v_property_id uuid;
+    begin
+      select lead_id, property_id into v_lead_id, v_property_id
+      from public.roof_assessment_access_attempts
+      where submission_id = 'e0000000-0000-4000-8000-000000000041';
+      delete from public.event_outbox where event_id in (
+        select id from public.domain_events
+        where correlation_id in (
+          'e0000000-0000-4000-8000-000000000041',
+          'e0000000-0000-4000-8000-000000000042'
+        )
+      );
+      delete from public.domain_events where correlation_id in (
+        'e0000000-0000-4000-8000-000000000041',
+        'e0000000-0000-4000-8000-000000000042'
+      );
+      delete from public.roof_assessment_verification_sends where attempt_id in (
+        select id from public.roof_assessment_access_attempts where submission_id in (
+          'e0000000-0000-4000-8000-000000000041',
+          'e0000000-0000-4000-8000-000000000042'
+        )
+      );
+      delete from public.roof_assessment_access_attempts where submission_id in (
+        'e0000000-0000-4000-8000-000000000041',
+        'e0000000-0000-4000-8000-000000000042'
+      );
+      delete from public.lead_consent_evidence where submission_id in (
+        'e0000000-0000-4000-8000-000000000041',
+        'e0000000-0000-4000-8000-000000000042'
+      );
+      delete from public.lead_attribution_touches where submission_id in (
+        'e0000000-0000-4000-8000-000000000041',
+        'e0000000-0000-4000-8000-000000000042'
+      );
+      delete from public.roof_assessments where lead_id = v_lead_id;
+      delete from public.roof_estimates where lead_id = v_lead_id;
+      delete from public.pipeline_runs where lead_id = v_lead_id;
+      delete from public.lead_consents where lead_id = v_lead_id;
+      delete from public.leads where id = v_lead_id;
+      delete from public.properties where id = v_property_id;
+      drop function public.pgtap_try_verified_resume(uuid);
+    end
+    $cleanup$;$$
+  ),
+  'DO',
+  'verified resume concurrency fixtures are removed'
+);
+select ok(extensions.dblink_disconnect('verification_race_gate') = 'OK', 'verified resume gate disconnects');
+
 -- Run the forced downstream failure after remote concurrency coverage because
 -- PostgreSQL retains the trigger DDL relation lock until this test rolls back.
 create temp table same_browser_failure_snapshot as
@@ -1264,6 +1535,189 @@ select throws_ok(
   'Assessment access attempt has already been consumed',
   'a consumed same-browser resume cannot be replayed'
 );
+
+-- Verification start reservations and approvals use isolated access attempts
+-- that share only the already-created lead graph.
+insert into public.roof_assessment_access_attempts (
+  id, company_id, submission_id, lead_id, property_id, estimate_id,
+  assessment_id, attempt_kind, continuation_secret_hash,
+  destination_phone_e164, requested_presentation_key, requested_entry_point,
+  request_ip, expires_at
+)
+select
+  ('a4000000-0000-4000-8000-' || pg_catalog.lpad(series.ordinal::text, 12, '0'))::uuid,
+  source.company_id,
+  ('b4000000-0000-4000-8000-' || pg_catalog.lpad(series.ordinal::text, 12, '0'))::uuid,
+  source.lead_id, source.property_id, source.estimate_id, source.assessment_id,
+  'resume_candidate', extensions.digest('verification-' || series.ordinal::text, 'sha256'),
+  case
+    when series.ordinal between 2 and 7 then '+12015552002'
+    else '+12015552' || pg_catalog.lpad(series.ordinal::text, 3, '0')
+  end,
+  'weather-report', 'campaign:weather-report',
+  case when series.ordinal between 8 and 13 then '127.2.0.99'::inet
+       else ('127.2.0.' || series.ordinal::text)::inet end,
+  pg_catalog.now() + interval '15 minutes'
+from public.roof_assessment_access_attempts as source
+cross join pg_catalog.generate_series(1, 15) as series(ordinal)
+where source.id = (select attempt_id from phone_only_resume);
+
+create temp table verification_cooldown_reservation as
+select * from public.reserve_roof_assessment_verification_start(
+  'a4000000-0000-4000-8000-000000000001', '127.2.0.1'
+);
+select throws_ok(
+  $$select * from public.reserve_roof_assessment_verification_start(
+    'a4000000-0000-4000-8000-000000000001', '127.2.0.1'
+  )$$,
+  'verification_start_cooldown',
+  'one destination cannot reserve another send inside one minute'
+);
+select is(
+  (select count(*) from public.roof_assessment_verification_sends
+   where attempt_id = 'a4000000-0000-4000-8000-000000000001'),
+  1::bigint,
+  'a rejected cooldown does not record extra send evidence'
+);
+
+insert into public.roof_assessment_verification_sends (
+  company_id, attempt_id, destination_phone_e164, request_ip, reserved_at
+)
+select attempt.company_id, attempt.id, attempt.destination_phone_e164,
+       ('127.2.1.' || series.ordinal::text)::inet,
+       pg_catalog.now() - interval '10 minutes' - series.ordinal * interval '1 minute'
+from pg_catalog.generate_series(2, 6) as series(ordinal)
+join public.roof_assessment_access_attempts as attempt
+  on attempt.id = ('a4000000-0000-4000-8000-' || pg_catalog.lpad(series.ordinal::text, 12, '0'))::uuid;
+select throws_ok(
+  $$select * from public.reserve_roof_assessment_verification_start(
+    'a4000000-0000-4000-8000-000000000007', '127.2.1.7'
+  )$$,
+  'verification_phone_hourly_limit',
+  'a destination cannot exceed five verification starts per hour'
+);
+
+insert into public.roof_assessment_verification_sends (
+  company_id, attempt_id, destination_phone_e164, request_ip, reserved_at
+)
+select attempt.company_id, attempt.id, attempt.destination_phone_e164,
+       '127.2.0.99'::inet,
+       pg_catalog.now() - interval '10 minutes' - series.ordinal * interval '1 minute'
+from pg_catalog.generate_series(8, 12) as series(ordinal)
+join public.roof_assessment_access_attempts as attempt
+  on attempt.id = ('a4000000-0000-4000-8000-' || pg_catalog.lpad(series.ordinal::text, 12, '0'))::uuid;
+select throws_ok(
+  $$select * from public.reserve_roof_assessment_verification_start(
+    'a4000000-0000-4000-8000-000000000013', '127.2.0.99'
+  )$$,
+  'verification_ip_hourly_limit',
+  'a request address cannot exceed five verification starts per hour'
+);
+
+create temp table verification_approval_reservation as
+select * from public.reserve_roof_assessment_verification_start(
+  'a4000000-0000-4000-8000-000000000014', '127.2.0.14'
+);
+select lives_ok(
+  $$select public.record_roof_assessment_verification_start(
+    (select company_id from verification_approval_reservation),
+    'a4000000-0000-4000-8000-000000000014',
+    (select reservation_id from verification_approval_reservation),
+    'VEaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+  )$$,
+  'provider success is recorded after the external call completes'
+);
+select ok(
+  (select send.provider_attempt_id = 'VEaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+          and send.provider_status = 'pending'
+          and send.sent_at is not null
+          and attempt.provider_attempt_id = send.provider_attempt_id
+          and attempt.verification_sent_at = send.sent_at
+   from public.roof_assessment_verification_sends as send
+   join public.roof_assessment_access_attempts as attempt on attempt.id = send.attempt_id
+   where send.id = (select reservation_id from verification_approval_reservation)),
+  'provider attempt and sent evidence remain bound to the exact reservation'
+);
+create temp table verification_token_before as
+select estimate.public_token
+from public.roof_assessment_access_attempts as attempt
+join public.roof_estimates as estimate on estimate.id = attempt.estimate_id
+where attempt.id = 'a4000000-0000-4000-8000-000000000014';
+create temp table verification_approval as
+select * from public.approve_verified_roof_assessment_resume(
+  (select company_id from verification_approval_reservation),
+  'a4000000-0000-4000-8000-000000000014',
+  'VEaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+);
+select isnt(
+  (select public_token from verification_approval),
+  (select public_token from verification_token_before),
+  'verified approval rotates the public token'
+);
+select ok(
+  (select verified_at = token_rotated_at and consumed_at = token_rotated_at
+   from public.roof_assessment_access_attempts
+   where id = 'a4000000-0000-4000-8000-000000000014'),
+  'verified approval atomically verifies, rotates, and consumes the candidate'
+);
+select throws_ok(
+  $$select * from public.approve_verified_roof_assessment_resume(
+    (select company_id from verification_approval_reservation),
+    'a4000000-0000-4000-8000-000000000014',
+    'VEaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+  )$$,
+  'Assessment access attempt has already been consumed',
+  'verified approval is terminal and cannot replay'
+);
+
+create temp table verification_rollback_reservation as
+select * from public.reserve_roof_assessment_verification_start(
+  'a4000000-0000-4000-8000-000000000015', '127.2.0.15'
+);
+select public.record_roof_assessment_verification_start(
+  (select company_id from verification_rollback_reservation),
+  'a4000000-0000-4000-8000-000000000015',
+  (select reservation_id from verification_rollback_reservation),
+  'VEbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+);
+create temp table verification_rollback_before as
+select attempt.verified_at, attempt.consumed_at, attempt.token_rotated_at,
+       attempt.updated_at, estimate.public_token, estimate.updated_at as estimate_updated_at
+from public.roof_assessment_access_attempts as attempt
+join public.roof_estimates as estimate on estimate.id = attempt.estimate_id
+where attempt.id = 'a4000000-0000-4000-8000-000000000015';
+create function pg_temp.reject_verified_estimate_rotation()
+returns trigger language plpgsql as $$
+begin
+  if new.id = (select estimate_id from public.roof_assessment_access_attempts
+               where id = 'a4000000-0000-4000-8000-000000000015') then
+    raise exception 'forced verified rotation failure';
+  end if;
+  return new;
+end;
+$$;
+create trigger reject_verified_estimate_rotation
+before update on public.roof_estimates
+for each row execute function pg_temp.reject_verified_estimate_rotation();
+select throws_ok(
+  $$select * from public.approve_verified_roof_assessment_resume(
+    (select company_id from verification_rollback_reservation),
+    'a4000000-0000-4000-8000-000000000015',
+    'VEbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+  )$$,
+  'forced verified rotation failure',
+  'a downstream failure aborts verified approval'
+);
+select results_eq(
+  $$select attempt.verified_at, attempt.consumed_at, attempt.token_rotated_at,
+           attempt.updated_at, estimate.public_token, estimate.updated_at
+    from public.roof_assessment_access_attempts as attempt
+    join public.roof_estimates as estimate on estimate.id = attempt.estimate_id
+    where attempt.id = 'a4000000-0000-4000-8000-000000000015'$$,
+  $$select * from verification_rollback_before$$,
+  'failed verified approval rolls back every attempt and estimate mutation'
+);
+drop trigger reject_verified_estimate_rotation on public.roof_estimates;
 
 select * from extensions.finish();
 rollback;
