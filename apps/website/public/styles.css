@@ -115,12 +115,22 @@
 .review-avatar img{width:100%;height:100%;object-fit:cover}
 .review-body{min-width:0}
 .review-meta{display:flex;justify-content:space-between;gap:10px;align-items:baseline;margin-bottom:8px}
+.review-meta a{min-width:0;color:inherit;text-decoration:none}
 .review-meta strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.82rem}
 .review-meta span{flex:0 0 auto;color:var(--muted);font-size:.67rem}
 .review-card-stars{display:block;margin-bottom:7px;color:#f7b500;font-size:.76rem;letter-spacing:.08em}
 .google-review-card p{display:-webkit-box;overflow:hidden;margin:0;color:var(--muted);font-size:.78rem;line-height:1.55;-webkit-box-orient:vertical;-webkit-line-clamp:3}
+.google-review-card>.review-body>.text-link{margin-top:9px;font-size:.7rem}
 .reviews-fallback{margin-bottom:0;color:var(--muted);font-size:.86rem}
 .reviews-fallback a{font-weight:700;color:var(--blue)}
+.google-review-attribution{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:18px}
+.google-maps-attribution{display:inline-flex;flex:0 0 auto;padding:10px 10px 5px;background:#fff}
+.google-maps-attribution img{width:98px;height:18px;max-width:none}
+.google-provider-attributions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;color:#5e5e5e;font-size:.75rem}
+.google-provider-attributions:empty{display:none}
+.google-provider-attributions a{color:#5e5e5e}
+.reviews-selection-note{margin-top:8px;margin-bottom:0;color:#5e5e5e;font-size:.75rem}
+.footer-bottom a{color:inherit}
 @keyframes review-marquee{to{transform:translateX(calc(-50% - 8px))}}
 @media (max-width:980px){.proof-grid .proof-item:nth-child(3){border-left:0;padding-left:0}}
 @media (max-width:640px){.proof-grid{grid-template-columns:1fr;padding-block:24px;row-gap:0}.proof-grid .proof-item,.proof-grid .proof-item:nth-child(3){grid-template-columns:44px 1fr;gap:13px;padding:16px 0;border-left:0;border-top:1px solid rgba(255,255,255,.14)}.proof-grid .proof-item:first-child{border-top:0}.proof-icon{width:40px;height:40px}.proof-copy strong{font-size:1.3rem}.proof-copy>span{max-width:none}.google-reviews{padding:44px 0}.reviews-heading{grid-template-columns:46px 1fr;margin-bottom:24px}.google-review-mark{width:46px;height:46px}.google-rating-link{grid-column:1/-1;align-items:flex-start;margin-top:3px}}

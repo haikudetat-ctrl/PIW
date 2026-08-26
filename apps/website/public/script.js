@@ -14,25 +14,41 @@ document.addEventListener('DOMContentLoaded',function(){
     var reviewsFallback=reviewsSection.querySelector('[data-google-reviews-fallback]');
     var reviewsLink=reviewsSection.querySelector('[data-google-reviews-link]');
     var ratingLabel=reviewsSection.querySelector('[data-google-rating]');
+    var reviewsAttributions=reviewsSection.querySelector('[data-google-attributions]');
     function safeReviewUrl(value,fallback){try{var url=new URL(value);return url.protocol==='https:'?url.href:fallback}catch{return fallback}}
+    function renderAttributions(attributions){
+      if(!reviewsAttributions)return;reviewsAttributions.textContent='';
+      if(!Array.isArray(attributions))return;
+      attributions.forEach(function(attribution){
+        var label=String(attribution.provider||'').trim();if(!label)return;
+        var href=safeReviewUrl(attribution.providerUri,'');var node;
+        if(href){node=document.createElement('a');node.href=href;node.target='_blank';node.rel='noopener'}else{node=document.createElement('span')}
+        node.textContent=label;reviewsAttributions.appendChild(node);
+      });
+    }
     function makeReviewCard(review,fallbackUrl){
-      var link=document.createElement('a');link.className='google-review-card';link.href=safeReviewUrl(review.reviewUri,fallbackUrl);link.target='_blank';link.rel='noopener';
+      var card=document.createElement('article');card.className='google-review-card';
       var avatar=document.createElement('span');avatar.className='review-avatar';
       if(review.photoUri){var photo=document.createElement('img');photo.src=safeReviewUrl(review.photoUri,'');photo.alt='';photo.loading='lazy';photo.referrerPolicy='no-referrer';avatar.appendChild(photo)}else{avatar.textContent=String(review.author||'G').slice(0,1).toUpperCase()}
-      var body=document.createElement('span');body.className='review-body';
-      var meta=document.createElement('span');meta.className='review-meta';
-      var author=document.createElement('strong');author.textContent=review.author||'Google reviewer';
-      var when=document.createElement('span');when.textContent=review.relativeTime||'';meta.append(author,when);
+      var body=document.createElement('div');body.className='review-body';
+      var meta=document.createElement('div');meta.className='review-meta';
+      var authorLink=document.createElement('a');authorLink.href=safeReviewUrl(review.authorUri,fallbackUrl);authorLink.target='_blank';authorLink.rel='noopener';authorLink.setAttribute('aria-label','View '+review.author+'\u2019s Google profile');
+      var author=document.createElement('strong');author.textContent=review.author;authorLink.appendChild(author);
+      var when=document.createElement('span');when.textContent=review.relativeTime||'';
       var score=Math.max(0,Math.min(5,Number(review.rating)||0));var stars=document.createElement('span');stars.className='review-card-stars';stars.setAttribute('aria-label',score+' out of 5 stars');stars.textContent='★'.repeat(score)+'☆'.repeat(5-score);
-      var quote=document.createElement('p');quote.textContent=review.text;body.append(meta,stars,quote);link.append(avatar,body);return link;
+      var quote=document.createElement('p');quote.textContent=review.text;
+      var sourceLink=document.createElement('a');sourceLink.className='text-link';sourceLink.href=safeReviewUrl(review.reviewUri,fallbackUrl);sourceLink.target='_blank';sourceLink.rel='noopener';sourceLink.textContent='Read this review on Google Maps →';
+      meta.append(authorLink,when);body.append(meta,stars,quote,sourceLink);card.append(avatar,body);return card;
     }
     fetch('/api/google-reviews',{headers:{accept:'application/json'}}).then(function(response){if(!response.ok)throw new Error(String(response.status));return response.json()}).then(function(data){
-      if(!reviewsTrack||!reviewsViewport||!Array.isArray(data.reviews)||!data.reviews.length)return;
       var googleUrl=safeReviewUrl(data.googleMapsUri,reviewsLink?reviewsLink.href:window.location.href);
       if(reviewsLink)reviewsLink.href=googleUrl;
       if(ratingLabel&&data.rating)ratingLabel.textContent=Number(data.rating).toFixed(1)+' from '+Number(data.reviewCount||0).toLocaleString()+' Google reviews';
+      renderAttributions(data.attributions);
+      if(!reviewsTrack||!reviewsViewport||!Array.isArray(data.reviews)||!data.reviews.length)return;
       var cards=data.reviews.map(function(review){return makeReviewCard(review,googleUrl)});
-      cards.concat(data.reviews.map(function(review){var duplicate=makeReviewCard(review,googleUrl);duplicate.setAttribute('aria-hidden','true');duplicate.tabIndex=-1;return duplicate})).forEach(function(card){reviewsTrack.appendChild(card)});
+      var duplicates=reduced?[]:data.reviews.map(function(review){var duplicate=makeReviewCard(review,googleUrl);duplicate.setAttribute('aria-hidden','true');duplicate.querySelectorAll('a').forEach(function(link){link.tabIndex=-1});return duplicate});
+      cards.concat(duplicates).forEach(function(card){reviewsTrack.appendChild(card)});
       reviewsViewport.hidden=false;if(reviewsFallback)reviewsFallback.hidden=true;
     }).catch(function(){if(reviewsFallback)reviewsFallback.hidden=false});
   }

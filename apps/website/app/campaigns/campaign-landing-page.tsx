@@ -76,7 +76,13 @@ export function CampaignLandingPage({campaign}: {campaign: CampaignDefinition}) 
       </section>
 
       <footer className="campaign-footer">
-        <p><strong>ALL SEASON</strong> | One New Jersey team before, during, and after the work.</p>
+        <div>
+          <p><strong>ALL SEASON</strong> | One New Jersey team before, during, and after the work.</p>
+          <nav className="campaign-footer-legal" aria-label="Legal">
+            <Link href="/privacy.html">Privacy</Link>
+            <Link href="/terms.html">Terms</Link>
+          </nav>
+        </div>
         <a href="#estimate">Get my roof estimate ↑</a>
       </footer>
     </main>

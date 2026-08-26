@@ -26,6 +26,10 @@ returning only normalized `{placeId, address}` suggestions to campaign forms.
 Autocomplete requests are restricted to the United States and biased toward
 New Jersey; campaign forms retain a manual New Jersey address fallback.
 
+`/api/google-reviews` uses the same server-only Places API (New) key together
+with `GOOGLE_PLACES_PLACE_ID`. It returns a normalized, non-cacheable review
+feed for the homepage while keeping provider credentials off the browser.
+
 ```bash
 cp .env.example .env.local
 npm install

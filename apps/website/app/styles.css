@@ -359,6 +359,9 @@ button:disabled { opacity: .55; cursor: wait; }
 }
 .campaign-footer strong { color: var(--campaign-ink); font-family: "Montserrat Campaign", sans-serif; }
 .campaign-footer a { color: var(--campaign-ink); font-weight: 800; text-decoration: none; }
+.campaign-footer p { margin: 0; }
+.campaign-footer-legal { margin-top: 10px; display: flex; gap: 14px; }
+.campaign-footer-legal a { color: var(--campaign-muted); font-weight: 650; text-decoration: underline; text-underline-offset: 3px; }
 
 @media (max-width: 1120px) {
   .campaign-hero {
@@ -411,7 +414,6 @@ button:disabled { opacity: .55; cursor: wait; }
   .campaign-process article { padding: 26px 0 34px; }
   .campaign-process article + article { padding-left: 0; border-left: 0; border-top: 1px solid var(--campaign-line); }
   .campaign-footer { width: calc(100% - 40px); padding: 28px 0; align-items: flex-start; gap: 24px; }
-  .campaign-footer p { margin: 0; }
 }
 
 @media (prefers-reduced-transparency: reduce) {
