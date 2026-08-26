@@ -120,6 +120,46 @@ export type RoofAssessmentScores = {
   engagement: number;
 };
 
+const pendingCalculationStateSchema = z.object({
+  status: z.literal("pending"),
+}).strict();
+
+const reviewRequiredCalculationStateSchema = z.object({
+  status: z.literal("review_required"),
+  reason: z.enum(["unavailable", "low_confidence", "property_not_supported"]).optional(),
+}).strict();
+
+const readyCalculationStateSchema = z.object({
+  status: z.literal("ready"),
+  source: z.literal("google"),
+  lowCents: z.number().int().nonnegative(),
+  highCents: z.number().int().positive(),
+  roofSquares: z.number().positive(),
+  generatedAt: z.iso.datetime(),
+}).strict().superRefine((value, context) => {
+  if (value.highCents <= value.lowCents) {
+    context.addIssue({
+      code: "custom",
+      path: ["highCents"],
+      message: "The high end of a calculation range must exceed the low end",
+    });
+  }
+});
+
+export const calculationStateSchema = z.union([
+  pendingCalculationStateSchema,
+  reviewRequiredCalculationStateSchema,
+  readyCalculationStateSchema,
+]);
+
+export type CalculationState = z.infer<typeof calculationStateSchema>;
+
+export type RoofAssessmentProgressSignals = {
+  complete: boolean;
+  highIntent: boolean;
+  scores: RoofAssessmentScores;
+};
+
 const needWeights = {
   reason: {
     roof_age: 2,
@@ -161,19 +201,21 @@ function total(values: number[]) {
   return values.reduce((sum, value) => sum + value, 0);
 }
 
-export function calculateRoofAssessment(
-  input: RoofAssessmentResponses,
-): { recommendation: RoofAssessmentRecommendation; scores: RoofAssessmentScores } {
-  const responses = roofAssessmentResponsesSchema.parse(input);
+function calculateScores(
+  responses: Partial<RoofAssessmentResponses>,
+): RoofAssessmentScores {
+  const conditionSignals = responses.conditionSignals ?? [];
   const need =
-    needWeights.reason[responses.reason] +
-    needWeights.roofAge[responses.roofAge] +
-    needWeights.visibleCondition[responses.visibleCondition] +
-    total(responses.conditionSignals.map((signal) => needWeights.condition[signal]));
+    (responses.reason ? needWeights.reason[responses.reason] : 0) +
+    (responses.roofAge ? needWeights.roofAge[responses.roofAge] : 0) +
+    (responses.visibleCondition
+      ? needWeights.visibleCondition[responses.visibleCondition]
+      : 0) +
+    total(conditionSignals.map((signal) => needWeights.condition[signal]));
 
   const urgency =
     (responses.reason === "active_leak" ? 2 : responses.reason === "storm_damage" ? 1 : 0) +
-    total(responses.conditionSignals.map((signal) => {
+    total(conditionSignals.map((signal) => {
       if (signal === "active_leak") return 2;
       if (signal === "sagging") return 3;
       if (signal === "water_stains") return 1;
@@ -192,12 +234,34 @@ export function calculateRoofAssessment(
 
   const propertyFit =
     (responses.ownership === "owner" ? 2 : responses.ownership === "buying" ? 1 : 0) +
-    (responses.stories === "unknown" ? 0 : 1);
+    (responses.stories && responses.stories !== "unknown" ? 1 : 0);
 
   const engagement =
-    (responses.roofAge === "unknown" ? 0 : 1) +
-    (responses.conditionSignals.includes("unsure") ? 0 : 1) +
-    (responses.visibleCondition === "not_answered" ? 0 : 1);
+    (responses.roofAge && responses.roofAge !== "unknown" ? 1 : 0) +
+    (responses.conditionSignals && !responses.conditionSignals.includes("unsure") ? 1 : 0) +
+    (responses.visibleCondition && responses.visibleCondition !== "not_answered" ? 1 : 0);
+
+  return {need, intent, urgency, propertyFit, engagement};
+}
+
+export function calculateProgressSignals(
+  input: Partial<RoofAssessmentResponses>,
+): RoofAssessmentProgressSignals {
+  const responses = roofAssessmentProgressSchema.parse(input);
+  const scores = calculateScores(responses);
+  return {
+    complete: roofAssessmentResponsesSchema.safeParse(responses).success,
+    highIntent: scores.intent >= 3 || scores.urgency >= 3,
+    scores,
+  };
+}
+
+export function calculateRoofAssessment(
+  input: RoofAssessmentResponses,
+): { recommendation: RoofAssessmentRecommendation; scores: RoofAssessmentScores } {
+  const responses = roofAssessmentResponsesSchema.parse(input);
+  const scores = calculateScores(responses);
+  const {need} = scores;
 
   const safetySignal = responses.conditionSignals.some(
     (signal) => signal === "sagging" || signal === "active_leak",
@@ -211,6 +275,6 @@ export function calculateRoofAssessment(
 
   return {
     recommendation,
-    scores: { need, intent, urgency, propertyFit, engagement },
+    scores,
   };
 }

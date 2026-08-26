@@ -41,6 +41,9 @@ select has_function(
   'public', 'approve_verified_roof_assessment_resume', array['uuid','uuid','text'],
   'atomic verified resume approval RPC exists'
 );
+select has_function('public', 'save_roof_assessment_progress', array['uuid','uuid','integer','timestamp with time zone','jsonb','jsonb','boolean'], 'atomic progressive assessment save RPC exists');
+select has_function('public', 'complete_roof_assessment', array['uuid','uuid','jsonb','jsonb','text','boolean'], 'atomic assessment completion RPC exists');
+select has_function('public', 'abandon_inactive_roof_assessments', array['integer'], 'atomic bounded abandonment RPC exists');
 
 select is((select relrowsecurity from pg_catalog.pg_class where oid = 'public.lead_attribution_touches'::regclass), true, 'attribution has RLS');
 select is((select relrowsecurity from pg_catalog.pg_class where oid = 'public.lead_consent_evidence'::regclass), true, 'consent evidence has RLS');
@@ -101,6 +104,10 @@ select function_privs_are(
   'public', 'approve_verified_roof_assessment_resume', array['uuid','uuid','text'],
   'service_role', array['EXECUTE'], 'service role alone approves verified resumes'
 );
+select function_privs_are('public', 'abandon_inactive_roof_assessments', array['integer'], 'public', array[]::text[], 'public cannot sweep assessment lifecycle state');
+select function_privs_are('public', 'abandon_inactive_roof_assessments', array['integer'], 'anon', array[]::text[], 'anon cannot sweep assessment lifecycle state');
+select function_privs_are('public', 'abandon_inactive_roof_assessments', array['integer'], 'authenticated', array[]::text[], 'authenticated cannot sweep assessment lifecycle state');
+select function_privs_are('public', 'abandon_inactive_roof_assessments', array['integer'], 'service_role', array['EXECUTE'], 'service role alone sweeps assessment lifecycle state');
 
 select ok(
   (select proc.prosecdef and proc.proconfig = array['search_path=""']
@@ -143,6 +150,12 @@ select ok(
    from pg_catalog.pg_proc as proc
    where proc.oid = 'public.approve_verified_roof_assessment_resume(uuid,uuid,text)'::regprocedure),
   'verified resume approval is security definer with an empty search path'
+);
+select ok(
+  (select proc.prosecdef and proc.proconfig = array['search_path=""']
+   from pg_catalog.pg_proc as proc
+   where proc.oid = 'public.abandon_inactive_roof_assessments(integer)'::regprocedure),
+  'abandonment RPC is security definer with an empty search path'
 );
 
 insert into public.companies (id, name) values
@@ -1153,20 +1166,21 @@ select is(
     declare
       v_lead_id uuid;
       v_property_id uuid;
+      v_assessment_id uuid;
     begin
-      select lead_id, property_id into v_lead_id, v_property_id
+      select lead_id, property_id, assessment_id into v_lead_id, v_property_id, v_assessment_id
       from public.roof_assessment_access_attempts
       where submission_id = 'e0000000-0000-4000-8000-000000000031';
       delete from public.event_outbox where event_id in (
         select id from public.domain_events
         where correlation_id in (
           'e0000000-0000-4000-8000-000000000031',
-          'e0000000-0000-4000-8000-000000000032'
+          'e0000000-0000-4000-8000-000000000032', v_assessment_id
         )
       );
       delete from public.domain_events where correlation_id in (
         'e0000000-0000-4000-8000-000000000031',
-        'e0000000-0000-4000-8000-000000000032'
+        'e0000000-0000-4000-8000-000000000032', v_assessment_id
       );
       delete from public.roof_assessment_access_attempts where submission_id in (
         'e0000000-0000-4000-8000-000000000031',
@@ -1513,20 +1527,21 @@ select is(
     declare
       v_lead_id uuid;
       v_property_id uuid;
+      v_assessment_id uuid;
     begin
-      select lead_id, property_id into v_lead_id, v_property_id
+      select lead_id, property_id, assessment_id into v_lead_id, v_property_id, v_assessment_id
       from public.roof_assessment_access_attempts
       where submission_id = 'e0000000-0000-4000-8000-000000000041';
       delete from public.event_outbox where event_id in (
         select id from public.domain_events
         where correlation_id in (
           'e0000000-0000-4000-8000-000000000041',
-          'e0000000-0000-4000-8000-000000000042'
+          'e0000000-0000-4000-8000-000000000042', v_assessment_id
         )
       );
       delete from public.domain_events where correlation_id in (
         'e0000000-0000-4000-8000-000000000041',
-        'e0000000-0000-4000-8000-000000000042'
+        'e0000000-0000-4000-8000-000000000042', v_assessment_id
       );
       delete from public.roof_assessment_verification_sends where attempt_id in (
         select id from public.roof_assessment_access_attempts where submission_id in (
@@ -1560,6 +1575,22 @@ select is(
   'verified resume concurrency fixtures are removed'
 );
 select ok(extensions.dblink_disconnect('verification_race_gate') = 'OK', 'verified resume gate disconnects');
+
+select lives_ok($$select extensions.dblink_connect('abandonment_race_gate','host=host.docker.internal port=56322 dbname=postgres user=postgres password=postgres')$$,'abandonment race gate connects');
+select lives_ok($$select extensions.dblink_connect('abandonment_race_a','host=host.docker.internal port=56322 dbname=postgres user=postgres password=postgres')$$,'first abandonment worker connects');
+select lives_ok($$select extensions.dblink_connect('abandonment_race_b','host=host.docker.internal port=56322 dbname=postgres user=postgres password=postgres')$$,'second abandonment worker connects');
+select is(extensions.dblink_exec('abandonment_race_gate',$$insert into public.companies(id,name) values('f7000000-0000-4000-8000-000000000001','Abandonment Race Company'); do $remote$ declare v record; begin select * into v from public.start_or_resume_roof_assessment('f7000000-0000-4000-8000-000000000001','f7000000-0000-4000-8000-000000000002','Race Homeowner','+12015550700','race-abandon@example.com','700 Race St, Newark, NJ 07102','ChIJ-abandon-race','all-season-main','main-home','{}'::jsonb,null,'all-season-assessment-v1',clock_timestamp(),'127.7.0.1','pgtap'); update public.roof_assessments set updated_at=clock_timestamp()-interval '25 hours' where id=(select assessment_id from public.roof_assessment_access_attempts where id=v.attempt_id); end $remote$;$$),'DO','committed abandonment race fixture is prepared');
+select is(extensions.dblink_send_query('abandonment_race_a',$$select count(*)::bigint from public.abandon_inactive_roof_assessments(1)$$),1,'first abandonment worker is dispatched');
+select is(extensions.dblink_send_query('abandonment_race_b',$$select count(*)::bigint from public.abandon_inactive_roof_assessments(1)$$),1,'second abandonment worker is dispatched');
+create temp table abandonment_race_results(result bigint);
+insert into abandonment_race_results select result from extensions.dblink_get_result('abandonment_race_a') as row(result bigint);
+insert into abandonment_race_results select result from extensions.dblink_get_result('abandonment_race_b') as row(result bigint);
+select is((select sum(result) from abandonment_race_results),1::numeric,'concurrent abandonment workers claim the assessment exactly once');
+select is((select count(*) from public.domain_events where company_id='f7000000-0000-4000-8000-000000000001' and event_name='roof/assessment.abandoned'),1::bigint,'concurrent abandonment creates one event');
+select is(extensions.dblink_exec('abandonment_race_gate',$$do $cleanup$ begin delete from public.event_outbox where event_id in(select id from public.domain_events where company_id='f7000000-0000-4000-8000-000000000001'); delete from public.domain_events where company_id='f7000000-0000-4000-8000-000000000001'; delete from public.roof_assessment_access_attempts where company_id='f7000000-0000-4000-8000-000000000001'; delete from public.lead_consent_evidence where company_id='f7000000-0000-4000-8000-000000000001'; delete from public.lead_attribution_touches where company_id='f7000000-0000-4000-8000-000000000001'; delete from public.roof_assessments where company_id='f7000000-0000-4000-8000-000000000001'; delete from public.roof_estimates where company_id='f7000000-0000-4000-8000-000000000001'; delete from public.pipeline_runs where company_id='f7000000-0000-4000-8000-000000000001'; delete from public.lead_consents where company_id='f7000000-0000-4000-8000-000000000001'; delete from public.leads where company_id='f7000000-0000-4000-8000-000000000001'; delete from public.properties where company_id='f7000000-0000-4000-8000-000000000001'; delete from public.companies where id='f7000000-0000-4000-8000-000000000001'; end $cleanup$;$$),'DO','abandonment race fixtures are removed');
+select ok(extensions.dblink_disconnect('abandonment_race_a')='OK','first abandonment worker disconnects');
+select ok(extensions.dblink_disconnect('abandonment_race_b')='OK','second abandonment worker disconnects');
+select ok(extensions.dblink_disconnect('abandonment_race_gate')='OK','abandonment race gate disconnects');
 
 -- Run the forced downstream failure after remote concurrency coverage because
 -- PostgreSQL retains the trigger DDL relation lock until this test rolls back.
@@ -1673,6 +1704,12 @@ select ok(
    from public.roof_assessment_access_attempts
    where id = (select attempt_id from phone_only_resume)),
   'atomic same-browser authorization verifies, rotates, and consumes once'
+);
+select is(
+  (select count(*) from public.domain_events where idempotency_key='roof/assessment.resumed:'||
+    (select assessment_id::text from public.roof_assessment_access_attempts where id=(select attempt_id from phone_only_resume))),
+  1::bigint,
+  'authorized reactivation atomically emits one resumed event'
 );
 select throws_ok(
   $$select * from public.authorize_same_browser_roof_assessment_resume(
@@ -1888,6 +1925,11 @@ select throws_ok(
   'atomic approval rejects a provider-approved SID that does not match the stored send'
 );
 create temp table verification_approval as
+select null::uuid as assessment_id, null::uuid as public_token, null::timestamptz as token_rotated_at
+where false;
+update public.roof_assessments set status='abandoned',abandoned_at=clock_timestamp(),updated_at=clock_timestamp()
+where id=(select assessment_id from public.roof_assessment_access_attempts where id='a4000000-0000-4000-8000-000000000014');
+insert into verification_approval
 select * from public.approve_verified_roof_assessment_resume(
   (select company_id from verification_approval_reservation),
   'a4000000-0000-4000-8000-000000000014',
@@ -1903,6 +1945,12 @@ select ok(
    from public.roof_assessment_access_attempts
    where id = 'a4000000-0000-4000-8000-000000000014'),
   'verified approval atomically verifies, rotates, and consumes the candidate'
+);
+select is(
+  (select count(*) from public.domain_events where idempotency_key='roof/assessment.resumed:'||
+    (select assessment_id::text from public.roof_assessment_access_attempts where id='a4000000-0000-4000-8000-000000000014')),
+  1::bigint,
+  'authorized verified reactivation atomically emits one resumed event'
 );
 select throws_ok(
   $$select * from public.approve_verified_roof_assessment_resume(
@@ -1962,6 +2010,67 @@ select results_eq(
   'failed verified approval rolls back every attempt and estimate mutation'
 );
 drop trigger reject_verified_estimate_rotation on public.roof_estimates;
+
+create temp table lifecycle_old as select * from public.start_or_resume_roof_assessment(
+  'd0000000-0000-4000-8000-000000000001','f6000000-0000-4000-8000-000000000001',
+  'Lifecycle Old','+12015550601','lifecycle-old@example.com','601 Old St, Newark, NJ 07102','ChIJ-lifecycle-old',
+  'all-season-main','main-home','{}'::jsonb,null,'all-season-assessment-v1',clock_timestamp(),'127.6.0.1','pgtap');
+create temp table lifecycle_new as select * from public.start_or_resume_roof_assessment(
+  'd0000000-0000-4000-8000-000000000001','f6000000-0000-4000-8000-000000000002',
+  'Lifecycle New','+12015550602','lifecycle-new@example.com','602 New St, Newark, NJ 07102','ChIJ-lifecycle-new',
+  'weather-report','campaign:weather-report','{}'::jsonb,null,'all-season-assessment-v1',clock_timestamp(),'127.6.0.2','pgtap');
+
+select * from public.save_roof_assessment_progress(
+  'd0000000-0000-4000-8000-000000000001',
+  (select assessment_id from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_old)),
+  1,null,'{"reason":"known_replacement"}'::jsonb,
+  '{"need":4,"intent":3,"urgency":0,"propertyFit":0,"engagement":0}'::jsonb,true);
+select ok((select last_answered_at is not null and current_step=1 from public.roof_assessments where id=(select assessment_id from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_old))), 'successful progressive save stamps last answered time');
+select is((select count(*) from public.domain_events where idempotency_key='roof/assessment.high_intent:'||(select assessment_id::text from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_old))),1::bigint,'first progressive threshold emits high intent once');
+select * from public.save_roof_assessment_progress(
+  'd0000000-0000-4000-8000-000000000001',
+  (select assessment_id from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_old)),
+  1,null,'{"reason":"known_replacement"}'::jsonb,
+  '{"need":4,"intent":3,"urgency":0,"propertyFit":0,"engagement":0}'::jsonb,true);
+select is((select count(*) from public.domain_events where idempotency_key='roof/assessment.high_intent:'||(select assessment_id::text from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_old))),1::bigint,'progress retry does not duplicate high intent');
+
+update public.roof_assessments set last_answered_at=clock_timestamp(),updated_at=clock_timestamp() where status='in_progress';
+update public.roof_assessments set last_answered_at=clock_timestamp()-interval '24 hours 1 second',updated_at=clock_timestamp()-interval '24 hours 1 second' where id=(select assessment_id from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_old));
+update public.roof_assessments set last_answered_at=clock_timestamp()-interval '23 hours 59 minutes 59 seconds',updated_at=clock_timestamp()-interval '23 hours 59 minutes 59 seconds' where id=(select assessment_id from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_new));
+select is((select count(*) from public.abandon_inactive_roof_assessments(100)),1::bigint,'24-hour sweep abandons only the inactive boundary record');
+select is((select status from public.roof_assessments where id=(select assessment_id from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_old))),'abandoned','inactive assessment becomes abandoned');
+select is((select status from public.roof_assessments where id=(select assessment_id from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_new))),'in_progress','active boundary assessment stays in progress');
+select is((select count(*) from public.domain_events where idempotency_key='roof/assessment.abandoned:'||(select assessment_id::text from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_old))),1::bigint,'abandonment creates one event');
+select is((select count(*) from public.abandon_inactive_roof_assessments(100)),0::bigint,'abandonment retry is idempotent');
+select ok((select event.company_id=assessment.company_id from public.domain_events event join public.roof_assessments assessment on event.idempotency_key='roof/assessment.abandoned:'||assessment.id::text where assessment.id=(select assessment_id from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_old))),'abandonment event retains assessment tenant');
+
+select * from public.complete_roof_assessment(
+  'd0000000-0000-4000-8000-000000000001',
+  (select assessment_id from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_new)),
+  '{"reason":"active_leak"}'::jsonb,
+  '{"need":3,"intent":0,"urgency":4,"propertyFit":0,"engagement":0}'::jsonb,
+  'professional_inspection',true);
+select * from public.complete_roof_assessment(
+  'd0000000-0000-4000-8000-000000000001',
+  (select assessment_id from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_new)),
+  '{"reason":"active_leak"}'::jsonb,
+  '{"need":3,"intent":0,"urgency":4,"propertyFit":0,"engagement":0}'::jsonb,
+  'professional_inspection',true);
+select is((select status from public.roof_assessments where id=(select assessment_id from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_new))),'completed','completion persists the terminal lifecycle state');
+select is((select count(*) from public.domain_events where idempotency_key='roof/assessment.completed:'||(select assessment_id::text from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_new))),1::bigint,'completion retry emits one completed event');
+select is((select count(*) from public.domain_events where idempotency_key='roof/assessment.high_intent:'||(select assessment_id::text from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_new))),1::bigint,'completion can emit the first high-intent event once');
+
+create temp table lifecycle_rollback as select * from public.start_or_resume_roof_assessment(
+  'd0000000-0000-4000-8000-000000000002','f6000000-0000-4000-8000-000000000003',
+  'Lifecycle Rollback','+12015550603','lifecycle-rollback@example.com','603 Rollback St, Trenton, NJ 08608','ChIJ-lifecycle-rollback',
+  'all-season-main','main-contact','{}'::jsonb,null,'all-season-assessment-v1',clock_timestamp(),'127.6.0.3','pgtap');
+update public.roof_assessments set updated_at=clock_timestamp()-interval '25 hours' where id=(select assessment_id from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_rollback));
+create function pg_temp.reject_abandonment_outbox() returns trigger language plpgsql as $$ begin
+  if exists(select 1 from public.domain_events event where event.id=new.event_id and event.idempotency_key='roof/assessment.abandoned:'||(select assessment_id::text from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_rollback))) then raise exception 'forced abandonment outbox failure'; end if; return new; end $$;
+create trigger reject_abandonment_outbox before insert on public.event_outbox for each row execute function pg_temp.reject_abandonment_outbox();
+select throws_ok($$select * from public.abandon_inactive_roof_assessments(100)$$,'forced abandonment outbox failure','outbox failure aborts abandonment');
+select is((select status from public.roof_assessments where id=(select assessment_id from public.roof_assessment_access_attempts where id=(select attempt_id from lifecycle_rollback))),'in_progress','failed enqueue rolls back lifecycle update');
+drop trigger reject_abandonment_outbox on public.event_outbox;
 
 select * from extensions.finish();
 rollback;

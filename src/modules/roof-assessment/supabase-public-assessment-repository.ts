@@ -26,6 +26,7 @@ function persistedAssessment(row: {
   status: string;
   current_step: number;
   property_revealed_at: string | null;
+  last_answered_at: string | null;
   responses: Json;
   recommendation: string | null;
 }): PersistedAssessment {
@@ -33,9 +34,14 @@ function persistedAssessment(row: {
   const recommendation = recommendationSchema.safeParse(row.recommendation);
   return {
     id: row.id,
-    status: row.status === "completed" ? "completed" : "in_progress",
+    status: row.status === "completed"
+      ? "completed"
+      : row.status === "abandoned"
+        ? "abandoned"
+        : "in_progress",
     currentStep: row.current_step,
     propertyRevealedAt: row.property_revealed_at,
+    lastAnsweredAt: row.last_answered_at,
     responses: responses.success ? responses.data : {},
     recommendation: recommendation.success
       ? recommendation.data as RoofAssessmentRecommendation
@@ -44,7 +50,7 @@ function persistedAssessment(row: {
 }
 
 const assessmentSelection =
-  "id, status, current_step, property_revealed_at, responses, recommendation";
+  "id, status, current_step, property_revealed_at, last_answered_at, responses, recommendation";
 
 export class SupabasePublicAssessmentRepository implements PublicAssessmentRepository {
   constructor(private readonly service: ServiceClient = createServiceClient()) {}
@@ -106,49 +112,37 @@ export class SupabasePublicAssessmentRepository implements PublicAssessmentRepos
     return raced;
   }
 
-  async saveProgress(assessmentId: string, patch: AssessmentProgressPatch) {
-    const update: {
-      current_step: number;
-      responses: Json;
-      updated_at: string;
-      property_revealed_at?: string;
-    } = {
-      current_step: patch.currentStep,
-      responses: patch.responses as Json,
-      updated_at: new Date().toISOString(),
-    };
-    if (patch.propertyRevealedAt) update.property_revealed_at = patch.propertyRevealedAt;
-
-    const {data, error} = await this.service
-      .from("roof_assessments")
-      .update(update)
-      .eq("id", assessmentId)
-      .eq("status", "in_progress")
-      .select(assessmentSelection)
-      .single();
-    if (error) throw error;
-    return persistedAssessment(data);
+  async saveProgress(
+    assessmentId: string,
+    patch: AssessmentProgressPatch,
+  ) {
+    const {data, error} = await this.service.rpc("save_roof_assessment_progress", {
+      p_company_id: patch.companyId,
+      p_assessment_id: assessmentId,
+      p_current_step: patch.currentStep,
+      p_property_revealed_at: (patch.propertyRevealedAt ?? null) as never,
+      p_responses: patch.responses as Json,
+      p_scores: patch.signals.scores as unknown as Json,
+      p_high_intent: patch.signals.highIntent,
+    });
+    if (error || !data || data.length !== 1) throw new Error("Assessment progress persistence failed");
+    return persistedAssessment(data[0]);
   }
 
-  async complete(assessmentId: string, completion: AssessmentCompletion) {
-    const {data, error} = await this.service
-      .from("roof_assessments")
-      .update({
-        status: "completed",
-        current_step: 9,
-        responses: completion.responses as Json,
-        scores: completion.scores as Json,
-        recommendation: completion.recommendation,
-        assessment_version: completion.assessmentVersion,
-        completed_at: completion.completedAt,
-        updated_at: completion.completedAt,
-      })
-      .eq("id", assessmentId)
-      .eq("status", "in_progress")
-      .select(assessmentSelection)
-      .single();
-    if (error) throw error;
-    return persistedAssessment(data);
+  async complete(
+    assessmentId: string,
+    completion: AssessmentCompletion,
+  ) {
+    const {data, error} = await this.service.rpc("complete_roof_assessment", {
+      p_company_id: completion.companyId,
+      p_assessment_id: assessmentId,
+      p_responses: completion.responses as Json,
+      p_scores: completion.scores as unknown as Json,
+      p_recommendation: completion.recommendation,
+      p_high_intent: completion.signals.highIntent,
+    });
+    if (error || !data || data.length !== 1) throw new Error("Assessment completion persistence failed");
+    return persistedAssessment(data[0]);
   }
 
   private async readAssessment(estimateId: string) {

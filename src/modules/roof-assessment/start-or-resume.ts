@@ -1,19 +1,19 @@
 import { z } from "zod";
 import { campaignSlugs, type CampaignSlug } from "@/config/campaigns";
+import {
+  roofAssessmentEntryContexts,
+  roofAssessmentEntryPoints,
+  roofAssessmentPresentationKeys,
+  type AssessmentEntryPoint,
+  type RoofAssessmentPresentationKey,
+} from "@/config/roof-assessment";
 import type { CampaignAttribution } from "@/modules/leads/accept-all-season-campaign-estimate";
 import {
   normalizeEmailForMatching,
   normalizePhoneToE164,
 } from "@/modules/leads/normalize-contact";
 
-export type RoofAssessmentPresentationKey = "all-season-main" | CampaignSlug;
-
-export type AssessmentEntryPoint =
-  | "main-home"
-  | "main-contact"
-  | "main-drawer"
-  | "roof-estimate"
-  | `campaign:${CampaignSlug}`;
+export type { AssessmentEntryPoint, RoofAssessmentPresentationKey };
 
 export type StartAssessmentInput = {
   submissionId: string;
@@ -101,23 +101,10 @@ const attributionSchema = z.object({
 }).strict();
 
 const campaignSchema = z.enum(campaignSlugs);
-const presentationKeySchema = z.enum(["all-season-main", ...campaignSlugs]);
-const entryPointSchema = z.enum([
-  "main-home",
-  "main-contact",
-  "main-drawer",
-  "roof-estimate",
-  ...campaignSlugs.map((campaign) => `campaign:${campaign}` as const),
-]);
-
-// Task 6 will centralize this alongside the full presentation configuration.
-// Keeping the map explicit here prevents independent campaign fields from
-// silently selecting conflicting homeowner framing in the meantime.
-export const roofAssessmentPresentationByCampaign = {
-  "weather-report": "weather-report",
-  "seasonal-shield": "seasonal-shield",
-  "for-every-season": "for-every-season",
-} as const satisfies Record<CampaignSlug, RoofAssessmentPresentationKey>;
+const presentationKeySchema = z.enum(roofAssessmentPresentationKeys);
+const entryPointSchema = z.enum(
+  roofAssessmentEntryPoints as [AssessmentEntryPoint, ...AssessmentEntryPoint[]],
+);
 
 const startAssessmentInputSchema = z.object({
   submissionId: z.uuid(),
@@ -139,26 +126,15 @@ const startAssessmentInputSchema = z.object({
     grantedAt: z.iso.datetime({offset: true}),
   }).strict(),
 }).strict().superRefine((value, context) => {
-  if (value.entryPoint.startsWith("campaign:")) {
-    const routeCampaign = value.entryPoint.slice("campaign:".length) as CampaignSlug;
-    if (
-      value.campaign !== routeCampaign
-      || value.presentationKey !== roofAssessmentPresentationByCampaign[routeCampaign]
-    ) {
-      context.addIssue({
-        code: "custom",
-        path: ["campaign"],
-        message: "Campaign context does not match the assessment entry point",
-      });
-    }
-    return;
-  }
-
-  if (value.campaign !== null || value.presentationKey !== "all-season-main") {
+  const expected = roofAssessmentEntryContexts[value.entryPoint];
+  if (
+    value.campaign !== expected.campaign
+    || value.presentationKey !== expected.presentationKey
+  ) {
     context.addIssue({
       code: "custom",
-      path: ["presentationKey"],
-      message: "Main assessment entry points require the All Season presentation",
+      path: ["campaign"],
+      message: "Assessment context does not match its entry point",
     });
   }
 });
