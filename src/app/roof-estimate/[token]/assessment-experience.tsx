@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import Link from "next/link";
 import type { RoofAssessmentContext } from "@/config/roof-assessment";
 import { AssessmentLoading } from "./assessment-loading";
 import "./assessment.css";
@@ -86,8 +87,12 @@ export function AssessmentExperience({
           </span>
         </header>
 
-        <section className="my-auto grid gap-5 py-6 lg:grid-cols-[minmax(0,1.12fr)_minmax(24rem,0.88fr)] lg:gap-0 lg:py-10">
-          <div className="assessment-reveal-media relative min-h-[23rem] overflow-hidden bg-[#102f3d] shadow-[0_28px_90px_rgba(15,42,55,0.2)] sm:min-h-[32rem] lg:min-h-[39rem]">
+        <div className="my-auto py-6 lg:py-10">
+          <section
+            aria-label="Confirmed property assessment"
+            className="assessment-reveal-card grid overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_28px_90px_rgba(15,42,55,0.16)] lg:grid-cols-[minmax(0,1.12fr)_minmax(24rem,0.88fr)]"
+          >
+          <div className="assessment-reveal-visual relative min-h-[23rem] overflow-hidden bg-[#102f3d] sm:min-h-[32rem] lg:min-h-[39rem]">
             {imageAvailable ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -108,10 +113,16 @@ export function AssessmentExperience({
             <div className="absolute inset-x-0 bottom-0 p-6 text-white sm:p-8">
               <p className="text-[0.65rem] font-bold uppercase tracking-[0.18em] text-white/60">Confirmed property</p>
               <p className="mt-2 max-w-2xl text-lg font-semibold tracking-[-0.02em] sm:text-xl">{address}</p>
+              <Link
+                href="/roof-estimate"
+                className="mt-3 inline-flex text-xs font-semibold text-white/70 underline decoration-white/30 underline-offset-4 transition hover:text-white hover:decoration-white/70"
+              >
+                Not your property? Update the address
+              </Link>
             </div>
           </div>
 
-          <div className="assessment-reveal-panel flex flex-col justify-center border border-slate-200 bg-white p-7 shadow-[0_24px_70px_rgba(15,42,55,0.1)] sm:p-10 lg:my-10 lg:border-l-0 lg:p-12">
+          <div className="assessment-reveal-copy flex flex-col justify-center border-t border-slate-200 bg-white p-7 sm:p-10 lg:border-l lg:border-t-0 lg:p-12">
             <p className="assessment-context-kicker text-xs font-black uppercase tracking-[0.19em]">
               {context.kicker}
             </p>
@@ -142,7 +153,8 @@ export function AssessmentExperience({
               {saving ? "Saving your property…" : saveError ? "Try again" : "Start my assessment"}
             </button>
           </div>
-        </section>
+          </section>
+        </div>
       </div>
     </main>
   );
