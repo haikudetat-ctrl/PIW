@@ -5,9 +5,10 @@ export function selectPublicEstimateView({
   assessmentStatus,
 }: {
   assessmentEnabled: boolean;
-  assessmentStatus: "in_progress" | "completed" | null;
+  assessmentStatus: "in_progress" | "abandoned" | "completed" | null;
 }) {
   if (!assessmentEnabled) return "legacy" as const;
+  if (assessmentStatus === "abandoned") return "resume_required" as const;
   return assessmentStatus === "completed" ? "result" as const : "assessment" as const;
 }
 

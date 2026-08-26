@@ -13,6 +13,7 @@ import { EstimateWaitExperience } from "./estimate-wait-experience";
 import { PropertySatelliteImage } from "./property-satellite-image";
 import { getAssessmentResultCopy, getAssessmentResultRange, selectPublicEstimateView } from "./public-estimate-flow";
 import { QuoteLoadingView } from "./quote-loading-view";
+import { ResumeRequiredView } from "./resume-required-view";
 
 const money = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -91,13 +92,12 @@ export default async function RoofEstimateResultPage({
     estimate.range_low_cents !== null &&
     estimate.range_high_cents !== null;
   const address = property?.canonical_address ?? lead?.submitted_address ?? "your property";
-  const assessmentStatus = z.enum(["in_progress", "completed"]).safeParse(assessment?.status);
+  const assessmentStatus = z.enum(["in_progress", "abandoned", "completed"]).safeParse(assessment?.status);
   const assessmentRecommendation = z.enum([
     "monitor_or_repair",
     "professional_inspection",
     "replacement_may_make_sense",
   ]).safeParse(assessment?.recommendation);
-  const assessmentResponses = roofAssessmentProgressSchema.safeParse(assessment?.responses);
   const completedAssessmentResponses = roofAssessmentResponsesSchema.safeParse(assessment?.responses);
   const view = selectPublicEstimateView({
     assessmentEnabled: parseServerEnv(process.env).ROOF_ASSESSMENT_ENABLED,
@@ -107,7 +107,12 @@ export default async function RoofEstimateResultPage({
     ? getAssessmentResultCopy(assessmentRecommendation.data)
     : null;
 
+  if (view === "resume_required") {
+    return <ResumeRequiredView />;
+  }
+
   if (view === "assessment") {
+    const assessmentResponses = roofAssessmentProgressSchema.safeParse(assessment?.responses);
     return (
       <AssessmentExperience
         token={token}
