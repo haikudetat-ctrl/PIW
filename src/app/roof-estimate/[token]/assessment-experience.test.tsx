@@ -54,6 +54,28 @@ describe("assessment property reveal", () => {
     expect(screen.getByRole("heading", {name: "We found your property."})).toBeVisible();
   });
 
+  test("unifies the property and assessment in one card with a correction link", () => {
+    render(
+      <AssessmentExperience
+        token={token}
+        address="1 Main St, Newark, NJ 07102"
+        imageUrl={imageUrl}
+        context={context}
+        initialPropertyRevealed
+        initialStep={0}
+      >
+        <p>Questions begin here</p>
+      </AssessmentExperience>,
+    );
+
+    const card = screen.getByRole("region", {name: "Confirmed property assessment"});
+    expect(card).toHaveClass("assessment-reveal-card");
+    expect(card).toContainElement(screen.getByAltText("Aerial view of 1 Main St, Newark, NJ 07102"));
+    expect(card).toContainElement(screen.getByRole("heading", {name: "We found your property."}));
+    expect(screen.getByRole("link", {name: "Not your property? Update the address"}))
+      .toHaveAttribute("href", "/roof-estimate");
+  });
+
   test("persists the reveal before opening the questions", async () => {
     vi.useRealTimers();
     const fetch = vi.fn(async () => Response.json({propertyRevealed: true}));
