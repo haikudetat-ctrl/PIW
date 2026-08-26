@@ -7,6 +7,7 @@ import { AssessmentLoading } from "./assessment-loading";
 type ExperienceStage = "loading" | "reveal" | "questions";
 
 export function AssessmentExperience({
+  preview = false,
   token,
   address,
   imageUrl,
@@ -15,6 +16,7 @@ export function AssessmentExperience({
   initialStep,
   children,
 }: {
+  preview?: boolean;
   token: string;
   address: string;
   imageUrl: string;
@@ -48,6 +50,10 @@ export function AssessmentExperience({
 
   async function startAssessment() {
     if (saving) return;
+    if (preview) {
+      setStage("questions");
+      return;
+    }
     setSaving(true);
     setSaveError(false);
     const response = await fetch(`/api/roof-estimate/${token}/assessment`, {

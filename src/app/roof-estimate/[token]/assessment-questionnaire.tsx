@@ -73,10 +73,14 @@ function educationalCopy(step: number, responses: Responses) {
 }
 
 export function AssessmentQuestionnaire({
+  preview = false,
+  onPreviewComplete,
   token,
   initialStep,
   initialResponses,
 }: {
+  preview?: boolean;
+  onPreviewComplete?: (responses: Responses) => void;
   token: string;
   initialStep: number;
   initialResponses: Responses;
@@ -98,16 +102,16 @@ export function AssessmentQuestionnaire({
   function toggleMulti(
     key: "conditionSignals" | "complexityFeatures",
     value: string,
-    exclusive: string,
+    exclusiveValues: string[],
   ) {
     setError("");
     setResponses((current) => {
       const selected = (current[key] ?? []) as string[];
-      const next = value === exclusive
+      const next = exclusiveValues.includes(value)
         ? (selected.includes(value) ? [] : [value])
         : selected.includes(value)
           ? selected.filter((item) => item !== value)
-          : [...selected.filter((item) => item !== exclusive), value];
+          : [...selected.filter((item) => !exclusiveValues.includes(item)), value];
       return {...current, [key]: next};
     });
   }
@@ -131,6 +135,11 @@ export function AssessmentQuestionnaire({
 
   async function continueAssessment() {
     if (!answered() || saving) return;
+    if (preview) {
+      if (step === 8) onPreviewComplete?.(responses);
+      else setStep((current) => current + 1);
+      return;
+    }
     setSaving(true);
     setError("");
     const completing = step === 8;
@@ -184,7 +193,7 @@ export function AssessmentQuestionnaire({
             <div className="mt-8">
               {step === 0 ? <OptionGrid options={reasonOptions} selected={responses.reason ? [responses.reason] : []} onSelect={(value) => selectSingle("reason", value as RoofAssessmentResponses["reason"])} /> : null}
               {step === 1 ? <OptionGrid options={roofAgeOptions} selected={responses.roofAge ? [responses.roofAge] : []} onSelect={(value) => selectSingle("roofAge", value as RoofAssessmentResponses["roofAge"])} /> : null}
-              {step === 2 ? <OptionGrid multi options={conditionOptions} selected={responses.conditionSignals ?? []} onSelect={(value) => toggleMulti("conditionSignals", value, value === "unsure" ? "unsure" : "nothing_obvious")} /> : null}
+              {step === 2 ? <OptionGrid multi options={conditionOptions} selected={responses.conditionSignals ?? []} onSelect={(value) => toggleMulti("conditionSignals", value, ["nothing_obvious", "unsure"])} /> : null}
               {step === 3 ? (
                 <div className="space-y-6">
                   <OptionGrid options={[{value: "yes", label: "Yes"}, {value: "no", label: "No"}]} selected={responses.roofVisible ? [responses.roofVisible] : []} onSelect={(value) => {
@@ -200,7 +209,7 @@ export function AssessmentQuestionnaire({
                 </div>
               ) : null}
               {step === 4 ? <OptionGrid options={storyOptions} selected={responses.stories ? [responses.stories] : []} onSelect={(value) => selectSingle("stories", value as RoofAssessmentResponses["stories"])} /> : null}
-              {step === 5 ? <OptionGrid multi options={complexityOptions} selected={responses.complexityFeatures ?? []} onSelect={(value) => toggleMulti("complexityFeatures", value, "none_or_unsure")} /> : null}
+              {step === 5 ? <OptionGrid multi options={complexityOptions} selected={responses.complexityFeatures ?? []} onSelect={(value) => toggleMulti("complexityFeatures", value, ["none_or_unsure"])} /> : null}
               {step === 6 ? <OptionGrid options={priorityOptions} selected={responses.priority ? [responses.priority] : []} onSelect={(value) => selectSingle("priority", value as RoofAssessmentResponses["priority"])} /> : null}
               {step === 7 ? <OptionGrid options={timelineOptions} selected={responses.timeline ? [responses.timeline] : []} onSelect={(value) => selectSingle("timeline", value as RoofAssessmentResponses["timeline"])} /> : null}
               {step === 8 ? <OptionGrid options={ownershipOptions} selected={responses.ownership ? [responses.ownership] : []} onSelect={(value) => selectSingle("ownership", value as RoofAssessmentResponses["ownership"])} /> : null}

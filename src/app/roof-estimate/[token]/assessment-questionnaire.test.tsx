@@ -48,6 +48,18 @@ describe("roof assessment questionnaire", () => {
     expect(await screen.findByRole("heading", {name: "About how old do you think the roof is?"})).toBeVisible();
   });
 
+  test("moves through questions without API calls in the development preview", () => {
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    render(<AssessmentQuestionnaire preview token={token} initialStep={0} initialResponses={{}} />);
+
+    fireEvent.click(screen.getByRole("button", {name: "Just planning ahead"}));
+    fireEvent.click(screen.getByRole("button", {name: "Continue"}));
+
+    expect(screen.getByRole("heading", {name: "About how old do you think the roof is?"})).toBeVisible();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   test("treats no idea as a useful roof-age answer", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => Response.json({currentStep: 2})));
     render(<AssessmentQuestionnaire token={token} initialStep={1} initialResponses={{reason: "planning"}} />);
@@ -69,6 +81,19 @@ describe("roof assessment questionnaire", () => {
 
     expect(screen.getByRole("button", {name: "Nothing obvious"})).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", {name: "Active leak"})).toHaveAttribute("aria-pressed", "false");
+  });
+
+  test("clears either exclusive condition answer when a damage signal is selected", () => {
+    render(<AssessmentQuestionnaire token={token} initialStep={2} initialResponses={{
+      reason: "planning",
+      roofAge: "unknown",
+    }} />);
+
+    fireEvent.click(screen.getByRole("button", {name: "Not sure"}));
+    fireEvent.click(screen.getByRole("button", {name: "Active leak"}));
+
+    expect(screen.getByRole("button", {name: "Not sure"})).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", {name: "Active leak"})).toHaveAttribute("aria-pressed", "true");
   });
 
   test("resumes at the saved step with prior answers intact", () => {

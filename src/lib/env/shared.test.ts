@@ -16,6 +16,7 @@ describe("parseServerEnv", () => {
   test("disables paid providers by default", () => {
     const environment = parseServerEnv(base);
     expect(environment.PAID_PROVIDERS_ENABLED).toBe(false);
+    expect(environment.ROOF_ASSESSMENT_ENABLED).toBe(false);
     expect(environment.COST_INTELLIGENCE_ENABLED).toBe(false);
     expect(environment.INTEGRATIONS_LEADMASTER_ENABLED).toBe(false);
     expect(environment.INTEGRATIONS_JOBNIMBUS_ENABLED).toBe(false);
@@ -117,6 +118,10 @@ describe("parseServerEnv", () => {
   test("rejects JobNimbus import limits above their safety bounds", () => {
     expect(() => parseServerEnv({ ...base, JOBNIMBUS_PAGE_LIMIT: "501" })).toThrow();
     expect(() => parseServerEnv({ ...base, JOBNIMBUS_MAX_PAGES: "26" })).toThrow();
+  });
+
+  test("enables the public roof assessment explicitly", () => {
+    expect(parseServerEnv({...base, ROOF_ASSESSMENT_ENABLED: "true"}).ROOF_ASSESSMENT_ENABLED).toBe(true);
   });
 
   test("rejects paid providers in preview", () => {
