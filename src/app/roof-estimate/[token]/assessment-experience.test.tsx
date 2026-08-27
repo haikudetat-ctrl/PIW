@@ -97,11 +97,44 @@ describe("assessment property reveal", () => {
     );
 
     const card = screen.getByRole("region", {name: "Confirmed property assessment"});
+    fireEvent.load(screen.getByTestId("assessment-aerial-image"));
     expect(card).toHaveClass("assessment-reveal-card");
     expect(card).toContainElement(screen.getByAltText("Aerial view of 1 Main St, Newark, NJ 07102"));
     expect(card).toContainElement(screen.getByRole("heading", {name: "Property confirmed."}));
     expect(screen.getByRole("link", {name: "Not your property? Update the address"}))
       .toHaveAttribute("href", "/roof-estimate");
+  });
+
+  test("shows a valid branded image while retrying a transient aerial failure", () => {
+    render(
+      <AssessmentExperience
+        token={token}
+        address="1 Main St, Newark, NJ 07102"
+        imageUrl={imageUrl}
+        context={context}
+        initialPropertyRevealed
+        initialStep={0}
+      >
+        <p>Questions begin here</p>
+      </AssessmentExperience>,
+    );
+
+    fireEvent.error(screen.getByTestId("assessment-aerial-image"));
+
+    expect(screen.getByAltText(context.fallbackImageAlt)).toHaveAttribute(
+      "src",
+      "/campaigns/for-every-season/hero.webp",
+    );
+
+    act(() => vi.advanceTimersByTime(2_500));
+
+    const retry = screen.getByTestId("assessment-aerial-image");
+    expect(retry).toHaveAttribute("src", `${imageUrl}?aerial_retry=1`);
+    expect(retry).toHaveAttribute("alt", "");
+
+    fireEvent.load(retry);
+    expect(screen.getByAltText("Aerial view of 1 Main St, Newark, NJ 07102")).toBeVisible();
+    expect(screen.queryByAltText(context.fallbackImageAlt)).not.toBeInTheDocument();
   });
 
   test("groups the confirmation hierarchy as one property summary", () => {

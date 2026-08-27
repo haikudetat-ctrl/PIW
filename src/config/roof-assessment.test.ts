@@ -34,6 +34,20 @@ describe("roof assessment campaign presentation", () => {
     );
   });
 
+  test("uses deployable campaign hero assets for every aerial fallback", () => {
+    expect([
+      getRoofAssessmentContext("all-season-main").fallbackImage,
+      getRoofAssessmentContext("weather-report").fallbackImage,
+      getRoofAssessmentContext("seasonal-shield").fallbackImage,
+      getRoofAssessmentContext("for-every-season").fallbackImage,
+    ]).toEqual([
+      "/campaigns/for-every-season/hero.webp",
+      "/campaigns/weather-report/hero.webp",
+      "/campaigns/seasonal-shield/hero.webp",
+      "/campaigns/for-every-season/hero.webp",
+    ]);
+  });
+
   test("does not let presentation context alter questions, order, or loading stages", () => {
     const contexts = [
       "all-season-main",
