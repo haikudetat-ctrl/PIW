@@ -67,7 +67,7 @@
 .roofing-process-layout .process-list h3{margin-bottom:8px;color:#fff;font-size:clamp(1.75rem,2.5vw,2.25rem);line-height:.94;text-transform:uppercase}
 .roofing-process-layout .process-list p{max-width:48ch;color:rgba(255,255,255,.7);font-size:.9rem;line-height:1.5}
 @media (max-width:980px){.roofing-process-layout{grid-template-columns:1fr;gap:18px}.roofing-process-layout .process-intro{position:static}}
-@media (max-width:640px){.roofing-process-layout{padding:34px 22px}.roofing-process-layout .process-heading{font-size:clamp(1.7rem,7vw,2.2rem)}.roofing-process-layout .process-list li{grid-template-columns:38px minmax(0,1fr);gap:10px}.roofing-process-layout .process-list h3{font-size:1.65rem}}
+@media (max-width:640px){.roofing-process-layout{padding:34px 22px}.roofing-process-layout .process-intro h2.process-heading{font-size:clamp(1.25rem,calc(10vw - 8px),2.2rem)}.roofing-process-layout .process-heading-emphasis{font-size:clamp(1.85rem,calc(12.5vw - 10px),4.4rem)}.roofing-process-layout .process-list li{grid-template-columns:38px minmax(0,1fr);gap:10px}.roofing-process-layout .process-list h3{font-size:1.65rem}}
 
 .roofing-process-layout{background:var(--card);color:var(--ink);border:1px solid var(--line);box-shadow:none}
 .roofing-process-layout .process-intro .eyebrow{color:var(--blue)}
