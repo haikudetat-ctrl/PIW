@@ -1,5 +1,5 @@
-import {fireEvent, render, screen} from "@testing-library/react";
-import {describe, expect, test, vi} from "vitest";
+import {fireEvent, render, screen, waitFor} from "@testing-library/react";
+import {afterEach, describe, expect, test, vi} from "vitest";
 import type {RoofAssessmentResponses} from "@/domain/roof-assessment";
 
 const completedResponses: RoofAssessmentResponses = {
@@ -34,6 +34,11 @@ vi.mock("../[token]/assessment-questionnaire", () => ({
 const {AssessmentSandbox} = await import("./assessment-sandbox");
 
 describe("development assessment sandbox", () => {
+  afterEach(() => {
+    window.history.replaceState({}, "", "/roof-estimate/dev-assessment");
+    vi.unstubAllGlobals();
+  });
+
   test("the consultation action does not restart the loading flow", () => {
     render(<AssessmentSandbox />);
     fireEvent.click(screen.getByRole("button", {name: "Finish demo assessment"}));
@@ -41,5 +46,69 @@ describe("development assessment sandbox", () => {
     fireEvent.click(screen.getByRole("button", {name: "Review my roof with a specialist"}));
     expect(screen.getByRole("group", {name: "How should we follow up?"})).toBeVisible();
     expect(screen.queryByRole("button", {name: "Finish demo assessment"})).not.toBeInTheDocument();
+  });
+
+  test.each([
+    ["pending", "Finalizing your property calculation"],
+    ["review_required", "A professional is reviewing the property"],
+  ])("previews the %s result state without an invented range", (state, expected) => {
+    window.history.replaceState({}, "", `/roof-estimate/dev-assessment?result=${state}`);
+
+    render(<AssessmentSandbox />);
+
+    expect(screen.getByText(expected)).toBeVisible();
+    expect(screen.queryByText("$18,000")).not.toBeInTheDocument();
+  });
+
+  test("previews a Google-derived ready result with campaign-specific framing", () => {
+    window.history.replaceState(
+      {},
+      "",
+      "/roof-estimate/dev-assessment?result=ready&presentation=weather-report",
+    );
+
+    render(<AssessmentSandbox />);
+
+    expect(screen.getByRole("heading", {name: "Your roof weather outlook"})).toBeVisible();
+    expect(screen.getByText("$18,000")).toBeVisible();
+    expect(screen.getByText("$26,000")).toBeVisible();
+    expect(screen.getByText(/23\.0 measured roofing squares/)).toBeVisible();
+  });
+
+  test("query-controlled consultation success returns the selected canonical preference", async () => {
+    window.history.replaceState(
+      {},
+      "",
+      "/roof-estimate/dev-assessment?result=pending&consultation=success",
+    );
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("unexpected request")));
+
+    render(<AssessmentSandbox />);
+    fireEvent.click(screen.getByRole("button", {name: /review.*specialist/i}));
+    fireEvent.click(screen.getByRole("radio", {name: "Text me"}));
+    fireEvent.click(screen.getByRole("button", {name: "Request my consultation"}));
+
+    expect(await screen.findByText("Preference saved")).toBeVisible();
+    expect(screen.getByText("We’ll follow up by text.")).toBeVisible();
+  });
+
+  test("query-controlled consultation failure preserves the selected choice", async () => {
+    window.history.replaceState(
+      {},
+      "",
+      "/roof-estimate/dev-assessment?result=review_required&consultation=error",
+    );
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("unexpected request")));
+
+    render(<AssessmentSandbox />);
+    fireEvent.click(screen.getByRole("button", {name: /review.*specialist/i}));
+    const email = screen.getByRole("radio", {name: "Email me"});
+    fireEvent.click(email);
+    fireEvent.click(screen.getByRole("button", {name: "Request my consultation"}));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "We could not save your preference. Please try again.",
+    );
+    await waitFor(() => expect(email).toBeChecked());
   });
 });
