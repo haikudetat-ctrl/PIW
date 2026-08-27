@@ -173,6 +173,41 @@ describe("quote drawer", () => {
     ).not.toBeNull();
   });
 
+  test("shows ZIP field validation and never submits an invalid ZIP", async () => {
+    const dom = new JSDOM("<!doctype html><body></body>", {
+      url: "https://allseason.example/",
+      runScripts: "outside-only",
+    });
+    installBrowserGlobals(dom);
+    const fetch = vi.fn<(input: string, init?: RequestInit) => Promise<Response>>();
+    dom.window.fetch = fetch as typeof dom.window.fetch;
+
+    dom.window.eval(quoteDrawer);
+    dom.window.document.dispatchEvent(new dom.window.Event("DOMContentLoaded"));
+    const form = dom.window.document.querySelector<HTMLFormElement>(".as-quote-form")!;
+    const values = {
+      name: "Alex Rivera",
+      email: "alex@example.com",
+      phone: "201-555-0100",
+      address_line_1: "1 Main St",
+      city: "Newark",
+      postal_code: "abc",
+    };
+    for (const [name, value] of Object.entries(values)) {
+      form.querySelector<HTMLInputElement>(`[name="${name}"]`)!.value = value;
+    }
+    form.querySelectorAll<HTMLInputElement>('input[type="checkbox"]').forEach((input: HTMLInputElement) => {
+      input.checked = true;
+    });
+
+    form.dispatchEvent(new dom.window.Event("submit", {bubbles: true, cancelable: true}));
+    await new Promise((resolve) => dom.window.setTimeout(resolve, 0));
+
+    expect(fetch).not.toHaveBeenCalled();
+    expect(form.querySelector("#as-quote-postal_code-error")?.textContent).toBe("Enter a valid ZIP code.");
+    expect(form.querySelector('[name="postal_code"]')?.getAttribute("aria-invalid")).toBe("true");
+  });
+
   test("reuses its submission ID when delivery is retried", async () => {
     const dom = new JSDOM("<!doctype html><body></body>", {
       url: "https://allseason.example/",
