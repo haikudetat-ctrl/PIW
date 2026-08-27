@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import type {CSSProperties} from "react";
-import {campaignThemeCssVariables} from "../../../../shared/all-season-campaign-themes";
+import {campaignThemeCssVariables, campaignThemes} from "../../../../shared/all-season-campaign-themes";
 import {CampaignEstimateForm} from "./campaign-estimate-form";
 import type {CampaignDefinition} from "./campaigns";
 
@@ -12,14 +12,15 @@ const processSteps = [
 ] as const;
 
 export function CampaignLandingPage({campaign}: {campaign: CampaignDefinition}) {
+  const visual = campaignThemes[campaign.slug];
   const accentWords = new Set(campaign.bridgeAccents.map((word) => word.toLowerCase()));
   const headlineParts = campaign.bridgeHeadline.split(/(\s+)/);
 
   return (
     <main
       className="campaign-page"
-      data-theme={campaign.visual.theme}
-      style={campaignThemeCssVariables(campaign.visual) as CSSProperties}
+      data-theme={visual.theme}
+      style={campaignThemeCssVariables(visual) as CSSProperties}
     >
       <nav className="campaign-nav" aria-label="Campaign navigation">
         <Link className="campaign-brand" href="/" aria-label="All Season home">

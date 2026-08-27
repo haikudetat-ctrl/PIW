@@ -127,8 +127,8 @@ export function CampaignEstimateForm({campaign}: {campaign: CampaignDefinition})
         <label className="campaign-field"><span>Email</span><input name="email" type="email" inputMode="email" autoComplete="email" required /></label>
         <label className="campaign-field"><span>Mobile phone</span><input name="phone" type="tel" inputMode="tel" autoComplete="tel" required /></label>
         <div className="campaign-consents">
-          <label><input type="checkbox" required /><span>I authorize All Season to review this address using property records, maps, and imagery to prepare my estimate.</span></label>
-          <label><input type="checkbox" required /><span>I agree to be contacted by All Season by call, text, or email about this request, including by automated means. Consent is not required to purchase.</span></label>
+          <label><input name="consent_to_process_property" type="checkbox" required /><span>I authorize All Season to review this address using property records, maps, and imagery to prepare my estimate.</span></label>
+          <label><input name="consent_to_contact" type="checkbox" required /><span>I agree to be contacted by All Season by call, text, or email about this request, including by automated means. Consent is not required to purchase.</span></label>
         </div>
         <div className="campaign-form-actions">
           <button className="campaign-text-action" type="button" onClick={() => setStep(1)}>← Back</button>

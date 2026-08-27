@@ -7,6 +7,13 @@ const optionalString = z.preprocess((value) => value === "" ? undefined : value,
 const optionalUrl = z.preprocess((value) => value === "" ? undefined : value, z.url().optional());
 const optionalUuid = z.preprocess((value) => value === "" ? undefined : value, z.uuid().optional());
 const optionalIsoDatetime = z.preprocess((value) => value === "" ? undefined : value, z.iso.datetime().optional());
+const optionalSigningSecret = z.preprocess(
+  (value) => value === "" ? undefined : value,
+  z.string().optional().refine(
+    (value) => value === undefined || Buffer.byteLength(value, "utf8") >= 32,
+    "Roof assessment signing secret must be at least 32 bytes",
+  ),
+);
 
 const serverEnvSchema = z
   .object({
@@ -18,6 +25,12 @@ const serverEnvSchema = z
     INNGEST_EVENT_KEY: z.string().min(1),
     INNGEST_SIGNING_KEY: z.string().min(1),
     PAID_PROVIDERS_ENABLED: booleanString,
+    ROOF_ASSESSMENT_ENABLED: booleanString,
+    ROOF_ASSESSMENT_SIGNING_SECRET: optionalSigningSecret,
+    TWILIO_VERIFY_ENABLED: booleanString,
+    TWILIO_API_KEY_SID: optionalString,
+    TWILIO_API_KEY_SECRET: optionalString,
+    TWILIO_VERIFY_SERVICE_SID: optionalString,
     INTEGRATIONS_LEADCONDUIT_ROOFING_RECEIVER_ENABLED: booleanString,
     INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_RECEIVER_ENABLED: booleanString,
     INTEGRATIONS_LEADMASTER_ENABLED: booleanString,
@@ -89,6 +102,29 @@ const serverEnvSchema = z
         code: "custom",
         path: ["GOOGLE_MAPS_API_KEY"],
         message: "Google Maps API key is required when paid providers are enabled",
+      });
+    }
+    if (value.ROOF_ASSESSMENT_ENABLED && !value.ROOF_ASSESSMENT_SIGNING_SECRET) {
+      context.addIssue({
+        code: "custom",
+        path: ["ROOF_ASSESSMENT_SIGNING_SECRET"],
+        message: "Roof assessment signing secret is required when assessments are enabled",
+      });
+    }
+    if (
+      value.TWILIO_VERIFY_ENABLED
+      && (
+        !value.TWILIO_API_KEY_SID
+        || !value.TWILIO_API_KEY_SECRET
+        || !value.TWILIO_VERIFY_SERVICE_SID
+        || !value.ROOF_ASSESSMENT_ENABLED
+        || !value.ROOF_ASSESSMENT_SIGNING_SECRET
+      )
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["TWILIO_VERIFY_ENABLED"],
+        message: "Twilio Verify requires API credentials, a service SID, and assessment signing",
       });
     }
     const readIntegrations = [

@@ -278,6 +278,90 @@ export type Database = {
         }
         Relationships: []
       }
+      consultation_requests: {
+        Row: {
+          assessment_id: string
+          booking_reference: string | null
+          call_window: string | null
+          company_id: string
+          contact_method: string
+          created_at: string
+          estimate_id: string
+          id: string
+          lead_id: string
+          property_id: string
+          status: string
+          timezone: string
+          updated_at: string
+        }
+        Insert: {
+          assessment_id: string
+          booking_reference?: string | null
+          call_window?: string | null
+          company_id: string
+          contact_method: string
+          created_at?: string
+          estimate_id: string
+          id?: string
+          lead_id: string
+          property_id: string
+          status?: string
+          timezone?: string
+          updated_at?: string
+        }
+        Update: {
+          assessment_id?: string
+          booking_reference?: string | null
+          call_window?: string | null
+          company_id?: string
+          contact_method?: string
+          created_at?: string
+          estimate_id?: string
+          id?: string
+          lead_id?: string
+          property_id?: string
+          status?: string
+          timezone?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consultation_requests_company_id_assessment_id_fkey"
+            columns: ["company_id", "assessment_id"]
+            isOneToOne: false
+            referencedRelation: "roof_assessments"
+            referencedColumns: ["company_id", "id"]
+          },
+          {
+            foreignKeyName: "consultation_requests_company_id_estimate_id_fkey"
+            columns: ["company_id", "estimate_id"]
+            isOneToOne: false
+            referencedRelation: "roof_estimates"
+            referencedColumns: ["company_id", "id"]
+          },
+          {
+            foreignKeyName: "consultation_requests_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consultation_requests_company_id_lead_id_fkey"
+            columns: ["company_id", "lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["company_id", "id"]
+          },
+          {
+            foreignKeyName: "consultation_requests_company_id_property_id_fkey"
+            columns: ["company_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["company_id", "id"]
+          },
+        ]
+      }
       context_dialer_deliveries: {
         Row: {
           attempt_count: number
@@ -1273,6 +1357,137 @@ export type Database = {
           },
         ]
       }
+      lead_attribution_touches: {
+        Row: {
+          assessment_id: string | null
+          attribution: Json
+          company_id: string
+          entry_point: string
+          estimate_id: string | null
+          id: string
+          lead_id: string
+          occurred_at: string
+          presentation_key: string
+          referrer: string | null
+          submission_id: string
+        }
+        Insert: {
+          assessment_id?: string | null
+          attribution?: Json
+          company_id: string
+          entry_point: string
+          estimate_id?: string | null
+          id?: string
+          lead_id: string
+          occurred_at?: string
+          presentation_key: string
+          referrer?: string | null
+          submission_id: string
+        }
+        Update: {
+          assessment_id?: string | null
+          attribution?: Json
+          company_id?: string
+          entry_point?: string
+          estimate_id?: string | null
+          id?: string
+          lead_id?: string
+          occurred_at?: string
+          presentation_key?: string
+          referrer?: string | null
+          submission_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_attribution_touches_company_id_assessment_id_fkey"
+            columns: ["company_id", "assessment_id"]
+            isOneToOne: false
+            referencedRelation: "roof_assessments"
+            referencedColumns: ["company_id", "id"]
+          },
+          {
+            foreignKeyName: "lead_attribution_touches_company_id_estimate_id_fkey"
+            columns: ["company_id", "estimate_id"]
+            isOneToOne: false
+            referencedRelation: "roof_estimates"
+            referencedColumns: ["company_id", "id"]
+          },
+          {
+            foreignKeyName: "lead_attribution_touches_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_attribution_touches_company_id_lead_id_fkey"
+            columns: ["company_id", "lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["company_id", "id"]
+          },
+        ]
+      }
+      lead_consent_evidence: {
+        Row: {
+          company_id: string
+          consent_type: string
+          disclosure_version: string
+          granted: boolean
+          granted_at: string
+          id: string
+          ip_address: unknown
+          lead_id: string
+          recorded_at: string
+          source: string
+          submission_id: string
+          user_agent: string | null
+        }
+        Insert: {
+          company_id: string
+          consent_type: string
+          disclosure_version: string
+          granted: boolean
+          granted_at: string
+          id?: string
+          ip_address?: unknown
+          lead_id: string
+          recorded_at?: string
+          source: string
+          submission_id: string
+          user_agent?: string | null
+        }
+        Update: {
+          company_id?: string
+          consent_type?: string
+          disclosure_version?: string
+          granted?: boolean
+          granted_at?: string
+          id?: string
+          ip_address?: unknown
+          lead_id?: string
+          recorded_at?: string
+          source?: string
+          submission_id?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_consent_evidence_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_consent_evidence_company_id_lead_id_fkey"
+            columns: ["company_id", "lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["company_id", "id"]
+          },
+        ]
+      }
       lead_consents: {
         Row: {
           company_id: string
@@ -1319,11 +1534,11 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "lead_consents_lead_id_fkey"
-            columns: ["lead_id"]
+            foreignKeyName: "lead_consents_company_lead_fkey"
+            columns: ["company_id", "lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
-            referencedColumns: ["id"]
+            referencedColumns: ["company_id", "id"]
           },
         ]
       }
@@ -2001,11 +2216,11 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "leads_property_id_fkey"
-            columns: ["property_id"]
+            foreignKeyName: "leads_company_property_fkey"
+            columns: ["company_id", "property_id"]
             isOneToOne: false
             referencedRelation: "properties"
-            referencedColumns: ["id"]
+            referencedColumns: ["company_id", "id"]
           },
         ]
       }
@@ -2788,6 +3003,313 @@ export type Database = {
           },
         ]
       }
+      roof_assessment_access_attempts: {
+        Row: {
+          assessment_id: string
+          attempt_kind: string
+          company_id: string
+          consumed_at: string | null
+          continuation_secret_hash: string
+          created_at: string
+          destination_phone_e164: string
+          estimate_id: string
+          expires_at: string
+          id: string
+          lead_id: string
+          property_id: string
+          provider_attempt_id: string | null
+          provider_attempt_metadata: Json
+          request_ip: unknown
+          requested_entry_point: string
+          requested_presentation_key: string
+          submission_id: string
+          token_rotated_at: string | null
+          updated_at: string
+          verification_send_count: number
+          verification_sent_at: string | null
+          verification_started_at: string | null
+          verified_at: string | null
+        }
+        Insert: {
+          assessment_id: string
+          attempt_kind: string
+          company_id: string
+          consumed_at?: string | null
+          continuation_secret_hash: string
+          created_at?: string
+          destination_phone_e164: string
+          estimate_id: string
+          expires_at: string
+          id?: string
+          lead_id: string
+          property_id: string
+          provider_attempt_id?: string | null
+          provider_attempt_metadata?: Json
+          request_ip: unknown
+          requested_entry_point: string
+          requested_presentation_key: string
+          submission_id: string
+          token_rotated_at?: string | null
+          updated_at?: string
+          verification_send_count?: number
+          verification_sent_at?: string | null
+          verification_started_at?: string | null
+          verified_at?: string | null
+        }
+        Update: {
+          assessment_id?: string
+          attempt_kind?: string
+          company_id?: string
+          consumed_at?: string | null
+          continuation_secret_hash?: string
+          created_at?: string
+          destination_phone_e164?: string
+          estimate_id?: string
+          expires_at?: string
+          id?: string
+          lead_id?: string
+          property_id?: string
+          provider_attempt_id?: string | null
+          provider_attempt_metadata?: Json
+          request_ip?: unknown
+          requested_entry_point?: string
+          requested_presentation_key?: string
+          submission_id?: string
+          token_rotated_at?: string | null
+          updated_at?: string
+          verification_send_count?: number
+          verification_sent_at?: string | null
+          verification_started_at?: string | null
+          verified_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "roof_assessment_access_attempts_company_id_assessment_id_fkey"
+            columns: ["company_id", "assessment_id"]
+            isOneToOne: false
+            referencedRelation: "roof_assessments"
+            referencedColumns: ["company_id", "id"]
+          },
+          {
+            foreignKeyName: "roof_assessment_access_attempts_company_id_estimate_id_fkey"
+            columns: ["company_id", "estimate_id"]
+            isOneToOne: false
+            referencedRelation: "roof_estimates"
+            referencedColumns: ["company_id", "id"]
+          },
+          {
+            foreignKeyName: "roof_assessment_access_attempts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "roof_assessment_access_attempts_company_id_lead_id_fkey"
+            columns: ["company_id", "lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["company_id", "id"]
+          },
+          {
+            foreignKeyName: "roof_assessment_access_attempts_company_id_property_id_fkey"
+            columns: ["company_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["company_id", "id"]
+          },
+        ]
+      }
+      roof_assessment_consultation_attempts: {
+        Row: {
+          assessment_id: string
+          company_id: string
+          id: string
+          request_ip: unknown
+          reserved_at: string
+        }
+        Insert: {
+          assessment_id: string
+          company_id: string
+          id?: string
+          request_ip: unknown
+          reserved_at?: string
+        }
+        Update: {
+          assessment_id?: string
+          company_id?: string
+          id?: string
+          request_ip?: unknown
+          reserved_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "roof_assessment_consultation_atte_company_id_assessment_id_fkey"
+            columns: ["company_id", "assessment_id"]
+            isOneToOne: false
+            referencedRelation: "roof_assessments"
+            referencedColumns: ["company_id", "id"]
+          },
+          {
+            foreignKeyName: "roof_assessment_consultation_attempts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      roof_assessment_verification_sends: {
+        Row: {
+          approved_at: string | null
+          attempt_id: string
+          company_id: string
+          created_at: string
+          destination_phone_e164: string
+          id: string
+          provider_attempt_id: string | null
+          provider_status: string
+          request_ip: unknown
+          reserved_at: string
+          sent_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          approved_at?: string | null
+          attempt_id: string
+          company_id: string
+          created_at?: string
+          destination_phone_e164: string
+          id?: string
+          provider_attempt_id?: string | null
+          provider_status?: string
+          request_ip: unknown
+          reserved_at?: string
+          sent_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          approved_at?: string | null
+          attempt_id?: string
+          company_id?: string
+          created_at?: string
+          destination_phone_e164?: string
+          id?: string
+          provider_attempt_id?: string | null
+          provider_status?: string
+          request_ip?: unknown
+          reserved_at?: string
+          sent_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "roof_assessment_verification_sends_company_id_attempt_id_fkey"
+            columns: ["company_id", "attempt_id"]
+            isOneToOne: false
+            referencedRelation: "roof_assessment_access_attempts"
+            referencedColumns: ["company_id", "id"]
+          },
+          {
+            foreignKeyName: "roof_assessment_verification_sends_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      roof_assessments: {
+        Row: {
+          abandoned_at: string | null
+          assessment_version: string
+          company_id: string
+          completed_at: string | null
+          current_step: number
+          entry_point: string
+          estimate_id: string
+          id: string
+          last_answered_at: string | null
+          lead_id: string
+          presentation_key: string
+          property_revealed_at: string | null
+          recommendation: string | null
+          responses: Json
+          result_viewed_at: string | null
+          revision: number
+          scores: Json
+          started_at: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          abandoned_at?: string | null
+          assessment_version?: string
+          company_id: string
+          completed_at?: string | null
+          current_step?: number
+          entry_point?: string
+          estimate_id: string
+          id?: string
+          last_answered_at?: string | null
+          lead_id: string
+          presentation_key?: string
+          property_revealed_at?: string | null
+          recommendation?: string | null
+          responses?: Json
+          result_viewed_at?: string | null
+          revision?: number
+          scores?: Json
+          started_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          abandoned_at?: string | null
+          assessment_version?: string
+          company_id?: string
+          completed_at?: string | null
+          current_step?: number
+          entry_point?: string
+          estimate_id?: string
+          id?: string
+          last_answered_at?: string | null
+          lead_id?: string
+          presentation_key?: string
+          property_revealed_at?: string | null
+          recommendation?: string | null
+          responses?: Json
+          result_viewed_at?: string | null
+          revision?: number
+          scores?: Json
+          started_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "roof_assessments_company_estimate_fkey"
+            columns: ["company_id", "estimate_id"]
+            isOneToOne: false
+            referencedRelation: "roof_estimates"
+            referencedColumns: ["company_id", "id"]
+          },
+          {
+            foreignKeyName: "roof_assessments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "roof_assessments_company_lead_fkey"
+            columns: ["company_id", "lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["company_id", "id"]
+          },
+        ]
+      }
       roof_estimates: {
         Row: {
           assumptions: Json
@@ -2864,31 +3386,31 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "roof_estimates_lead_id_fkey"
-            columns: ["lead_id"]
-            isOneToOne: true
+            foreignKeyName: "roof_estimates_company_lead_fkey"
+            columns: ["company_id", "lead_id"]
+            isOneToOne: false
             referencedRelation: "leads"
-            referencedColumns: ["id"]
+            referencedColumns: ["company_id", "id"]
           },
           {
-            foreignKeyName: "roof_estimates_property_id_fkey"
-            columns: ["property_id"]
+            foreignKeyName: "roof_estimates_company_property_fkey"
+            columns: ["company_id", "property_id"]
             isOneToOne: false
             referencedRelation: "properties"
-            referencedColumns: ["id"]
+            referencedColumns: ["company_id", "id"]
+          },
+          {
+            foreignKeyName: "roof_estimates_company_property_insight_fkey"
+            columns: ["company_id", "property_id", "roof_insight_id"]
+            isOneToOne: false
+            referencedRelation: "roof_insights"
+            referencedColumns: ["company_id", "property_id", "id"]
           },
           {
             foreignKeyName: "roof_estimates_reused_from_estimate_id_fkey"
             columns: ["reused_from_estimate_id"]
             isOneToOne: false
             referencedRelation: "roof_estimates"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "roof_estimates_roof_insight_id_fkey"
-            columns: ["roof_insight_id"]
-            isOneToOne: false
-            referencedRelation: "roof_insights"
             referencedColumns: ["id"]
           },
         ]
@@ -2969,11 +3491,11 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "roof_insights_property_id_fkey"
-            columns: ["property_id"]
+            foreignKeyName: "roof_insights_company_property_fkey"
+            columns: ["company_id", "property_id"]
             isOneToOne: false
             referencedRelation: "properties"
-            referencedColumns: ["id"]
+            referencedColumns: ["company_id", "id"]
           },
         ]
       }
@@ -3395,6 +3917,37 @@ export type Database = {
       }
     }
     Functions: {
+      abandon_inactive_roof_assessments: {
+        Args: { p_batch_size?: number }
+        Returns: {
+          assessment_id: string
+        }[]
+      }
+      approve_verified_roof_assessment_resume: {
+        Args: {
+          p_attempt_id: string
+          p_company_id: string
+          p_provider_attempt_id: string
+        }
+        Returns: {
+          assessment_id: string
+          public_token: string
+          token_rotated_at: string
+        }[]
+      }
+      authorize_same_browser_roof_assessment_resume: {
+        Args: {
+          p_assessment_id: string
+          p_attempt_id: string
+          p_company_id: string
+          p_continuation_secret_hash: string
+        }
+        Returns: {
+          assessment_id: string
+          public_token: string
+          token_rotated_at: string
+        }[]
+      }
       change_lead_stage: {
         Args: {
           p_changed_by: string
@@ -3446,6 +3999,29 @@ export type Database = {
       complete_outbox_event: {
         Args: { p_event_id: string }
         Returns: undefined
+      }
+      complete_roof_assessment: {
+        Args: {
+          p_assessment_id: string
+          p_company_id: string
+          p_expected_responses: Json
+          p_expected_revision: number
+          p_high_intent: boolean
+          p_recommendation: string
+          p_response_patch: Json
+          p_scores: Json
+        }
+        Returns: {
+          applied: boolean
+          current_step: number
+          id: string
+          last_answered_at: string
+          property_revealed_at: string
+          recommendation: string
+          responses: Json
+          revision: number
+          status: string
+        }[]
       }
       current_company_id: { Args: never; Returns: string }
       enqueue_domain_event: {
@@ -3507,6 +4083,16 @@ export type Database = {
         }
         Returns: undefined
       }
+      mark_roof_assessment_result_viewed: {
+        Args: {
+          p_assessment_id: string
+          p_company_id: string
+          p_estimate_id: string
+        }
+        Returns: {
+          result_viewed_at: string
+        }[]
+      }
       normalize_property_address: {
         Args: { p_address: string }
         Returns: string
@@ -3524,12 +4110,49 @@ export type Database = {
           is_duplicate: boolean
         }[]
       }
+      record_roof_assessment_verification_start: {
+        Args: {
+          p_attempt_id: string
+          p_company_id: string
+          p_provider_attempt_id: string
+          p_reservation_id: string
+        }
+        Returns: undefined
+      }
+      request_roof_consultation: {
+        Args: {
+          p_assessment_id: string
+          p_call_window: string
+          p_company_id: string
+          p_contact_method: string
+          p_estimate_id: string
+          p_request_ip: unknown
+          p_timezone: string
+        }
+        Returns: {
+          call_window: string
+          contact_method: string
+          created_at: string
+          request_id: string
+          status: string
+          timezone: string
+        }[]
+      }
       reserve_provider_usage: {
         Args: { p_api_name: string; p_limit: number; p_period_start: string }
         Returns: {
           allowed: boolean
           call_limit: number
           reserved_count: number
+        }[]
+      }
+      reserve_roof_assessment_verification_start: {
+        Args: { p_attempt_id: string; p_request_ip: unknown }
+        Returns: {
+          company_id: string
+          destination_phone_e164: string
+          reservation_id: string
+          reserved_at: string
         }[]
       }
       resolve_review_task: {
@@ -3546,6 +4169,63 @@ export type Database = {
           next_attempt: number
           pipeline_run_id: string
           property_id: string
+        }[]
+      }
+      rotate_roof_estimate_public_token: {
+        Args: { p_attempt_id: string; p_company_id: string }
+        Returns: {
+          assessment_id: string
+          public_token: string
+          token_rotated_at: string
+        }[]
+      }
+      save_roof_assessment_progress: {
+        Args: {
+          p_assessment_id: string
+          p_company_id: string
+          p_current_step: number
+          p_expected_responses: Json
+          p_expected_revision: number
+          p_high_intent: boolean
+          p_property_revealed_at: string
+          p_response_patch: Json
+          p_scores: Json
+        }
+        Returns: {
+          applied: boolean
+          current_step: number
+          id: string
+          last_answered_at: string
+          property_revealed_at: string
+          recommendation: string
+          responses: Json
+          revision: number
+          status: string
+        }[]
+      }
+      start_or_resume_roof_assessment: {
+        Args: {
+          p_attribution: Json
+          p_company_id: string
+          p_consent_granted_at: string
+          p_disclosure_version: string
+          p_email_normalized: string
+          p_entry_point: string
+          p_google_place_id: string
+          p_ip_address: string
+          p_name: string
+          p_phone_e164: string
+          p_presentation_key: string
+          p_referrer: string
+          p_submission_id: string
+          p_submitted_address: string
+          p_user_agent: string
+        }
+        Returns: {
+          attempt_id: string
+          continuation_secret: string
+          expires_at: string
+          is_replay: boolean
         }[]
       }
       submit_all_season_campaign_estimate: {

@@ -16,6 +16,7 @@ describe("parseServerEnv", () => {
   test("disables paid providers by default", () => {
     const environment = parseServerEnv(base);
     expect(environment.PAID_PROVIDERS_ENABLED).toBe(false);
+    expect(environment.ROOF_ASSESSMENT_ENABLED).toBe(false);
     expect(environment.COST_INTELLIGENCE_ENABLED).toBe(false);
     expect(environment.INTEGRATIONS_LEADMASTER_ENABLED).toBe(false);
     expect(environment.INTEGRATIONS_JOBNIMBUS_ENABLED).toBe(false);
@@ -119,6 +120,14 @@ describe("parseServerEnv", () => {
     expect(() => parseServerEnv({ ...base, JOBNIMBUS_MAX_PAGES: "26" })).toThrow();
   });
 
+  test("enables the public roof assessment explicitly", () => {
+    expect(parseServerEnv({
+      ...base,
+      ROOF_ASSESSMENT_ENABLED: "true",
+      ROOF_ASSESSMENT_SIGNING_SECRET: "a".repeat(32),
+    }).ROOF_ASSESSMENT_ENABLED).toBe(true);
+  });
+
   test("rejects paid providers in preview", () => {
     expect(() =>
       parseServerEnv({
@@ -182,6 +191,41 @@ describe("parseServerEnv", () => {
         ALL_SEASON_INTAKE_SHARED_SECRET: "shared-secret",
       }),
     ).toThrow("All Season intake requires both its company ID and shared secret");
+  });
+
+  test("accepts only a configured roof assessment signing secret of at least 32 bytes", () => {
+    expect(() =>
+      parseServerEnv({...base, ROOF_ASSESSMENT_SIGNING_SECRET: "short-secret"}),
+    ).toThrow("Roof assessment signing secret must be at least 32 bytes");
+    expect(
+      parseServerEnv({...base, ROOF_ASSESSMENT_SIGNING_SECRET: "é".repeat(16)})
+        .ROOF_ASSESSMENT_SIGNING_SECRET,
+    ).toBe("é".repeat(16));
+  });
+
+  test("requires the signing secret when roof assessments are enabled", () => {
+    expect(() =>
+      parseServerEnv({...base, ROOF_ASSESSMENT_ENABLED: "true"}),
+    ).toThrow("Roof assessment signing secret is required when assessments are enabled");
+  });
+
+  test("allows disabled environments to omit the signing secret", () => {
+    expect(parseServerEnv(base).ROOF_ASSESSMENT_SIGNING_SECRET).toBeUndefined();
+  });
+
+  test("requires complete Twilio Verify and assessment session configuration when enabled", () => {
+    expect(() => parseServerEnv({...base, TWILIO_VERIFY_ENABLED: "true"}))
+      .toThrow("Twilio Verify requires API credentials, a service SID, and assessment signing");
+
+    expect(parseServerEnv({
+      ...base,
+      ROOF_ASSESSMENT_ENABLED: "true",
+      ROOF_ASSESSMENT_SIGNING_SECRET: "a".repeat(32),
+      TWILIO_VERIFY_ENABLED: "true",
+      TWILIO_API_KEY_SID: "SK_test_key",
+      TWILIO_API_KEY_SECRET: "test-secret",
+      TWILIO_VERIFY_SERVICE_SID: "VA_test_service",
+    }).TWILIO_VERIFY_ENABLED).toBe(true);
   });
 });
 

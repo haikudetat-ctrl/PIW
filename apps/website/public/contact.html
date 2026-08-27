@@ -61,39 +61,19 @@
       <div class="form-card" id="quote">
         <h3>Request your roof plan</h3>
         <p class="form-sub">Takes about 60 seconds  -  no obligation.</p>
-        <form id="leadForm" novalidate>
-          <div class="field-row">
-            <div class="field"><label for="first_name">First name</label><input type="text" id="first_name" name="first_name" autocomplete="given-name" required></div>
-            <div class="field"><label for="last_name">Last name</label><input type="text" id="last_name" name="last_name" autocomplete="family-name" required></div>
-          </div>
+        <form id="leadForm" data-entry-point="main-contact" data-presentation-key="all-season-main" novalidate>
+          <div class="field"><label for="name">Full name</label><input type="text" id="name" name="name" autocomplete="name" required></div>
           <div class="field-row">
             <div class="field"><label for="phone">Phone</label><input type="tel" id="phone" name="phone" autocomplete="tel" required></div>
             <div class="field"><label for="email">Email</label><input type="email" id="email" name="email" autocomplete="email" required></div>
           </div>
-          <div class="field"><label for="address_line1">Home address</label><input type="text" id="address_line1" name="address_line1" autocomplete="address-line1" placeholder="Street address" required></div>
+          <div class="field"><label for="address_line_1">Home address</label><input type="text" id="address_line_1" name="address_line_1" autocomplete="address-line1" placeholder="Street address" required></div>
+          <div class="field"><label for="address_line_2">Apartment, suite, or unit <span class="form-optional">optional</span></label><input type="text" id="address_line_2" name="address_line_2" autocomplete="address-line2"></div>
           <div class="field-row">
             <div class="field"><label for="city">City</label><input type="text" id="city" name="city" autocomplete="address-level2" required></div>
-            <div class="field"><label for="zip">ZIP code</label><input type="text" id="zip" name="zip" inputmode="numeric" autocomplete="postal-code" required></div>
+            <div class="field"><label for="postal_code">ZIP code</label><input type="text" id="postal_code" name="postal_code" inputmode="numeric" autocomplete="postal-code" pattern="[0-9]{5}(-[0-9]{4})?" required></div>
           </div>
           <input type="hidden" id="state" name="state" value="NJ">
-          <div class="field">
-            <label for="project_interest">What are you interested in?</label>
-            <select id="project_interest" name="project_interest" required>
-              <option value="">Select one</option><option value="roofing">Roof replacement or repair</option><option value="both">Roofing with solar</option><option value="solar">Solar on a ready roof</option>
-            </select>
-          </div>
-          <div class="field-row">
-            <div class="field"><label for="financing_interest">Financing interest</label>
-              <select id="financing_interest" name="financing_interest">
-                <option value="">Select one</option><option value="yes">Yes</option><option value="no">No, paying cash</option><option value="not_sure">Not sure yet</option>
-              </select>
-            </div>
-            <div class="field"><label for="urgency">Timeline</label>
-              <select id="urgency" name="urgency">
-                <option value="">Select one</option><option value="asap">As soon as possible</option><option value="1_3_months">1-3 months</option><option value="researching">Just researching</option>
-              </select>
-            </div>
-          </div>
           <div class="consent">
             <input type="checkbox" id="consent_to_process_property" name="consent_to_process_property" required>
             <label for="consent_to_process_property">I authorize All Season to process this address through property, mapping, and imagery services to evaluate my project.</label>
