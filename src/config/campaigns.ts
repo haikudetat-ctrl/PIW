@@ -17,7 +17,7 @@ type CampaignDefinition = {
   contactTitle: string;
   contactHelp: string;
   submitLabel: string;
-  image: string | StaticImageData;
+  image: string;
   imageAlt: string;
   driveFolderUrl: string;
   assetStatus: "ready" | "placeholder";
@@ -39,7 +39,7 @@ export const campaigns: Record<CampaignSlug, CampaignDefinition> = {
     contactTitle: "Where should we send your report?",
     contactHelp: "Your preliminary range will arrive by email and text.",
     submitLabel: "Check my roof",
-    image: weatherReportImage,
+    image: "/assets/roof-craft-detail.jpg",
     imageAlt: "A roofer inspecting the flashing and shingles on a New Jersey home",
     driveFolderUrl:
       "https://drive.google.com/drive/folders/11QE85eRS5B9803Q-BAHq9gujlhVjJ-tz",
@@ -90,5 +90,3 @@ export function isCampaignSlug(value: string): value is CampaignSlug {
 export function getCampaign(value: string) {
   return isCampaignSlug(value) ? campaigns[value] : undefined;
 }
-import type { StaticImageData } from "next/image";
-import weatherReportImage from "../../apps/website/public/assets/roof-craft-detail.jpg";

@@ -6,8 +6,7 @@ describe("campaign registry", () => {
     for (const slug of campaignSlugs) {
       expect(campaigns[slug]).toMatchObject({ slug });
       expect(campaigns[slug].driveFolderUrl).toMatch(/^https:\/\/drive\.google\.com\/drive\/folders\//);
-      const image = campaigns[slug].image;
-      expect(typeof image === "string" ? image : image.src).toMatch(/^\//);
+      expect(campaigns[slug].image).toMatch(/^\//);
     }
   });
 
