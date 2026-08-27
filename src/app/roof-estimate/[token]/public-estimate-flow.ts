@@ -1,3 +1,4 @@
+import { z } from "zod";
 import {
   calculationStateSchema,
   type CalculationState,
@@ -83,13 +84,17 @@ export function getAssessmentCalculationState({
     return {status: "review_required", reason: "low_confidence"};
   }
 
+  const databaseTimestamp = z.iso.datetime({offset: true}).safeParse(generatedAt);
+  const normalizedGeneratedAt = databaseTimestamp.success
+    ? new Date(databaseTimestamp.data).toISOString()
+    : generatedAt;
   const candidate = calculationStateSchema.safeParse({
     status: "ready",
     source: "google",
     lowCents,
     highCents,
     roofSquares,
-    generatedAt,
+    generatedAt: normalizedGeneratedAt,
   });
   const trustedInsight=insight!==null&&insight.companyId===expectedCompanyId&&insight.propertyId===expectedPropertyId&&insight.provider==="google_solar"&&insight.lookupStatus==="success";
   if (estimateStatus !== "ready" || pipelineStatus!=="complete" || !trustedInsight || !candidate.success || lowCents === null || lowCents <= 0) {
