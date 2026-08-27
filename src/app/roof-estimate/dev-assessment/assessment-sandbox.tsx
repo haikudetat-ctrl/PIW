@@ -1,6 +1,6 @@
 "use client";
 
-import {useState} from "react";
+import {useEffect, useMemo, useState, useSyncExternalStore} from "react";
 import {
   getRoofAssessmentContext,
   type RoofAssessmentPresentationKey,
@@ -8,6 +8,7 @@ import {
 import {
   calculateRoofAssessment,
   roofAssessmentResponsesSchema,
+  type CalculationState,
   type RoofAssessmentRecommendation,
   type RoofAssessmentResponses,
 } from "@/domain/roof-assessment";
@@ -22,21 +23,118 @@ const campaigns: Array<{slug: RoofAssessmentPresentationKey; label: string}> = [
   {slug: "seasonal-shield", label: "Seasonal Shield"},
 ];
 
+const previewResponses: RoofAssessmentResponses = {
+  reason: "known_replacement",
+  roofAge: "20_plus",
+  conditionSignals: ["curling_or_cracking", "missing_shingles"],
+  roofVisible: "yes",
+  visibleCondition: "heavy_wear",
+  stories: "two",
+  complexityFeatures: ["multiple_levels"],
+  priority: "long_warranty",
+  timeline: "this_season",
+  ownership: "owner",
+};
+const previewResult = {
+  recommendation: calculateRoofAssessment(previewResponses).recommendation,
+  responses: previewResponses,
+};
+
+type ResultPreviewState = CalculationState["status"];
+type ConsultationPreviewMode = "success" | "error" | null;
+
+function getPreviewQuery(search = "") {
+  const query = new URLSearchParams(search);
+  const presentation = query.get("presentation");
+  const result = query.get("result");
+  const consultation = query.get("consultation");
+  return {
+    presentation: campaigns.some((item) => item.slug === presentation)
+      ? presentation as RoofAssessmentPresentationKey
+      : "all-season-main",
+    result: (["pending", "ready", "review_required"] as const).includes(
+      result as ResultPreviewState,
+    ) ? result as ResultPreviewState : null,
+    consultation: consultation === "success" || consultation === "error"
+      ? consultation as ConsultationPreviewMode
+      : null,
+  };
+}
+
+function calculationForPreview(state: ResultPreviewState | null): CalculationState {
+  if (state === "ready") {
+    return {
+      status: "ready",
+      source: "google",
+      lowCents: 1_800_000,
+      highCents: 2_600_000,
+      roofSquares: 23,
+      generatedAt: "2026-08-26T12:00:00.000Z",
+    };
+  }
+  if (state === "review_required") {
+    return {status: "review_required", reason: "low_confidence"};
+  }
+  return {status: "pending"};
+}
+
 export function AssessmentSandbox() {
-  const [campaign, setCampaign] = useState<RoofAssessmentPresentationKey>("all-season-main");
+  const search = useSyncExternalStore(
+    (onStoreChange) => {
+      window.addEventListener("popstate", onStoreChange);
+      return () => window.removeEventListener("popstate", onStoreChange);
+    },
+    () => window.location.search,
+    () => "",
+  );
+  const previewQuery = useMemo(() => getPreviewQuery(search), [search]);
+  const [campaignOverride, setCampaignOverride] = useState<RoofAssessmentPresentationKey | null>(null);
+  const campaign = campaignOverride ?? previewQuery.presentation;
   const [run, setRun] = useState(0);
-  const [result, setResult] = useState<{
+  const [resultOverride, setResultOverride] = useState<{
     recommendation: RoofAssessmentRecommendation;
     responses: RoofAssessmentResponses;
-  } | null>(null);
+  } | null | undefined>(undefined);
+  const result = resultOverride === undefined
+    ? previewQuery.result ? previewResult : null
+    : resultOverride;
   const context = getRoofAssessmentContext(campaign);
   const imageUrl = campaign === "for-every-season" || campaign === "all-season-main"
     ? "/campaigns/every-season.jpg"
     : "/campaigns/roof-above.jpg";
 
+  useEffect(() => {
+    if (!previewQuery.consultation) return;
+    const originalFetch = window.fetch.bind(window);
+    const previewFetch: typeof window.fetch = async (input, init) => {
+      const target = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (!target.endsWith("/consultation")) return originalFetch(input, init);
+      if (previewQuery.consultation === "error") {
+        return new Response(JSON.stringify({error: "Preview consultation failure"}), {
+          status: 503,
+          headers: {"content-type": "application/json"},
+        });
+      }
+      const body = typeof init?.body === "string" ? JSON.parse(init.body) as {
+        contactMethod?: "call" | "text" | "email";
+        callWindow?: "asap" | "morning" | "midday" | "afternoon" | "evening" | null;
+      } : {};
+      return new Response(JSON.stringify({
+        status: "requested",
+        contactMethod: body.contactMethod,
+        callWindow: body.callWindow ?? null,
+        timezone: "America/New_York",
+      }), {status: 200, headers: {"content-type": "application/json"}});
+    };
+    window.fetch = previewFetch;
+    return () => {
+      if (window.fetch === previewFetch) window.fetch = originalFetch;
+    };
+  }, [previewQuery.consultation]);
+
   function restart(nextCampaign = campaign) {
-    setCampaign(nextCampaign);
-    setResult(null);
+    setCampaignOverride(nextCampaign);
+    setResultOverride(null);
     setRun((value) => value + 1);
   }
 
@@ -49,7 +147,7 @@ export function AssessmentSandbox() {
         imageUrl={imageUrl}
         recommendation={result.recommendation}
         responses={result.responses}
-        calculation={{status: "pending"}}
+        calculation={calculationForPreview(previewQuery.result)}
         context={context}
         onReplay={() => restart()}
       />
@@ -96,7 +194,7 @@ export function AssessmentSandbox() {
           onPreviewComplete={(responses) => {
             const parsed = roofAssessmentResponsesSchema.safeParse(responses);
             if (parsed.success) {
-              setResult({
+              setResultOverride({
                 recommendation: calculateRoofAssessment(parsed.data).recommendation,
                 responses: parsed.data,
               });

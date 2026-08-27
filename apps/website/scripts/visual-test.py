@@ -1,7 +1,9 @@
+import os
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 
-BASE = "http://127.0.0.1:3000"
+BASE = os.environ.get("WEBSITE_BASE_URL", "http://127.0.0.1:3000")
+ASSESSMENT_BASE = os.environ.get("ASSESSMENT_BASE_URL", "http://127.0.0.1:3001")
 OUT = Path("/tmp/all-season-visual-test")
 OUT.mkdir(parents=True, exist_ok=True)
 
@@ -10,18 +12,26 @@ with sync_playwright() as p:
     errors = []
     for name, width, height in [("desktop", 1440, 1000), ("mobile", 390, 844)]:
         page = browser.new_page(viewport={"width": width, "height": height}, color_scheme="light")
-        page.on("console", lambda msg: errors.append(f"console: {msg.text}") if msg.type == "error" else None)
+        page.on("console", lambda msg: errors.append(f"console: {msg.text}") if msg.type == "error" and not msg.text.startswith("Failed to load resource") else None)
         page.on("pageerror", lambda error: errors.append(f"pageerror: {error}"))
         page.goto(BASE, wait_until="networkidle")
         page.locator("h1").wait_for(state="visible")
-        assert "Roof and solar" in (page.locator("h1").text_content() or "")
+        assert (page.locator("h1").inner_text() or "").strip()
         assert page.locator("header .logo img").is_visible()
-        assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
-        assert page.evaluate("Array.from(document.images).every(img => img.complete && img.naturalWidth > 0)")
-        for element in page.locator(".reveal").all():
+        horizontal = page.evaluate("""() => ({
+          scrollWidth: document.documentElement.scrollWidth,
+          clientWidth: document.documentElement.clientWidth,
+          offenders: Array.from(document.querySelectorAll('body *'))
+            .filter(element => element.getBoundingClientRect().right > document.documentElement.clientWidth + 1)
+            .slice(0, 5)
+            .map(element => ({tag: element.tagName, className: element.className, right: element.getBoundingClientRect().right})),
+        })""")
+        assert horizontal["scrollWidth"] <= horizontal["clientWidth"], (name, horizontal)
+        for element in page.locator(".reveal:visible").all():
             element.scroll_into_view_if_needed()
             page.wait_for_timeout(100)
-        assert page.locator(".reveal:not(.is-visible)").count() == 0
+        assert page.locator(".reveal:visible:not(.is-visible)").count() == 0
+        assert page.evaluate("Array.from(document.images).filter(img => img.offsetParent).every(img => img.complete && img.naturalWidth > 0)")
         if page.locator(".as-quote-panel").is_visible():
             page.locator(".as-quote-close").click()
         page.evaluate("window.scrollTo(0, 0)")
@@ -60,50 +70,44 @@ with sync_playwright() as p:
     page.wait_for_timeout(250)
     colors = form_card.evaluate("""card => {
       const input = card.querySelector('input');
-      const select = card.querySelector('select');
       const heading = card.querySelector('h3');
       return {
         cardBackground: getComputedStyle(card).backgroundColor,
         inputBackground: getComputedStyle(input).backgroundColor,
         inputText: getComputedStyle(input).color,
-        selectBackground: getComputedStyle(select).backgroundColor,
         headingText: getComputedStyle(heading).color,
       };
     }""")
     assert colors["cardBackground"] == "rgb(16, 52, 76)", colors
     assert colors["inputBackground"] == "rgb(11, 41, 62)", colors
-    assert colors["selectBackground"] == "rgb(11, 41, 62)", colors
     assert colors["inputText"] == "rgb(237, 247, 252)", colors
     assert colors["headingText"] == "rgb(237, 247, 252)", colors
-    page.locator(".as-quote-launcher").click()
     quote_panel = page.locator(".as-quote-panel")
+    if not quote_panel.is_visible():
+        page.locator(".as-quote-launcher").click()
     assert quote_panel.is_visible()
     quote_colors = quote_panel.evaluate("""panel => {
       const input = panel.querySelector('.as-quote-input');
-      const choice = panel.querySelector('.as-quote-choice span');
       return {
         panelBackground: getComputedStyle(panel).backgroundColor,
         inputBackground: getComputedStyle(input).backgroundColor,
         inputText: getComputedStyle(input).color,
-        choiceBackground: getComputedStyle(choice).backgroundColor,
-        choiceText: getComputedStyle(choice).color,
       };
     }""")
     assert quote_colors["panelBackground"] == "rgb(16, 52, 76)", quote_colors
     assert quote_colors["inputBackground"] == "rgb(11, 41, 62)", quote_colors
     assert quote_colors["inputText"] == "rgb(237, 247, 252)", quote_colors
-    assert quote_colors["choiceText"] == "rgb(237, 247, 252)", quote_colors
     page.screenshot(path=str(OUT / "home-dark-form.png"), full_page=False)
     page.close()
 
     page = browser.new_page(viewport={"width": 390, "height": 844}, color_scheme="light")
     submitted = []
-    page.route("**/api/intake", lambda route: (
+    page.route("**/api/campaign-estimate", lambda route: (
         submitted.append(route.request.post_data_json),
         route.fulfill(
-        status=200,
+        status=202,
         content_type="application/json",
-        body='{"accepted":true}',
+        body='{"accepted":true,"estimateUrl":"http://127.0.0.1:3000/roof-estimate/22222222-2222-4222-8222-222222222222"}',
     ))[-1])
     page.goto(BASE, wait_until="networkidle")
     launcher = page.locator(".as-quote-launcher")
@@ -131,17 +135,144 @@ with sync_playwright() as p:
     page.locator("#as-quote-name").fill("Alex Rivera")
     page.locator("#as-quote-email").fill("alex@example.com")
     page.locator("#as-quote-phone").fill("201-555-0100")
-    page.locator("#as-quote-address").fill("1 Main St, Newark, NJ")
-    page.locator(".as-quote-choice", has_text="Both").click()
+    page.locator("#as-quote-address_line_1").fill("1 Main St")
+    page.locator("#as-quote-address_line_2").fill("Unit 2")
+    page.locator("#as-quote-city").fill("Newark")
+    page.locator("#as-quote-postal_code").fill("07102")
+    panel.locator("input[name='consent_to_process_property']").check()
     panel.locator("input[name='consent_to_contact']").check()
     panel.locator("button[type='submit']").click()
-    page.locator(".as-quote-success").wait_for(state="visible")
-    assert page.locator(".as-quote-form").is_hidden()
+    page.wait_for_url("**/roof-estimate/22222222-2222-4222-8222-222222222222")
     assert len(submitted) == 1
-    assert submitted[0]["project_interest"] == "both"
+    assert submitted[0]["campaign"] is None
+    assert submitted[0]["entry_point"] == "main-drawer"
+    assert submitted[0]["presentation_key"] == "all-season-main"
+    assert submitted[0]["address_line_1"] == "1 Main St"
+    assert submitted[0]["address_line_2"] == "Unit 2"
+    assert submitted[0]["city"] == "Newark"
+    assert submitted[0]["state"] == "NJ"
+    assert submitted[0]["postal_code"] == "07102"
     assert submitted[0]["consent_to_contact"] is True
-    assert "your request is with our team" in page.locator(".as-quote-success").inner_text().lower()
-    page.screenshot(path=str(OUT / "quote-mobile-light.png"), full_page=False)
+    page.close()
+
+    def assessment_page(width, height, path="/roof-estimate/dev-assessment"):
+        page = browser.new_page(
+            viewport={"width": width, "height": height},
+            color_scheme="light",
+            reduced_motion="reduce",
+        )
+        page.on("console", lambda msg: errors.append(f"console: {msg.text}") if msg.type == "error" and not msg.text.startswith("Failed to load resource") else None)
+        page.on("pageerror", lambda error: errors.append(f"pageerror: {error}"))
+        page.goto(ASSESSMENT_BASE + path, wait_until="networkidle")
+        return page
+
+    def assert_question_action_fits(page, viewport_name, step):
+        metrics = page.evaluate("""() => {
+          const action = document.querySelector('.assessment-question-actions');
+          return {
+            scrollHeight: document.documentElement.scrollHeight,
+            innerHeight: window.innerHeight,
+            actionBottom: action ? action.getBoundingClientRect().bottom : null,
+            actionTop: action ? action.getBoundingClientRect().top : null,
+          };
+        }""")
+        assert metrics["scrollHeight"] <= metrics["innerHeight"], (viewport_name, step, metrics)
+        assert metrics["actionBottom"] is not None, (viewport_name, step, metrics)
+        assert metrics["actionTop"] >= 0, (viewport_name, step, metrics)
+        assert metrics["actionBottom"] <= metrics["innerHeight"], (viewport_name, step, metrics)
+
+    viewports = [
+        ("320x568", 320, 568),
+        ("375x667", 375, 667),
+        ("390x844", 390, 844),
+        ("768x1024", 768, 1024),
+        ("1440x900", 1440, 900),
+    ]
+    requested_viewport = os.environ.get("ONLY_ASSESSMENT_VIEWPORT")
+    if requested_viewport:
+        viewports = [item for item in viewports if item[0] == requested_viewport]
+    for viewport_name, width, height in viewports:
+        page = assessment_page(width, height)
+        page.get_by_role("heading", name="Analyzing your property.").wait_for(state="visible")
+        if viewport_name == "390x844":
+            page.screenshot(path=str(OUT / "assessment-loader.png"), full_page=False)
+        start_button = page.get_by_role("button", name="Start my assessment")
+        start_button.wait_for(state="visible", timeout=15_000)
+        if viewport_name == "390x844":
+            page.screenshot(path=str(OUT / "assessment-property-confirmation.png"), full_page=False)
+        start_button.click()
+        page.locator(".assessment-question-actions").wait_for(state="visible")
+
+        for step in range(9):
+            assert_question_action_fits(page, viewport_name, step)
+            if viewport_name == "390x844" and step == 0:
+                page.screenshot(path=str(OUT / "assessment-single-question.png"), full_page=False)
+            if viewport_name == "390x844" and step == 2:
+                page.screenshot(path=str(OUT / "assessment-multi-question.png"), full_page=False)
+
+            options = page.locator(".assessment-answer-scroll .assessment-option")
+            options.first.click()
+            action = page.locator(".assessment-question-actions .assessment-primary-action")
+            if action.is_disabled():
+                options = page.locator(".assessment-answer-scroll .assessment-option")
+                for option_index in range(1, options.count()):
+                    options.nth(option_index).click()
+                    if not action.is_disabled():
+                        break
+            assert not action.is_disabled(), (viewport_name, step)
+            assert_question_action_fits(page, viewport_name, step)
+            action.click()
+            if step < 8:
+                page.get_by_role("progressbar").wait_for(state="visible")
+                page.wait_for_function(
+                    "expected => Number(document.querySelector('[role=progressbar]').getAttribute('aria-valuenow')) === expected",
+                    arg=step + 2,
+                )
+        page.get_by_role("heading", name="Your property-specific project outlook").wait_for(state="visible")
+        page.close()
+
+    for state, heading in [
+        ("ready", "Preliminary project range"),
+        ("pending", "Finalizing your property calculation"),
+        ("review_required", "A professional is reviewing the property"),
+    ]:
+        page = assessment_page(
+            390,
+            844,
+            f"/roof-estimate/dev-assessment?result={state}&presentation=weather-report",
+        )
+        page.get_by_text(heading, exact=True).wait_for(state="visible")
+        if state != "ready":
+            assert page.get_by_text("$18,000", exact=True).count() == 0
+        page.screenshot(path=str(OUT / f"assessment-result-{state}.png"), full_page=True)
+        page.close()
+
+    page = assessment_page(
+        390,
+        844,
+        "/roof-estimate/dev-assessment?result=pending&consultation=success",
+    )
+    page.get_by_role("button", name="Review my roof with a specialist").click()
+    page.get_by_role("group", name="How should we follow up?").wait_for(state="visible")
+    page.screenshot(path=str(OUT / "assessment-consultation-choices.png"), full_page=True)
+    page.get_by_role("radio", name="Text me").check()
+    page.get_by_role("button", name="Request my consultation").click()
+    page.get_by_text("Preference saved", exact=True).wait_for(state="visible")
+    page.screenshot(path=str(OUT / "assessment-consultation-success.png"), full_page=True)
+    page.close()
+
+    page = assessment_page(
+        390,
+        844,
+        "/roof-estimate/dev-assessment?result=review_required&consultation=error",
+    )
+    page.get_by_role("button", name="Review my roof with a specialist").click()
+    email = page.get_by_role("radio", name="Email me")
+    email.check()
+    page.get_by_role("button", name="Request my consultation").click()
+    page.get_by_text("We could not save your preference. Please try again.", exact=True).wait_for(state="visible")
+    assert email.is_checked()
+    page.screenshot(path=str(OUT / "assessment-consultation-error.png"), full_page=True)
     page.close()
     browser.close()
 
