@@ -202,6 +202,7 @@
         if (item.input.required && !item.input.value.trim()) message = 'This field is required.';
         else if (item.input.type === 'email' && !item.input.validity.valid) message = 'Enter a valid email address.';
         else if (item.input === phone.input && item.input.value.replace(/\D/g, '').length < 7) message = 'Enter a valid phone number.';
+        else if (item.input === postalCode.input && !item.input.validity.valid) message = 'Enter a valid ZIP code.';
         setError(item, message);
         if (message && !firstInvalid) firstInvalid = item.input;
       });
