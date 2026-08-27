@@ -38,6 +38,10 @@ and rollback are documented in the
 Do not enable the canonical adapters until the PIW and website variables refer
 to the same environment, tenant, shared secret, and public origin.
 
+`/api/google-reviews` uses the same server-only Places API (New) key together
+with `GOOGLE_PLACES_PLACE_ID`. It returns a normalized, non-cacheable review
+feed for the homepage while keeping provider credentials off the browser.
+
 ```bash
 cp .env.example .env.local
 npm install
