@@ -4028,6 +4028,10 @@ export type Database = {
         Args: { p_company_id: string; p_event: Json }
         Returns: string
       }
+      enqueue_roof_assessment_quote_pipeline_event: {
+        Args: { p_attempt_id: string }
+        Returns: string
+      }
       escalate_property_identity_review: {
         Args: {
           p_attempt: number

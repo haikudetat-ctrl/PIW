@@ -24,6 +24,10 @@ select has_function(
   array['uuid','uuid','text','text','text','text','text','text','text','jsonb','text','text','timestamp with time zone','text','text'],
   'canonical intake RPC exists'
 );
+select has_function(
+  'public', 'enqueue_roof_assessment_quote_pipeline_event', array['uuid'],
+  'canonical intake quote-pipeline repair RPC exists'
+);
 select has_function('public', 'rotate_roof_estimate_public_token', array['uuid','uuid'], 'token rotation RPC exists');
 select has_function(
   'public', 'authorize_same_browser_roof_assessment_resume',
@@ -78,6 +82,14 @@ select function_privs_are(
   array['uuid','uuid','text','text','text','text','text','text','text','jsonb','text','text','timestamp with time zone','text','text'],
   'service_role', array['EXECUTE'], 'service role alone invokes canonical intake'
 );
+select function_privs_are(
+  'public', 'enqueue_roof_assessment_quote_pipeline_event', array['uuid'],
+  'public', array[]::text[], 'public cannot enqueue quote-pipeline handoffs'
+);
+select function_privs_are(
+  'public', 'enqueue_roof_assessment_quote_pipeline_event', array['uuid'],
+  'service_role', array['EXECUTE'], 'service role alone can repair quote-pipeline handoffs'
+);
 select function_privs_are('public', 'rotate_roof_estimate_public_token', array['uuid','uuid'], 'public', array[]::text[], 'public cannot rotate tokens');
 select function_privs_are(
   'public', 'authorize_same_browser_roof_assessment_resume',
@@ -131,6 +143,12 @@ select ok(
    from pg_catalog.pg_proc as proc
    where proc.oid = 'public.start_or_resume_roof_assessment(uuid,uuid,text,text,text,text,text,text,text,jsonb,text,text,timestamptz,text,text)'::regprocedure),
   'canonical intake is security definer with an empty search path'
+);
+select ok(
+  (select proc.prosecdef and proc.proconfig = array['search_path=""']
+   from pg_catalog.pg_proc as proc
+   where proc.oid = 'public.enqueue_roof_assessment_quote_pipeline_event(uuid)'::regprocedure),
+  'quote-pipeline repair is security definer with an empty search path'
 );
 select ok(
   (select proc.prosecdef and proc.proconfig = array['search_path=""']
@@ -224,6 +242,35 @@ select is(
   1::bigint,
   'new intake atomically publishes one sparse assessment-started event'
 );
+select is(
+  (select count(*) from public.domain_events where event_name = 'crm/lead.submitted' and correlation_id = 'd0000000-0000-4000-8000-000000000010'),
+  1::bigint,
+  'new intake atomically hands the lead to the quote pipeline'
+);
+select is(
+  (select payload -> 'data' from public.domain_events where event_name = 'crm/lead.submitted' and correlation_id = 'd0000000-0000-4000-8000-000000000010'),
+  pg_catalog.jsonb_build_object(
+    'leadId', (select lead_id from public.roof_assessment_access_attempts where id = (select attempt_id from first_start)),
+    'propertyId', (select property_id from public.roof_assessment_access_attempts where id = (select attempt_id from first_start)),
+    'name', 'Alex Rivera',
+    'phone', '+12015550100',
+    'email', 'alex@example.com',
+    'submittedAddress', '1 Main St, Newark, NJ 07102',
+    'googlePlaceId', 'ChIJ-canonical-one',
+    'serviceRequested', 'roofing',
+    'notes', 'Submitted through the canonical roof assessment intake.'
+  ),
+  'quote-pipeline handoff preserves the established CRM lead envelope'
+);
+select is(
+  (select count(*) from public.event_outbox where event_id in (
+    select id from public.domain_events
+    where event_name = 'crm/lead.submitted'
+      and correlation_id = 'd0000000-0000-4000-8000-000000000010'
+  )),
+  1::bigint,
+  'new intake durably queues the quote-pipeline handoff'
+);
 
 create temp table duplicate_start as
 select * from public.start_or_resume_roof_assessment(
@@ -255,9 +302,42 @@ select is(
   'submission replay leaves the canonical started event idempotent'
 );
 select is(
-  (select count(*) from public.event_outbox where event_id in (select id from public.domain_events where correlation_id = 'd0000000-0000-4000-8000-000000000010')),
+  (select count(*) from public.domain_events where event_name = 'crm/lead.submitted' and correlation_id = 'd0000000-0000-4000-8000-000000000010'),
   1::bigint,
-  'submission replay leaves the started-event outbox idempotent'
+  'submission replay leaves the quote-pipeline handoff idempotent'
+);
+select is(
+  (select count(*) from public.event_outbox where event_id in (select id from public.domain_events where correlation_id = 'd0000000-0000-4000-8000-000000000010')),
+  2::bigint,
+  'submission replay leaves both canonical intake outbox events idempotent'
+);
+
+delete from public.event_outbox
+where event_id = (
+  select id from public.domain_events
+  where event_name = 'crm/lead.submitted'
+    and correlation_id = 'd0000000-0000-4000-8000-000000000010'
+);
+select lives_ok(
+  pg_catalog.format(
+    'select public.enqueue_roof_assessment_quote_pipeline_event(%L)',
+    (select attempt_id from first_start)
+  ),
+  'repair safely re-enqueues a stranded canonical assessment'
+);
+select is(
+  (select count(*) from public.domain_events where event_name = 'crm/lead.submitted' and correlation_id = 'd0000000-0000-4000-8000-000000000010'),
+  1::bigint,
+  'repair preserves the canonical CRM event idempotency key'
+);
+select is(
+  (select count(*) from public.event_outbox where event_id in (
+    select id from public.domain_events
+    where event_name = 'crm/lead.submitted'
+      and correlation_id = 'd0000000-0000-4000-8000-000000000010'
+  )),
+  1::bigint,
+  'repair restores the durable outbox handoff'
 );
 
 update public.roof_assessment_access_attempts
@@ -981,7 +1061,7 @@ select is(
 );
 select is(
   (select count(*) from public.event_outbox where event_id in (
-    select id from public.domain_events where correlation_id in (
+    select id from public.domain_events where event_name = 'roof/assessment.started' and correlation_id in (
       'e0000000-0000-4000-8000-000000000011', 'e0000000-0000-4000-8000-000000000012'
     )
   )),
@@ -1084,7 +1164,7 @@ select is(
 );
 select is(
   (select count(*) from public.event_outbox where event_id in (
-    select id from public.domain_events where correlation_id in (
+    select id from public.domain_events where event_name = 'roof/assessment.started' and correlation_id in (
       'e0000000-0000-4000-8000-000000000021', 'e0000000-0000-4000-8000-000000000022'
     )
   )),
@@ -2007,14 +2087,14 @@ select lives_ok(
   'the exact 60-second boundary permits another reservation'
 );
 update public.roof_assessment_verification_sends
-set reserved_at = pg_catalog.clock_timestamp() - interval '60 seconds' + interval '1 millisecond'
+set reserved_at = pg_catalog.clock_timestamp() - interval '60 seconds' + interval '1 second'
 where attempt_id = 'a4000000-0000-4000-8000-000000000001';
 select throws_ok(
   $$select * from public.reserve_roof_assessment_verification_start(
     'a4000000-0000-4000-8000-000000000001', '127.2.0.1'
   )$$,
   'verification_start_cooldown',
-  'one millisecond inside the 60-second boundary remains throttled'
+  'one second inside the 60-second boundary remains throttled'
 );
 
 insert into public.roof_assessment_verification_sends (
@@ -2075,7 +2155,7 @@ insert into public.roof_assessment_verification_sends (
 )
 select attempt.company_id, attempt.id, attempt.destination_phone_e164,
        '127.2.0.88'::inet,
-       pg_catalog.clock_timestamp() - interval '1 hour' + interval '1 millisecond'
+       pg_catalog.clock_timestamp() - interval '1 hour' + interval '1 second'
 from pg_catalog.generate_series(1, 5) as series(ordinal)
 join public.roof_assessment_access_attempts as attempt
   on attempt.id = 'a4000000-0000-4000-8000-000000000018';
@@ -2084,7 +2164,7 @@ select throws_ok(
     'a4000000-0000-4000-8000-000000000019', '127.2.0.88'
   )$$,
   'verification_ip_hourly_limit',
-  'one millisecond inside the one-hour boundary remains in the IP bucket'
+  'one second inside the one-hour boundary remains in the IP bucket'
 );
 
 create temp table stale_cross_attempt_reservation as
