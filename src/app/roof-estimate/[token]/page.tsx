@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { z } from "zod";
+import { resolveCampaignTheme } from "@/../shared/all-season-campaign-themes";
 import { roofEstimateBrand } from "@/config/roof-estimate-brand";
 import { getRoofAssessmentContext } from "@/config/roof-assessment";
 import { roofAssessmentProgressSchema, roofAssessmentResponsesSchema } from "@/domain/roof-assessment";
@@ -208,7 +209,7 @@ export default async function RoofEstimateResultPage({
                 <p className="mt-5 text-base leading-7 text-slate-600 dark:text-slate-300">
                   {assessmentCopy?.body ?? "Google did not return a measurement we trust enough to price automatically. Your request is saved for a roofing professional."}
                 </p>
-                <EstimateWaitExperience brand={roofEstimateBrand} manualReview />
+                <EstimateWaitExperience theme={resolveCampaignTheme(lead?.campaign)} manualReview />
               </>
             ) : ready ? (
               <>
