@@ -23,6 +23,20 @@ describe("trustworthy public assessment result states", () => {
     });
   });
 
+  test("admits Supabase timestamptz offsets for a trustworthy Google calculation", () => {
+    const state = getAssessmentCalculationState({
+      estimateStatus: "ready", pipelineStatus: "complete",
+      expectedCompanyId: insight.companyId, expectedPropertyId: insight.propertyId, insight,
+      lowCents: 846_348, highCents: 1_269_522, roofSquares: 16.9,
+      generatedAt: "2026-08-27T16:47:44.123456+00:00",
+    });
+    expect(state).toEqual({
+      status: "ready", source: "google", lowCents: 846_348,
+      highCents: 1_269_522, roofSquares: 16.9,
+      generatedAt: "2026-08-27T16:47:44.123Z",
+    });
+  });
+
   test.each([
     [{status: "pending"} as const],
     [{status: "review_required", reason: "low_confidence"} as const],
