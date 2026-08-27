@@ -36,7 +36,6 @@ alter table public.roof_insights
     foreign key (company_id, property_id)
     references public.properties(company_id, id) on delete cascade;
 alter table public.leads
-  add constraint leads_company_id_id_key unique (company_id, id),
   drop constraint leads_property_id_fkey,
   add constraint leads_company_property_fkey
     foreign key (company_id, property_id)
