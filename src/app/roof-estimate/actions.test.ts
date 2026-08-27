@@ -6,6 +6,7 @@ import {
   executePublicRoofEstimateAction,
   handlePublicRoofEstimateSubmission,
   type PublicRoofEstimateActionDependencies,
+  type PublicRoofEstimateRuntime,
 } from "./submission";
 
 const submissionId = "11111111-1111-4111-8111-111111111111";
@@ -40,9 +41,24 @@ function dependencies(
     | {kind: "continue"; continuationPath: `/roof-estimate/continue/${string}`}
     | {kind: "duplicate_requires_restart"}
   >,
+  continuation: {
+    authorize?: PublicRoofEstimateRuntime["authorizeContinuation"];
+    bind?: PublicRoofEstimateRuntime["bindAssessmentSession"];
+  } = {},
 ) {
+  const authorizeContinuation = continuation.authorize ?? vi.fn(async () => ({
+    kind: "assessment" as const,
+    assessmentId: "33333333-3333-4333-8333-333333333333",
+    publicToken: "44444444-4444-4444-8444-444444444444",
+  }));
+  const bindAssessmentSession = continuation.bind ?? vi.fn(async () => undefined);
   return {
-    prepare: async () => ({companyId, startAssessment}),
+    prepare: async () => ({
+      companyId,
+      startAssessment,
+      authorizeContinuation,
+      bindAssessmentSession,
+    }),
     requestHeaders: async () => new Headers({
       referer: referrer,
       "user-agent": "homeowner-browser",
@@ -68,7 +84,7 @@ describe("public roof estimate server action", () => {
 
     expect(outcome).toEqual({
       kind: "redirect",
-      continuationPath: "/roof-estimate/continue/safe_token",
+      path: "/roof-estimate/44444444-4444-4444-8444-444444444444",
     });
     expect(startAssessment).toHaveBeenCalledOnce();
     expect(startAssessment).toHaveBeenCalledWith({
@@ -100,6 +116,29 @@ describe("public roof estimate server action", () => {
         grantedAt: "2026-08-26T21:00:00.000Z",
       },
     });
+  });
+
+  test("keeps an unbound resume candidate on the verification path without issuing a session", async () => {
+    const bindAssessmentSession = vi.fn(async () => undefined);
+    const outcome = await handlePublicRoofEstimateSubmission(
+      validFormData(),
+      dependencies(
+        async () => ({kind: "continue", continuationPath: "/roof-estimate/continue/resume_token"}),
+        {
+          authorize: vi.fn(async () => ({
+            kind: "resume" as const,
+            attemptId: "55555555-5555-4555-8555-555555555555",
+          })),
+          bind: bindAssessmentSession,
+        },
+      ),
+    );
+
+    expect(outcome).toEqual({
+      kind: "redirect",
+      path: "/roof-estimate/resume/55555555-5555-4555-8555-555555555555",
+    });
+    expect(bindAssessmentSession).not.toHaveBeenCalled();
   });
 
   test("returns a safe restart state for a duplicate without a redirect path", async () => {
@@ -153,6 +192,8 @@ describe("public roof estimate server action", () => {
     expect(isRedirectError(thrown)).toBe(true);
     expect(startAssessment).toHaveBeenCalledOnce();
     expect(navigate).toHaveBeenCalledOnce();
-    expect(navigate).toHaveBeenCalledWith("/roof-estimate/continue/safe_token");
+    expect(navigate).toHaveBeenCalledWith(
+      "/roof-estimate/44444444-4444-4444-8444-444444444444",
+    );
   });
 });

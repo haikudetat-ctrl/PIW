@@ -22,6 +22,20 @@ type SessionOptions = {
   nodeEnv: "development" | "test" | "production";
 };
 
+type AssessmentSessionCookieSink = {
+  set: (
+    name: string,
+    value: string,
+    options: {
+      httpOnly: boolean;
+      secure: boolean;
+      sameSite: "lax";
+      path: string;
+      maxAge: number;
+    },
+  ) => unknown;
+};
+
 function validSigningKey(signingKey: string) {
   return Buffer.byteLength(signingKey, "utf8") >= 32;
 }
@@ -89,13 +103,27 @@ export async function setAssessmentSession(
   signingKey: string,
   options: SessionOptions,
 ) {
+  return setAssessmentSessionCookie(
+    response.cookies,
+    assessmentId,
+    signingKey,
+    options,
+  );
+}
+
+export async function setAssessmentSessionCookie(
+  cookies: AssessmentSessionCookieSink,
+  assessmentId: string,
+  signingKey: string,
+  options: SessionOptions,
+) {
   const now = options.now ?? new Date();
   const value = await createAssessmentSession(
     assessmentId,
     signingKey,
     now,
   );
-  response.cookies.set(ASSESSMENT_SESSION_COOKIE, value, {
+  cookies.set(ASSESSMENT_SESSION_COOKIE, value, {
     httpOnly: true,
     secure: options.nodeEnv === "production",
     sameSite: "lax",

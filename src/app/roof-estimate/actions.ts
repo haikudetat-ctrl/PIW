@@ -1,9 +1,17 @@
 "use server";
 
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { parseServerEnv } from "@/lib/env/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import {
+  ASSESSMENT_SESSION_COOKIE,
+  setAssessmentSessionCookie,
+} from "@/modules/roof-assessment/assessment-session";
+import {
+  authorizeAssessmentContinuation,
+  createSupabaseContinuationAuthorizationDependencies,
+} from "@/modules/roof-assessment/assessment-continuation";
 import { signContinuation } from "@/modules/roof-assessment/continuation-token";
 import { startOrResumeRoofAssessment } from "@/modules/roof-assessment/start-or-resume";
 import { SupabaseAssessmentIntakeRepository } from "@/modules/roof-assessment/supabase-assessment-intake-repository";
@@ -35,6 +43,11 @@ const productionDependencies: PublicRoofEstimateActionDependencies = {
     const service = createServiceClient();
     const companyId = await resolveEstimateCompanyId(environment, service);
     const repository = new SupabaseAssessmentIntakeRepository(service);
+    const cookieStore = await cookies();
+    const continuationDependencies = createSupabaseContinuationAuthorizationDependencies(
+      service,
+      signingKey,
+    );
     return {
       companyId,
       startAssessment: (input) => startOrResumeRoofAssessment(input, {
@@ -43,6 +56,17 @@ const productionDependencies: PublicRoofEstimateActionDependencies = {
           issue: (capability) => signContinuation(capability, signingKey),
         },
       }),
+      authorizeContinuation: (continuation) => authorizeAssessmentContinuation(
+        continuation,
+        cookieStore.get(ASSESSMENT_SESSION_COOKIE)?.value,
+        continuationDependencies,
+      ),
+      bindAssessmentSession: (assessmentId) => setAssessmentSessionCookie(
+        cookieStore,
+        assessmentId,
+        signingKey,
+        {nodeEnv: environment.NODE_ENV},
+      ),
     };
   },
   requestHeaders: () => headers(),

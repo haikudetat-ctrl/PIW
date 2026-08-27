@@ -1,5 +1,6 @@
 import type { StartAssessmentInput, StartAssessmentResult } from "@/modules/roof-assessment/start-or-resume";
 import { StartAssessmentInternalError } from "@/modules/roof-assessment/start-or-resume";
+import type {ContinuationAuthorization} from "@/modules/roof-assessment/assessment-continuation";
 import {
   formatSubmittedAddress,
   parsePublicRoofEstimateFormData,
@@ -13,11 +14,15 @@ type HeaderSource = {
   get(name: string): string | null;
 };
 
+export type PublicRoofEstimateRuntime = {
+  companyId: string;
+  startAssessment: (input: StartAssessmentInput) => Promise<StartAssessmentResult>;
+  authorizeContinuation: (continuation: string) => Promise<ContinuationAuthorization>;
+  bindAssessmentSession: (assessmentId: string) => Promise<void>;
+};
+
 export type PublicRoofEstimateActionDependencies = {
-  prepare: () => Promise<{
-    companyId: string;
-    startAssessment: (input: StartAssessmentInput) => Promise<StartAssessmentResult>;
-  }>;
+  prepare: () => Promise<PublicRoofEstimateRuntime>;
   requestHeaders: () => Promise<HeaderSource>;
   createSubmissionId: () => string;
   now: () => Date;
@@ -27,7 +32,7 @@ export type PublicRoofEstimateActionDependencies = {
 type PublicRoofEstimateSubmissionOutcome =
   | {
       kind: "redirect";
-      continuationPath: `/roof-estimate/continue/${string}`;
+      path: `/roof-estimate/${string}`;
     }
   | {
       kind: "state";
@@ -88,7 +93,20 @@ export async function handlePublicRoofEstimateSubmission(
     if (!CONTINUATION_PATH.test(result.continuationPath)) {
       throw new StartAssessmentInternalError();
     }
-    return {kind: "redirect", continuationPath: result.continuationPath};
+    const continuation = result.continuationPath.slice("/roof-estimate/continue/".length);
+    const authorized = await runtime.authorizeContinuation(continuation);
+    if (authorized.kind === "invalid") throw new StartAssessmentInternalError();
+    if (authorized.kind === "resume") {
+      return {
+        kind: "redirect",
+        path: `/roof-estimate/resume/${authorized.attemptId}`,
+      };
+    }
+    await runtime.bindAssessmentSession(authorized.assessmentId);
+    return {
+      kind: "redirect",
+      path: `/roof-estimate/${authorized.publicToken}`,
+    };
   } catch (error) {
     dependencies.logFailure(error instanceof Error ? error.name : "UnknownSubmissionError");
     return {
@@ -105,5 +123,5 @@ export async function executePublicRoofEstimateAction(
 ): Promise<PublicRoofEstimateState> {
   const outcome = await handlePublicRoofEstimateSubmission(formData, dependencies);
   if (outcome.kind === "state") return outcome.state;
-  return navigate(outcome.continuationPath);
+  return navigate(outcome.path);
 }
