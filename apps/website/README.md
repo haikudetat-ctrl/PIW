@@ -32,6 +32,12 @@ returning only normalized `{placeId, address}` suggestions to campaign forms.
 Autocomplete requests are restricted to the United States and biased toward
 New Jersey; campaign forms retain a manual New Jersey address fallback.
 
+Release configuration, migration order, safe smoke tests, traffic enablement,
+and rollback are documented in the
+[All Season assessment rollout runbook](../../docs/runbooks/all-season-assessment-rollout.md).
+Do not enable the canonical adapters until the PIW and website variables refer
+to the same environment, tenant, shared secret, and public origin.
+
 ```bash
 cp .env.example .env.local
 npm install
