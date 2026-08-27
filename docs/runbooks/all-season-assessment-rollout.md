@@ -20,9 +20,13 @@ records remain intact during rollout or rollback.
   `success`, a non-failed/non-partial/non-review pipeline, a positive measured
   roof area, and increasing real cent values. Pending and professional-review
   states must not emit sample or placeholder dollars.
-- Cross-device verification start and check responses have a minimum 8.25-second
-  response time, including unknown, throttled, invalid-code, and provider-failed
-  attempts. Do not remove or bypass this privacy floor.
+- Every syntactically valid, attempt-dependent cross-device verification start
+  or check outcome has a minimum 8.25-second response time. The floor covers
+  sent, unknown, throttled, and provider-failed starts, plus pending,
+  incorrect-six-digit-code, provider-failed, and approved checks. Wrong content
+  type, malformed JSON, an invalid attempt UUID, or a malformed code returns an
+  immediate state-independent `400` after strict syntax validation and does not
+  enter the timing floor. Do not broaden or bypass this reviewed boundary.
 - In production, client-IP throttles trust only one valid
   `x-vercel-forwarded-for` value when a nonempty `x-vercel-id` marker is also
   present. Vercel must overwrite both headers at the edge. Do not put PIW behind
