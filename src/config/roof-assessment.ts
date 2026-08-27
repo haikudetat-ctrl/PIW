@@ -82,7 +82,7 @@ export const roofAssessmentContexts: Record<RoofAssessmentPresentationKey, RoofA
     resultIntro: "A practical next step based on your property and the concerns you shared.",
     consultationIntro: "Talk through the roof with an All Season specialist who has your assessment in front of them.",
     accentClass: "assessment-accent-lime",
-    fallbackImage: "/campaigns/every-season.jpg",
+    fallbackImage: "/campaigns/for-every-season/hero.webp",
     fallbackImageAlt: "A New Jersey home prepared for every season",
   },
   "weather-report": {
@@ -95,7 +95,7 @@ export const roofAssessmentContexts: Record<RoofAssessmentPresentationKey, RoofA
     resultIntro: "A grounded view of the age, wear, and weather signals worth reviewing next.",
     consultationIntro: "Review the seasonal signals with a specialist who can put them in context for this property.",
     accentClass: "assessment-accent-cyan",
-    fallbackImage: "/campaigns/roof-above.jpg",
+    fallbackImage: "/campaigns/weather-report/hero.webp",
     fallbackImageAlt: "A roofer reviewing shingles and flashing on a New Jersey home",
   },
   "seasonal-shield": {
@@ -108,7 +108,7 @@ export const roofAssessmentContexts: Record<RoofAssessmentPresentationKey, RoofA
     resultIntro: "A focused view of the roof conditions that may affect the home beneath it.",
     consultationIntro: "Review the protection priorities with a specialist who has your property details ready.",
     accentClass: "assessment-accent-blue",
-    fallbackImage: "/campaigns/roof-above.jpg",
+    fallbackImage: "/campaigns/seasonal-shield/hero.webp",
     fallbackImageAlt: "An aerial view of a New Jersey home and its roof",
   },
   "for-every-season": {
@@ -121,7 +121,7 @@ export const roofAssessmentContexts: Record<RoofAssessmentPresentationKey, RoofA
     resultIntro: "A long-view recommendation shaped by the roof, the home, and your priorities.",
     consultationIntro: "Talk through durability and timing with a specialist who understands New Jersey roofs.",
     accentClass: "assessment-accent-lime",
-    fallbackImage: "/campaigns/every-season.jpg",
+    fallbackImage: "/campaigns/for-every-season/hero.webp",
     fallbackImageAlt: "A New Jersey home shown through four seasons",
   },
 };

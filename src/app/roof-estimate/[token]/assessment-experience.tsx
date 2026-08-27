@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
@@ -10,6 +10,15 @@ import { AssessmentRevisionContext } from "./assessment-revision-context";
 import "./assessment.css";
 
 type ExperienceStage = "loading" | "reveal" | "questions";
+type RevealImageState = "ready" | "loading" | "waiting";
+
+const AERIAL_RETRY_DELAY_MS = 2_500;
+const MAX_AERIAL_RETRIES = 36;
+
+function withAerialRetry(url: string, attempt: number) {
+  if (attempt === 0) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}aerial_retry=${attempt}`;
+}
 
 export function AssessmentExperience({
   preview = false,
@@ -35,7 +44,10 @@ export function AssessmentExperience({
   const [stage, setStage] = useState<ExperienceStage>(
     initialStep > 0 ? "questions" : initialPropertyRevealed ? "reveal" : "loading",
   );
-  const [imageAvailable, setImageAvailable] = useState(true);
+  const [imageState, setImageState] = useState<RevealImageState>(
+    initialPropertyRevealed ? "loading" : "ready",
+  );
+  const [imageAttempt, setImageAttempt] = useState(0);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(false);
   const [revision, setRevision] = useState(initialRevision);
@@ -45,9 +57,20 @@ export function AssessmentExperience({
     if (stage !== "reveal" || !window.matchMedia || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const timeline = gsap.timeline({defaults: {ease: "power3.out"}});
     timeline
-      .fromTo(".assessment-reveal-visual img", {scale: 0.96, opacity: 0.5}, {scale: 1, opacity: 1, duration: 0.9})
+      .fromTo(".assessment-reveal-aerial", {scale: 0.96, opacity: 0.5}, {scale: 1, opacity: 1, duration: 0.9})
       .fromTo(".assessment-reveal-copy > *", {y: 16, opacity: 0}, {y: 0, opacity: 1, duration: 0.46, stagger: 0.055}, "-=0.55");
   }, {scope: revealRef, dependencies: [stage]});
+
+  useEffect(() => {
+    if (stage !== "reveal" || imageState !== "waiting" || imageAttempt >= MAX_AERIAL_RETRIES) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setImageAttempt((current) => current + 1);
+      setImageState("loading");
+    }, AERIAL_RETRY_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [imageAttempt, imageState, stage]);
 
   if (stage === "loading") {
     return (
@@ -56,7 +79,7 @@ export function AssessmentExperience({
         imageSrc={imageUrl}
         stages={context.loadingStages}
         onReady={({imageAvailable: available}) => {
-          setImageAvailable(available);
+          setImageState(available ? "ready" : "waiting");
           setStage("reveal");
         }}
       />
@@ -119,22 +142,24 @@ export function AssessmentExperience({
             className="assessment-reveal-card grid overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_28px_90px_rgba(15,42,55,0.16)] lg:grid-cols-[minmax(0,1.12fr)_minmax(24rem,0.88fr)]"
           >
           <div className="assessment-reveal-visual relative min-h-[23rem] overflow-hidden bg-[#102f3d] sm:min-h-[32rem] lg:min-h-[39rem]">
-            {imageAvailable ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={imageUrl}
-                alt={`Aerial view of ${address}`}
-                onError={() => setImageAvailable(false)}
-                className="absolute inset-0 size-full object-cover"
-              />
-            ) : (
+            {imageState !== "ready" ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={context.fallbackImage}
-                alt="All Season roofing assessment"
+                alt={context.fallbackImageAlt}
                 className="absolute inset-0 size-full object-cover opacity-70"
               />
-            )}
+            ) : null}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              key={imageAttempt}
+              data-testid="assessment-aerial-image"
+              src={withAerialRetry(imageUrl, imageAttempt)}
+              alt={imageState === "ready" ? `Aerial view of ${address}` : ""}
+              onLoad={() => setImageState("ready")}
+              onError={() => setImageState("waiting")}
+              className={`assessment-reveal-aerial absolute inset-0 size-full object-cover transition-opacity duration-700 ${imageState === "ready" ? "opacity-100" : "invisible opacity-0"}`}
+            />
             <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-slate-950/15" />
             <div className="absolute inset-x-0 bottom-0 p-6 text-white sm:p-8">
               <p className="text-[0.65rem] font-bold uppercase tracking-[0.18em] text-white/60">Confirmed property</p>
