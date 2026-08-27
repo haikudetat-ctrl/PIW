@@ -3,6 +3,16 @@ import { NextResponse, type NextRequest } from "next/server";
 import { parseClientEnv } from "@/lib/env/client";
 
 const PUBLIC_PATHS = ["/login", "/auth/callback", "/roof-estimate"];
+const PUBLIC_ASSET_PATHS = new Set([
+  "/campaigns/for-every-season/hero.webp",
+  "/campaigns/weather-report/hero.webp",
+  "/campaigns/seasonal-shield/hero.webp",
+]);
+
+export function isPublicPath(pathname: string) {
+  return PUBLIC_ASSET_PATHS.has(pathname)
+    || PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
+}
 
 export async function middleware(request: NextRequest) {
   // API routes authenticate themselves (Supabase session or Inngest signing
@@ -45,11 +55,7 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isPublicPath = PUBLIC_PATHS.some((path) =>
-    request.nextUrl.pathname.startsWith(path),
-  );
-
-  if (!user && !isPublicPath) {
+  if (!user && !isPublicPath(request.nextUrl.pathname)) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
     return NextResponse.redirect(loginUrl);
