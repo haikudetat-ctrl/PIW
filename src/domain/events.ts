@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  roofAssessmentEntryPoints,
+  roofAssessmentPresentationKeys,
+} from "@/config/roof-assessment";
 import { uuidSchema } from "./ids";
 
 export const diagnosticRequestedDataSchema = z.object({
@@ -62,6 +66,74 @@ export const appointmentRepAssignedDataSchema = z.object({
   appointmentId: uuidSchema,
   repId: uuidSchema,
 });
+
+const assessmentIdDataSchema = z.object({assessmentId: uuidSchema}).strict();
+export const roofAssessmentStartedDataSchema = assessmentIdDataSchema.extend({
+  entryPoint: z.enum(roofAssessmentEntryPoints as [string, ...string[]]),
+  presentationKey: z.enum(roofAssessmentPresentationKeys),
+}).strict();
+export const roofAssessmentHighIntentDataSchema = assessmentIdDataSchema.extend({
+  intent: z.number().int().nonnegative(),
+  urgency: z.number().int().nonnegative(),
+}).strict();
+export const roofAssessmentCompletedDataSchema = assessmentIdDataSchema.extend({
+  recommendation: z.enum([
+    "monitor_or_repair",
+    "professional_inspection",
+    "replacement_may_make_sense",
+  ]),
+}).strict();
+export const roofAssessmentConsultationRequestedDataSchema = assessmentIdDataSchema.extend({
+  consultationRequestId: uuidSchema,
+}).strict();
+
+const assessmentEnvelopeFields = {
+  id: uuidSchema,
+  schemaVersion: z.literal(1),
+  correlationId: uuidSchema,
+  causationEventId: uuidSchema.optional(),
+  leadId: uuidSchema,
+  propertyId: uuidSchema,
+  pipelineRunId: uuidSchema,
+  occurredAt: z.iso.datetime(),
+  idempotencyKey: z.string().min(1),
+};
+
+function assessmentEventSchema<TName extends string, TData extends z.ZodType>(
+  name: TName,
+  data: TData,
+) {
+  return z.object({...assessmentEnvelopeFields, name: z.literal(name), data});
+}
+
+const roofAssessmentStartedSchema = assessmentEventSchema(
+  "roof/assessment.started",
+  roofAssessmentStartedDataSchema,
+);
+const roofAssessmentHighIntentSchema = assessmentEventSchema(
+  "roof/assessment.high_intent",
+  roofAssessmentHighIntentDataSchema,
+);
+const roofAssessmentAbandonedSchema = assessmentEventSchema(
+  "roof/assessment.abandoned",
+  assessmentIdDataSchema,
+);
+const roofAssessmentResumedSchema = assessmentEventSchema(
+  "roof/assessment.resumed",
+  assessmentIdDataSchema,
+);
+const roofAssessmentCompletedSchema = assessmentEventSchema(
+  "roof/assessment.completed",
+  roofAssessmentCompletedDataSchema,
+);
+const roofAssessmentResultViewedSchema = assessmentEventSchema(
+  "roof/assessment.result_viewed",
+  assessmentIdDataSchema,
+);
+const roofAssessmentConsultationRequestedSchema = assessmentEventSchema(
+  "roof/assessment.consultation_requested",
+  roofAssessmentConsultationRequestedDataSchema,
+);
 
 const leadSubmittedSchema = z.object({
   id: uuidSchema,
@@ -138,6 +210,13 @@ export const eventEnvelopeSchema = z.discriminatedUnion("name", [
   propertyDiscoveryRequestedSchema,
   integrationEventReceivedSchema,
   appointmentRepAssignedSchema,
+  roofAssessmentStartedSchema,
+  roofAssessmentHighIntentSchema,
+  roofAssessmentAbandonedSchema,
+  roofAssessmentResumedSchema,
+  roofAssessmentCompletedSchema,
+  roofAssessmentResultViewedSchema,
+  roofAssessmentConsultationRequestedSchema,
 ]);
 
 export type DomainEvent = z.infer<typeof eventEnvelopeSchema>;
@@ -204,6 +283,64 @@ type EventInput =
       data: z.infer<typeof appointmentRepAssignedDataSchema>;
       now?: Date;
       id?: string;
+    }
+  | {
+      name: "roof/assessment.started";
+      correlationId: string;
+      pipelineRunId: string;
+      leadId: string;
+      propertyId: string;
+      causationEventId?: string;
+      data: z.infer<typeof roofAssessmentStartedDataSchema>;
+      now?: Date;
+      id?: string;
+    }
+  | {
+      name: "roof/assessment.high_intent";
+      correlationId: string;
+      pipelineRunId: string;
+      leadId: string;
+      propertyId: string;
+      causationEventId?: string;
+      data: z.infer<typeof roofAssessmentHighIntentDataSchema>;
+      now?: Date;
+      id?: string;
+    }
+  | {
+      name:
+        | "roof/assessment.abandoned"
+        | "roof/assessment.resumed"
+        | "roof/assessment.result_viewed";
+      correlationId: string;
+      pipelineRunId: string;
+      leadId: string;
+      propertyId: string;
+      causationEventId?: string;
+      data: z.infer<typeof assessmentIdDataSchema>;
+      now?: Date;
+      id?: string;
+    }
+  | {
+      name: "roof/assessment.completed";
+      correlationId: string;
+      pipelineRunId: string;
+      leadId: string;
+      propertyId: string;
+      causationEventId?: string;
+      data: z.infer<typeof roofAssessmentCompletedDataSchema>;
+      now?: Date;
+      id?: string;
+    }
+  | {
+      name: "roof/assessment.consultation_requested";
+      correlationId: string;
+      pipelineRunId: string;
+      leadId: string;
+      propertyId: string;
+      causationEventId?: string;
+      data: z.infer<typeof roofAssessmentConsultationRequestedDataSchema>;
+      now?: Date;
+      id?: string;
     };
 
 const ATTEMPT_AWARE_EVENT_NAMES = new Set([
@@ -223,6 +360,8 @@ export function createEventEnvelope(input: EventInput): DomainEvent {
     idempotencyKey = `${input.name}:${input.data.integrationEventId}`;
   } else if (input.name === "appointments/rep.assigned") {
     idempotencyKey = `${input.name}:${input.data.appointmentId}:${input.data.repId}`;
+  } else if (input.name.startsWith("roof/assessment.")) {
+    idempotencyKey = `${input.name}:${(input.data as {assessmentId: string}).assessmentId}`;
   } else if (attempt) {
     idempotencyKey = `${input.name}:${input.pipelineRunId}:${attempt}`;
   } else {

@@ -1,21 +1,27 @@
 import {describe, expect, test} from "vitest";
-import {campaignSlugs} from "../../../../shared/all-season-campaign-themes";
 import {
   buildCampaignSubmission,
+  campaignSlugs,
   getCampaign,
 } from "./campaigns";
 
 describe("All Season campaign definitions", () => {
-  test("publishes the four approved campaign routes", () => {
+  test("publishes only the three canonical campaign routes", () => {
     expect(campaignSlugs).toEqual([
-      "do-it-right-once",
       "weather-report",
       "seasonal-shield",
       "for-every-season",
     ]);
-    expect(getCampaign("do-it-right-once")?.proof).toContain("20+ years");
-    expect(getCampaign("do-it-right-once")?.warranty).toBe("Lifetime warranty");
+    expect(getCampaign("do-it-right-once")).toBeUndefined();
     expect(getCampaign("not-a-campaign")).toBeUndefined();
+  });
+
+  test.each([
+    ["weather-report", "campaign:weather-report", "weather-report"],
+    ["seasonal-shield", "campaign:seasonal-shield", "seasonal-shield"],
+    ["for-every-season", "campaign:for-every-season", "for-every-season"],
+  ] as const)("maps %s to its canonical entry and presentation", (slug, entryPoint, presentationKey) => {
+    expect(getCampaign(slug)).toMatchObject({slug, entryPoint, presentationKey});
   });
 });
 
@@ -36,6 +42,8 @@ describe("campaign estimate submission", () => {
     })).toEqual({
       submission_id: "11111111-1111-4111-8111-111111111111",
       campaign: "weather-report",
+      entry_point: "campaign:weather-report",
+      presentation_key: "weather-report",
       name: "Alex Rivera",
       email: "alex@example.com",
       phone: "201-555-0100",
@@ -70,6 +78,8 @@ describe("campaign estimate submission", () => {
       googlePlaceId: "",
       search: "",
     })).toEqual(expect.objectContaining({
+      entry_point: "campaign:seasonal-shield",
+      presentation_key: "seasonal-shield",
       address: "8 Shore Road, Unit 2, Toms River, NJ 08753",
       google_place_id: null,
       address_line_1: "8 Shore Road",

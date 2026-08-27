@@ -35,6 +35,43 @@ describe("domain event envelope", () => {
   });
 });
 
+describe("roof assessment lifecycle events", () => {
+  const assessmentId = "77777777-7777-4777-8777-777777777777";
+
+  test.each([
+    ["roof/assessment.started", {assessmentId, entryPoint: "main-home", presentationKey: "all-season-main"}],
+    ["roof/assessment.high_intent", {assessmentId, intent: 3, urgency: 0}],
+    ["roof/assessment.abandoned", {assessmentId}],
+    ["roof/assessment.resumed", {assessmentId}],
+    ["roof/assessment.completed", {assessmentId, recommendation: "professional_inspection"}],
+    ["roof/assessment.result_viewed", {assessmentId}],
+    ["roof/assessment.consultation_requested", {
+      assessmentId,
+      consultationRequestId: "88888888-8888-4888-8888-888888888888",
+    }],
+  ] as const)("creates sparse %s events idempotent by assessment", (name, data) => {
+    const event = createEventEnvelope({
+      name,
+      correlationId: assessmentId,
+      pipelineRunId: "22222222-2222-4222-8222-222222222222",
+      leadId: "55555555-5555-4555-8555-555555555555",
+      propertyId: "66666666-6666-4666-8666-666666666666",
+      data,
+      now: new Date("2026-08-26T13:00:00.000Z"),
+      id: "99999999-9999-4999-8999-999999999999",
+    } as Parameters<typeof createEventEnvelope>[0]);
+
+    expect(eventEnvelopeSchema.parse(event)).toMatchObject({
+      name,
+      idempotencyKey: `${name}:${assessmentId}`,
+      data,
+    });
+    expect(event.data).not.toHaveProperty("phone");
+    expect(event.data).not.toHaveProperty("email");
+    expect(event.data).not.toHaveProperty("responses");
+  });
+});
+
 describe("crm/lead.submitted event", () => {
   test("creates a versioned lead-submitted event", () => {
     const event = createEventEnvelope({

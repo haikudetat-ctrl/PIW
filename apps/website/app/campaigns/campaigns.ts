@@ -1,10 +1,16 @@
-import {campaignSlugs, campaignThemes, type CampaignSlug, type CampaignTheme} from "../../../../shared/all-season-campaign-themes";
+export const campaignSlugs = [
+  "weather-report",
+  "seasonal-shield",
+  "for-every-season",
+] as const;
 
-export {campaignSlugs};
+export type CampaignSlug = (typeof campaignSlugs)[number];
 
 export type CampaignDefinition = {
   slug: CampaignSlug;
-  visual: CampaignTheme;
+  entryPoint: `campaign:${CampaignSlug}`;
+  presentationKey: CampaignSlug;
+  theme: "forecast" | "shield" | "seasons";
   name: string;
   kicker: string;
   headline: string;
@@ -27,36 +33,11 @@ export type CampaignDefinition = {
 };
 
 export const campaigns: Record<CampaignSlug, CampaignDefinition> = {
-  "do-it-right-once": {
-    slug: "do-it-right-once",
-    visual: campaignThemes["do-it-right-once"],
-    name: "Do It Right. Once.",
-    kicker: "Built right. Backed for life.",
-    headline: "Do it right.",
-    headlineAccent: "Once.",
-    intro: "Start with a clear, no-pressure roof estimate from a New Jersey company that has stood behind its work for 20+ years.",
-    bridgeHeadline: "A roof this important deserves lasting accountability.",
-    bridgeAccents: ["roof", "deserves", "accountability"],
-    bridgeCopy: "Start with the same local team that will install the work and stand behind it.",
-    image: "/campaigns/do-it-right-once/hero.webp",
-    imageAlt: "All Season do it right once roofing campaign featuring lifetime warranty coverage",
-    formTitle: "Let’s start with your home",
-    formIntro: "Share the address. We will prepare a first look and explain what happens next.",
-    submitLabel: "See my roof estimate",
-    proof: "20+ years in business",
-    warranty: "Lifetime warranty",
-    proofItems: [
-      {value: "20+", label: "years serving homeowners"},
-      {value: "Lifetime", label: "warranty coverage"},
-      {value: "Local", label: "one accountable NJ team"},
-    ],
-    sectionEyebrow: "The long-view roof",
-    sectionTitle: "The kind of roofing company you can call years later.",
-    sectionCopy: "The real value of a roof is knowing who is responsible for it. We give you a clear scope, install with our own team, and remain here after the work is complete.",
-  },
   "weather-report": {
     slug: "weather-report",
-    visual: campaignThemes["weather-report"],
+    entryPoint: "campaign:weather-report",
+    presentationKey: "weather-report",
+    theme: "forecast",
     name: "Weather Report",
     kicker: "Your roof has a rough week ahead",
     headline: "Your home gets",
@@ -83,7 +64,9 @@ export const campaigns: Record<CampaignSlug, CampaignDefinition> = {
   },
   "seasonal-shield": {
     slug: "seasonal-shield",
-    visual: campaignThemes["seasonal-shield"],
+    entryPoint: "campaign:seasonal-shield",
+    presentationKey: "seasonal-shield",
+    theme: "shield",
     name: "Seasonal Shield",
     kicker: "Protection above everything",
     headline: "The roof above",
@@ -110,7 +93,9 @@ export const campaigns: Record<CampaignSlug, CampaignDefinition> = {
   },
   "for-every-season": {
     slug: "for-every-season",
-    visual: campaignThemes["for-every-season"],
+    entryPoint: "campaign:for-every-season",
+    presentationKey: "for-every-season",
+    theme: "seasons",
     name: "For Every Season",
     kicker: "New Jersey roofing, year after year",
     headline: "One roof.",
@@ -165,6 +150,7 @@ export function buildCampaignSubmission({
   search: string;
 }) {
   const params = new URLSearchParams(search);
+  const source = campaigns[campaign];
   const attribution = Object.fromEntries(
     ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "fbclid"]
       .map((key) => [key, params.get(key)]),
@@ -172,6 +158,8 @@ export function buildCampaignSubmission({
   const base = {
     submission_id: submissionId,
     campaign,
+    entry_point: source.entryPoint,
+    presentation_key: source.presentationKey,
     name: formValue(form, "name"),
     email: formValue(form, "email"),
     phone: formValue(form, "phone"),
