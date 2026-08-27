@@ -177,6 +177,7 @@ describe("campaign estimate proxy", () => {
 
   test.each([
     ["an unknown campaign", googleSubmission({campaign: "not-a-campaign"})],
+    ["the retired do-it-right-once campaign", googleSubmission({campaign:"do-it-right-once",presentation_key:"do-it-right-once",entry_point:"campaign:do-it-right-once"})],
     ["a Google address without a place id", googleSubmission({google_place_id: undefined})],
     ["an incomplete manual address", googleSubmission({google_place_id: undefined, address_line_1: "12 Birch Street", city: "Newark"})],
     ["an address outside New Jersey", googleSubmission({google_place_id: undefined, address_line_1: "12 Birch Street", city: "Newark", state: "NY", postal_code: "07102"})],

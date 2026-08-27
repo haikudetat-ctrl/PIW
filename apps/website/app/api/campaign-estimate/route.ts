@@ -1,12 +1,6 @@
 import {NextRequest, NextResponse} from "next/server";
 import {z} from "zod";
-
-const campaignSlugs = [
-  "do-it-right-once",
-  "weather-report",
-  "seasonal-shield",
-  "for-every-season",
-] as const;
+import {campaignSlugs} from "../../campaigns/campaigns";
 
 const optionalAttribution = z.string().trim().max(500).nullish();
 const browserEvidenceSchema = z.strictObject({

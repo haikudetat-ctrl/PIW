@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  var API_URL = '/api/intake';
+  var API_URL = '/api/campaign-estimate';
   var DISMISSED_KEY = 'all-season-quote-drawer-dismissed-v1';
   var DISMISS_FOR_MS = 7 * 24 * 60 * 60 * 1000;
   var root;
@@ -104,32 +104,25 @@
 
     var form = element('form', 'as-quote-form');
     form.noValidate = true;
-    var projectWrap = element('fieldset', 'as-quote-project');
-    var projectLegend = element('legend', 'as-quote-label', 'What can we help with?');
-    projectWrap.appendChild(projectLegend);
-    [['roofing', 'Roof replacement or repair'], ['both', 'Roofing with solar'], ['solar', 'Solar on a ready roof']].forEach(function (option, index) {
-      var optionLabel = element('label', 'as-quote-choice');
-      var radio = element('input');
-      radio.type = 'radio';
-      radio.name = 'project_interest';
-      radio.value = option[0];
-      radio.required = true;
-      if (index === 0) radio.checked = true;
-      optionLabel.appendChild(radio);
-      optionLabel.appendChild(element('span', '', option[1]));
-      projectWrap.appendChild(optionLabel);
-    });
-
-    var name = field('as-quote-name', 'Name', 'text', 'name', 'Your name');
+    var name = field('as-quote-name', 'Full name', 'text', 'name', 'Your name');
     var email = field('as-quote-email', 'Email', 'email', 'email', 'you@example.com');
-    var phone = field('as-quote-phone', 'Phone', 'tel', 'tel', '(201) 555-0123');
-    var address = field('as-quote-address', 'Project address', 'text', 'street-address', 'Street address, city, ZIP');
+    var phone = field('as-quote-phone', 'Mobile phone', 'tel', 'tel', '(201) 555-0123');
+    var addressLine1 = field('as-quote-address_line_1', 'Home address', 'text', 'address-line1', 'Street address');
+    var addressLine2 = field('as-quote-address_line_2', 'Apartment, suite, or unit (optional)', 'text', 'address-line2', 'Unit 2');
+    var city = field('as-quote-city', 'City', 'text', 'address-level2', 'Newark');
+    var postalCode = field('as-quote-postal_code', 'ZIP code', 'text', 'postal-code', '07102');
+    addressLine2.input.required = false;
     phone.input.inputMode = 'tel';
-    address.input.minLength = 5;
+    postalCode.input.inputMode = 'numeric';
+    postalCode.input.pattern = '[0-9]{5}(-[0-9]{4})?';
 
-    var fields = [name, email, phone, address];
-    form.appendChild(projectWrap);
+    var state = element('input');
+    state.type = 'hidden';
+    state.name = 'state';
+    state.value = 'NJ';
+    var fields = [name, email, phone, addressLine1, addressLine2, city, postalCode];
     fields.forEach(function (item) { form.appendChild(item.wrap); });
+    form.appendChild(state);
 
     var processingConsentLabel = element('label', 'as-quote-consent');
     var processingConsent = element('input');
@@ -206,7 +199,7 @@
       var firstInvalid = null;
       fields.forEach(function (item) {
         var message = '';
-        if (!item.input.value.trim()) message = 'This field is required.';
+        if (item.input.required && !item.input.value.trim()) message = 'This field is required.';
         else if (item.input.type === 'email' && !item.input.validity.valid) message = 'Enter a valid email address.';
         else if (item.input === phone.input && item.input.value.replace(/\D/g, '').length < 7) message = 'Enter a valid phone number.';
         setError(item, message);
@@ -244,17 +237,30 @@
       status.textContent = 'Securely sending your project details.';
       track('quote_form_submit', {trigger: root.dataset.trigger});
       var params = new URLSearchParams(window.location.search);
+      var line1 = addressLine1.input.value.trim();
+      var line2 = addressLine2.input.value.trim();
+      var locality = 'NJ ' + postalCode.input.value.trim();
       var body = {
         submission_id: submissionId,
+        campaign: null,
+        presentation_key: 'all-season-main',
+        entry_point: 'main-drawer',
         name: name.input.value.trim(),
         email: email.input.value.trim(),
         phone: phone.input.value.trim(),
-        address: address.input.value.trim(),
-        project_interest: new FormData(form).get('project_interest'),
+        address: [line1, line2, city.input.value.trim(), locality].filter(Boolean).join(', '),
+        google_place_id: null,
+        address_line_1: line1,
+        address_line_2: line2 || null,
+        city: city.input.value.trim(),
+        state: 'NJ',
+        postal_code: postalCode.input.value.trim(),
         consent_to_contact: consent.checked,
         consent_to_process_property: processingConsent.checked,
-        fbclid: params.get('fbclid')
       };
+      ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'fbclid'].forEach(function (key) {
+        body[key] = params.get(key);
+      });
       try {
         var response = await window.fetch(API_URL, {
           method: 'POST',
@@ -262,11 +268,11 @@
           body: JSON.stringify(body),
           credentials: 'same-origin'
         });
-        if (!response.ok) throw new Error(String(response.status));
-        form.hidden = true;
-        success.hidden = false;
+        var payload = await response.json().catch(function () { return {}; });
+        if (!response.ok || !payload.estimateUrl) throw new Error(String(response.status));
         try { window.localStorage.setItem(DISMISSED_KEY, String(Date.now())); } catch {}
         track('quote_form_success', {trigger: root.dataset.trigger});
+        window.location.assign(payload.estimateUrl);
       } catch {
         status.textContent = 'We could not send this request. Call (888) 832-5050 or try again.';
         track('quote_form_error', {trigger: root.dataset.trigger});
