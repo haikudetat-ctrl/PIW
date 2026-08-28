@@ -227,7 +227,7 @@ export function AssessmentExperience({
 
   return (
     <main ref={revealRef} className={`assessment-flow assessment-reveal-shell ${context.accentClass} min-h-[100dvh] w-full max-w-full overflow-x-hidden bg-[#edf2f3] px-4 py-5 text-slate-950 sm:px-7 sm:py-8`}>
-      <div className="mx-auto flex min-h-[calc(100dvh-2.5rem)] max-w-7xl flex-col">
+      <div className="assessment-reveal-frame mx-auto flex min-h-[calc(100dvh-2.5rem)] max-w-7xl flex-col">
         <header className="assessment-nav flex items-center justify-between border-b border-slate-300/80 pb-5">
           <div>
             <p className="text-xs font-black tracking-[0.2em] text-slate-900">ALL SEASON</p>
@@ -240,7 +240,7 @@ export function AssessmentExperience({
           </span>
         </header>
 
-        <div className="my-auto py-6 lg:py-10">
+        <div className="assessment-reveal-stage my-auto py-6 lg:py-10">
           <section
             aria-label="Confirmed property assessment"
             className="assessment-reveal-card grid overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_28px_90px_rgba(15,42,55,0.16)] lg:grid-cols-[minmax(0,1.12fr)_minmax(24rem,0.88fr)]"
@@ -263,7 +263,7 @@ export function AssessmentExperience({
               </div>
             )}
             <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-slate-950/15" />
-            <div className="absolute inset-x-0 bottom-0 p-6 text-white sm:p-8">
+            <div className="assessment-reveal-address absolute inset-x-0 bottom-0 p-6 text-white sm:p-8">
               <p className="text-[0.65rem] font-bold uppercase tracking-[0.18em] text-white/60">
                 {aerial.kind === "ready" ? "Confirmed property" : "Property location"}
               </p>
@@ -293,10 +293,10 @@ export function AssessmentExperience({
                 {context.headline}
               </p>
             </div>
-            <p className="mt-4 max-w-lg text-base leading-7 text-slate-600">
+            <p className="assessment-reveal-intro mt-4 max-w-lg text-base leading-7 text-slate-600">
               {context.intro}
             </p>
-            <div className="mt-8 border-y border-slate-200 py-5">
+            <div className="assessment-reveal-next mt-8 border-y border-slate-200 py-5">
               <p className="text-sm font-semibold text-slate-800">Next: a few questions about what you have noticed.</p>
               <p className="mt-1 text-sm leading-6 text-slate-500">No measurements or roofing knowledge needed.</p>
             </div>
