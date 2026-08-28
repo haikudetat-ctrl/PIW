@@ -7,8 +7,11 @@ import {
   type AllSeasonCampaignEstimateLeadInput,
 } from "@/modules/leads/accept-all-season-campaign-estimate";
 import { signContinuation } from "@/modules/roof-assessment/continuation-token";
+import { runPostConsentPropertyPrefetch } from "@/modules/roof-assessment/post-consent-property-prefetch";
 import { startOrResumeRoofAssessment } from "@/modules/roof-assessment/start-or-resume";
 import { SupabaseAssessmentIntakeRepository } from "@/modules/roof-assessment/supabase-assessment-intake-repository";
+import { SupabasePropertyPrefetchRepository } from "@/modules/roof-assessment/supabase-property-prefetch-repository";
+import { fetchGooglePlaceDetails } from "@/modules/providers/adapters/google-places";
 import {
   allSeasonCampaignEstimateSchema,
   type AllSeasonCampaignEstimateInput,
@@ -95,7 +98,15 @@ export async function handleAllSeasonCampaignEstimateRequest(
 }
 
 export async function POST(request: NextRequest) {
-  const environment = parseServerEnv(process.env);
+  let environment: ReturnType<typeof parseServerEnv>;
+  try {
+    environment = parseServerEnv(process.env);
+  } catch {
+    return noStoreJson(
+      { error: "All Season campaign estimate intake is not configured" },
+      503,
+    );
+  }
   if (
     !environment.ROOF_ASSESSMENT_ENABLED
     || !environment.ROOF_ASSESSMENT_SIGNING_SECRET
@@ -110,6 +121,9 @@ export async function POST(request: NextRequest) {
 
   const service = createServiceClient();
   const repository = new SupabaseAssessmentIntakeRepository(service);
+  const propertyPrefetchRepository = environment.ROOF_ASSESSMENT_PROPERTY_PREFETCH_ENABLED
+    ? new SupabasePropertyPrefetchRepository(service)
+    : undefined;
   const signingKey = environment.ROOF_ASSESSMENT_SIGNING_SECRET;
   const companyId = environment.ALL_SEASON_INTAKE_COMPANY_ID;
 
@@ -124,6 +138,16 @@ export async function POST(request: NextRequest) {
           tokenIssuer: {
             issue: (capability) => signContinuation(capability, signingKey),
           },
+          postConsentPrefetch: propertyPrefetchRepository
+            ? (input) => runPostConsentPropertyPrefetch(input, {
+              enabled: true,
+              repository: propertyPrefetchRepository,
+              fetchGooglePlaceDetails: (details) => fetchGooglePlaceDetails({
+                ...details,
+                apiKey: environment.GOOGLE_MAPS_API_KEY,
+              }),
+            })
+            : undefined,
         }),
       },
     ),

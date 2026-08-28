@@ -1,7 +1,39 @@
 import { NextRequest } from "next/server";
-import { describe, expect, test, vi } from "vitest";
+import { beforeEach, describe, expect, test, vi } from "vitest";
+
+const mocks = vi.hoisted(() => ({
+  parseServerEnv: vi.fn(),
+  createServiceClient: vi.fn(),
+  acceptAllSeasonCampaignEstimate: vi.fn(),
+  startOrResumeRoofAssessment: vi.fn(),
+  runPostConsentPropertyPrefetch: vi.fn(),
+  SupabasePropertyPrefetchRepository: vi.fn(),
+  fetchGooglePlaceDetails: vi.fn(),
+}));
+
+vi.mock("@/lib/env/server", () => ({parseServerEnv: mocks.parseServerEnv}));
+vi.mock("@/lib/supabase/service", () => ({createServiceClient: mocks.createServiceClient}));
+vi.mock("@/modules/leads/accept-all-season-campaign-estimate", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/modules/leads/accept-all-season-campaign-estimate")>(),
+  acceptAllSeasonCampaignEstimate: mocks.acceptAllSeasonCampaignEstimate,
+}));
+vi.mock("@/modules/roof-assessment/start-or-resume", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/modules/roof-assessment/start-or-resume")>(),
+  startOrResumeRoofAssessment: mocks.startOrResumeRoofAssessment,
+}));
+vi.mock("@/modules/roof-assessment/post-consent-property-prefetch", () => ({
+  runPostConsentPropertyPrefetch: mocks.runPostConsentPropertyPrefetch,
+}));
+vi.mock("@/modules/roof-assessment/supabase-property-prefetch-repository", () => ({
+  SupabasePropertyPrefetchRepository: mocks.SupabasePropertyPrefetchRepository,
+}));
+vi.mock("@/modules/providers/adapters/google-places", () => ({
+  fetchGooglePlaceDetails: mocks.fetchGooglePlaceDetails,
+}));
+
 import {
   handleAllSeasonCampaignEstimateRequest,
+  POST,
   toCampaignEstimateLeadInput,
   type AllSeasonCampaignEstimateInput,
 } from "./route";
@@ -55,6 +87,44 @@ function request(body: unknown, secret = "shared-secret") {
   );
 }
 
+const serverEnvironment = {
+  ROOF_ASSESSMENT_ENABLED: true,
+  ROOF_ASSESSMENT_SIGNING_SECRET: "a".repeat(32),
+  ALL_SEASON_INTAKE_SHARED_SECRET: "shared-secret",
+  ALL_SEASON_INTAKE_COMPANY_ID: "22222222-2222-4222-8222-222222222222",
+  PAID_PROVIDERS_ENABLED: true,
+  GOOGLE_MAPS_API_KEY: "maps-server-key",
+  ROOF_ASSESSMENT_PROPERTY_PREFETCH_ENABLED: true,
+};
+
+beforeEach(() => {
+  vi.resetAllMocks();
+  mocks.parseServerEnv.mockReturnValue(serverEnvironment);
+  mocks.createServiceClient.mockReturnValue({service: true});
+  mocks.SupabasePropertyPrefetchRepository.mockImplementation(
+    (class {
+      constructor() {
+        return {repository: true};
+      }
+    }) as unknown as () => unknown,
+  );
+  mocks.runPostConsentPropertyPrefetch.mockResolvedValue({
+    kind: "deferred",
+    reason: "timeout",
+  });
+  mocks.startOrResumeRoofAssessment.mockResolvedValue({
+    kind: "continue",
+    continuationPath: "/roof-estimate/continue/signed_token-123",
+  });
+  mocks.acceptAllSeasonCampaignEstimate.mockImplementation(async (input, dependencies) =>
+    dependencies.startAssessment({
+      companyId: "22222222-2222-4222-8222-222222222222",
+      submittedAddress: input.submittedAddress,
+      googlePlaceId: input.googlePlaceId,
+    }),
+  );
+});
+
 describe("All Season campaign estimate intake", () => {
   test("maps every external evidence field to the canonical campaign adapter", () => {
     const parsed = validPayload satisfies AllSeasonCampaignEstimateInput;
@@ -86,6 +156,7 @@ describe("All Season campaign estimate intake", () => {
     );
 
     expect(response.status).toBe(401);
+    expect(response.headers.get("cache-control")).toBe("no-store");
     expect(accept).not.toHaveBeenCalled();
   });
 
@@ -180,6 +251,7 @@ describe("All Season campaign estimate intake", () => {
 
     expect(label.length).toBeGreaterThan(0);
     expect(response.status).toBe(400);
+    expect(response.headers.get("cache-control")).toBe("no-store");
     expect(accept).not.toHaveBeenCalled();
   });
 
@@ -200,5 +272,131 @@ describe("All Season campaign estimate intake", () => {
     expect(body).toBe('{"error":"Campaign estimate intake is temporarily unavailable"}');
     expect(body).not.toContain("secret-123");
     expect(body).not.toContain("alex@example.com");
+  });
+
+  test("injects the selected-place fast path with server-only dependencies", async () => {
+    const response = await POST(request(validPayload));
+
+    expect(response.status).toBe(202);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    await expect(response.json()).resolves.toEqual({
+      accepted: true,
+      continuationPath: "/roof-estimate/continue/signed_token-123",
+    });
+    expect(mocks.SupabasePropertyPrefetchRepository).toHaveBeenCalledWith({service: true});
+    expect(mocks.startOrResumeRoofAssessment).toHaveBeenCalledWith(
+      expect.objectContaining({googlePlaceId: validPayload.google_place_id}),
+      expect.objectContaining({postConsentPrefetch: expect.any(Function)}),
+    );
+  });
+
+  test("omits the fast path when the server feature flag is disabled", async () => {
+    mocks.parseServerEnv.mockReturnValue({
+      ...serverEnvironment,
+      ROOF_ASSESSMENT_PROPERTY_PREFETCH_ENABLED: false,
+    });
+
+    const response = await POST(request(validPayload));
+
+    expect(response.status).toBe(202);
+    expect(mocks.SupabasePropertyPrefetchRepository).not.toHaveBeenCalled();
+    expect(mocks.startOrResumeRoofAssessment).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({postConsentPrefetch: undefined}),
+    );
+  });
+
+  test("returns a generic no-store configuration response when prefetch environment validation fails", async () => {
+    mocks.parseServerEnv.mockImplementation(() => {
+      throw new Error("ZodError: GOOGLE_MAPS_API_KEY maps-server-key is required");
+    });
+
+    const response = await POST(request(validPayload));
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    const body = await response.text();
+    expect(body).toBe('{"error":"All Season campaign estimate intake is not configured"}');
+    expect(body).not.toContain("ZodError");
+    expect(body).not.toContain("maps-server-key");
+  });
+
+  test("keeps a manual address out of the selected-place fast path", async () => {
+    const manualPayload = {
+      ...validPayload,
+      google_place_id: null,
+    };
+    const response = await POST(request(manualPayload));
+
+    expect(response.status).toBe(202);
+    expect(mocks.startOrResumeRoofAssessment).toHaveBeenCalledWith(
+      expect.objectContaining({googlePlaceId: undefined}),
+      expect.any(Object),
+    );
+  });
+
+  test("returns 409 without property data when the canonical intake reports a duplicate", async () => {
+    mocks.startOrResumeRoofAssessment.mockResolvedValue({kind: "duplicate_requires_restart"});
+
+    const response = await POST(request(validPayload));
+
+    expect(response.status).toBe(409);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    const body = await response.text();
+    expect(body).toBe('{"error":"Please restart this estimate request.","retryable":true}');
+    expect(body).not.toContain(validPayload.google_place_id);
+  });
+
+  test("still returns 202 when the selected-place fast path defers on timeout", async () => {
+    mocks.startOrResumeRoofAssessment.mockImplementation(async (input, dependencies) => {
+      await dependencies.postConsentPrefetch({
+        companyId: input.companyId,
+        attemptId: "33333333-3333-4333-8333-333333333333",
+        submittedAddress: input.submittedAddress,
+        googlePlaceId: input.googlePlaceId,
+      });
+      return {
+        kind: "continue",
+        continuationPath: "/roof-estimate/continue/signed_token-123",
+      };
+    });
+
+    const response = await POST(request(validPayload));
+
+    expect(response.status).toBe(202);
+    expect(mocks.runPostConsentPropertyPrefetch).toHaveBeenCalledWith(
+      expect.objectContaining({googlePlaceId: validPayload.google_place_id}),
+      expect.objectContaining({
+        enabled: true,
+        repository: {repository: true},
+        fetchGooglePlaceDetails: expect.any(Function),
+      }),
+    );
+    const dependencies = mocks.runPostConsentPropertyPrefetch.mock.calls[0]?.[1];
+    await dependencies.fetchGooglePlaceDetails({
+      submittedAddress: validPayload.address,
+      googlePlaceId: validPayload.google_place_id,
+      signal: AbortSignal.abort(),
+    });
+    expect(mocks.fetchGooglePlaceDetails).toHaveBeenCalledWith(expect.objectContaining({
+      apiKey: "maps-server-key",
+      signal: expect.any(AbortSignal),
+    }));
+  });
+
+  test("returns a generic no-store 503 when canonical intake fails", async () => {
+    mocks.startOrResumeRoofAssessment.mockRejectedValue(
+      new Error("raw intake failure with continuation-secret"),
+    );
+
+    const response = await POST(request(validPayload));
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    const body = await response.text();
+    expect(body).toBe('{"error":"Campaign estimate intake is temporarily unavailable"}');
+    expect(body).not.toContain("continuation-secret");
+    expect(body).not.toContain(validPayload.google_place_id);
+    expect(body).not.toMatch(/latitude|longitude|evidence/i);
   });
 });

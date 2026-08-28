@@ -12,6 +12,10 @@ import {
   normalizeEmailForMatching,
   normalizePhoneToE164,
 } from "@/modules/leads/normalize-contact";
+import type {
+  PostConsentPropertyPrefetchInput,
+  PostConsentPropertyPrefetchResult,
+} from "./post-consent-property-prefetch";
 
 export type { AssessmentEntryPoint, RoofAssessmentPresentationKey };
 
@@ -66,6 +70,8 @@ export interface ContinuationTokenIssuer {
 export type StartAssessmentDependencies = {
   repository: AssessmentIntakeRepository;
   tokenIssuer: ContinuationTokenIssuer;
+  postConsentPrefetch?: (input: PostConsentPropertyPrefetchInput) =>
+    Promise<PostConsentPropertyPrefetchResult>;
 };
 
 export class StartAssessmentInputError extends Error {
@@ -200,6 +206,19 @@ export async function startOrResumeRoofAssessment(
 
   if (repositoryResult.data.isReplay) {
     return {kind: "duplicate_requires_restart"};
+  }
+
+  if (dependencies.postConsentPrefetch && normalized.googlePlaceId) {
+    try {
+      await dependencies.postConsentPrefetch({
+        companyId: normalized.companyId,
+        attemptId: repositoryResult.data.attemptId,
+        submittedAddress: normalized.submittedAddress,
+        googlePlaceId: normalized.googlePlaceId,
+      });
+    } catch {
+      // Property intelligence is a best-effort post-consent fast path.
+    }
   }
 
   let issuedToken: string;
