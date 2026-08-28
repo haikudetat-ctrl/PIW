@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import {
   createGooglePlacesProvider,
   fetchGoogleAddressSuggestions,
+  fetchGooglePlaceDetails,
   parseGooglePlaceResponse,
 } from "./google-places";
 
@@ -89,6 +90,80 @@ describe("Google Places adapter", () => {
     );
     expect(options.headers["X-Goog-Api-Key"]).toBe("secret");
     expect(requestedUrl).not.toContain("secret");
+  });
+
+  test("passes an already-aborted signal directly to Place Details fetch", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) => {
+      expect(init?.signal).toBe(controller.signal);
+      return Promise.reject(new DOMException("Aborted", "AbortError"));
+    });
+
+    await expect(fetchGooglePlaceDetails({
+      submittedAddress: "354 Stockton St",
+      googlePlaceId: "ChIJ-selected",
+      apiKey: "secret",
+      signal: controller.signal,
+      fetchFn: fetchMock,
+    })).rejects.toMatchObject({name: "AbortError"});
+  });
+
+  test("cancels Place Details through the supplied 2,500 ms signal", async () => {
+    vi.useFakeTimers();
+    const controller = new AbortController();
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), {once: true});
+    }));
+    const pending = fetchGooglePlaceDetails({
+      submittedAddress: "354 Stockton St",
+      googlePlaceId: "ChIJ-selected",
+      apiKey: "secret",
+      signal: controller.signal,
+      fetchFn: fetchMock,
+    });
+    setTimeout(() => controller.abort(), 2_500);
+    const aborted = pending.then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+
+    await vi.advanceTimersByTimeAsync(2_500);
+    await expect(aborted).resolves.toMatchObject({name: "AbortError"});
+    vi.useRealTimers();
+  });
+
+  test("rejects invalid Place Details JSON", async () => {
+    await expect(fetchGooglePlaceDetails({
+      submittedAddress: "354 Stockton St",
+      googlePlaceId: "ChIJ-selected",
+      apiKey: "secret",
+      fetchFn: async () => ({
+        ok: true,
+        status: 200,
+        json: async () => { throw new SyntaxError("bad json"); },
+      }) as unknown as Response,
+    })).rejects.toThrow("Google Place Details returned invalid JSON");
+  });
+
+  test("rejects non-OK Place Details responses without placing the API key in the URL", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 403,
+      json: async () => ({error: {message: "denied"}}),
+    });
+
+    await expect(fetchGooglePlaceDetails({
+      submittedAddress: "354 Stockton St",
+      googlePlaceId: "place/id ?",
+      apiKey: "secret",
+      fetchFn: fetchMock,
+    })).rejects.toThrow("Google Place Details responded with 403: denied");
+
+    const [requestedUrl, options] = fetchMock.mock.calls[0];
+    expect(requestedUrl).toBe("https://places.googleapis.com/v1/places/place%2Fid%20%3F");
+    expect(requestedUrl).not.toContain("secret");
+    expect(options.headers["X-Goog-Api-Key"]).toBe("secret");
   });
 
   test("returns address-only New Jersey autocomplete predictions without exposing the API key", async () => {

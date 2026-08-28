@@ -169,16 +169,20 @@ export async function fetchGooglePlaceDetails(input: {
   submittedAddress: string;
   googlePlaceId: string;
   apiKey?: string;
+  signal?: AbortSignal;
+  fetchFn?: (url: string, init?: RequestInit) => Promise<Response>;
 }): Promise<AddressValidationResult> {
   const apiKey = input.apiKey ?? process.env.GOOGLE_MAPS_API_KEY;
   if (!apiKey) throw new Error("Google Maps API key is not configured");
-  const response = await fetch(
+  const fetchFn = input.fetchFn ?? fetch;
+  const response = await fetchFn(
     `https://places.googleapis.com/v1/places/${encodeURIComponent(input.googlePlaceId)}`,
     {
       headers: {
         "X-Goog-Api-Key": apiKey,
         "X-Goog-FieldMask": PLACE_FIELDS,
       },
+      signal: input.signal,
     },
   );
   const raw = await readJson(response, "Google Place Details");
