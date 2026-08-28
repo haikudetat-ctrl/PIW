@@ -257,6 +257,47 @@ describe("assessment property reveal", () => {
     expect(fetch).toHaveBeenCalledTimes(37);
   });
 
+  test("rebases a long loading retry to 2.5 seconds after the twelve-second reveal", async () => {
+    const fetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(null, {
+      status: 502,
+      headers: {"retry-after": fetch.mock.calls.length === 1 ? "10" : "7"},
+    }));
+    vi.stubGlobal("fetch", fetch);
+    render(
+      <AssessmentExperience
+        token={token}
+        address="1 Main St, Newark, NJ 07102"
+        imageUrl={imageUrl}
+        context={context}
+        initialPropertyRevealed={false}
+        initialStep={0}
+      >
+        <p>Questions begin here</p>
+      </AssessmentExperience>,
+    );
+
+    await act(async () => undefined);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    await act(async () => vi.advanceTimersByTimeAsync(10_000));
+    expect(fetch).toHaveBeenCalledTimes(2);
+
+    await act(async () => vi.advanceTimersByTimeAsync(2_000));
+    expect(screen.getByRole("status")).toHaveTextContent("Finalizing your property imagery");
+    await act(async () => vi.advanceTimersByTimeAsync(2_499));
+    expect(fetch).toHaveBeenCalledTimes(2);
+
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(fetch.mock.calls[2]?.[0]).toBe(`${imageUrl}?aerial_retry=2`);
+
+    await act(async () => vi.advanceTimersByTimeAsync(2_500));
+    expect(fetch).toHaveBeenCalledTimes(4);
+    await act(async () => vi.advanceTimersByTimeAsync(34 * 2_500));
+    expect(fetch).toHaveBeenCalledTimes(38);
+    await act(async () => vi.advanceTimersByTimeAsync(2_500));
+    expect(fetch).toHaveBeenCalledTimes(38);
+  });
+
   test("revokes replaced and unmounted aerial object URLs", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(new Uint8Array([1]), {
       status: 200,

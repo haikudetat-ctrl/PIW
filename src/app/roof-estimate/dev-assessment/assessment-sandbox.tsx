@@ -44,6 +44,7 @@ const previewResult = {
 type ResultPreviewState = CalculationState["status"];
 type ConsultationPreviewMode = "success" | "error" | null;
 type ImageryPreviewMode = "ready" | "slow" | "retry" | "pending";
+const PREVIEW_AERIAL_IMAGE = "/campaigns/seasonal-shield/hero.webp";
 
 export function createPreviewAerialLoader(mode: ImageryPreviewMode): typeof loadAssessmentAerial {
   let attempts = 0;
@@ -133,9 +134,7 @@ export function AssessmentSandbox() {
     ? previewQuery.result ? previewResult : null
     : resultOverride;
   const context = getRoofAssessmentContext(campaign);
-  const imageUrl = campaign === "for-every-season" || campaign === "all-season-main"
-    ? "/campaigns/every-season.jpg"
-    : "/campaigns/roof-above.jpg";
+  const imageUrl = PREVIEW_AERIAL_IMAGE;
   const imagery = imageryOverride ?? previewQuery.imagery;
   const imageryFixture = useMemo(() => ({
     key: `${imagery}-${run}`,

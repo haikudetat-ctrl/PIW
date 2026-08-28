@@ -44,9 +44,11 @@ function useAssessmentAerial({
     : {source: imageUrl, kind: "loading", objectUrl: null} as const;
   const objectUrl = useRef<string | null>(null);
   const stageRef = useRef(stage);
+  const rebaseRetryForReveal = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     stageRef.current = stage;
+    if (stage === "reveal") rebaseRetryForReveal.current?.();
   }, [stage]);
 
   useEffect(() => {
@@ -96,10 +98,19 @@ function useAssessmentAerial({
         setAerial({source: imageUrl, kind: "waiting", objectUrl: null});
         const revealed = stageRef.current === "reveal";
         const delay = revealed ? REVEAL_RETRY_MS : result.delayMs;
-        retryTimer = window.setTimeout(() => {
+        const retry = () => {
+          retryTimer = undefined;
+          rebaseRetryForReveal.current = null;
           attempt += 1;
           void requestAerial();
-        }, delay);
+        };
+        retryTimer = window.setTimeout(retry, delay);
+        rebaseRetryForReveal.current = revealed ? null : () => {
+          if (!active || retryTimer === undefined) return;
+          window.clearTimeout(retryTimer);
+          retryTimer = window.setTimeout(retry, REVEAL_RETRY_MS);
+          rebaseRetryForReveal.current = null;
+        };
       } catch (error) {
         if (!active || (error instanceof DOMException && error.name === "AbortError")) return;
         setAerial({source: imageUrl, kind: "unavailable", objectUrl: null});
@@ -112,6 +123,7 @@ function useAssessmentAerial({
       active = false;
       controller?.abort();
       if (retryTimer !== undefined) window.clearTimeout(retryTimer);
+      rebaseRetryForReveal.current = null;
       if (objectUrl.current) {
         URL.revokeObjectURL(objectUrl.current);
         objectUrl.current = null;

@@ -14,6 +14,7 @@ const completedResponses: RoofAssessmentResponses = {
   timeline: "this_season",
   ownership: "owner",
 };
+const previewAerial = "/campaigns/seasonal-shield/hero.webp";
 
 vi.mock("../[token]/assessment-experience", () => ({
   AssessmentExperience: ({children}: {children: React.ReactNode}) => <>{children}</>,
@@ -45,13 +46,13 @@ describe("development assessment sandbox", () => {
     const signal = new AbortController().signal;
 
     await expect(createPreviewAerialLoader("ready")({
-      imageSrc: "/campaigns/every-season.jpg",
+      imageSrc: previewAerial,
       signal,
-    })).resolves.toEqual({kind: "ready", objectUrl: "/campaigns/every-season.jpg"});
+    })).resolves.toEqual({kind: "ready", objectUrl: previewAerial});
 
     let slowResolved = false;
     const slow = createPreviewAerialLoader("slow")({
-      imageSrc: "/campaigns/every-season.jpg",
+      imageSrc: previewAerial,
       signal,
     }).then((result) => {
       slowResolved = true;
@@ -62,19 +63,19 @@ describe("development assessment sandbox", () => {
     await vi.advanceTimersByTimeAsync(1);
     await expect(slow).resolves.toEqual({
       kind: "ready",
-      objectUrl: "/campaigns/every-season.jpg",
+      objectUrl: previewAerial,
     });
 
     const retryThenReady = createPreviewAerialLoader("retry");
-    await expect(retryThenReady({imageSrc: "/campaigns/every-season.jpg", signal}))
+    await expect(retryThenReady({imageSrc: previewAerial, signal}))
       .resolves.toEqual({kind: "retry", delayMs: 2_500});
-    await expect(retryThenReady({imageSrc: "/campaigns/every-season.jpg", signal}))
-      .resolves.toEqual({kind: "ready", objectUrl: "/campaigns/every-season.jpg"});
+    await expect(retryThenReady({imageSrc: previewAerial, signal}))
+      .resolves.toEqual({kind: "ready", objectUrl: previewAerial});
 
     const pending = createPreviewAerialLoader("pending");
-    await expect(pending({imageSrc: "/campaigns/every-season.jpg", signal}))
+    await expect(pending({imageSrc: previewAerial, signal}))
       .resolves.toEqual({kind: "retry", delayMs: 2_500});
-    await expect(pending({imageSrc: "/campaigns/every-season.jpg", signal}))
+    await expect(pending({imageSrc: previewAerial, signal}))
       .resolves.toEqual({kind: "retry", delayMs: 2_500});
   });
 
