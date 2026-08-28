@@ -22,9 +22,15 @@ describe("assessment property reveal", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
-  test("reveals the confirmed address and aerial after analysis completes", () => {
+  test("reveals the confirmed address and fetched aerial after eight seconds", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(new Uint8Array([1, 2, 3]), {
+      status: 200,
+      headers: {"content-type": "image/jpeg"},
+    })));
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:confirmed-aerial");
     render(
       <AssessmentExperience
         token={token}
@@ -38,11 +44,16 @@ describe("assessment property reveal", () => {
       </AssessmentExperience>,
     );
 
-    fireEvent.load(screen.getByAltText("Aerial view loading for 1 Main St, Newark, NJ 07102"));
-    act(() => vi.advanceTimersByTime(5_000));
+    await act(async () => undefined);
+    act(() => vi.advanceTimersByTime(7_999));
+    expect(screen.queryByRole("heading", {name: "Property confirmed."})).not.toBeInTheDocument();
+
+    act(() => vi.advanceTimersByTime(1));
 
     expect(screen.getByRole("heading", {name: "Property confirmed."})).toBeVisible();
     expect(screen.getByText("1 Main St, Newark, NJ 07102")).toBeVisible();
+    expect(screen.getByAltText("Aerial view of 1 Main St, Newark, NJ 07102"))
+      .toHaveAttribute("src", "blob:confirmed-aerial");
     expect(screen.getByRole("button", {name: "Start my assessment"})).toBeEnabled();
   });
 
@@ -82,7 +93,12 @@ describe("assessment property reveal", () => {
     expect(screen.getByText("Questionnaire revision 7")).toBeVisible();
   });
 
-  test("unifies the property and assessment in one card with a correction link", () => {
+  test("unifies the property and assessment in one card with a correction link", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(new Uint8Array([1]), {
+      status: 200,
+      headers: {"content-type": "image/jpeg"},
+    })));
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:summary-aerial");
     render(
       <AssessmentExperience
         token={token}
@@ -95,9 +111,9 @@ describe("assessment property reveal", () => {
         <p>Questions begin here</p>
       </AssessmentExperience>,
     );
+    await act(async () => undefined);
 
     const card = screen.getByRole("region", {name: "Confirmed property assessment"});
-    fireEvent.load(screen.getByTestId("assessment-aerial-image"));
     expect(card).toHaveClass("assessment-reveal-card");
     expect(card).toContainElement(screen.getByAltText("Aerial view of 1 Main St, Newark, NJ 07102"));
     expect(card).toContainElement(screen.getByRole("heading", {name: "Property confirmed."}));
@@ -105,7 +121,11 @@ describe("assessment property reveal", () => {
       .toHaveAttribute("href", "/roof-estimate");
   });
 
-  test("shows a valid branded image while retrying a transient aerial failure", () => {
+  test("shows one neutral in-box imagery status without a fallback campaign roof", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(
+      JSON.stringify({error: "Property image unavailable"}),
+      {status: 404, headers: {"content-type": "application/json"}},
+    )));
     render(
       <AssessmentExperience
         token={token}
@@ -119,22 +139,203 @@ describe("assessment property reveal", () => {
       </AssessmentExperience>,
     );
 
-    fireEvent.error(screen.getByTestId("assessment-aerial-image"));
+    await act(async () => undefined);
 
-    expect(screen.getByAltText(context.fallbackImageAlt)).toHaveAttribute(
-      "src",
-      "/campaigns/for-every-season/hero.webp",
+    expect(screen.getByRole("status")).toHaveTextContent("Finalizing your property imagery");
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(screen.queryByAltText(context.fallbackImageAlt)).not.toBeInTheDocument();
+    expect(screen.queryByTestId("assessment-aerial-image")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", {name: "Not your property? Update the address"})).toBeVisible();
+    expect(screen.getByRole("button", {name: "Start my assessment"})).toBeEnabled();
+  });
+
+  test("opens the usable pending confirmation exactly at the twelve-second cap", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, {status: 404})));
+    render(
+      <AssessmentExperience
+        token={token}
+        address="1 Main St, Newark, NJ 07102"
+        imageUrl={imageUrl}
+        context={context}
+        initialPropertyRevealed={false}
+        initialStep={0}
+      >
+        <p>Questions begin here</p>
+      </AssessmentExperience>,
     );
 
-    act(() => vi.advanceTimersByTime(2_500));
+    await act(async () => vi.advanceTimersByTimeAsync(11_999));
+    expect(screen.queryByRole("heading", {name: "Property confirmed."})).not.toBeInTheDocument();
 
-    const retry = screen.getByTestId("assessment-aerial-image");
-    expect(retry).toHaveAttribute("src", `${imageUrl}?aerial_retry=1`);
-    expect(retry).toHaveAttribute("alt", "");
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(screen.getByRole("status")).toHaveTextContent("Finalizing your property imagery");
+    expect(screen.getByRole("link", {name: "Not your property? Update the address"})).toBeVisible();
+    expect(screen.getByRole("button", {name: "Start my assessment"})).toBeEnabled();
+  });
 
-    fireEvent.load(retry);
-    expect(screen.getByAltText("Aerial view of 1 Main St, Newark, NJ 07102")).toBeVisible();
-    expect(screen.queryByAltText(context.fallbackImageAlt)).not.toBeInTheDocument();
+  test("retries the same token-scoped route after 2.5 seconds and swaps in the real aerial", async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(new Response(null, {status: 502}))
+      .mockResolvedValueOnce(new Response(new Uint8Array([1]), {
+        status: 200,
+        headers: {"content-type": "image/jpeg"},
+      }));
+    vi.stubGlobal("fetch", fetch);
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:retry-ready");
+    render(
+      <AssessmentExperience
+        token={token}
+        address="1 Main St, Newark, NJ 07102"
+        imageUrl={imageUrl}
+        context={context}
+        initialPropertyRevealed
+        initialStep={0}
+      >
+        <p>Questions begin here</p>
+      </AssessmentExperience>,
+    );
+
+    await act(async () => undefined);
+    expect(fetch).toHaveBeenNthCalledWith(1, imageUrl, {signal: expect.any(AbortSignal)});
+
+    await act(async () => vi.advanceTimersByTimeAsync(2_500));
+
+    expect(fetch).toHaveBeenNthCalledWith(2, `${imageUrl}?aerial_retry=1`, {
+      signal: expect.any(AbortSignal),
+    });
+    expect(screen.getByAltText("Aerial view of 1 Main St, Newark, NJ 07102"))
+      .toHaveAttribute("src", "blob:retry-ready");
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  test("appends only aerial_retry when the scoped image route already has a query", async () => {
+    const scopedImageUrl = `${imageUrl}?variant=assessment`;
+    const fetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => (
+      new Response(null, {status: 502})
+    ));
+    vi.stubGlobal("fetch", fetch);
+    render(
+      <AssessmentExperience
+        token={token}
+        address="1 Main St, Newark, NJ 07102"
+        imageUrl={scopedImageUrl}
+        context={context}
+        initialPropertyRevealed
+        initialStep={0}
+      >
+        <p>Questions begin here</p>
+      </AssessmentExperience>,
+    );
+
+    await act(async () => undefined);
+    await act(async () => vi.advanceTimersByTimeAsync(2_500));
+
+    expect(fetch.mock.calls[1]?.[0]).toBe(`${scopedImageUrl}&aerial_retry=1`);
+  });
+
+  test("stops after 36 post-reveal retries", async () => {
+    const fetch = vi.fn(async () => new Response(null, {status: 502}));
+    vi.stubGlobal("fetch", fetch);
+    render(
+      <AssessmentExperience
+        token={token}
+        address="1 Main St, Newark, NJ 07102"
+        imageUrl={imageUrl}
+        context={context}
+        initialPropertyRevealed
+        initialStep={0}
+      >
+        <p>Questions begin here</p>
+      </AssessmentExperience>,
+    );
+
+    await act(async () => undefined);
+    await act(async () => vi.advanceTimersByTimeAsync(36 * 2_500));
+
+    expect(fetch).toHaveBeenCalledTimes(37);
+    await act(async () => vi.advanceTimersByTimeAsync(2_500));
+    expect(fetch).toHaveBeenCalledTimes(37);
+  });
+
+  test("revokes replaced and unmounted aerial object URLs", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(new Uint8Array([1]), {
+      status: 200,
+      headers: {"content-type": "image/jpeg"},
+    })));
+    vi.spyOn(URL, "createObjectURL")
+      .mockReturnValueOnce("blob:first-aerial")
+      .mockReturnValueOnce("blob:second-aerial");
+    const revokeObjectURL = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+    const {rerender, unmount} = render(
+      <AssessmentExperience
+        token={token}
+        address="1 Main St, Newark, NJ 07102"
+        imageUrl={imageUrl}
+        context={context}
+        initialPropertyRevealed
+        initialStep={0}
+      >
+        <p>Questions begin here</p>
+      </AssessmentExperience>,
+    );
+    await act(async () => undefined);
+
+    rerender(
+      <AssessmentExperience
+        token={token}
+        address="1 Main St, Newark, NJ 07102"
+        imageUrl={`${imageUrl}?variant=new-source`}
+        context={context}
+        initialPropertyRevealed
+        initialStep={0}
+      >
+        <p>Questions begin here</p>
+      </AssessmentExperience>,
+    );
+    await act(async () => undefined);
+
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:first-aerial");
+    unmount();
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:second-aerial");
+  });
+
+  test("aborts in-flight aerial requests on source change and unmount", async () => {
+    const requestSignals: AbortSignal[] = [];
+    vi.stubGlobal("fetch", vi.fn((_url: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.signal) requestSignals.push(init.signal);
+      return new Promise<Response>(() => undefined);
+    }));
+    const {rerender, unmount} = render(
+      <AssessmentExperience
+        token={token}
+        address="1 Main St, Newark, NJ 07102"
+        imageUrl={imageUrl}
+        context={context}
+        initialPropertyRevealed
+        initialStep={0}
+      >
+        <p>Questions begin here</p>
+      </AssessmentExperience>,
+    );
+
+    expect(requestSignals[0]?.aborted).toBe(false);
+    rerender(
+      <AssessmentExperience
+        token={token}
+        address="1 Main St, Newark, NJ 07102"
+        imageUrl={`${imageUrl}?source=new`}
+        context={context}
+        initialPropertyRevealed
+        initialStep={0}
+      >
+        <p>Questions begin here</p>
+      </AssessmentExperience>,
+    );
+    expect(requestSignals[0]?.aborted).toBe(true);
+    expect(requestSignals[1]?.aborted).toBe(false);
+
+    unmount();
+    expect(requestSignals[1]?.aborted).toBe(true);
   });
 
   test("groups the confirmation hierarchy as one property summary", () => {
@@ -212,7 +413,7 @@ describe("assessment property reveal", () => {
     fireEvent.click(screen.getByRole("button", {name: "Start my assessment"}));
 
     expect(screen.getByText("Questions begin here")).toBeVisible();
-    expect(fetch).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalledWith(`/api/roof-estimate/${token}/assessment`, expect.anything());
     expect(scrollTo).toHaveBeenCalledWith({top: 0, behavior: "smooth"});
   });
 

@@ -13,6 +13,7 @@ import {
   type RoofAssessmentResponses,
 } from "@/domain/roof-assessment";
 import {AssessmentExperience} from "../[token]/assessment-experience";
+import type {loadAssessmentAerial} from "../[token]/assessment-aerial-loader";
 import {AssessmentQuestionnaire} from "../[token]/assessment-questionnaire";
 import {AssessmentResult} from "../[token]/assessment-result";
 
@@ -42,12 +43,41 @@ const previewResult = {
 
 type ResultPreviewState = CalculationState["status"];
 type ConsultationPreviewMode = "success" | "error" | null;
+type ImageryPreviewMode = "ready" | "slow" | "retry" | "pending";
+
+export function createPreviewAerialLoader(mode: ImageryPreviewMode): typeof loadAssessmentAerial {
+  let attempts = 0;
+
+  return async ({imageSrc, signal}) => {
+    if (signal.aborted) throw new DOMException("The operation was aborted", "AbortError");
+    attempts += 1;
+
+    if (mode === "pending" || (mode === "retry" && attempts === 1)) {
+      return {kind: "retry", delayMs: 2_500};
+    }
+
+    if (mode !== "slow") return {kind: "ready", objectUrl: imageSrc};
+
+    return new Promise((resolve, reject) => {
+      const timer = window.setTimeout(() => {
+        signal.removeEventListener("abort", abort);
+        resolve({kind: "ready", objectUrl: imageSrc});
+      }, 9_000);
+      const abort = () => {
+        window.clearTimeout(timer);
+        reject(new DOMException("The operation was aborted", "AbortError"));
+      };
+      signal.addEventListener("abort", abort, {once: true});
+    });
+  };
+}
 
 function getPreviewQuery(search = "") {
   const query = new URLSearchParams(search);
   const presentation = query.get("presentation");
   const result = query.get("result");
   const consultation = query.get("consultation");
+  const imagery = query.get("imagery");
   return {
     presentation: campaigns.some((item) => item.slug === presentation)
       ? presentation as RoofAssessmentPresentationKey
@@ -58,6 +88,9 @@ function getPreviewQuery(search = "") {
     consultation: consultation === "success" || consultation === "error"
       ? consultation as ConsultationPreviewMode
       : null,
+    imagery: (["ready", "slow", "retry", "pending"] as const).includes(
+      imagery as ImageryPreviewMode,
+    ) ? imagery as ImageryPreviewMode : "ready",
   };
 }
 
@@ -91,6 +124,7 @@ export function AssessmentSandbox() {
   const [campaignOverride, setCampaignOverride] = useState<RoofAssessmentPresentationKey | null>(null);
   const campaign = campaignOverride ?? previewQuery.presentation;
   const [run, setRun] = useState(0);
+  const [imageryOverride, setImageryOverride] = useState<ImageryPreviewMode | null>(null);
   const [resultOverride, setResultOverride] = useState<{
     recommendation: RoofAssessmentRecommendation;
     responses: RoofAssessmentResponses;
@@ -102,6 +136,11 @@ export function AssessmentSandbox() {
   const imageUrl = campaign === "for-every-season" || campaign === "all-season-main"
     ? "/campaigns/every-season.jpg"
     : "/campaigns/roof-above.jpg";
+  const imagery = imageryOverride ?? previewQuery.imagery;
+  const imageryFixture = useMemo(() => ({
+    key: `${imagery}-${run}`,
+    loader: createPreviewAerialLoader(imagery),
+  }), [imagery, run]);
 
   useEffect(() => {
     if (!previewQuery.consultation) return;
@@ -138,6 +177,12 @@ export function AssessmentSandbox() {
     setRun((value) => value + 1);
   }
 
+  function previewImagery(nextImagery: ImageryPreviewMode) {
+    setImageryOverride(nextImagery);
+    setResultOverride(null);
+    setRun((value) => value + 1);
+  }
+
   if (result) {
     return (
       <AssessmentResult
@@ -160,7 +205,8 @@ export function AssessmentSandbox() {
         <summary className="cursor-pointer list-none rounded-md border border-slate-300 bg-white/95 px-4 py-3 text-xs font-bold text-slate-800 shadow-xl backdrop-blur marker:hidden">
           Preview campaign
         </summary>
-        <nav className="absolute bottom-[calc(100%+0.5rem)] right-0 grid min-w-48 overflow-hidden rounded-md border border-slate-200 bg-white p-1 shadow-2xl" aria-label="Assessment preview campaign">
+        <nav className="absolute bottom-[calc(100%+0.5rem)] right-0 grid min-w-56 overflow-hidden rounded-md border border-slate-200 bg-white p-1 shadow-2xl" aria-label="Assessment preview controls">
+          <p className="px-3 pb-1 pt-2 text-[0.65rem] font-black uppercase tracking-[0.16em] text-slate-400">Campaign</p>
           {campaigns.map((item) => (
             <button
               key={item.slug}
@@ -172,10 +218,28 @@ export function AssessmentSandbox() {
               {item.label}
             </button>
           ))}
+          <p className="mt-1 border-t border-slate-200 px-3 pb-1 pt-3 text-[0.65rem] font-black uppercase tracking-[0.16em] text-slate-400">Property imagery</p>
+          {([
+            ["ready", "Ready"],
+            ["slow", "Slow"],
+            ["retry", "Retry then ready"],
+            ["pending", "Persistent pending"],
+          ] as const).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={imagery === value}
+              onClick={() => previewImagery(value)}
+              className="whitespace-nowrap rounded-sm px-3 py-2.5 text-left text-xs font-bold text-slate-600 hover:bg-slate-100 aria-pressed:bg-slate-950 aria-pressed:text-white"
+            >
+              {label}
+            </button>
+          ))}
         </nav>
       </details>
       <AssessmentExperience
-        key={`${campaign}-${run}`}
+        key={`${campaign}-${imageryFixture.key}`}
+        aerialLoader={imageryFixture.loader}
         preview
         token="11111111-1111-4111-8111-111111111111"
         address="18 Harbor View Drive, Red Bank, NJ 07701"

@@ -31,12 +31,51 @@ vi.mock("../[token]/assessment-questionnaire", () => ({
   ),
 }));
 
-const {AssessmentSandbox} = await import("./assessment-sandbox");
+const {AssessmentSandbox, createPreviewAerialLoader} = await import("./assessment-sandbox");
 
 describe("development assessment sandbox", () => {
   afterEach(() => {
+    vi.useRealTimers();
     window.history.replaceState({}, "", "/roof-estimate/dev-assessment");
     vi.unstubAllGlobals();
+  });
+
+  test("provides deterministic ready, slow, retry, and pending imagery fixtures", async () => {
+    vi.useFakeTimers();
+    const signal = new AbortController().signal;
+
+    await expect(createPreviewAerialLoader("ready")({
+      imageSrc: "/campaigns/every-season.jpg",
+      signal,
+    })).resolves.toEqual({kind: "ready", objectUrl: "/campaigns/every-season.jpg"});
+
+    let slowResolved = false;
+    const slow = createPreviewAerialLoader("slow")({
+      imageSrc: "/campaigns/every-season.jpg",
+      signal,
+    }).then((result) => {
+      slowResolved = true;
+      return result;
+    });
+    await vi.advanceTimersByTimeAsync(8_999);
+    expect(slowResolved).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(slow).resolves.toEqual({
+      kind: "ready",
+      objectUrl: "/campaigns/every-season.jpg",
+    });
+
+    const retryThenReady = createPreviewAerialLoader("retry");
+    await expect(retryThenReady({imageSrc: "/campaigns/every-season.jpg", signal}))
+      .resolves.toEqual({kind: "retry", delayMs: 2_500});
+    await expect(retryThenReady({imageSrc: "/campaigns/every-season.jpg", signal}))
+      .resolves.toEqual({kind: "ready", objectUrl: "/campaigns/every-season.jpg"});
+
+    const pending = createPreviewAerialLoader("pending");
+    await expect(pending({imageSrc: "/campaigns/every-season.jpg", signal}))
+      .resolves.toEqual({kind: "retry", delayMs: 2_500});
+    await expect(pending({imageSrc: "/campaigns/every-season.jpg", signal}))
+      .resolves.toEqual({kind: "retry", delayMs: 2_500});
   });
 
   test("the consultation action does not restart the loading flow", () => {

@@ -2,65 +2,93 @@
 
 import { useEffect, useRef, useState } from "react";
 
+export const MINIMUM_ANALYSIS_MS = 8_000;
+export const AERIAL_HARD_CAP_MS = 12_000;
+
+type LoadingTiming = {
+  imageSrc: string;
+  activeStage: number;
+  minimumElapsed: boolean;
+  imageTimeoutElapsed: boolean;
+};
+
+function initialTiming(imageSrc: string): LoadingTiming {
+  return {imageSrc, activeStage: 0, minimumElapsed: false, imageTimeoutElapsed: false};
+}
+
 export function AssessmentLoading({
   address,
   imageSrc,
+  imageObjectUrl,
   stages,
-  minimumDurationMs = 5_000,
-  imageTimeoutMs = 12_000,
+  minimumDurationMs = MINIMUM_ANALYSIS_MS,
+  imageTimeoutMs = AERIAL_HARD_CAP_MS,
   onReady,
 }: {
   address: string;
   imageSrc: string;
+  imageObjectUrl: string | null;
   stages: readonly string[];
   minimumDurationMs?: number;
   imageTimeoutMs?: number;
   onReady: (result: {imageAvailable: boolean}) => void;
 }) {
-  const [activeStage, setActiveStage] = useState(0);
-  const [minimumElapsed, setMinimumElapsed] = useState(false);
-  const [imageState, setImageState] = useState<"pending" | "available" | "unavailable">("pending");
+  const [storedTiming, setTiming] = useState<LoadingTiming>(() => initialTiming(imageSrc));
+  const timing = storedTiming.imageSrc === imageSrc ? storedTiming : initialTiming(imageSrc);
   const completed = useRef(false);
 
   useEffect(() => {
+    completed.current = false;
     const stageDuration = minimumDurationMs / stages.length;
     const stageTimer = window.setInterval(() => {
-      setActiveStage((current) => Math.min(current + 1, stages.length - 1));
+      setTiming((current) => ({
+        ...(current.imageSrc === imageSrc ? current : initialTiming(imageSrc)),
+        activeStage: Math.min(
+          (current.imageSrc === imageSrc ? current.activeStage : 0) + 1,
+          stages.length - 1,
+        ),
+      }));
     }, stageDuration);
-    const minimumTimer = window.setTimeout(() => setMinimumElapsed(true), minimumDurationMs);
-    const imageTimer = window.setTimeout(() => {
-      setImageState((current) => current === "pending" ? "unavailable" : current);
-    }, imageTimeoutMs);
+    const minimumTimer = window.setTimeout(() => setTiming((current) => ({
+      ...(current.imageSrc === imageSrc ? current : initialTiming(imageSrc)),
+      minimumElapsed: true,
+    })), minimumDurationMs);
+    const imageTimer = window.setTimeout(() => setTiming((current) => ({
+      ...(current.imageSrc === imageSrc ? current : initialTiming(imageSrc)),
+      imageTimeoutElapsed: true,
+    })), imageTimeoutMs);
 
     return () => {
       window.clearInterval(stageTimer);
       window.clearTimeout(minimumTimer);
       window.clearTimeout(imageTimer);
     };
-  }, [imageTimeoutMs, minimumDurationMs, stages.length]);
+  }, [imageSrc, imageTimeoutMs, minimumDurationMs, stages.length]);
 
   useEffect(() => {
-    if (!minimumElapsed || imageState === "pending" || completed.current) return;
+    if (
+      completed.current ||
+      (!timing.imageTimeoutElapsed && (!timing.minimumElapsed || !imageObjectUrl))
+    ) return;
     completed.current = true;
-    onReady({imageAvailable: imageState === "available"});
-  }, [imageState, minimumElapsed, onReady]);
+    onReady({imageAvailable: Boolean(imageObjectUrl)});
+  }, [imageObjectUrl, onReady, timing.imageTimeoutElapsed, timing.minimumElapsed]);
 
-  const activeLabel = stages[activeStage] ?? "Preparing the assessment";
+  const activeLabel = stages[timing.activeStage] ?? "Preparing the assessment";
 
   return (
     <main className="assessment-flow assessment-analysis-shell min-h-[100dvh] w-full max-w-full overflow-x-hidden bg-[#071f2e] text-white">
       <div className="assessment-analysis-image" aria-hidden="true">
         <div className="assessment-analysis-grid" />
       </div>
-      {/* The browser reuses this image response from cache for the reveal. */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={imageSrc}
-        alt={`Aerial view loading for ${address}`}
-        onLoad={() => setImageState("available")}
-        onError={() => setImageState("unavailable")}
-        className={`assessment-analysis-aerial ${imageState === "available" ? "is-ready" : ""}`}
-      />
+      {imageObjectUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={imageObjectUrl}
+          alt={`Aerial view loading for ${address}`}
+          className="assessment-analysis-aerial is-ready"
+        />
+      ) : null}
       <div className="assessment-analysis-scrim" />
 
       <div className="relative z-10 mx-auto flex min-h-[100dvh] w-full max-w-7xl flex-col px-5 py-6 sm:px-8 sm:py-8 lg:px-12">
@@ -97,16 +125,16 @@ export function AssessmentLoading({
             <div className="assessment-stage-window" aria-hidden="true">
               <div
                 className="assessment-stage-rail"
-                style={{transform: `translateY(-${activeStage * 3.25}rem)`}}
+                style={{transform: `translateY(-${timing.activeStage * 3.25}rem)`}}
               >
                 {stages.map((stage, index) => (
                   <div
                     className="assessment-stage-row"
-                    data-active={index === activeStage}
-                    data-complete={index < activeStage}
+                    data-active={index === timing.activeStage}
+                    data-complete={index < timing.activeStage}
                     key={stage}
                   >
-                    <span>{index < activeStage ? "✓" : String(index + 1).padStart(2, "0")}</span>
+                    <span>{index < timing.activeStage ? "✓" : String(index + 1).padStart(2, "0")}</span>
                     <strong>{stage}</strong>
                   </div>
                 ))}
