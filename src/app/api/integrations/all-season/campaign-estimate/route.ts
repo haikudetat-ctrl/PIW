@@ -146,6 +146,9 @@ export async function POST(request: NextRequest) {
                 ...details,
                 apiKey: environment.GOOGLE_MAPS_API_KEY,
               }),
+              logCompletion: (completion) => {
+                console.info("roof_assessment_property_prefetch", completion);
+              },
             })
             : undefined,
         }),

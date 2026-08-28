@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   parseServerEnv: vi.fn(),
@@ -123,6 +123,10 @@ beforeEach(() => {
       googlePlaceId: input.googlePlaceId,
     }),
   );
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe("All Season campaign estimate intake", () => {
@@ -382,6 +386,52 @@ describe("All Season campaign estimate intake", () => {
       apiKey: "maps-server-key",
       signal: expect.any(AbortSignal),
     }));
+  });
+
+  test.each([
+    [
+      "completed",
+      {outcome: "applied", reason: undefined, providerDurationMs: 14, persistenceDurationMs: 8, totalDurationMs: 24},
+      {kind: "applied", providerDurationMs: 14, totalDurationMs: 24},
+    ],
+    [
+      "skipped",
+      {outcome: "skipped", reason: "not_exact", providerDurationMs: 9, persistenceDurationMs: 0, totalDurationMs: 10},
+      {kind: "skipped", reason: "not_exact"},
+    ],
+    [
+      "failed",
+      {outcome: "deferred", reason: "provider_failed", providerDurationMs: 2_500, persistenceDurationMs: 0, totalDurationMs: 2_501},
+      {kind: "deferred", reason: "provider_failed"},
+    ],
+  ] as const)("emits one sanitized %s prefetch completion record", async (_outcome, completion, result) => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    mocks.startOrResumeRoofAssessment.mockImplementation(async (input, dependencies) => {
+      await dependencies.postConsentPrefetch({
+        companyId: input.companyId,
+        attemptId: "33333333-3333-4333-8333-333333333333",
+        submittedAddress: input.submittedAddress,
+        googlePlaceId: input.googlePlaceId,
+      });
+      return {
+        kind: "continue",
+        continuationPath: "/roof-estimate/continue/signed_token-123",
+      };
+    });
+    mocks.runPostConsentPropertyPrefetch.mockImplementation(async (_input, dependencies) => {
+      dependencies.logCompletion(completion);
+      return result;
+    });
+
+    const response = await POST(request(validPayload));
+
+    expect(response.status).toBe(202);
+    expect(info).toHaveBeenCalledTimes(1);
+    expect(info).toHaveBeenCalledWith("roof_assessment_property_prefetch", completion);
+    const serialized = JSON.stringify(info.mock.calls[0]);
+    expect(serialized).not.toMatch(
+      /Alex Rivera|alex@example\.com|201-555-0100|1 Main St|ChIJN1t_tDeuEmsRUsoyG83frY4|latitude|longitude|signed_token|maps-server-key/i,
+    );
   });
 
   test("returns a generic no-store 503 when canonical intake fails", async () => {
