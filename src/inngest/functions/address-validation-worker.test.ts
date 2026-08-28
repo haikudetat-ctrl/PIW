@@ -825,6 +825,23 @@ test("existing provider request still backfills its missing source evidence", as
 
 test("Supabase prefetch lookup requires exact pipeline and attempt provenance scope", async () => {
   const companyId = "99999999-9999-4999-8999-999999999999";
+  const assessmentId = "11111111-1111-4111-8111-111111111111";
+  const startedEvent = {
+    id: "22222222-2222-4222-8222-222222222222",
+    name: "roof/assessment.started",
+    schemaVersion: 1,
+    correlationId: event.correlationId,
+    leadId: event.leadId,
+    propertyId: event.propertyId,
+    pipelineRunId: event.pipelineRunId,
+    occurredAt: "2026-08-28T12:00:00.000Z",
+    idempotencyKey: `roof/assessment.started:${assessmentId}`,
+    data: {
+      assessmentId,
+      entryPoint: "main-home",
+      presentationKey: "all-season-main",
+    },
+  };
   const calls: Array<[string, string, unknown?]> = [];
   const pipelineQuery = {
     select(columns: string) {
@@ -836,6 +853,25 @@ test("Supabase prefetch lookup requires exact pipeline and attempt provenance sc
       return pipelineQuery;
     },
     maybeSingle: async () => ({data: {company_id: companyId}, error: null}),
+  };
+  const eventQuery = {
+    select(columns: string) {
+      calls.push(["domain_events", "select", columns]);
+      return eventQuery;
+    },
+    eq(column: string, value: unknown) {
+      calls.push(["domain_events", column, value]);
+      return eventQuery;
+    },
+    maybeSingle: async () => ({
+      data: {
+        id: startedEvent.id,
+        correlation_id: startedEvent.correlationId,
+        idempotency_key: startedEvent.idempotencyKey,
+        payload: startedEvent,
+      },
+      error: null,
+    }),
   };
   const addressQuery = {
     select(columns: string) {
@@ -874,6 +910,7 @@ test("Supabase prefetch lookup requires exact pipeline and attempt provenance sc
   const client = {
     from(table: string) {
       if (table === "pipeline_runs") return pipelineQuery;
+      if (table === "domain_events") return eventQuery;
       if (table === "property_addresses") return addressQuery;
       throw new Error(`Unexpected table: ${table}`);
     },
@@ -893,6 +930,8 @@ test("Supabase prefetch lookup requires exact pipeline and attempt provenance sc
   expect(calls).toContainEqual(["pipeline_runs", "id", event.pipelineRunId]);
   expect(calls).toContainEqual(["pipeline_runs", "lead_id", event.leadId]);
   expect(calls).toContainEqual(["pipeline_runs", "property_id", event.propertyId]);
+  expect(calls).toContainEqual(["domain_events", "pipeline_run_id", event.pipelineRunId]);
+  expect(calls).toContainEqual(["domain_events", "event_name", "roof/assessment.started"]);
   expect(calls).toContainEqual(["property_addresses", "company_id", companyId]);
   expect(calls).toContainEqual(["property_addresses", "property_id", event.propertyId]);
   expect(calls).toContainEqual([
@@ -909,6 +948,11 @@ test("Supabase prefetch lookup requires exact pipeline and attempt provenance sc
     "property_addresses",
     "roof_assessment_access_attempts.property_id",
     event.propertyId,
+  ]);
+  expect(calls).toContainEqual([
+    "property_addresses",
+    "roof_assessment_access_attempts.assessment_id",
+    assessmentId,
   ]);
   expect(calls).toContainEqual(["property_addresses", "match_method", "exact_single_match"]);
   expect(calls).toContainEqual(["property_addresses", "state_code", "NJ"]);
@@ -928,6 +972,109 @@ test("Supabase prefetch lookup requires exact pipeline and attempt provenance sc
     && String(value).includes("!inner")
   )).toBeTruthy();
   expect(JSON.stringify(calls)).not.toContain("google_place_id");
+});
+
+test("same-scope pipeline cannot reuse evidence from another pipeline's assessment", async () => {
+  const companyId = "99999999-9999-4999-8999-999999999999";
+  const pipelineAId = event.pipelineRunId;
+  const pipelineBId = "abababab-abab-4bab-8bab-abababababab";
+  const assessmentAId = "11111111-1111-4111-8111-111111111111";
+  const assessmentBId = "22222222-2222-4222-8222-222222222222";
+  const startedEventB = {
+    id: "33333333-3333-4333-8333-333333333333",
+    name: "roof/assessment.started",
+    schemaVersion: 1,
+    correlationId: event.correlationId,
+    leadId: event.leadId,
+    propertyId: event.propertyId,
+    pipelineRunId: pipelineBId,
+    occurredAt: "2026-08-28T12:00:00.000Z",
+    idempotencyKey: `roof/assessment.started:${assessmentBId}`,
+    data: {
+      assessmentId: assessmentBId,
+      entryPoint: "main-home",
+      presentationKey: "all-season-main",
+    },
+  };
+
+  function queryFor(table: string) {
+    const filters = new Map<string, unknown>();
+    const query = {
+      select() { return query; },
+      eq(column: string, value: unknown) {
+        filters.set(column, value);
+        return query;
+      },
+      gte() { return query; },
+      not() { return query; },
+      order() { return query; },
+      limit() { return query; },
+      maybeSingle: async () => {
+        if (table === "pipeline_runs") {
+          const pipelineId = filters.get("id");
+          return {
+            data: [pipelineAId, pipelineBId].includes(String(pipelineId))
+              ? {company_id: companyId}
+              : null,
+            error: null,
+          };
+        }
+        if (table === "domain_events") {
+          return {
+            data: filters.get("pipeline_run_id") === pipelineBId
+              ? {
+                  id: startedEventB.id,
+                  correlation_id: startedEventB.correlationId,
+                  idempotency_key: startedEventB.idempotencyKey,
+                  payload: startedEventB,
+                }
+              : null,
+            error: null,
+          };
+        }
+        if (table === "property_addresses") {
+          const assessmentFilter = filters.get(
+            "roof_assessment_access_attempts.assessment_id",
+          );
+          return {
+            data: assessmentFilter === undefined || assessmentFilter === assessmentAId
+              ? {
+                  canonical_address: "18 HARBOR VIEW DR, RED BANK, NJ 07701",
+                  latitude: 40.3501,
+                  longitude: -74.0642,
+                }
+              : null,
+            error: null,
+          };
+        }
+        throw new Error(`Unexpected table: ${table}`);
+      },
+    };
+    return query;
+  }
+
+  const client = {from: (table: string) => queryFor(table)};
+  const supabaseRepository = new SupabaseAddressValidationWorkerRepository(
+    client as never,
+  );
+  const findExactAssessmentPrefetch = vi.fn((input) =>
+    supabaseRepository.findExactAssessmentPrefetch(input)
+  );
+  const validateAddress = vi.fn(async () => evidence(VALIDATED_ADDRESS));
+  const state = makeRepository({findExactAssessmentPrefetch, validateAddress});
+
+  await expect(findExactAssessmentPrefetch({
+    pipelineRunId: pipelineBId,
+    leadId: event.leadId,
+    propertyId: event.propertyId,
+  })).resolves.toBeNull();
+  const result = await runAddressValidation(
+    {...event, pipelineRunId: pipelineBId},
+    state.repository,
+  );
+
+  expect(result.outcome).toBe("discovery_requested");
+  expect(validateAddress).toHaveBeenCalledTimes(1);
 });
 
 test("Supabase prefetch lookup ignores foreign pipeline scope before reading evidence", async () => {

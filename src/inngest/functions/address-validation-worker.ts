@@ -5,7 +5,7 @@ import {
   addressValidationResultSchema,
   type AddressValidationResult,
 } from "@/domain/property-identity";
-import { createEventEnvelope } from "@/domain/events";
+import { createEventEnvelope, eventEnvelopeSchema } from "@/domain/events";
 import { addressValidationRequested, inngest } from "@/inngest/client";
 import { parseServerEnv } from "@/lib/env/server";
 import type { Database, Json } from "@/lib/database.types";
@@ -527,6 +527,35 @@ export class SupabaseAddressValidationWorkerRepository
     }
     if (!pipelineRun) return null;
 
+    const { data: startedEventRow, error: startedEventError } = await this.client
+      .from("domain_events")
+      .select("id, correlation_id, idempotency_key, payload")
+      .eq("company_id", pipelineRun.company_id)
+      .eq("pipeline_run_id", input.pipelineRunId)
+      .eq("event_name", "roof/assessment.started")
+      .eq("schema_version", 1)
+      .maybeSingle();
+    if (startedEventError) {
+      throw new Error("Failed to check assessment-prefetch started event");
+    }
+    if (!startedEventRow) return null;
+
+    const startedEvent = eventEnvelopeSchema.safeParse(startedEventRow.payload);
+    if (
+      !startedEvent.success ||
+      startedEvent.data.name !== "roof/assessment.started" ||
+      startedEvent.data.id !== startedEventRow.id ||
+      startedEvent.data.correlationId !== startedEventRow.correlation_id ||
+      startedEvent.data.idempotencyKey !== startedEventRow.idempotency_key ||
+      startedEvent.data.pipelineRunId !== input.pipelineRunId ||
+      startedEvent.data.leadId !== input.leadId ||
+      startedEvent.data.propertyId !== input.propertyId ||
+      startedEvent.data.idempotencyKey !==
+        `roof/assessment.started:${startedEvent.data.data.assessmentId}`
+    ) {
+      return null;
+    }
+
     const { data, error } = await this.client
       .from("property_addresses")
       .select(`
@@ -545,6 +574,10 @@ export class SupabaseAddressValidationWorkerRepository
       .eq("roof_assessment_access_attempts.company_id", pipelineRun.company_id)
       .eq("roof_assessment_access_attempts.lead_id", input.leadId)
       .eq("roof_assessment_access_attempts.property_id", input.propertyId)
+      .eq(
+        "roof_assessment_access_attempts.assessment_id",
+        startedEvent.data.data.assessmentId,
+      )
       .eq("roof_assessment_access_attempts.attempt_kind", "new")
       .eq("state_code", "NJ")
       .eq("match_method", "exact_single_match")
