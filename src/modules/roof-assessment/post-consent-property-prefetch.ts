@@ -60,6 +60,8 @@ function isExactNjEvidence(
   googlePlaceId: string,
 ): boolean {
   return evidence.googlePlaceId === googlePlaceId &&
+    evidence.canonicalAddress !== null &&
+    evidence.canonicalAddress.trim().length > 0 &&
     evidence.matchMethod === "exact_single_match" &&
     evidence.stateCode === "NJ" &&
     evidence.confidence >= 95 &&

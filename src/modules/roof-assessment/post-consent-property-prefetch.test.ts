@@ -166,6 +166,30 @@ describe("runPostConsentPropertyPrefetch", () => {
     expect(deps.repository.apply).not.toHaveBeenCalled();
   });
 
+  test("skips null canonical address evidence without persistence", async () => {
+    const deps = dependencies({fetchGooglePlaceDetails: vi.fn().mockResolvedValue({
+      ...EXACT_NJ,
+      canonicalAddress: null,
+    })});
+
+    await expect(runPostConsentPropertyPrefetch(INPUT, deps)).resolves.toEqual({
+      kind: "skipped", reason: "not_exact",
+    });
+    expect(deps.repository.apply).not.toHaveBeenCalled();
+  });
+
+  test("skips whitespace-only canonical address evidence without persistence", async () => {
+    const deps = dependencies({fetchGooglePlaceDetails: vi.fn().mockResolvedValue({
+      ...EXACT_NJ,
+      canonicalAddress: "   ",
+    })});
+
+    await expect(runPostConsentPropertyPrefetch(INPUT, deps)).resolves.toEqual({
+      kind: "skipped", reason: "not_exact",
+    });
+    expect(deps.repository.apply).not.toHaveBeenCalled();
+  });
+
   test("defers when persistence rejects", async () => {
     const deps = dependencies({repository: repository({
       apply: vi.fn().mockRejectedValue(new Error("database")),
