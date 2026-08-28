@@ -101,8 +101,6 @@ button:disabled { opacity: .55; cursor: wait; }
   isolation: isolate;
   width: 100%;
   min-height: calc(100dvh - 76px);
-  display: grid;
-  grid-template-columns: minmax(0, 58%) minmax(390px, 42%);
   overflow: hidden;
   background: var(--campaign-paper);
 }
@@ -114,45 +112,42 @@ button:disabled { opacity: .55; cursor: wait; }
   z-index: 1;
   pointer-events: none;
   background:
-    linear-gradient(90deg, transparent 0 43%, color-mix(in srgb, var(--campaign-paper) 52%, transparent) 57%, var(--campaign-paper) 76%),
-    linear-gradient(0deg, color-mix(in srgb, var(--campaign-paper) 88%, transparent), transparent 30%);
+    linear-gradient(180deg, color-mix(in srgb, var(--campaign-paper) 82%, transparent) 0, color-mix(in srgb, var(--campaign-paper) 48%, transparent) 54%, color-mix(in srgb, var(--campaign-paper) 18%, transparent) 100%),
+    linear-gradient(90deg, color-mix(in srgb, var(--campaign-paper) 58%, transparent) 0 26%, transparent 58%, color-mix(in srgb, var(--campaign-paper) 30%, transparent) 100%);
 }
 
-.campaign-ad-ambient {
+.campaign-hero-media {
   position: absolute;
-  inset: -8%;
+  inset: 0;
   z-index: 0;
-  opacity: .44;
-  filter: blur(42px) saturate(1.08);
-  transform: scale(1.08);
 }
 
-.campaign-ad-ambient img { object-fit: cover; }
-
-.campaign-ad-foreground {
-  position: relative;
-  z-index: 1;
-  grid-column: 1;
-  min-height: calc(100dvh - 76px);
-}
-
-.campaign-ad-foreground img {
-  object-fit: contain;
-  object-position: left center;
-}
+.campaign-hero-media img { object-fit: cover; object-position: center 42%; }
+.campaign-hero[data-campaign="weather-report"] .campaign-hero-media img { object-position: center 45%; }
+.campaign-hero[data-campaign="seasonal-shield"] .campaign-hero-media img { object-position: center 43%; }
+.campaign-hero[data-campaign="for-every-season"] .campaign-hero-media img { object-position: center 34%; }
 
 .campaign-conversion {
   position: relative;
   z-index: 2;
-  grid-column: 2;
-  align-self: center;
-  width: min(100%, 560px);
-  padding: 42px clamp(28px, 5vw, 76px) 54px 18px;
+  width: min(1440px, 100%);
+  min-height: calc(100dvh - 76px);
+  margin: 0 auto;
+  padding: clamp(24px, 4.5vh, 48px) 4vw 40px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(390px, 500px);
+  align-items: start;
+  gap: clamp(34px, 6vw, 110px);
 }
 
 .campaign-bridge {
-  width: min(100%, 500px);
-  margin: 0 0 24px auto;
+  width: min(100%, 650px);
+  margin: 0;
+  padding: clamp(24px, 3.2vw, 42px);
+  border-left: 4px solid var(--campaign-signal);
+  background: color-mix(in srgb, var(--campaign-paper) 70%, transparent);
+  box-shadow: 0 24px 64px rgba(3, 21, 31, .18);
+  backdrop-filter: blur(16px) saturate(115%);
 }
 
 .campaign-bridge > span,
@@ -165,10 +160,10 @@ button:disabled { opacity: .55; cursor: wait; }
 }
 
 .campaign-bridge h1 {
-  max-width: 11ch;
+  max-width: 13ch;
   margin: 13px 0 12px;
   color: var(--campaign-ink);
-  font: 700 clamp(2rem, 3vw, 3.25rem)/.96 "Montserrat Campaign", sans-serif;
+  font: 700 clamp(2.15rem, 4.2vw, 4.65rem)/.93 "Montserrat Campaign", sans-serif;
   letter-spacing: -.045em;
   text-transform: uppercase;
   text-wrap: balance;
@@ -190,14 +185,14 @@ button:disabled { opacity: .55; cursor: wait; }
 .campaign-form {
   width: 100%;
   max-width: 500px;
-  margin: 0 0 0 auto;
+  margin: 0;
   padding: clamp(24px, 3vw, 38px);
   display: grid;
   gap: 20px;
   border: 1px solid var(--campaign-line);
   border-top: 4px solid var(--campaign-signal);
-  background: color-mix(in srgb, var(--campaign-surface) 88%, transparent);
-  box-shadow: 0 28px 80px color-mix(in srgb, var(--campaign-paper) 75%, transparent);
+  background: color-mix(in srgb, var(--campaign-surface) 92%, transparent);
+  box-shadow: 0 28px 80px rgba(3, 21, 31, .36);
   backdrop-filter: blur(20px) saturate(125%);
 }
 
@@ -364,15 +359,12 @@ button:disabled { opacity: .55; cursor: wait; }
 .campaign-footer-legal a { color: var(--campaign-muted); font-weight: 650; text-decoration: underline; text-underline-offset: 3px; }
 
 @media (max-width: 1120px) {
-  .campaign-hero {
-    grid-template-columns: minmax(0, 52%) minmax(380px, 48%);
+  .campaign-conversion {
+    grid-template-columns: minmax(0, 1fr) minmax(370px, 46%);
+    gap: 28px;
   }
-  .campaign-hero::after {
-    background:
-      linear-gradient(90deg, transparent 0 35%, color-mix(in srgb, var(--campaign-paper) 62%, transparent) 50%, var(--campaign-paper) 72%),
-      linear-gradient(0deg, color-mix(in srgb, var(--campaign-paper) 88%, transparent), transparent 30%);
-  }
-  .campaign-conversion { padding-left: 0; padding-right: 32px; }
+  .campaign-bridge { padding: 28px; }
+  .campaign-bridge h1 { font-size: clamp(2rem, 4.5vw, 3.75rem); }
 }
 
 @media (max-width: 760px) {
@@ -381,28 +373,42 @@ button:disabled { opacity: .55; cursor: wait; }
   .campaign-phone strong { font-size: .78rem; }
   .campaign-brand img { width: 38px; height: 38px; }
   .campaign-hero {
-    min-height: auto;
-    display: block;
-    padding: 0 0 64px;
+    min-height: calc(100dvh - 70px);
   }
   .campaign-hero::after {
-    background: linear-gradient(0deg, var(--campaign-paper) 0 42%, color-mix(in srgb, var(--campaign-paper) 78%, transparent) 60%, transparent 82%);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--campaign-paper) 78%, transparent) 0 70%, color-mix(in srgb, var(--campaign-paper) 42%, transparent) 100%);
   }
-  .campaign-ad-ambient { inset: -3%; opacity: .5; filter: blur(28px) saturate(1.05); }
-  .campaign-ad-foreground {
-    width: 100%;
-    min-height: 0;
-    aspect-ratio: 4 / 5;
-  }
-  .campaign-ad-foreground img { object-fit: cover; object-position: center top; }
+  .campaign-hero-media img { object-position: center top; }
+  .campaign-hero[data-campaign="weather-report"] .campaign-hero-media img { object-position: center top; }
+  .campaign-hero[data-campaign="seasonal-shield"] .campaign-hero-media img { object-position: center 28%; }
+  .campaign-hero[data-campaign="for-every-season"] .campaign-hero-media img { object-position: center top; }
   .campaign-conversion {
     width: 100%;
-    margin-top: -24px;
-    padding: 0 20px;
+    min-height: calc(100dvh - 70px);
+    padding: 14px 14px 22px;
+    display: grid;
+    grid-template-columns: 1fr;
+    align-content: start;
+    gap: 10px;
   }
-  .campaign-bridge { margin: 0 0 24px; }
-  .campaign-bridge h1 { max-width: 13ch; font-size: clamp(2.15rem, 9vw, 3rem); }
-  .campaign-form { max-width: none; padding: 25px 20px; }
+  .campaign-bridge {
+    width: 100%;
+    padding: 14px 16px;
+    border-left-width: 3px;
+  }
+  .campaign-bridge > span { font-size: .6rem; }
+  .campaign-bridge h1 { max-width: 15ch; margin: 8px 0 0; font-size: clamp(1.65rem, 7.8vw, 2.35rem); }
+  .campaign-bridge p { display: none; }
+  .campaign-form { max-width: none; padding: 18px 16px; gap: 13px; }
+  .campaign-form header { gap: 5px; }
+  .campaign-form h2 { font-size: clamp(1.55rem, 7vw, 2rem); }
+  .campaign-form header p { font-size: .76rem; line-height: 1.35; }
+  .campaign-step-meter span { padding-bottom: 7px; }
+  .campaign-form fieldset { gap: 10px; }
+  .campaign-field { gap: 5px; }
+  .campaign-field input { min-height: 44px; }
+  .campaign-primary-action { min-height: 46px; }
+  .campaign-fine-print { font-size: .56rem; line-height: 1.3; }
   .campaign-proof { width: calc(100% - 40px); grid-template-columns: 1fr; }
   .campaign-proof div { min-height: 105px; padding: 24px 6px; grid-template-columns: 120px 1fr; align-items: center; }
   .campaign-proof div + div { border-left: 0; border-top: 1px solid var(--campaign-line); }
@@ -417,8 +423,24 @@ button:disabled { opacity: .55; cursor: wait; }
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  .campaign-form {
+  .campaign-form,
+  .campaign-bridge {
     background: var(--campaign-surface);
     backdrop-filter: none;
   }
+}
+
+@media (max-width: 760px) and (max-height: 680px) {
+  .campaign-conversion { padding-top: 9px; gap: 7px; }
+  .campaign-bridge { padding: 9px 13px; }
+  .campaign-bridge > span,
+  .campaign-form-label,
+  .campaign-form header p,
+  .campaign-fine-print { display: none; }
+  .campaign-bridge h1 { margin: 0; font-size: clamp(1.45rem, 7vw, 1.95rem); }
+  .campaign-form { padding: 13px; gap: 9px; }
+  .campaign-form h2 { font-size: 1.5rem; }
+  .campaign-form fieldset { gap: 8px; }
+  .campaign-field small { display: none; }
+  .campaign-primary-action { min-height: 44px; }
 }

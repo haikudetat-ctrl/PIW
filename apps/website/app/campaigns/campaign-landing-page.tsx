@@ -30,12 +30,17 @@ export function CampaignLandingPage({campaign}: {campaign: CampaignDefinition}) 
         <a className="campaign-phone" href="tel:+18888325050"><small>Talk to a local specialist</small><strong>(888) 832-5050</strong></a>
       </nav>
 
-      <section className="campaign-hero">
-        <div className="campaign-ad-ambient" aria-hidden="true">
-          <Image src={campaign.image} alt="" fill priority sizes="100vw" />
-        </div>
-        <div className="campaign-ad-foreground">
-          <Image src={campaign.image} alt={campaign.imageAlt} fill priority sizes="(max-width: 760px) 100vw, 62vw" />
+      <section className="campaign-hero" data-campaign={campaign.slug}>
+        <div className="campaign-hero-media">
+          <Image
+            src={campaign.image}
+            alt={campaign.imageAlt}
+            fill
+            priority
+            fetchPriority="high"
+            quality={84}
+            sizes="100vw"
+          />
         </div>
         <div className="campaign-conversion" id="estimate">
           <div className="campaign-bridge">
