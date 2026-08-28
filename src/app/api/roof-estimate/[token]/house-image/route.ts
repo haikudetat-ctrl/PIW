@@ -54,6 +54,10 @@ export async function GET(
           .select("latitude, longitude")
           .eq("id", estimate.roof_insight_id)
           .eq("company_id", estimate.company_id)
+          .eq("property_id", estimate.property_id)
+          .eq("lookup_status", "success")
+          .not("latitude", "is", null)
+          .not("longitude", "is", null)
           .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
     service
@@ -61,13 +65,19 @@ export async function GET(
       .select("latitude, longitude")
       .eq("company_id", estimate.company_id)
       .eq("property_id", estimate.property_id)
+      .not("latitude", "is", null)
+      .not("longitude", "is", null)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
   ]);
 
-  const latitudeValue = insight?.latitude ?? address?.latitude;
-  const longitudeValue = insight?.longitude ?? address?.longitude;
+  const insightHasCoordinates =
+    insight?.latitude !== null && insight?.latitude !== undefined &&
+    insight?.longitude !== null && insight?.longitude !== undefined;
+  const coordinates = insightHasCoordinates ? insight : address;
+  const latitudeValue = coordinates?.latitude;
+  const longitudeValue = coordinates?.longitude;
   const latitude = latitudeValue === null || latitudeValue === undefined
     ? Number.NaN
     : Number(latitudeValue);

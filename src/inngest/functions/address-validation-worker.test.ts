@@ -63,6 +63,9 @@ function makeRepository(overrides: Partial<AddressValidationWorkerRepository> = 
       record.status = "completed";
     },
     async startValidating() {},
+    async findExactAssessmentPrefetch() {
+      return null;
+    },
     async validateAddress() {
       validations += 1;
       return evidence(VALIDATED_ADDRESS);
@@ -236,6 +239,69 @@ const event = {
   submittedAddress: "12 Birch St, Trenton, NJ",
   attempt: 1,
 };
+
+test("exact attempt-bound prefetch completes this worker without repeating validation side effects", async () => {
+  const findExactAssessmentPrefetch = vi.fn(async () => ({
+    canonicalAddress: "18 HARBOR VIEW DR, RED BANK, NJ 07701",
+    latitude: 40.3501,
+    longitude: -74.0642,
+  }));
+  const startValidating = vi.fn();
+  const beginProviderRequest = vi.fn(async () => ({providerRequestId: "unused"}));
+  const validateAddress = vi.fn(async () => evidence(VALIDATED_ADDRESS));
+  const claimCanonicalAddress = vi.fn();
+  const recordPropertyAddress = vi.fn(async () => true);
+  const publishDiscoveryRequested = vi.fn();
+  const createReviewTask = vi.fn();
+  const writeAudit = vi.fn();
+  const state = makeRepository({
+    findExactAssessmentPrefetch,
+    startValidating,
+    beginProviderRequest,
+    validateAddress,
+    claimCanonicalAddress,
+    recordPropertyAddress,
+    publishDiscoveryRequested,
+    createReviewTask,
+    writeAudit,
+  });
+
+  const result = await runAddressValidation(event, state.repository);
+
+  expect(findExactAssessmentPrefetch).toHaveBeenCalledWith({
+    pipelineRunId: event.pipelineRunId,
+    leadId: event.leadId,
+    propertyId: event.propertyId,
+  });
+  expect(result).toEqual({
+    workerRunId: `address-validation-worker:${event.pipelineRunId}:1`,
+    outcome: "already_prefetched",
+  });
+  expect(state.completions).toBe(1);
+  expect(startValidating).not.toHaveBeenCalled();
+  expect(beginProviderRequest).not.toHaveBeenCalled();
+  expect(validateAddress).not.toHaveBeenCalled();
+  expect(claimCanonicalAddress).not.toHaveBeenCalled();
+  expect(recordPropertyAddress).not.toHaveBeenCalled();
+  expect(publishDiscoveryRequested).not.toHaveBeenCalled();
+  expect(createReviewTask).not.toHaveBeenCalled();
+  expect(writeAudit).not.toHaveBeenCalled();
+});
+
+test("missing exact-scope prefetch keeps deferred and manual work on the provider path", async () => {
+  const findExactAssessmentPrefetch = vi.fn(async () => null);
+  const validateAddress = vi.fn(async () => evidence(VALIDATED_ADDRESS));
+  const state = makeRepository({findExactAssessmentPrefetch, validateAddress});
+
+  const result = await runAddressValidation(
+    {...event, googlePlaceId: undefined},
+    state.repository,
+  );
+
+  expect(result.outcome).toBe("discovery_requested");
+  expect(validateAddress).toHaveBeenCalledTimes(1);
+  expect(state.addressWrites).toBe(1);
+});
 
 test("normal validation records one observation and publishes discovery", async () => {
   const publishDiscoveryRequested = vi.fn();
@@ -755,6 +821,137 @@ test("existing provider request still backfills its missing source evidence", as
       ignoreDuplicates: true,
     },
   );
+});
+
+test("Supabase prefetch lookup requires exact pipeline and attempt provenance scope", async () => {
+  const companyId = "99999999-9999-4999-8999-999999999999";
+  const calls: Array<[string, string, unknown?]> = [];
+  const pipelineQuery = {
+    select(columns: string) {
+      calls.push(["pipeline_runs", "select", columns]);
+      return pipelineQuery;
+    },
+    eq(column: string, value: unknown) {
+      calls.push(["pipeline_runs", column, value]);
+      return pipelineQuery;
+    },
+    maybeSingle: async () => ({data: {company_id: companyId}, error: null}),
+  };
+  const addressQuery = {
+    select(columns: string) {
+      calls.push(["property_addresses", "select", columns]);
+      return addressQuery;
+    },
+    eq(column: string, value: unknown) {
+      calls.push(["property_addresses", column, value]);
+      return addressQuery;
+    },
+    gte(column: string, value: unknown) {
+      calls.push(["property_addresses", column, value]);
+      return addressQuery;
+    },
+    not(column: string, operator: string, value: unknown) {
+      calls.push(["property_addresses", `${column}.${operator}`, value]);
+      return addressQuery;
+    },
+    order(column: string, options: unknown) {
+      calls.push(["property_addresses", `order.${column}`, options]);
+      return addressQuery;
+    },
+    limit(value: number) {
+      calls.push(["property_addresses", "limit", value]);
+      return addressQuery;
+    },
+    maybeSingle: async () => ({
+      data: {
+        canonical_address: "18 HARBOR VIEW DR, RED BANK, NJ 07701",
+        latitude: 40.3501,
+        longitude: -74.0642,
+      },
+      error: null,
+    }),
+  };
+  const client = {
+    from(table: string) {
+      if (table === "pipeline_runs") return pipelineQuery;
+      if (table === "property_addresses") return addressQuery;
+      throw new Error(`Unexpected table: ${table}`);
+    },
+  };
+  const repository = new SupabaseAddressValidationWorkerRepository(client as never);
+
+  await expect(repository.findExactAssessmentPrefetch({
+    pipelineRunId: event.pipelineRunId,
+    leadId: event.leadId,
+    propertyId: event.propertyId,
+  })).resolves.toEqual({
+    canonicalAddress: "18 HARBOR VIEW DR, RED BANK, NJ 07701",
+    latitude: 40.3501,
+    longitude: -74.0642,
+  });
+
+  expect(calls).toContainEqual(["pipeline_runs", "id", event.pipelineRunId]);
+  expect(calls).toContainEqual(["pipeline_runs", "lead_id", event.leadId]);
+  expect(calls).toContainEqual(["pipeline_runs", "property_id", event.propertyId]);
+  expect(calls).toContainEqual(["property_addresses", "company_id", companyId]);
+  expect(calls).toContainEqual(["property_addresses", "property_id", event.propertyId]);
+  expect(calls).toContainEqual([
+    "property_addresses",
+    "roof_assessment_access_attempts.company_id",
+    companyId,
+  ]);
+  expect(calls).toContainEqual([
+    "property_addresses",
+    "roof_assessment_access_attempts.lead_id",
+    event.leadId,
+  ]);
+  expect(calls).toContainEqual([
+    "property_addresses",
+    "roof_assessment_access_attempts.property_id",
+    event.propertyId,
+  ]);
+  expect(calls).toContainEqual(["property_addresses", "match_method", "exact_single_match"]);
+  expect(calls).toContainEqual(["property_addresses", "state_code", "NJ"]);
+  expect(calls).toContainEqual(["property_addresses", "confidence", 95]);
+  expect(calls).toContainEqual([
+    "property_addresses",
+    "assessment_access_attempt_id.is",
+    null,
+  ]);
+  expect(calls).toContainEqual(["property_addresses", "canonical_address.is", null]);
+  expect(calls).toContainEqual(["property_addresses", "latitude.is", null]);
+  expect(calls).toContainEqual(["property_addresses", "longitude.is", null]);
+  expect(calls.find(([table, action, value]) =>
+    table === "property_addresses"
+    && action === "select"
+    && String(value).includes("roof_assessment_access_attempts!")
+    && String(value).includes("!inner")
+  )).toBeTruthy();
+  expect(JSON.stringify(calls)).not.toContain("google_place_id");
+});
+
+test("Supabase prefetch lookup ignores foreign pipeline scope before reading evidence", async () => {
+  const addressLookup = vi.fn();
+  const pipelineQuery = {
+    select() { return pipelineQuery; },
+    eq() { return pipelineQuery; },
+    maybeSingle: async () => ({data: null, error: null}),
+  };
+  const client = {
+    from(table: string) {
+      if (table === "pipeline_runs") return pipelineQuery;
+      addressLookup(table);
+      throw new Error("Foreign evidence must not be queried");
+    },
+  };
+  const repository = new SupabaseAddressValidationWorkerRepository(client as never);
+
+  await expect(repository.findExactAssessmentPrefetch({
+    pipelineRunId: event.pipelineRunId,
+    leadId: event.leadId,
+    propertyId: event.propertyId,
+  })).resolves.toBeNull();
+  expect(addressLookup).not.toHaveBeenCalled();
 });
 
 test("Supabase scope guard rejects a cross-company lead relationship", async () => {
