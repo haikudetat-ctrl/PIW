@@ -7,8 +7,10 @@ records remain intact during rollout or rollback.
 
 ## Release invariants
 
-- Roll out in this order: database migrations, PIW, All Season website, smoke
-  tests, then traffic enablement.
+- Roll out property prefetch in this order: apply the migration; deploy PIW with
+  `ROOF_ASSESSMENT_PROPERTY_PREFETCH_ENABLED=false`; leave the website adapters
+  unchanged; smoke the preview pair; enable prefetch in preview; watch timing
+  and error metrics; then promote the already-verified pair to production.
 - Keep the production website alias and entry adapters on the previous release
   until the preview deployment passes smoke. Do not send live traffic to an
   unverified adapter.
@@ -42,6 +44,7 @@ secret values in the deployment platform; do not commit them.
 | Variable | Requirement |
 | --- | --- |
 | `ROOF_ASSESSMENT_ENABLED` | Master assessment and authenticated All Season adapter gate. Keep `false` until the target deployment is ready for smoke or traffic. |
+| `ROOF_ASSESSMENT_PROPERTY_PREFETCH_ENABLED` | Best-effort post-consent selected-place fast path. Keep `false` through migration and the first preview deployment. It may be `true` only when `ROOF_ASSESSMENT_ENABLED`, `PAID_PROVIDERS_ENABLED`, and `GOOGLE_MAPS_API_KEY` are all configured. |
 | `ROOF_ASSESSMENT_SIGNING_SECRET` | Required when assessments are enabled. At least 32 UTF-8 bytes; signs one-time continuation capabilities and same-browser session cookies. Rotate only with an explicit session-invalidation plan. |
 | `TWILIO_VERIFY_ENABLED` | Cross-device resume gate. Keep `false` unless all Twilio values are present and the assessment gate is enabled. |
 | `TWILIO_API_KEY_SID` | Twilio API key SID used by Verify; secret server-side configuration. |
@@ -54,6 +57,12 @@ PIW also needs its normal Supabase server credentials. A full Google-derived
 ready range additionally requires the existing paid-provider/Google pipeline
 configuration; leaving those providers disabled is valid and yields pending or
 professional-review results, never invented dollars.
+
+`ROOF_ASSESSMENT_PROPERTY_PREFETCH_ENABLED` never replaces the master assessment
+gate or the provider gates. An invalid dependency combination must fail
+configuration before traffic is accepted. With the flag off, Google-selected,
+manual, timed-out, failed, and persistence-deferred submissions remain on the
+existing asynchronous validation and discovery pipeline.
 
 ### All Season website
 
@@ -106,6 +115,9 @@ npm --prefix apps/website run lint
 npm --prefix apps/website run typecheck
 npm --prefix apps/website test
 npm --prefix apps/website run build
+python3 scripts/assessment-session.test.py
+python3 scripts/assessment-viewport.test.py
+python3 apps/website/scripts/visual-test.py
 ```
 
 Generate local types after the reset and require no diff before release:
@@ -117,10 +129,12 @@ DOCKER_CONFIG=/tmp/piw-assessment-docker npx supabase migration list --local
 
 Known baseline findings must not be mistaken for new release failures:
 
-- Root ESLint currently reports four pre-existing unused-variable warnings and
-  zero errors: `_context` in the assessment-route and public-assessment tests,
-  plus `_companyId` and `_claimedBy` in the event outbox repository. The release
-  may not add warnings.
+- Root ESLint currently reports ten pre-existing unused-variable warnings and
+  zero errors: `_context` in the assessment-route and public-assessment tests;
+  `_blob` in the aerial-loader test; two `_input`/`_init` pairs in the
+  assessment-experience test; `_isTest` in the LeadConduit shadow-receipt test;
+  and `_companyId`/`_claimedBy` in the event outbox repository. The release may
+  not add warnings.
 - Database lint currently reports only pre-existing unused variables in
   `claim_property_address` and `escalate_property_identity_review`.
 - Database advisors currently report only the pre-existing duplicate permissive
@@ -131,8 +145,9 @@ Known baseline findings must not be mistaken for new release failures:
 ### 1. Apply migrations
 
 1. Confirm the target project and migration list before any write.
-2. Apply every committed migration through
-   `20260826182910_canonical_roof_assessment_journey.sql`.
+2. Apply every committed migration, including the attempt-bound property
+   prefetch migration. Confirm the target migration list rather than copying a
+   timestamp from this runbook.
 3. Run canonical pgTAP and the full database suite against the migrated target.
 4. Confirm RLS is enabled and the assessment RPCs remain executable only by
    `service_role`.
@@ -142,12 +157,13 @@ Do not deploy either application against a partially migrated database.
 ### 2. Deploy PIW
 
 1. Configure the PIW values above for the target environment.
-2. Keep `TWILIO_VERIFY_ENABLED=false` unless the target uses approved Twilio
+2. Set `ROOF_ASSESSMENT_PROPERTY_PREFETCH_ENABLED=false` for this deployment.
+3. Keep `TWILIO_VERIFY_ENABLED=false` unless the target uses approved Twilio
    sandbox/test credentials during preview smoke.
-3. Deploy PIW to a non-production alias first. Enable
+4. Deploy PIW to a non-production alias first. Enable
    `ROOF_ASSESSMENT_ENABLED=true` only in that isolated target so the full preview
    journey can be tested while production traffic remains on the old adapter.
-4. Verify the production edge topology satisfies the trusted Vercel-header
+5. Verify the production edge topology satisfies the trusted Vercel-header
    contract before enabling cross-device verification.
 
 ### 3. Deploy the All Season website
@@ -155,7 +171,8 @@ Do not deploy either application against a partially migrated database.
 1. Set the website endpoint, shared secret, and PIW origin to the same preview
    environment and tenant.
 2. Deploy without promoting the production alias.
-3. Confirm literal mappings: homepage `main-home` / `all-season-main`, contact
+3. Do not change the website adapters for prefetch. Confirm literal mappings:
+   homepage `main-home` / `all-season-main`, contact
    `main-contact` / `all-season-main`, drawer `main-drawer` /
    `all-season-main`, and each campaign `campaign:<slug>` / `<slug>` for
    `weather-report`, `seasonal-shield`, and `for-every-season`.
@@ -197,8 +214,12 @@ PIW continuation URL, and verify the browser navigates only to that URL. Then
 verify:
 
 1. Structured address and both consent values are retained.
-2. The branded analyzer stays up for five seconds and advances through the
-   address, roof, aerial imagery, and assessment stages.
+2. The branded analyzer stays up for at least eight seconds. A ready aerial
+   reveals at the eight-second boundary; an aerial that arrives between eight
+   and twelve seconds reveals immediately; at twelve seconds the confirmation
+   opens with the neutral in-box `Finalizing your property imagery` state.
+   Pending imagery continues its bounded retry cadence and never substitutes
+   campaign or unrelated property photography.
 3. Presentation and result framing match the source while factual state remains
    shared.
 4. Property confirmation and every progressive-save question work without
@@ -229,36 +250,54 @@ Do not paste secrets into browser tools or shell history. Save screenshots and
 request IDs, but redact phone, email, address, continuation capability, public
 token, internal IDs, and verification codes from release evidence.
 
-### 5. Enable traffic
+### 5. Enable prefetch in preview and observe
 
-1. Promote the verified PIW and website deployments together.
-2. Set `ROOF_ASSESSMENT_ENABLED=true` in production and redeploy PIW if the
-   production target was staged disabled.
+1. Keep the website adapters and production aliases unchanged.
+2. Set `ROOF_ASSESSMENT_PROPERTY_PREFETCH_ENABLED=true` only on the verified
+   preview PIW deployment, then repeat one Google-selected journey from each of
+   the seven canonical entry points and one manual-address journey.
 3. Enable `TWILIO_VERIFY_ENABLED=true` only after trusted-header and sandbox
    verification have passed.
-4. Watch 400/401/409/429/5xx counts, assessment starts/completions, result states,
-   consultation events/outbox delivery, and verification latency during the
-   initial traffic window.
+4. Watch timing and error metrics before production promotion. Track Place
+   Details timeout/failure, prefetch persistence failure, coordinates-pending,
+   Static Maps latency/failure, Google Solar completion latency, and asynchronous
+   fallback rate as separate series.
 5. Treat `409` duplicate responses as an explicit restart: create a new
    submission ID. Never replay a consumed continuation secret or reuse the old
    public token after either authorized resume path rotates it.
 
+### 6. Initial observation window and production promotion
+
+1. Record at least 30 clean Google-selected journeys. Exclude manual-address,
+   deliberately fault-injected, malformed, replay/resume, and abandoned runs
+   from this initial denominator, but continue tracking their failure/fallback
+   metrics separately.
+2. Require at least 90% of successful aerial responses in that clean cohort to
+   be available by the eight-second reveal boundary. A journey whose aerial
+   never succeeds is an error/fallback observation, not a successful aerial
+   hidden from the denominator.
+3. Review consent-to-coordinates, first image request/response, reveal outcome,
+   Place Details and Static Maps failures, Solar latency, async fallback, CRM,
+   delivery, Context Dialer, and Slack idempotency together.
+4. Only after the preview smoke and observation gate pass, promote the verified
+   PIW and unchanged website adapter deployment to production. Watch the same
+   metrics through the initial production window.
+
 ## Rollback
 
-Rollback changes routing, not data:
+Property-prefetch rollback is flag-only:
 
-1. Disable new website entry adapters by restoring the previous website
-   deployment/alias so forms stop calling `/api/campaign-estimate`.
-2. Set PIW `ROOF_ASSESSMENT_ENABLED=false` and redeploy. The public form action
-   and authenticated All Season assessment adapter will reject new starts.
-3. Set `TWILIO_VERIFY_ENABLED=false` to stop new cross-device Verify calls.
-4. Leave additive assessment, consent, attribution, access-attempt,
-   verification, consultation, event, and outbox records in place. Do not delete
-   or rewrite them as part of rollback.
-5. Preserve result URLs and operational evidence for incident review. Existing
-   signed sessions may become unavailable while the gate is disabled; re-enable
-   only after the fault is understood and smoke gates pass again.
+1. Set `ROOF_ASSESSMENT_PROPERTY_PREFETCH_ENABLED=false` and redeploy PIW. Do
+   not roll back the additive migration, website adapters, master assessment
+   gate, consent flow, or public continuation contract for a prefetch incident.
+2. Leave additive assessment, consent, attribution, access-attempt, exact address
+   evidence, consultation, event, and outbox records in place. Do not delete or
+   rewrite them as part of rollback.
+3. Confirm new Google-selected submissions, manual addresses, Place Details
+   timeouts/failures, and deferred persistence all continue through the existing
+   asynchronous validation and discovery pipeline.
+4. Preserve result URLs and redacted operational evidence for incident review.
 
-Rollback does not restore a consumed continuation secret, undo a rotated public
-token, or synthesize a quote for an assessment whose Google calculation was not
-ready.
+Flag-off does not restore a consumed continuation secret, undo a rotated public
+token, invalidate exact evidence already committed, or synthesize a quote for an
+assessment whose Google calculation was not ready.
