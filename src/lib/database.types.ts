@@ -7,6 +7,31 @@ export type Json =
   | Json[]
 
 export type Database = {
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       admin_profiles: {
@@ -2617,11 +2642,13 @@ export type Database = {
           approval_review_task_id: string | null
           approved_at: string | null
           approved_by: string | null
+          assessment_access_attempt_id: string | null
           canonical_address: string | null
           company_id: string
           confidence: number
           county: string | null
           created_at: string
+          evidence_source: string | null
           google_place_id: string | null
           id: string
           latitude: number | null
@@ -2631,21 +2658,26 @@ export type Database = {
           municipality: string | null
           normalized_address: string | null
           property_id: string
+          provider_duration_ms: number | null
           provider_request_id: string | null
+          retrieved_at: string | null
+          source_identifier: string | null
           state_code: string | null
           submitted_address: string
-          worker_run_id: string
+          worker_run_id: string | null
           zip: string | null
         }
         Insert: {
           approval_review_task_id?: string | null
           approved_at?: string | null
           approved_by?: string | null
+          assessment_access_attempt_id?: string | null
           canonical_address?: string | null
           company_id: string
           confidence: number
           county?: string | null
           created_at?: string
+          evidence_source?: string | null
           google_place_id?: string | null
           id?: string
           latitude?: number | null
@@ -2655,21 +2687,26 @@ export type Database = {
           municipality?: string | null
           normalized_address?: string | null
           property_id: string
+          provider_duration_ms?: number | null
           provider_request_id?: string | null
+          retrieved_at?: string | null
+          source_identifier?: string | null
           state_code?: string | null
           submitted_address: string
-          worker_run_id: string
+          worker_run_id?: string | null
           zip?: string | null
         }
         Update: {
           approval_review_task_id?: string | null
           approved_at?: string | null
           approved_by?: string | null
+          assessment_access_attempt_id?: string | null
           canonical_address?: string | null
           company_id?: string
           confidence?: number
           county?: string | null
           created_at?: string
+          evidence_source?: string | null
           google_place_id?: string | null
           id?: string
           latitude?: number | null
@@ -2679,10 +2716,13 @@ export type Database = {
           municipality?: string | null
           normalized_address?: string | null
           property_id?: string
+          provider_duration_ms?: number | null
           provider_request_id?: string | null
+          retrieved_at?: string | null
+          source_identifier?: string | null
           state_code?: string | null
           submitted_address?: string
-          worker_run_id?: string
+          worker_run_id?: string | null
           zip?: string | null
         }
         Relationships: [
@@ -2699,6 +2739,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "admin_profiles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_addresses_company_access_attempt_fkey"
+            columns: ["company_id", "assessment_access_attempt_id"]
+            isOneToOne: false
+            referencedRelation: "roof_assessment_access_attempts"
+            referencedColumns: ["company_id", "id"]
           },
           {
             foreignKeyName: "property_addresses_company_id_fkey"
@@ -3923,6 +3970,33 @@ export type Database = {
           assessment_id: string
         }[]
       }
+      apply_roof_assessment_property_prefetch: {
+        Args: {
+          p_attempt_id: string
+          p_canonical_address: string
+          p_company_id: string
+          p_confidence: number
+          p_county: string
+          p_google_place_id: string
+          p_latitude: number
+          p_longitude: number
+          p_match_method: Database["public"]["Enums"]["address_match_method"]
+          p_municipality: string
+          p_provider: string
+          p_provider_duration_ms: number
+          p_retrieved_at: string
+          p_source_identifier: string
+          p_state_code: string
+          p_submitted_address: string
+          p_zip: string
+        }
+        Returns: {
+          assessment_id: string
+          pipeline_run_id: string
+          property_id: string
+          side_effects_applied: boolean
+        }[]
+      }
       approve_verified_roof_assessment_resume: {
         Args: {
           p_attempt_id: string
@@ -4171,6 +4245,19 @@ export type Database = {
         Returns: {
           new_status: Database["public"]["Enums"]["review_task_status"]
           next_attempt: number
+          pipeline_run_id: string
+          property_id: string
+        }[]
+      }
+      resolve_roof_assessment_property_prefetch_scope: {
+        Args: {
+          attempt_id: string
+          company_id: string
+          google_place_id: string
+        }
+        Returns: {
+          assessment_id: string
+          eligible: boolean
           pipeline_run_id: string
           property_id: string
         }[]
@@ -4566,6 +4653,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       address_match_method: [
