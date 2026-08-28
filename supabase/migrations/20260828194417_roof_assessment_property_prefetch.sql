@@ -45,6 +45,7 @@ alter table public.property_addresses
         and longitude is not null
         and longitude between -180::double precision and 180::double precision
         and location is not null
+        and state_code is not null
         and state_code = 'NJ'
         and match_method = 'exact_single_match'::public.address_match_method
         and confidence >= 95
@@ -109,6 +110,42 @@ begin
     order by run.started_at desc, run.id
     limit 1
   ) as pipeline on true
+  join lateral (
+    select pg_catalog.count(*) as granted_consent_count
+    from public.lead_consent_evidence as evidence
+    where evidence.company_id = attempt.company_id
+      and evidence.lead_id = attempt.lead_id
+      and evidence.submission_id = attempt.submission_id
+      and evidence.granted
+      and evidence.consent_type in (
+        'estimate_processing', 'email_contact', 'sms_contact'
+      )
+    having pg_catalog.count(*) = 3
+  ) as consent_scope on true
+  join public.lead_attribution_touches as attribution
+    on attribution.company_id = attempt.company_id
+   and attribution.lead_id = attempt.lead_id
+   and attribution.estimate_id = attempt.estimate_id
+   and attribution.assessment_id = attempt.assessment_id
+   and attribution.submission_id = attempt.submission_id
+  join public.domain_events as started_event
+    on started_event.company_id = attempt.company_id
+   and started_event.pipeline_run_id = pipeline.id
+   and started_event.event_name = 'roof/assessment.started'
+   and started_event.schema_version = 1
+   and started_event.correlation_id = attempt.submission_id
+   and started_event.idempotency_key =
+     'roof/assessment.started:' || attempt.assessment_id::text
+   and started_event.payload ->> 'id' = started_event.id::text
+   and started_event.payload ->> 'name' = 'roof/assessment.started'
+   and started_event.payload ->> 'schemaVersion' = '1'
+   and started_event.payload ->> 'correlationId' = attempt.submission_id::text
+   and started_event.payload ->> 'leadId' = attempt.lead_id::text
+   and started_event.payload ->> 'pipelineRunId' = pipeline.id::text
+   and started_event.payload ->> 'idempotencyKey' =
+     'roof/assessment.started:' || attempt.assessment_id::text
+   and started_event.payload -> 'data' ->> 'assessmentId' =
+     attempt.assessment_id::text
   where attempt.company_id = $1
     and attempt.id = $2
     and attempt.attempt_kind = 'new'
@@ -179,6 +216,8 @@ declare
   v_source_identifier text;
   v_submitted_normalized text;
   v_canonical_normalized text;
+  v_lead_submitted_normalized text;
+  v_consent_count bigint;
   v_location extensions.geography;
   v_event jsonb;
   v_now timestamptz := pg_catalog.now();
@@ -218,6 +257,30 @@ begin
   then
     raise exception 'Property prefetch evidence provenance is incomplete';
   end if;
+
+  v_submitted_normalized := public.normalize_property_address(v_submitted_address);
+  v_canonical_normalized := public.normalize_property_address(v_canonical_address);
+  if v_submitted_normalized is null or v_canonical_normalized is null then
+    raise exception 'Property prefetch address identity is invalid';
+  end if;
+
+  -- Canonical intake takes the same tenant-scoped address lock, then Place-ID
+  -- lock, before it locks an assessment. Keep that global order here so an
+  -- intake resume and a prefetch apply cannot wait on each other's resources.
+  perform pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended(
+      p_company_id::text || ':roof-assessment-property-address:'
+      || v_submitted_normalized,
+      0
+    )
+  );
+  perform pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended(
+      p_company_id::text || ':roof-assessment-property-place:'
+      || v_google_place_id,
+      0
+    )
+  );
 
   -- The committed access attempt is the idempotency mutex. Concurrent
   -- identical calls block here, then the loser observes the stored evidence.
@@ -298,12 +361,61 @@ begin
     raise exception 'Property prefetch Google Place ID does not match the estimate';
   end if;
 
+  v_lead_submitted_normalized :=
+    public.normalize_property_address(v_lead.submitted_address);
+  if v_lead_submitted_normalized is null
+    or v_submitted_normalized <> v_lead_submitted_normalized
+  then
+    raise exception 'Property prefetch submitted address does not match the lead';
+  end if;
+
+  perform evidence.id
+  from public.lead_consent_evidence as evidence
+  where evidence.company_id = p_company_id
+    and evidence.lead_id = v_attempt.lead_id
+    and evidence.submission_id = v_attempt.submission_id
+    and evidence.granted
+    and evidence.consent_type in (
+      'estimate_processing', 'email_contact', 'sms_contact'
+    )
+  for key share;
+  get diagnostics v_consent_count = row_count;
+  if v_consent_count <> 3 then
+    raise exception 'Property prefetch durable consent scope is incomplete';
+  end if;
+
+  perform attribution.id
+  from public.lead_attribution_touches as attribution
+  where attribution.company_id = p_company_id
+    and attribution.lead_id = v_attempt.lead_id
+    and attribution.estimate_id = v_attempt.estimate_id
+    and attribution.assessment_id = v_attempt.assessment_id
+    and attribution.submission_id = v_attempt.submission_id
+  for key share;
+  if not found then
+    raise exception 'Property prefetch attribution scope is incomplete';
+  end if;
+
   select event.id into v_started_event_id
   from public.domain_events as event
   where event.company_id = p_company_id
     and event.pipeline_run_id = v_pipeline.id
+    and event.event_name = 'roof/assessment.started'
+    and event.schema_version = 1
+    and event.correlation_id = v_attempt.submission_id
     and event.idempotency_key =
-      'roof/assessment.started:' || v_attempt.assessment_id::text;
+      'roof/assessment.started:' || v_attempt.assessment_id::text
+    and event.payload ->> 'id' = event.id::text
+    and event.payload ->> 'name' = 'roof/assessment.started'
+    and event.payload ->> 'schemaVersion' = '1'
+    and event.payload ->> 'correlationId' = v_attempt.submission_id::text
+    and event.payload ->> 'leadId' = v_attempt.lead_id::text
+    and event.payload ->> 'pipelineRunId' = v_pipeline.id::text
+    and event.payload ->> 'idempotencyKey' =
+      'roof/assessment.started:' || v_attempt.assessment_id::text
+    and event.payload -> 'data' ->> 'assessmentId' =
+      v_attempt.assessment_id::text
+  for key share;
   if not found then
     raise exception 'Property prefetch started event is out of scope';
   end if;
@@ -340,29 +452,6 @@ begin
              v_pipeline.id, false;
     return;
   end if;
-
-  v_submitted_normalized := public.normalize_property_address(v_submitted_address);
-  v_canonical_normalized := public.normalize_property_address(v_canonical_address);
-  if v_submitted_normalized is null or v_canonical_normalized is null then
-    raise exception 'Property prefetch address identity is invalid';
-  end if;
-
-  -- Use the canonical-intake lock namespaces and ordering so a candidate
-  -- lookup cannot race a same-tenant Place ID or submitted-address intake.
-  perform pg_catalog.pg_advisory_xact_lock(
-    pg_catalog.hashtextextended(
-      p_company_id::text || ':roof-assessment-property-address:'
-      || v_submitted_normalized,
-      0
-    )
-  );
-  perform pg_catalog.pg_advisory_xact_lock(
-    pg_catalog.hashtextextended(
-      p_company_id::text || ':roof-assessment-property-place:'
-      || v_google_place_id,
-      0
-    )
-  );
 
   -- Place identity wins. Only when no Place candidate exists may a recent
   -- exact observation lacking a Place ID participate in address fallback.

@@ -583,6 +583,170 @@ select throws_ok(
 );
 
 select pg_temp.capture_prefetch_fixture(
+  'address_mismatch',
+  pg_temp.start_prefetch_fixture(
+    'a1000000-0000-4000-8000-000000000001',
+    'a1100000-0000-4000-8000-000000000060',
+    'Address Mismatch', '+12015551060', 'address-mismatch@example.com',
+    '22 Bound Address Way, Trenton, NJ 08608', 'ChIJ-prefetch-address-bound'
+  )
+);
+select throws_ok(
+  pg_temp.prefetch_sql(
+    'a1000000-0000-4000-8000-000000000001',
+    (select attempt_id from prefetch_attempts where fixture = 'address_mismatch'),
+    'ChIJ-prefetch-address-bound',
+    '999 Caller Supplied Way, Trenton, NJ 08608',
+    '22 Bound Address Way, Trenton, NJ 08608'
+  ), null, 'Property prefetch submitted address does not match the lead',
+  'caller-supplied submitted address must match the locked lead graph'
+);
+
+select pg_temp.capture_prefetch_fixture(
+  'null_state',
+  pg_temp.start_prefetch_fixture(
+    'a1000000-0000-4000-8000-000000000001',
+    'a1100000-0000-4000-8000-000000000061',
+    'Null State', '+12015551061', 'null-state@example.com',
+    '23 Null State Way, Trenton, NJ 08608', 'ChIJ-prefetch-null-state'
+  )
+);
+select throws_ok(
+  $$insert into public.property_addresses (
+      company_id, property_id, assessment_access_attempt_id,
+      submitted_address, canonical_address, google_place_id,
+      latitude, longitude, location, municipality, county, state_code, zip,
+      match_method, confidence, evidence_source, source_identifier,
+      retrieved_at, provider_duration_ms
+    ) select 'a1000000-0000-4000-8000-000000000001', property_id, attempt_id,
+             '23 Null State Way, Trenton, NJ 08608',
+             '23 Null State Way, Trenton, NJ 08608', 'ChIJ-prefetch-null-state',
+             40.22, -74.76,
+             extensions.st_setsrid(extensions.st_point(-74.76, 40.22), 4326)::extensions.geography,
+             'Trenton', 'Mercer', null, '08608', 'exact_single_match', 100,
+             'google_places', 'null-state-direct-insert', pg_catalog.now(), 10
+      from prefetch_attempts where fixture = 'null_state'$$,
+  '23514', null,
+  'attempt-backed exact evidence rejects a null state code'
+);
+
+select pg_temp.capture_prefetch_fixture(
+  'missing_consent',
+  pg_temp.start_prefetch_fixture(
+    'a1000000-0000-4000-8000-000000000001',
+    'a1100000-0000-4000-8000-000000000062',
+    'Missing Consent', '+12015551062', 'missing-consent@example.com',
+    '24 Missing Consent Way, Trenton, NJ 08608', 'ChIJ-prefetch-missing-consent'
+  )
+);
+select pg_temp.capture_prefetch_fixture(
+  'missing_attribution',
+  pg_temp.start_prefetch_fixture(
+    'a1000000-0000-4000-8000-000000000001',
+    'a1100000-0000-4000-8000-000000000063',
+    'Missing Attribution', '+12015551063', 'missing-attribution@example.com',
+    '25 Missing Attribution Way, Trenton, NJ 08608',
+    'ChIJ-prefetch-missing-attribution'
+  )
+);
+select pg_temp.capture_prefetch_fixture(
+  'missing_started_event',
+  pg_temp.start_prefetch_fixture(
+    'a1000000-0000-4000-8000-000000000001',
+    'a1100000-0000-4000-8000-000000000064',
+    'Missing Started Event', '+12015551064', 'missing-started@example.com',
+    '26 Missing Started Way, Trenton, NJ 08608',
+    'ChIJ-prefetch-missing-started'
+  )
+);
+
+delete from public.lead_consent_evidence
+where company_id = 'a1000000-0000-4000-8000-000000000001'
+  and submission_id = 'a1100000-0000-4000-8000-000000000062'
+  and consent_type = 'estimate_processing';
+delete from public.lead_attribution_touches
+where company_id = 'a1000000-0000-4000-8000-000000000001'
+  and submission_id = 'a1100000-0000-4000-8000-000000000063';
+delete from public.domain_events
+where company_id = 'a1000000-0000-4000-8000-000000000001'
+  and idempotency_key = 'roof/assessment.started:' ||
+    (select assessment_id::text from prefetch_attempts
+     where fixture = 'missing_started_event');
+
+select results_eq(
+  pg_catalog.format(
+    $$select eligible, assessment_id, property_id, pipeline_run_id
+      from public.resolve_roof_assessment_property_prefetch_scope(
+        'a1000000-0000-4000-8000-000000000001', %L::uuid,
+        'ChIJ-prefetch-missing-consent')$$,
+    (select attempt_id from prefetch_attempts where fixture = 'missing_consent')
+  ),
+  $$values (false, null::uuid, null::uuid, null::uuid)$$,
+  'scope resolver requires all three committed consent-evidence rows'
+);
+select results_eq(
+  pg_catalog.format(
+    $$select eligible, assessment_id, property_id, pipeline_run_id
+      from public.resolve_roof_assessment_property_prefetch_scope(
+        'a1000000-0000-4000-8000-000000000001', %L::uuid,
+        'ChIJ-prefetch-missing-attribution')$$,
+    (select attempt_id from prefetch_attempts where fixture = 'missing_attribution')
+  ),
+  $$values (false, null::uuid, null::uuid, null::uuid)$$,
+  'scope resolver requires the exact committed attribution touch'
+);
+select results_eq(
+  pg_catalog.format(
+    $$select eligible, assessment_id, property_id, pipeline_run_id
+      from public.resolve_roof_assessment_property_prefetch_scope(
+        'a1000000-0000-4000-8000-000000000001', %L::uuid,
+        'ChIJ-prefetch-missing-started')$$,
+    (select attempt_id from prefetch_attempts where fixture = 'missing_started_event')
+  ),
+  $$values (false, null::uuid, null::uuid, null::uuid)$$,
+  'scope resolver requires the exact canonical assessment-started event'
+);
+select throws_ok(
+  pg_temp.prefetch_sql(
+    'a1000000-0000-4000-8000-000000000001',
+    (select attempt_id from prefetch_attempts where fixture = 'missing_consent'),
+    'ChIJ-prefetch-missing-consent',
+    '24 Missing Consent Way, Trenton, NJ 08608',
+    '24 Missing Consent Way, Trenton, NJ 08608'
+  ), null, 'Property prefetch durable consent scope is incomplete',
+  'apply revalidates all committed consent evidence under lock'
+);
+select throws_ok(
+  pg_temp.prefetch_sql(
+    'a1000000-0000-4000-8000-000000000001',
+    (select attempt_id from prefetch_attempts where fixture = 'missing_attribution'),
+    'ChIJ-prefetch-missing-attribution',
+    '25 Missing Attribution Way, Trenton, NJ 08608',
+    '25 Missing Attribution Way, Trenton, NJ 08608'
+  ), null, 'Property prefetch attribution scope is incomplete',
+  'apply revalidates the exact committed attribution touch under lock'
+);
+select throws_ok(
+  pg_temp.prefetch_sql(
+    'a1000000-0000-4000-8000-000000000001',
+    (select attempt_id from prefetch_attempts where fixture = 'missing_started_event'),
+    'ChIJ-prefetch-missing-started',
+    '26 Missing Started Way, Trenton, NJ 08608',
+    '26 Missing Started Way, Trenton, NJ 08608'
+  ), null, 'Property prefetch started event is out of scope',
+  'apply revalidates the exact canonical assessment-started event under lock'
+);
+select is(
+  (select count(*) from public.property_addresses
+   where assessment_access_attempt_id in (
+     select attempt_id from prefetch_attempts
+     where fixture in ('missing_consent', 'missing_attribution', 'missing_started_event')
+   )),
+  0::bigint,
+  'incomplete durable scope produces no property evidence'
+);
+
+select pg_temp.capture_prefetch_fixture(
   'resume_source',
   pg_temp.start_prefetch_fixture(
     'a1000000-0000-4000-8000-000000000001',
@@ -1033,6 +1197,307 @@ select results_eq(
 select is(extensions.dblink_exec('prefetch_uncommitted_gate', 'rollback'), 'ROLLBACK', 'the uncommitted intake is discarded');
 select ok(extensions.dblink_disconnect('prefetch_uncommitted_probe') = 'OK', 'uncommitted-intake probe disconnects');
 select ok(extensions.dblink_disconnect('prefetch_uncommitted_gate') = 'OK', 'uncommitted-intake gate disconnects');
+
+create function pg_temp.wait_for_prefetch_advisory_lock(p_pid integer)
+returns boolean
+language plpgsql
+set search_path = ''
+as $$
+begin
+  for v_attempt in 1..500 loop
+    if exists (
+      select 1
+      from pg_catalog.pg_stat_activity as activity
+      where activity.pid = p_pid
+        and activity.wait_event_type = 'Lock'
+        and activity.wait_event = 'advisory'
+    ) then
+      return true;
+    end if;
+    perform pg_catalog.pg_sleep(0.01);
+  end loop;
+  return false;
+end;
+$$;
+
+select lives_ok(
+  $$select extensions.dblink_connect(
+      'prefetch_lock_order_gate',
+      'host=host.docker.internal port=56322 dbname=postgres user=postgres password=postgres'
+    )$$,
+  'prefetch lock-order gate connects'
+);
+select lives_ok(
+  $$select extensions.dblink_connect(
+      'prefetch_lock_order_intake',
+      'host=host.docker.internal port=56322 dbname=postgres user=postgres password=postgres'
+    )$$,
+  'canonical-intake lock-order worker connects'
+);
+select lives_ok(
+  $$select extensions.dblink_connect(
+      'prefetch_lock_order_apply',
+      'host=host.docker.internal port=56322 dbname=postgres user=postgres password=postgres'
+    )$$,
+  'prefetch-apply lock-order worker connects'
+);
+
+select is(
+  extensions.dblink_exec(
+    'prefetch_lock_order_gate',
+    $setup$
+      insert into public.companies (id, name)
+      values ('a4000000-0000-4000-8000-000000000001', 'Prefetch Lock Order Company');
+
+      do $fixture$
+      declare v record;
+      begin
+        select * into v from public.start_or_resume_roof_assessment(
+          'a4000000-0000-4000-8000-000000000001',
+          'a4100000-0000-4000-8000-000000000001',
+          'Lock Order Homeowner', '+12015554001', 'lock-order@example.com',
+          '110 Lock Order Way, Trenton, NJ 08608', 'ChIJ-prefetch-lock-order',
+          'all-season-main', 'prefetch-pgtap', '{}'::jsonb, null,
+          'all-season-assessment-v1', clock_timestamp(), '127.23.0.1', 'pgtap'
+        );
+      end
+      $fixture$;
+
+      create function public.pgtap_prefetch_lock_order_intake()
+      returns table(outcome text, attempt_id uuid)
+      language plpgsql
+      set search_path = ''
+      as $function$
+      begin
+        return query
+        select 'ok'::text, started.attempt_id
+        from public.start_or_resume_roof_assessment(
+          'a4000000-0000-4000-8000-000000000001',
+          'a4100000-0000-4000-8000-000000000002',
+          'Lock Order Homeowner', '+12015554002', 'lock-order@example.com',
+          '110 Lock Order Way, Trenton, NJ 08608', 'ChIJ-prefetch-lock-order',
+          'all-season-main', 'prefetch-pgtap', '{}'::jsonb, null,
+          'all-season-assessment-v1', clock_timestamp(), '127.23.0.2', 'pgtap'
+        ) as started;
+      exception
+        when deadlock_detected then
+          return query select 'deadlock'::text, null::uuid;
+        when query_canceled then
+          return query select 'timeout'::text, null::uuid;
+      end
+      $function$;
+      revoke all on function public.pgtap_prefetch_lock_order_intake()
+        from public, anon, authenticated;
+
+      create function public.pgtap_prefetch_lock_order_apply()
+      returns table(outcome text, side_effects_applied boolean)
+      language plpgsql
+      set search_path = ''
+      as $function$
+      begin
+        return query
+        select 'ok'::text, applied.side_effects_applied
+        from public.apply_roof_assessment_property_prefetch(
+          'a4000000-0000-4000-8000-000000000001',
+          (select attempt.id
+           from public.roof_assessment_access_attempts as attempt
+           where attempt.company_id = 'a4000000-0000-4000-8000-000000000001'
+             and attempt.submission_id = 'a4100000-0000-4000-8000-000000000001'),
+          'ChIJ-prefetch-lock-order',
+          '110 Lock Order Way, Trenton, NJ 08608',
+          '110 Lock Order Way, Trenton, NJ 08608',
+          40.2401::double precision, -74.7801::double precision,
+          'Trenton', 'Mercer', 'NJ', '08608',
+          'exact_single_match'::public.address_match_method, 100::smallint,
+          'google_places', 'lock-order-place-details',
+          '2026-08-28 16:30:00+00'::timestamptz, 191
+        ) as applied;
+      exception
+        when deadlock_detected then
+          return query select 'deadlock'::text, null::boolean;
+        when query_canceled then
+          return query select 'timeout'::text, null::boolean;
+      end
+      $function$;
+      revoke all on function public.pgtap_prefetch_lock_order_apply()
+        from public, anon, authenticated;
+    $setup$
+  ),
+  'REVOKE',
+  'the committed canonical-intake-versus-apply race fixture is prepared'
+);
+
+create temp table prefetch_lock_order_pids (
+  worker text primary key,
+  pid integer not null
+);
+insert into prefetch_lock_order_pids
+select 'intake', remote.pid
+from extensions.dblink(
+  'prefetch_lock_order_intake', 'select pg_backend_pid()'
+) as remote(pid integer);
+insert into prefetch_lock_order_pids
+select 'apply', remote.pid
+from extensions.dblink(
+  'prefetch_lock_order_apply', 'select pg_backend_pid()'
+) as remote(pid integer);
+
+select is(
+  extensions.dblink_exec(
+    'prefetch_lock_order_gate',
+    $$begin;
+      do $lock$
+      begin
+        perform pg_catalog.pg_advisory_xact_lock(
+          pg_catalog.hashtextextended(
+            'a4000000-0000-4000-8000-000000000001:roof-assessment-property-address:' ||
+            public.normalize_property_address('110 Lock Order Way, Trenton, NJ 08608'),
+            0
+          )
+        );
+      end
+      $lock$;$$
+  ),
+  'DO',
+  'the race gate holds the canonical submitted-address advisory lock'
+);
+select is(
+  extensions.dblink_send_query(
+    'prefetch_lock_order_intake',
+    $$select * from public.pgtap_prefetch_lock_order_intake()$$
+  ),
+  1,
+  'canonical intake is queued first behind the identity lock'
+);
+select ok(
+  pg_temp.wait_for_prefetch_advisory_lock(
+    (select pid from prefetch_lock_order_pids where worker = 'intake')
+  ),
+  'canonical intake is observably waiting on the address advisory lock'
+);
+select is(
+  extensions.dblink_send_query(
+    'prefetch_lock_order_apply',
+    $$select * from public.pgtap_prefetch_lock_order_apply()$$
+  ),
+  1,
+  'prefetch apply is queued second behind the identity lock'
+);
+select ok(
+  pg_temp.wait_for_prefetch_advisory_lock(
+    (select pid from prefetch_lock_order_pids where worker = 'apply')
+  ),
+  'prefetch apply is observably waiting on the address advisory lock'
+);
+select is(
+  extensions.dblink_exec('prefetch_lock_order_gate', 'commit'),
+  'COMMIT',
+  'the lock-order gate releases the canonical intake and prefetch apply'
+);
+
+create temp table prefetch_lock_order_intake_result (
+  outcome text,
+  attempt_id uuid
+);
+insert into prefetch_lock_order_intake_result
+select *
+from extensions.dblink_get_result('prefetch_lock_order_intake') as result(
+  outcome text,
+  attempt_id uuid
+);
+create temp table prefetch_lock_order_apply_result (
+  outcome text,
+  side_effects_applied boolean
+);
+insert into prefetch_lock_order_apply_result
+select *
+from extensions.dblink_get_result('prefetch_lock_order_apply') as result(
+  outcome text,
+  side_effects_applied boolean
+);
+
+select is(
+  (select outcome from prefetch_lock_order_intake_result),
+  'ok',
+  'canonical intake completes without a deadlock victim'
+);
+select is(
+  (select outcome from prefetch_lock_order_apply_result),
+  'ok',
+  'prefetch apply completes without a deadlock victim'
+);
+select is(
+  (select attempt.attempt_kind
+   from public.roof_assessment_access_attempts as attempt
+   where attempt.id = (select attempt_id from prefetch_lock_order_intake_result)),
+  'resume_candidate',
+  'the concurrent canonical intake retains resume-candidate semantics'
+);
+select is(
+  (select side_effects_applied from prefetch_lock_order_apply_result),
+  true,
+  'the concurrent prefetch apply commits its evidence side effects'
+);
+select results_eq(
+  $$select
+      (select count(*) from public.property_addresses
+       where company_id = 'a4000000-0000-4000-8000-000000000001')::bigint,
+      (select count(*) from public.domain_events
+       where company_id = 'a4000000-0000-4000-8000-000000000001'
+         and event_name = 'property/discovery_requested')::bigint,
+      (select count(*) from public.event_outbox as outbox
+       join public.domain_events as event on event.id = outbox.event_id
+       where event.company_id = 'a4000000-0000-4000-8000-000000000001'
+         and event.event_name = 'property/discovery_requested')::bigint$$,
+  $$values (1::bigint, 1::bigint, 1::bigint)$$,
+  'canonical intake and prefetch apply commit one evidence/event/outbox set'
+);
+
+select is(
+  extensions.dblink_exec(
+    'prefetch_lock_order_gate',
+    $$drop function public.pgtap_prefetch_lock_order_intake();
+      drop function public.pgtap_prefetch_lock_order_apply();
+      do $cleanup$
+      begin
+        delete from public.event_outbox
+        where event_id in (
+          select id from public.domain_events
+          where company_id = 'a4000000-0000-4000-8000-000000000001'
+        );
+        delete from public.domain_events
+        where company_id = 'a4000000-0000-4000-8000-000000000001';
+        delete from public.property_addresses
+        where company_id = 'a4000000-0000-4000-8000-000000000001';
+        delete from public.roof_assessment_access_attempts
+        where company_id = 'a4000000-0000-4000-8000-000000000001';
+        delete from public.lead_consent_evidence
+        where company_id = 'a4000000-0000-4000-8000-000000000001';
+        delete from public.lead_attribution_touches
+        where company_id = 'a4000000-0000-4000-8000-000000000001';
+        delete from public.roof_assessments
+        where company_id = 'a4000000-0000-4000-8000-000000000001';
+        delete from public.roof_estimates
+        where company_id = 'a4000000-0000-4000-8000-000000000001';
+        delete from public.pipeline_runs
+        where company_id = 'a4000000-0000-4000-8000-000000000001';
+        delete from public.lead_consents
+        where company_id = 'a4000000-0000-4000-8000-000000000001';
+        delete from public.leads
+        where company_id = 'a4000000-0000-4000-8000-000000000001';
+        delete from public.properties
+        where company_id = 'a4000000-0000-4000-8000-000000000001';
+        delete from public.companies
+        where id = 'a4000000-0000-4000-8000-000000000001';
+      end
+      $cleanup$;$$
+  ),
+  'DO',
+  'committed lock-order race fixtures and helpers are removed'
+);
+select ok(extensions.dblink_disconnect('prefetch_lock_order_apply') = 'OK', 'prefetch-apply lock-order worker disconnects');
+select ok(extensions.dblink_disconnect('prefetch_lock_order_intake') = 'OK', 'canonical-intake lock-order worker disconnects');
+select ok(extensions.dblink_disconnect('prefetch_lock_order_gate') = 'OK', 'prefetch lock-order gate disconnects');
 
 select lives_ok(
   $$select extensions.dblink_connect(
