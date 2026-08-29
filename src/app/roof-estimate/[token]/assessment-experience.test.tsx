@@ -57,6 +57,53 @@ describe("assessment property reveal", () => {
     expect(screen.getByRole("button", {name: "Start my assessment"})).toBeEnabled();
   });
 
+  test("reports only the allowlisted reveal outcome while the server derives correlation", async () => {
+    const fetch = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
+      void _init;
+      if (String(input) === imageUrl) {
+        return new Response(new Uint8Array([1]), {
+          status: 200,
+          headers: {"content-type": "image/jpeg"},
+        });
+      }
+      if (String(input) === `/api/roof-estimate/${token}/analysis-event`) {
+        return new Response(null, {status: 204});
+      }
+      throw new Error(`Unexpected request: ${String(input)}`);
+    });
+    vi.stubGlobal("fetch", fetch);
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:telemetry-aerial");
+
+    render(
+      <AssessmentExperience
+        token={token}
+        address="1 Main St, Newark, NJ 07102"
+        imageUrl={imageUrl}
+        context={context}
+        initialPropertyRevealed={false}
+        initialStep={0}
+      >
+        <p>Questions begin here</p>
+      </AssessmentExperience>,
+    );
+
+    await act(async () => undefined);
+    await act(async () => vi.advanceTimersByTimeAsync(8_000));
+
+    expect(fetch).toHaveBeenCalledWith(`/api/roof-estimate/${token}/analysis-event`, {
+      body: JSON.stringify({durationMs: 8_000, outcome: "ready_at_8s"}),
+      headers: {"content-type": "application/json"},
+      keepalive: true,
+      method: "POST",
+    });
+    const telemetryBody = String((fetch.mock.calls.find(([input]) => (
+      String(input).endsWith("/analysis-event")
+    ))?.[1] as RequestInit | undefined)?.body);
+    expect(telemetryBody).not.toContain(token);
+    expect(telemetryBody).not.toContain("Main St");
+    expect(telemetryBody).not.toContain("submission");
+  });
+
   test("skips the analysis buffer after the property reveal was saved", () => {
     render(
       <AssessmentExperience
@@ -262,6 +309,7 @@ describe("assessment property reveal", () => {
       status: 502,
       headers: {"retry-after": fetch.mock.calls.length === 1 ? "10" : "7"},
     }));
+    const imageCalls = () => fetch.mock.calls.filter(([input]) => String(input).startsWith(imageUrl));
     vi.stubGlobal("fetch", fetch);
     render(
       <AssessmentExperience
@@ -277,25 +325,25 @@ describe("assessment property reveal", () => {
     );
 
     await act(async () => undefined);
-    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(imageCalls()).toHaveLength(1);
     await act(async () => vi.advanceTimersByTimeAsync(10_000));
-    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(imageCalls()).toHaveLength(2);
 
     await act(async () => vi.advanceTimersByTimeAsync(2_000));
     expect(screen.getByRole("status")).toHaveTextContent("Finalizing your property imagery");
     await act(async () => vi.advanceTimersByTimeAsync(2_499));
-    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(imageCalls()).toHaveLength(2);
 
     await act(async () => vi.advanceTimersByTimeAsync(1));
-    expect(fetch).toHaveBeenCalledTimes(3);
-    expect(fetch.mock.calls[2]?.[0]).toBe(`${imageUrl}?aerial_retry=2`);
+    expect(imageCalls()).toHaveLength(3);
+    expect(imageCalls()[2]?.[0]).toBe(`${imageUrl}?aerial_retry=2`);
 
     await act(async () => vi.advanceTimersByTimeAsync(2_500));
-    expect(fetch).toHaveBeenCalledTimes(4);
+    expect(imageCalls()).toHaveLength(4);
     await act(async () => vi.advanceTimersByTimeAsync(34 * 2_500));
-    expect(fetch).toHaveBeenCalledTimes(38);
+    expect(imageCalls()).toHaveLength(38);
     await act(async () => vi.advanceTimersByTimeAsync(2_500));
-    expect(fetch).toHaveBeenCalledTimes(38);
+    expect(imageCalls()).toHaveLength(38);
   });
 
   test("revokes replaced and unmounted aerial object URLs", async () => {

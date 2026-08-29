@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import uuid
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 
@@ -210,6 +211,7 @@ with sync_playwright() as p:
             "for-every-season",
             "campaign",
         ),
+        ("piw", "/roof-estimate", "roof-estimate", "all-season-main", None, "piw"),
     ]
 
     def assert_submission_contract(payload, expected_entry, presentation, campaign):
@@ -312,6 +314,74 @@ with sync_playwright() as p:
         page.set_viewport_size({"width": 390, "height": 844})
         page.emulate_media(color_scheme="light", reduced_motion="reduce")
         captured = []
+        if form_kind == "piw":
+            reset = page.request.delete(
+                ASSESSMENT_BASE + "/api/test/roof-assessment-prefetch"
+            )
+            assert reset.status == 204, reset.status
+            direct_requests = []
+            page.on(
+                "request",
+                lambda request: direct_requests.append(request.post_data or "")
+                if request.method == "POST" and "/roof-estimate" in request.url
+                else None,
+            )
+            page.route(
+                "**/api/roof-estimate/*/house-image*",
+                lambda route: route.fulfill(
+                    status=404,
+                    content_type="application/json",
+                    headers={"retry-after": "3", "cache-control": "no-store"},
+                    body='{"error":"Property image unavailable"}',
+                ),
+            )
+            page.goto(ASSESSMENT_BASE + path, wait_until="networkidle")
+            piw_form = page.get_by_role("form", name="Roof estimate request")
+            assert piw_form.is_visible()
+            piw_form.locator("[name=addressLine1]").fill("18 Harbor View Drive")
+            piw_form.locator("[name=city]").fill("Red Bank")
+            piw_form.locator("[name=postalCode]").fill("07701")
+            piw_form.get_by_role("button", name="Continue", exact=True).click()
+            suffix = uuid.uuid4().hex[:8]
+            piw_form.locator("[name=name]").fill("Entry Matrix Homeowner")
+            piw_form.locator("[name=email]").fill(f"entry-{suffix}@example.com")
+            piw_form.locator("[name=phone]").fill(f"201555{int(suffix[:4], 16) % 10000:04d}")
+            for consent in ("consentEstimate", "consentEmail", "consentSms"):
+                piw_form.locator(f"[name={consent}]").check()
+            piw_form.evaluate(
+                """form => {
+                  form.elements.addressMode.value = 'google';
+                  form.elements.googlePlaceId.value = 'ChIJ-task-six-fake-place';
+                  form.elements.selectedAddress.value = '18 Harbor View Drive, Red Bank, NJ 07701';
+                }"""
+            )
+            piw_form.locator("button[type=submit]").click()
+            page.wait_for_url(
+                re.compile(rf"{re.escape(ASSESSMENT_BASE)}/roof-estimate/[0-9a-f-]{{36}}$"),
+                timeout=20_000,
+            )
+            page.get_by_role("heading", name="Analyzing your property.").wait_for(
+                state="visible"
+            )
+            diagnostics = page.request.get(
+                ASSESSMENT_BASE + "/api/test/roof-assessment-prefetch"
+            )
+            assert diagnostics.status == 200, diagnostics.status
+            events = diagnostics.json()["events"]
+            assert len([event for event in events if event["event"] == "place_details_called"]) == 1, events
+            contexts = [event for event in events if event["event"] == "assessment_context"]
+            assert len(contexts) == 1, events
+            assert contexts[0]["entryPoint"] == expected_entry, contexts
+            assert contexts[0]["presentationKey"] == presentation, contexts
+            boundary = "\n".join(direct_requests)
+            assert re.search(r'name="(?:_1_)?campaign"', boundary), boundary
+            assert "for-every-season" in boundary, boundary
+            assert not re.search(
+                r'name="(?:_1_)?(?:latitude|longitude|lat|lng|coordinates|capability|continuation|public_token)"',
+                boundary,
+            ), boundary
+            page.close()
+            continue
         continuation = intercept_canonical_submission(page, presentation, captured)
         page.goto(BASE + path, wait_until="networkidle")
         if form_kind == "embedded":
@@ -333,17 +403,6 @@ with sync_playwright() as p:
             assert captured[0]["google_place_id"] is None
         page.close()
 
-    page = context.new_page()
-    page.set_viewport_size({"width": 390, "height": 844})
-    page.goto(ASSESSMENT_BASE + "/roof-estimate", wait_until="networkidle")
-    piw_form = page.get_by_role("form", name="Roof estimate request")
-    assert piw_form.is_visible()
-    assert piw_form.locator(
-        "[name=latitude], [name=longitude], [name=lat], [name=lng], [name=coordinates]"
-    ).count() == 0
-    assert piw_form.locator("[name=addressMode]").count() == 1
-    page.close()
-
     def assessment_page(width, height, path="/roof-estimate/dev-assessment"):
         page = context.new_page()
         page.set_viewport_size({"width": width, "height": height})
@@ -355,7 +414,7 @@ with sync_playwright() as p:
 
     def assert_question_action_fits(page, viewport_name, step):
         metrics = page.evaluate("""() => {
-          const action = document.querySelector('.assessment-question-actions');
+          const action = document.querySelector('.assessment-question-actions .assessment-primary-action');
           return {
             scrollHeight: document.documentElement.scrollHeight,
             innerHeight: window.innerHeight,
@@ -367,6 +426,7 @@ with sync_playwright() as p:
         assert metrics["actionBottom"] is not None, (viewport_name, step, metrics)
         assert metrics["actionTop"] >= 0, (viewport_name, step, metrics)
         assert metrics["actionBottom"] <= metrics["innerHeight"], (viewport_name, step, metrics)
+        assert metrics["actionBottom"] - metrics["actionTop"] >= 44, (viewport_name, step, metrics)
 
     viewports = [
         ("320x568", 320, 568),
@@ -407,6 +467,12 @@ with sync_playwright() as p:
                     if not action.is_disabled():
                         break
             assert not action.is_disabled(), (viewport_name, step)
+            assert_question_action_fits(page, viewport_name, step)
+            action.focus()
+            assert action.evaluate("button => document.activeElement === button"), (
+                viewport_name,
+                step,
+            )
             assert_question_action_fits(page, viewport_name, step)
             action.click()
             if step < 8:

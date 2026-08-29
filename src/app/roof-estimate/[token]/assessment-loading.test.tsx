@@ -25,7 +25,11 @@ describe("assessment analysis loading", () => {
 
     act(() => vi.advanceTimersByTime(1));
     expect(onReady).toHaveBeenCalledOnce();
-    expect(onReady).toHaveBeenCalledWith({imageAvailable: true});
+    expect(onReady).toHaveBeenCalledWith({
+      durationMs: 8_000,
+      imageAvailable: true,
+      outcome: "ready_at_8s",
+    });
   });
 
   test("reveals immediately when the aerial becomes ready at nine seconds", () => {
@@ -37,7 +41,11 @@ describe("assessment analysis loading", () => {
 
     act(() => vi.advanceTimersByTime(1));
     rerender(<AssessmentLoading {...props} imageObjectUrl="blob:ready-at-nine" onReady={onReady} />);
-    expect(onReady).toHaveBeenCalledWith({imageAvailable: true});
+    expect(onReady).toHaveBeenCalledWith({
+      durationMs: 9_000,
+      imageAvailable: true,
+      outcome: "ready_between_8s_12s",
+    });
   });
 
   test("a retryable image response before twelve seconds stays nonterminal", () => {
@@ -59,7 +67,11 @@ describe("assessment analysis loading", () => {
 
     act(() => vi.advanceTimersByTime(1));
     expect(onReady).toHaveBeenCalledOnce();
-    expect(onReady).toHaveBeenCalledWith({imageAvailable: false});
+    expect(onReady).toHaveBeenCalledWith({
+      durationMs: 12_000,
+      imageAvailable: false,
+      outcome: "pending_at_12s",
+    });
   });
 
   test("scrolls through all four approved stages across the eight-second minimum", () => {
@@ -97,6 +109,10 @@ describe("assessment analysis loading", () => {
 
     act(() => vi.advanceTimersByTime(1));
     expect(onReady).toHaveBeenCalledOnce();
-    expect(onReady).toHaveBeenCalledWith({imageAvailable: true});
+    expect(onReady).toHaveBeenCalledWith({
+      durationMs: 8_000,
+      imageAvailable: true,
+      outcome: "ready_at_8s",
+    });
   });
 });

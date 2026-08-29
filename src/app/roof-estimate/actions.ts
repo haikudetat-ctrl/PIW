@@ -16,6 +16,10 @@ import { signContinuation } from "@/modules/roof-assessment/continuation-token";
 import { startOrResumeRoofAssessment } from "@/modules/roof-assessment/start-or-resume";
 import { SupabaseAssessmentIntakeRepository } from "@/modules/roof-assessment/supabase-assessment-intake-repository";
 import {
+  createFakePlaceDetailsPrefetch,
+  recordFakeAssessmentContext,
+} from "@/modules/roof-assessment/testing/fake-place-details";
+import {
   executePublicRoofEstimateAction,
   type PublicRoofEstimateActionDependencies,
   type PublicRoofEstimateState,
@@ -50,12 +54,16 @@ const productionDependencies: PublicRoofEstimateActionDependencies = {
     );
     return {
       companyId,
-      startAssessment: (input) => startOrResumeRoofAssessment(input, {
-        repository,
-        tokenIssuer: {
-          issue: (capability) => signContinuation(capability, signingKey),
-        },
-      }),
+      startAssessment: (input) => {
+        recordFakeAssessmentContext(process.env, input);
+        return startOrResumeRoofAssessment(input, {
+          repository,
+          tokenIssuer: {
+            issue: (capability) => signContinuation(capability, signingKey),
+          },
+          postConsentPrefetch: createFakePlaceDetailsPrefetch(process.env, service),
+        });
+      },
       authorizeContinuation: (continuation) => authorizeAssessmentContinuation(
         continuation,
         cookieStore.get(ASSESSMENT_SESSION_COOKIE)?.value,

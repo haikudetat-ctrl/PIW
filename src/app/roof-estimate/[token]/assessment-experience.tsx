@@ -185,7 +185,17 @@ export function AssessmentExperience({
         imageSrc={imageUrl}
         imageObjectUrl={aerial.objectUrl}
         stages={context.loadingStages}
-        onReady={() => setStage("reveal")}
+        onReady={({durationMs, outcome}) => {
+          setStage("reveal");
+          if (!preview) {
+            void fetch(`/api/roof-estimate/${token}/analysis-event`, {
+              method: "POST",
+              headers: {"content-type": "application/json"},
+              body: JSON.stringify({durationMs, outcome}),
+              keepalive: true,
+            }).catch(() => undefined);
+          }
+        }}
       />
     );
   }

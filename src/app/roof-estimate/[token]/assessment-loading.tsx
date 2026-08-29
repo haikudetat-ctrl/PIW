@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type {AssessmentAnalysisOutcome} from "@/modules/roof-assessment/analysis-telemetry";
 
 export const MINIMUM_ANALYSIS_MS = 8_000;
 export const AERIAL_HARD_CAP_MS = 12_000;
@@ -31,14 +32,22 @@ export function AssessmentLoading({
   stages: readonly string[];
   minimumDurationMs?: number;
   imageTimeoutMs?: number;
-  onReady: (result: {imageAvailable: boolean}) => void;
+  onReady: (result: {
+    durationMs: number;
+    imageAvailable: boolean;
+    outcome: AssessmentAnalysisOutcome;
+  }) => void;
 }) {
   const [storedTiming, setTiming] = useState<LoadingTiming>(() => initialTiming(imageSrc));
   const timing = storedTiming.imageSrc === imageSrc ? storedTiming : initialTiming(imageSrc);
   const completed = useRef(false);
+  const startedAt = useRef(0);
+  const imageReadyBeforeMinimum = useRef(false);
 
   useEffect(() => {
     completed.current = false;
+    startedAt.current = Date.now();
+    imageReadyBeforeMinimum.current = false;
     const stageDuration = minimumDurationMs / stages.length;
     const stageTimer = window.setInterval(() => {
       setTiming((current) => ({
@@ -66,12 +75,25 @@ export function AssessmentLoading({
   }, [imageSrc, imageTimeoutMs, minimumDurationMs, stages.length]);
 
   useEffect(() => {
+    if (imageObjectUrl && !timing.minimumElapsed) {
+      imageReadyBeforeMinimum.current = true;
+    }
     if (
       completed.current ||
       (!timing.imageTimeoutElapsed && (!timing.minimumElapsed || !imageObjectUrl))
     ) return;
     completed.current = true;
-    onReady({imageAvailable: Boolean(imageObjectUrl)});
+    const imageAvailable = Boolean(imageObjectUrl);
+    const outcome: AssessmentAnalysisOutcome = !imageAvailable || timing.imageTimeoutElapsed
+      ? "pending_at_12s"
+      : imageReadyBeforeMinimum.current
+        ? "ready_at_8s"
+        : "ready_between_8s_12s";
+    onReady({
+      durationMs: Math.max(0, Date.now() - startedAt.current),
+      imageAvailable,
+      outcome,
+    });
   }, [imageObjectUrl, onReady, timing.imageTimeoutElapsed, timing.minimumElapsed]);
 
   const activeLabel = stages[timing.activeStage] ?? "Preparing the assessment";

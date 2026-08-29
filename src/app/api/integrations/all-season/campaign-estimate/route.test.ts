@@ -295,6 +295,7 @@ describe("All Season campaign estimate intake", () => {
   });
 
   test("omits the fast path when the server feature flag is disabled", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
     mocks.parseServerEnv.mockReturnValue({
       ...serverEnvironment,
       ROOF_ASSESSMENT_PROPERTY_PREFETCH_ENABLED: false,
@@ -308,6 +309,11 @@ describe("All Season campaign estimate intake", () => {
       expect.any(Object),
       expect.objectContaining({postConsentPrefetch: undefined}),
     );
+    expect(info).toHaveBeenCalledWith("roof_assessment_prefetch_path", expect.objectContaining({
+      correlation: expect.stringMatching(/^raj_[a-f0-9]{32}$/),
+      event: "assessment_prefetch_path_selected",
+      outcome: "async_google_flag_off",
+    }));
   });
 
   test("returns a generic no-store configuration response when prefetch environment validation fails", async () => {
@@ -326,6 +332,7 @@ describe("All Season campaign estimate intake", () => {
   });
 
   test("keeps a manual address out of the selected-place fast path", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
     const manualPayload = {
       ...validPayload,
       google_place_id: null,
@@ -337,6 +344,11 @@ describe("All Season campaign estimate intake", () => {
       expect.objectContaining({googlePlaceId: undefined}),
       expect.any(Object),
     );
+    expect(info).toHaveBeenCalledWith("roof_assessment_prefetch_path", expect.objectContaining({
+      correlation: expect.stringMatching(/^raj_[a-f0-9]{32}$/),
+      event: "assessment_prefetch_path_selected",
+      outcome: "async_manual",
+    }));
   });
 
   test("returns 409 without property data when the canonical intake reports a duplicate", async () => {
@@ -426,12 +438,21 @@ describe("All Season campaign estimate intake", () => {
     const response = await POST(request(validPayload));
 
     expect(response.status).toBe(202);
-    expect(info).toHaveBeenCalledTimes(1);
-    expect(info).toHaveBeenCalledWith("roof_assessment_property_prefetch", completion);
-    const serialized = JSON.stringify(info.mock.calls[0]);
+    expect(info).toHaveBeenCalledTimes(2);
+    expect(info).toHaveBeenCalledWith("roof_assessment_prefetch_path", expect.objectContaining({
+      correlation: expect.stringMatching(/^raj_[a-f0-9]{32}$/),
+      event: "assessment_prefetch_path_selected",
+      outcome: "prefetch_candidate",
+    }));
+    expect(info).toHaveBeenCalledWith("roof_assessment_property_prefetch", {
+      correlation: expect.stringMatching(/^raj_[a-f0-9]{32}$/),
+      ...completion,
+    });
+    const serialized = JSON.stringify(info.mock.calls);
     expect(serialized).not.toMatch(
       /Alex Rivera|alex@example\.com|201-555-0100|1 Main St|ChIJN1t_tDeuEmsRUsoyG83frY4|latitude|longitude|signed_token|maps-server-key/i,
     );
+    expect(serialized).not.toContain(validPayload.submission_id);
   });
 
   test("returns a generic no-store 503 when canonical intake fails", async () => {

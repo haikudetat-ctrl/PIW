@@ -1,10 +1,12 @@
 import "server-only";
+import type {SupabaseClient} from "@supabase/supabase-js";
 import { createEventEnvelope } from "@/domain/events";
 import { inngest, leadSubmitted } from "@/inngest/client";
 import { createServiceClient } from "@/lib/supabase/service";
 import { writeAuditEntry } from "@/modules/audit/write-audit-entry";
 import { enqueueAndPublishEvent } from "@/modules/events/enqueue-and-publish-event";
 import { SupabaseOutboxRepository } from "@/modules/events/supabase-outbox-repository";
+import type {Database} from "@/lib/database.types";
 
 export type WorkerRunStatus =
   | "queued"
@@ -83,8 +85,12 @@ export async function writeCrmProjection(
   return { workerRunId: workerRun.id, status: "completed" as const };
 }
 
-class SupabaseCrmWriterRepository implements CrmWriterRepository {
-  private readonly client = createServiceClient();
+export class SupabaseCrmWriterRepository implements CrmWriterRepository {
+  constructor(
+    private readonly client: SupabaseClient<Database> = createServiceClient(),
+    private readonly send: (outbound: Parameters<typeof inngest.send>[0]) => ReturnType<typeof inngest.send> =
+      (outbound) => inngest.send(outbound),
+  ) {}
 
   async upsertWorkerRunQueued(input: { pipelineRunId: string; idempotencyKey: string }) {
     const { data: inserted, error: insertError } = await this.client
@@ -236,7 +242,7 @@ class SupabaseCrmWriterRepository implements CrmWriterRepository {
       repository: new SupabaseOutboxRepository(this.client),
       event,
       companyId: lead.company_id,
-      send: (outbound) => inngest.send(outbound),
+      send: this.send,
     });
   }
 }

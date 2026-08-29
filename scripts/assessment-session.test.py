@@ -5,7 +5,6 @@ import re
 import time
 import unittest
 import uuid
-from pathlib import Path
 
 from playwright.sync_api import BrowserContext, Page, Route, sync_playwright
 
@@ -13,7 +12,6 @@ from playwright.sync_api import BrowserContext, Page, Route, sync_playwright
 BASE_URL = os.environ.get("ASSESSMENT_BASE_URL", "http://localhost:3000")
 TOKEN_PATH = re.compile(r"/roof-estimate/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
 RESUME_PATH = re.compile(r"/roof-estimate/resume/[0-9a-f-]{36}$")
-REPO_ROOT = Path(__file__).resolve().parents[1]
 TINY_PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
 )
@@ -48,7 +46,6 @@ def submit_estimate(
             }
             input.value = value;
           };
-          ensure('campaign', 'for-every-season');
           if (googleSelected) {
             ensure('addressMode', 'google');
             ensure('googlePlaceId', 'ChIJ-task-six-fake-place');
@@ -167,6 +164,7 @@ class AssessmentSessionBrowserTest(unittest.TestCase):
         }
         timing: dict[str, float] = {}
         image_requests: list[float] = []
+        direct_request_bodies: list[str] = []
         progressive_responses: list[int] = []
 
         with sync_playwright() as playwright:
@@ -177,10 +175,15 @@ class AssessmentSessionBrowserTest(unittest.TestCase):
                     reduced_motion="reduce",
                 )
                 page = context.new_page()
+                diagnostics = page.request.delete(
+                    f"{BASE_URL}/api/test/roof-assessment-prefetch"
+                )
+                self.assertEqual(diagnostics.status, 204)
 
                 def fake_static_map(route: Route) -> None:
                     requested_at = time.monotonic()
                     image_requests.append(requested_at)
+                    timing.setdefault("first_image_request_epoch_ms", time.time() * 1000)
                     accepted_at = timing.get("consent_accepted", requested_at)
                     if requested_at - accepted_at < 13.5:
                         route.fulfill(
@@ -213,6 +216,12 @@ class AssessmentSessionBrowserTest(unittest.TestCase):
                         progressive_responses.append(response.status)
 
                 page.on("response", capture_response)
+                page.on(
+                    "request",
+                    lambda request: direct_request_bodies.append(request.post_data or "")
+                    if request.method == "POST" and "/roof-estimate" in request.url
+                    else None,
+                )
                 submit_estimate(page, identity, google_selected=True)
                 page.wait_for_url(TOKEN_PATH, timeout=20_000)
                 page.get_by_role("heading", name="Analyzing your property.").wait_for(
@@ -231,7 +240,11 @@ class AssessmentSessionBrowserTest(unittest.TestCase):
                 )
                 self.assertLess(
                     timing["reveal"] - timing["consent_accepted"],
-                    13.5,
+                    12.75,
+                )
+                self.assertGreaterEqual(
+                    timing["reveal"] - timing["consent_accepted"],
+                    11.5,
                 )
                 page.locator("[data-testid=assessment-aerial-image]").wait_for(
                     state="visible", timeout=6_000
@@ -261,100 +274,38 @@ class AssessmentSessionBrowserTest(unittest.TestCase):
                 self.assertLess(timing["first_image_success"], timing["question_start"])
                 self.assertLess(timing["question_start"], timing["completed_result"])
                 self.assertGreaterEqual(len(image_requests), 2)
+                diagnostic_response = page.request.get(
+                    f"{BASE_URL}/api/test/roof-assessment-prefetch"
+                )
+                self.assertEqual(diagnostic_response.status, 200)
+                diagnostic_events = diagnostic_response.json()["events"]
+                place_events = [
+                    event for event in diagnostic_events
+                    if event["event"] == "place_details_called"
+                ]
+                context_events = [
+                    event for event in diagnostic_events
+                    if event["event"] == "assessment_context"
+                ]
+                self.assertEqual(len(place_events), 1, diagnostic_events)
+                self.assertEqual(len(context_events), 1, diagnostic_events)
+                self.assertEqual(context_events[0]["sequence"], 1)
+                self.assertEqual(context_events[0]["entryPoint"], "roof-estimate")
+                self.assertEqual(context_events[0]["presentationKey"], "all-season-main")
+                self.assertLess(place_events[0]["sequence"], 3)
+                self.assertLessEqual(
+                    place_events[0]["recordedAtMs"],
+                    timing["first_image_request_epoch_ms"],
+                )
+                boundary = "\n".join(direct_request_bodies)
+                self.assertRegex(boundary, r'name="(?:_1_)?campaign"')
+                self.assertIn("for-every-season", boundary)
+                self.assertNotRegex(
+                    boundary,
+                    r'name="(?:_1_)?(?:latitude|longitude|lat|lng|coordinates|capability|continuation|public_token)"',
+                )
             finally:
                 browser.close()
-
-    def test_fake_provider_persistence_and_privacy_contracts_are_release_gated(self) -> None:
-        integration = (REPO_ROOT / "src/integration/canonical-assessment-journey.test.ts").read_text()
-        canonical_sql = (
-            REPO_ROOT / "supabase/tests/canonical_roof_assessment_journey.test.sql"
-        ).read_text()
-        migration = next(
-            (REPO_ROOT / "supabase/migrations").glob(
-                "*_roof_assessment_property_prefetch.sql"
-            )
-        ).read_text()
-        route_test = (
-            REPO_ROOT
-            / "src/app/api/integrations/all-season/campaign-estimate/route.test.ts"
-        ).read_text()
-        crm_test = (REPO_ROOT / "src/inngest/functions/crm-writer.test.ts").read_text()
-        delivery_test = (
-            REPO_ROOT / "src/inngest/functions/estimate-delivery-sender.test.ts"
-        ).read_text()
-        slack_test = (
-            REPO_ROOT
-            / "src/inngest/functions/context-dialer-slack-sender.test.ts"
-        ).read_text()
-
-        required_integration_contracts = (
-            "fetchGooglePlaceDetails: async",
-            "expect(placeDetailsCalls).toBe(1)",
-            '.eq("id", firstCapability!.attemptId)',
-            '.from("property_addresses")',
-            "expect(addressObservations).toHaveLength(1)",
-            "expect(addressProviderRequests).toHaveLength(0)",
-            'expect(addressWorker.outcome).toBe("already_prefetched")',
-            "expect(discoveryOutbox).toEqual([{event_id: discoveryEvent.id}])",
-            "expect(replayedRoofWorker.id).toBe(firstRoofWorker.id)",
-            "savePublicAssessmentProgress",
-            "completePublicAssessment",
-            "requestRoofConsultation",
-            "expect(retryConsultation).toEqual(firstConsultation)",
-            'provider: "google_solar"',
-            "range_low_cents: 1_800_000",
-            "expect(count).toBe(1)",
-        )
-        for contract in required_integration_contracts:
-            self.assertIn(contract, integration)
-
-        for contract in (
-            "property_addresses_company_access_attempt_key",
-            "assessment_access_attempt_id",
-            "property/discovery_requested:assessment-prefetch:",
-            "grant execute on function public.apply_roof_assessment_property_prefetch",
-            "to service_role",
-        ):
-            self.assertIn(contract, migration)
-
-        self.assertIn(
-            "new intake appends all consent evidence",
-            canonical_sql,
-        )
-
-        self.assertIn("roof_assessment_property_prefetch", route_test)
-        self.assertIn(
-            'expect(info).toHaveBeenCalledWith("roof_assessment_property_prefetch", completion)',
-            route_test,
-        )
-        self.assertIn("expect(serialized).not.toMatch(", route_test)
-        for field in (
-            "outcome",
-            "reason",
-            "providerDurationMs",
-            "persistenceDurationMs",
-            "totalDurationMs",
-        ):
-            self.assertIn(field, route_test)
-        for prohibited in (
-            "Alex Rivera",
-            r"alex@example\.com",
-            "201-555-0100",
-            "1 Main St",
-            "latitude",
-            "longitude",
-            "signed_token",
-            "maps-server-key",
-        ):
-            self.assertIn(prohibited, route_test)
-        self.assertIn("expect(repository.stageHistoryCount).toBe(1)", crm_test)
-        self.assertIn("expect(repository.completions).toBe(1)", crm_test)
-        self.assertIn("posts only the consented delivery payload", delivery_test)
-        self.assertIn("expect(sent).toEqual([\"delivery-1\"])", delivery_test)
-        self.assertIn("builds a concise lead card", slack_test)
-        self.assertIn("expect(fetcher).toHaveBeenCalledOnce()", slack_test)
-        self.assertIn("expect(repo.markSent).toHaveBeenCalledWith(delivery)", slack_test)
-
 
 if __name__ == "__main__":
     unittest.main()

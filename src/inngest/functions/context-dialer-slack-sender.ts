@@ -1,7 +1,9 @@
 import "server-only";
+import type {SupabaseClient} from "@supabase/supabase-js";
 import { inngest } from "@/inngest/client";
 import { parseServerEnv } from "@/lib/env/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import type {Database} from "@/lib/database.types";
 
 export type ContextDialerDelivery = {
   id: string;
@@ -184,8 +186,8 @@ export async function sendQueuedContextDialers(
   return results;
 }
 
-class SupabaseContextDialerSlackRepository implements ContextDialerSlackRepository {
-  private readonly client = createServiceClient();
+export class SupabaseContextDialerSlackRepository implements ContextDialerSlackRepository {
+  constructor(private readonly client: SupabaseClient<Database> = createServiceClient()) {}
 
   async listQueued(limit: number) {
     const { data, error } = await this.client

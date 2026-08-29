@@ -1,5 +1,4 @@
 import os
-import time
 import unittest
 
 from playwright.sync_api import Page, sync_playwright
@@ -14,10 +13,10 @@ VIEWPORTS = (
     ("1440x900", 1440, 900),
 )
 IMAGERY_STATES = (
-    ("ready", 7.5, 9.5, True),
-    ("slow", 8.5, 11.5, True),
-    ("pending", 11.5, 13.5, False),
-    ("retry", 7.5, 9.5, True),
+    ("ready", 7.85, 8.20, True),
+    ("slow", 8.85, 9.20, True),
+    ("pending", 11.85, 12.20, False),
+    ("retry", 7.85, 8.20, True),
 )
 
 
@@ -58,7 +57,12 @@ def assert_action_fits(
 
 
 def assert_question_fits(test: unittest.TestCase, page: Page, label: str) -> None:
-    assert_action_fits(test, page, ".assessment-question-actions", label)
+    assert_action_fits(
+        test,
+        page,
+        ".assessment-question-actions .assessment-primary-action",
+        label,
+    )
 
 
 def open_questions(page: Page) -> None:
@@ -74,11 +78,21 @@ def open_questions(page: Page) -> None:
 
 class AssessmentViewportTest(unittest.TestCase):
     def test_analysis_timing_and_next_action_for_every_state_and_viewport(self) -> None:
+        requested_viewport = os.environ.get("ONLY_ASSESSMENT_VIEWPORT")
+        requested_imagery = os.environ.get("ONLY_ASSESSMENT_IMAGERY")
+        viewports = [
+            item for item in VIEWPORTS
+            if requested_viewport is None or item[0] == requested_viewport
+        ]
+        imagery_states = [
+            item for item in IMAGERY_STATES
+            if requested_imagery is None or item[0] == requested_imagery
+        ]
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch(headless=True)
             try:
-                for viewport_name, width, height in VIEWPORTS:
-                    for imagery, earliest, latest, expects_image in IMAGERY_STATES:
+                for viewport_name, width, height in viewports:
+                    for imagery, earliest, latest, expects_image in imagery_states:
                         with self.subTest(viewport=viewport_name, imagery=imagery):
                             page = browser.new_page(
                                 viewport={"width": width, "height": height},
@@ -86,6 +100,29 @@ class AssessmentViewportTest(unittest.TestCase):
                                 reduced_motion="reduce",
                             )
                             try:
+                                page.add_init_script(
+                                    """(() => {
+                                      const capture = () => {
+                                        if (
+                                          window.__assessmentAnalysisMountedAt === undefined
+                                          && document.querySelector('.assessment-analysis-shell')
+                                        ) window.__assessmentAnalysisMountedAt = performance.now();
+                                        if (
+                                          window.__assessmentRevealAt === undefined
+                                          && Array.from(document.querySelectorAll('button')).some(
+                                            button => button.textContent?.trim() === 'Start my assessment'
+                                          )
+                                        ) window.__assessmentRevealAt = performance.now();
+                                      };
+                                      document.addEventListener('DOMContentLoaded', () => {
+                                        capture();
+                                        new MutationObserver(capture).observe(
+                                          document.documentElement,
+                                          {childList: true, subtree: true}
+                                        );
+                                      }, {once: true});
+                                    })()"""
+                                )
                                 page.goto(
                                     f"{BASE_URL}/roof-estimate/dev-assessment?imagery={imagery}",
                                     wait_until="networkidle",
@@ -93,12 +130,13 @@ class AssessmentViewportTest(unittest.TestCase):
                                 page.get_by_role(
                                     "heading", name="Analyzing your property."
                                 ).wait_for(state="visible")
-                                started_at = time.monotonic()
                                 start = page.get_by_role(
                                     "button", name="Start my assessment"
                                 )
                                 start.wait_for(state="visible", timeout=15_000)
-                                elapsed = time.monotonic() - started_at
+                                elapsed = page.evaluate(
+                                    "(window.__assessmentRevealAt - window.__assessmentAnalysisMountedAt) / 1000"
+                                )
                                 self.assertGreaterEqual(
                                     elapsed,
                                     earliest,
@@ -167,6 +205,16 @@ class AssessmentViewportTest(unittest.TestCase):
                                             break
                                 self.assertFalse(action.is_disabled(), f"{name} step {step}")
                                 assert_question_fits(self, page, f"{name} step {step} selected")
+                                action.focus()
+                                self.assertTrue(
+                                    action.evaluate("button => document.activeElement === button"),
+                                    f"{name} step {step}: question action did not receive focus",
+                                )
+                                assert_question_fits(
+                                    self,
+                                    page,
+                                    f"{name} step {step} focused selected",
+                                )
                                 action.click()
                                 if step < 8:
                                     page.wait_for_function(

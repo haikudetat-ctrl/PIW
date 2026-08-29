@@ -9,8 +9,11 @@ records remain intact during rollout or rollback.
 
 - Roll out property prefetch in this order: apply the migration; deploy PIW with
   `ROOF_ASSESSMENT_PROPERTY_PREFETCH_ENABLED=false`; leave the website adapters
-  unchanged; smoke the preview pair; enable prefetch in preview; watch timing
-  and error metrics; then promote the already-verified pair to production.
+  unchanged; smoke the non-paid preview pair with paid providers and prefetch
+  both disabled;
+  deploy a production-labeled, firewall-bounded canary; enable prefetch only in
+  that canary; observe the canary; then move the already-verified pair to the
+  production aliases.
 - Keep the production website alias and entry adapters on the previous release
   until the preview deployment passes smoke. Do not send live traffic to an
   unverified adapter.
@@ -52,6 +55,12 @@ secret values in the deployment platform; do not commit them.
 | `TWILIO_VERIFY_SERVICE_SID` | Verify service SID for the intended environment. Use a sandbox/test service during smoke. |
 | `ALL_SEASON_INTAKE_SHARED_SECRET` | Server-to-server authentication secret. Must exactly match the website's `INTAKE_WEBHOOK_SHARED_SECRET`. |
 | `ALL_SEASON_INTAKE_COMPANY_ID` | UUID of the All Season tenant. Intake writes are scoped to this company. |
+
+`ROOF_ASSESSMENT_TEST_FAKE_PLACE_DETAILS_ENABLED` is a local browser-test seam,
+not a deployment setting. It works only when `NODE_ENV` is not `production`,
+`DEPLOYMENT_ENV=development`, and the value is exactly `true`. Its diagnostics
+route is `404` for every other combination. Never configure it on preview,
+canary, or production.
 
 PIW also needs its normal Supabase server credentials. A full Google-derived
 ready range additionally requires the existing paid-provider/Google pipeline
@@ -250,19 +259,28 @@ Do not paste secrets into browser tools or shell history. Save screenshots and
 request IDs, but redact phone, email, address, continuation capability, public
 token, internal IDs, and verification codes from release evidence.
 
-### 5. Enable prefetch in preview and observe
+### 5. Enable prefetch in a production-labeled canary and observe
 
-1. Keep the website adapters and production aliases unchanged.
-2. Set `ROOF_ASSESSMENT_PROPERTY_PREFETCH_ENABLED=true` only on the verified
-   preview PIW deployment, then repeat one Google-selected journey from each of
-   the seven canonical entry points and one manual-address journey.
-3. Enable `TWILIO_VERIFY_ENABLED=true` only after trusted-header and sandbox
+1. Keep the public website and PIW production aliases unchanged. Preview stays
+   correctly labeled `DEPLOYMENT_ENV=preview`, with `PAID_PROVIDERS_ENABLED=false`
+   and `ROOF_ASSESSMENT_PROPERTY_PREFETCH_ENABLED=false`.
+2. Create a separate production-labeled canary deployment using the production
+   tenant/provider configuration. It must not own a public alias. Restrict its
+   hostname at the edge to the named release operators and the canary website
+   origin, and cap traffic to the explicit observation cohort. This is a real
+   production canary, not a preview mislabeled to bypass environment validation.
+3. On only that bounded canary, set `PAID_PROVIDERS_ENABLED=true` and
+   `ROOF_ASSESSMENT_PROPERTY_PREFETCH_ENABLED=true`. Point only the canary
+   website adapter at it. Repeat one Google-selected journey from each of the
+   seven canonical entry points and one manual-address journey before opening
+   the 30-journey cohort.
+4. Enable `TWILIO_VERIFY_ENABLED=true` only after trusted-header and approved
    verification have passed.
-4. Watch timing and error metrics before production promotion. Track Place
+5. Watch timing and error metrics before production alias promotion. Track Place
    Details timeout/failure, prefetch persistence failure, coordinates-pending,
    Static Maps latency/failure, Google Solar completion latency, and asynchronous
    fallback rate as separate series.
-5. Treat `409` duplicate responses as an explicit restart: create a new
+6. Treat `409` duplicate responses as an explicit restart: create a new
    submission ID. Never replay a consumed continuation secret or reuse the old
    public token after either authorized resume path rotates it.
 
@@ -282,6 +300,71 @@ token, internal IDs, and verification codes from release evidence.
 4. Only after the preview smoke and observation gate pass, promote the verified
    PIW and unchanged website adapter deployment to production. Watch the same
    metrics through the initial production window.
+
+The structured records used for this gate are allowlisted and joined only by
+the opaque `raj_<32 hex>` correlation. That value is an HMAC of the immutable
+submission ID on the unique consumed originating (`attempt_kind='new'`) access
+attempt for the token-scoped assessment. It is not a capability and cannot be
+reversed without the server signing secret. Logs never contain the submission,
+attempt, assessment, token, address, Place ID, coordinates, contact data, or
+provider payload. A later resume submission cannot rebind the correlation.
+
+Normalize the following logger/message names as event types, retain the first
+record per exact `(correlation, event_type)`, and reject any record without a
+valid opaque correlation:
+
+- `assessment_prefetch_path_selected`: `prefetch_candidate`, `async_manual`, or
+  `async_google_flag_off`; the latter two are the manual/asynchronous fallback
+  signal.
+- `roof_assessment_property_prefetch`: completion outcome and allowlisted
+  provider/persistence/total durations.
+- `roof estimate image request completed`: image outcome/status/duration.
+- `assessment_analysis_revealed`: `ready_at_8s`,
+  `ready_between_8s_12s`, or `pending_at_12s`.
+
+Use this exact logical query in the log warehouse (replace `structured_logs`
+and timestamp syntax only; do not change the joins or filters):
+
+```sql
+with first_event as (
+  select * from (
+    select l.*,
+      row_number() over (
+        partition by correlation, event_type order by occurred_at, ingest_id
+      ) as event_rank
+    from structured_logs l
+    where occurred_at >= :canary_started_at
+      and correlation ~ '^raj_[0-9a-f]{32}$'
+  ) ranked where event_rank = 1
+), clean_successful_aerial as (
+  select p.correlation, r.outcome as reveal_outcome
+  from first_event p
+  join first_event c using (correlation)
+  join first_event i using (correlation)
+  join first_event r using (correlation)
+  where p.event_type = 'assessment_prefetch_path_selected'
+    and p.outcome = 'prefetch_candidate'
+    and c.event_type = 'roof_assessment_property_prefetch'
+    and c.outcome in ('applied', 'already_applied')
+    and i.event_type = 'roof estimate image request completed'
+    and i.outcome = 'ready' and i.status = 200
+    and r.event_type = 'assessment_analysis_revealed'
+  order by r.occurred_at, p.correlation
+  limit 30
+)
+select
+  count(*) as denominator,
+  count(*) filter (where reveal_outcome = 'ready_at_8s') as numerator,
+  round(100.0 * count(*) filter (where reveal_outcome = 'ready_at_8s')
+    / nullif(count(*), 0), 1) as percent_ready_at_8s
+from clean_successful_aerial;
+```
+
+The release denominator must equal 30 and the numerator must be at least 27.
+Separately count path outcomes `async_manual` and `async_google_flag_off`, plus
+prefetch deferred/skipped and analysis `pending_at_12s`; none may be silently
+removed from operational fallback/error dashboards merely because it is outside
+the successful-aerial denominator.
 
 ## Rollback
 

@@ -3,6 +3,10 @@ import { z } from "zod";
 import { parseServerEnv } from "@/lib/env/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { buildGoogleSatelliteUrl } from "@/modules/context-dialer/static-map";
+import {
+  resolveAssessmentJourneyScope,
+  SupabaseAssessmentJourneyScopeRepository,
+} from "@/modules/roof-assessment/analysis-telemetry";
 
 export async function GET(
   request: NextRequest,
@@ -10,12 +14,14 @@ export async function GET(
 ) {
   const startedAt = Date.now();
   const requestId = request.headers.get("x-vercel-id");
+  let correlation: string | undefined;
   const finish = (response: NextResponse, outcome: string) => {
     console.log(JSON.stringify({
       level: "info",
       message: "roof estimate image request completed",
       route: "/api/roof-estimate/[token]/house-image",
       requestId,
+      ...(correlation ? {correlation} : {}),
       outcome,
       status: response.status,
       durationMs: Date.now() - startedAt,
@@ -91,6 +97,14 @@ export async function GET(
   }
 
   const environment = parseServerEnv(process.env);
+  if (environment.ROOF_ASSESSMENT_SIGNING_SECRET) {
+    const scope = await resolveAssessmentJourneyScope(
+      token,
+      new SupabaseAssessmentJourneyScopeRepository(service),
+      environment.ROOF_ASSESSMENT_SIGNING_SECRET,
+    );
+    correlation = scope?.correlation;
+  }
   if (!environment.GOOGLE_MAPS_API_KEY) {
     return errorResponse("Google Maps is not configured", 503, "provider_not_configured");
   }

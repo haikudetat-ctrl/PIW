@@ -1,7 +1,7 @@
 import {createHash} from "node:crypto";
 import {execFileSync} from "node:child_process";
 import {createClient} from "@supabase/supabase-js";
-import {describe, expect, test} from "vitest";
+import {describe, expect, test, vi} from "vitest";
 import type {Database} from "@/lib/database.types";
 import {
   completePublicAssessment,
@@ -25,6 +25,16 @@ import {
 import {SupabaseRoofEstimateWorkerRepository} from "@/inngest/functions/roof-estimate-worker";
 import {runPostConsentPropertyPrefetch} from "@/modules/roof-assessment/post-consent-property-prefetch";
 import {SupabasePropertyPrefetchRepository} from "@/modules/roof-assessment/supabase-property-prefetch-repository";
+import {writeCrmProjection, SupabaseCrmWriterRepository} from "@/inngest/functions/crm-writer";
+import {runRoofEstimate} from "@/inngest/functions/roof-estimate-worker";
+import {
+  sendQueuedEstimateDeliveries,
+  SupabaseEstimateDeliveryRepository,
+} from "@/inngest/functions/estimate-delivery-sender";
+import {
+  sendQueuedContextDialers,
+  SupabaseContextDialerSlackRepository,
+} from "@/inngest/functions/context-dialer-slack-sender";
 
 const runIntegration = process.env.RUN_SUPABASE_INTEGRATION === "1";
 
@@ -186,6 +196,32 @@ describe.runIf(runIntegration)("canonical assessment journey", () => {
       .select("event_id")
       .eq("event_id", discoveryEvent.id));
     expect(discoveryOutbox).toEqual([{event_id: discoveryEvent.id}]);
+
+    const crmRepository = new SupabaseCrmWriterRepository(
+      service,
+      async () => ({ids: ["fake-inngest-event"]}),
+    );
+    const crmEvent = {
+      id: crypto.randomUUID(),
+      pipelineRunId: pipeline.id,
+      correlationId: discoveryEvent.correlation_id,
+      leadId: firstEstimate.lead_id,
+      propertyId: firstEstimate.property_id,
+      submittedAddress: intake(companyId, firstSubmissionId).submittedAddress,
+      googlePlaceId: "ChIJ-task-nine-property",
+    };
+    const firstCrm = await writeCrmProjection(crmEvent, crmRepository);
+    const replayedCrm = await writeCrmProjection(crmEvent, crmRepository);
+    expect(replayedCrm).toEqual(firstCrm);
+    expect(await requireRpc(service.from("worker_runs").select("id")
+      .eq("pipeline_run_id", pipeline.id)
+      .eq("worker_type", "crm_writer"))).toHaveLength(1);
+    expect(await requireRpc(service.from("lead_stage_history").select("id")
+      .eq("lead_id", firstEstimate.lead_id)
+      .eq("to_stage", "new"))).toHaveLength(1);
+    expect(await requireRpc(service.from("notifications").select("id")
+      .eq("lead_id", firstEstimate.lead_id)
+      .eq("type", "lead_submitted"))).toHaveLength(1);
 
     const addressWorker = await runAddressValidation({
       id: crypto.randomUUID(),
@@ -373,29 +409,52 @@ describe.runIf(runIntegration)("canonical assessment journey", () => {
       .eq("public_token", resumedToken).single());
     const resultPipeline = await requireRpc(service.from("pipeline_runs")
       .select("id").eq("lead_id", estimateContext.lead_id).order("started_at", {ascending: false}).limit(1).single());
-    const insightId = crypto.randomUUID();
-    await requireRpc(service.from("roof_insights").insert({
-      id: insightId,
-      company_id: companyId,
-      property_id: estimateContext.property_id,
-      provider: "google_solar",
-      normalized_address: `task-nine-${insightId}`,
-      lookup_status: "success",
-      total_roof_sqft: 2300,
-    }));
-    await requireRpc(service.from("pipeline_runs").update({status: "complete"}).eq("id", resultPipeline.id));
-    await requireRpc(service.from("roof_estimates").update({
-      status: "ready",
-      roof_insight_id: insightId,
-      roof_squares: 23,
-      range_low_cents: 1_800_000,
-      range_high_cents: 2_600_000,
-    }).eq("id", estimateContext.id));
+    class FakeSolarRoofRepository extends SupabaseRoofEstimateWorkerRepository {
+      override async measureRoof() {
+        return {
+          insight: {
+            status: "success" as const,
+            buildingName: "buildings/fake-canonical-journey",
+            latitude: 40.3501,
+            longitude: -74.0642,
+            imageryDate: "2026-06-01",
+            imageryQuality: "HIGH",
+            roofSegments: [{pitchDegrees: 25, azimuthDegrees: 180, areaSqft: 2_300}],
+            totalRoofSqft: 2_300,
+            rawResponse: {},
+          },
+          retrievedAt: "2026-08-28T12:00:00.000Z",
+          sourceIdentifier: "buildings/fake-canonical-journey",
+        };
+      }
+    }
+    const roofRepository = new FakeSolarRoofRepository(service);
+    const roofEvent = {
+      id: crypto.randomUUID(),
+      pipelineRunId: resultPipeline.id,
+      correlationId: discoveryEvent.correlation_id,
+      leadId: estimateContext.lead_id,
+      propertyId: estimateContext.property_id,
+      canonicalAddress: "18 HARBOR VIEW DR, RED BANK, NJ 07701",
+      latitude: 40.3501,
+      longitude: -74.0642,
+      attempt: 1,
+    };
+    const firstRoof = await runRoofEstimate(roofEvent, roofRepository);
+    const replayedRoof = await runRoofEstimate(roofEvent, roofRepository);
+    expect(firstRoof.outcome).toBe("ready");
+    expect(replayedRoof).toMatchObject({outcome: "already_completed", workerRunId: firstRoof.workerRunId});
+
+    const readyEstimate = await requireRpc(service.from("roof_estimates")
+      .select("status, roof_insight_id, roof_squares, range_low_cents, range_high_cents")
+      .eq("id", estimateContext.id).single());
+    const insightId = readyEstimate.roof_insight_id!;
+    expect(readyEstimate.status).toBe("ready");
     const insight = {id: insightId, companyId, propertyId: estimateContext.property_id, provider: "google_solar", lookupStatus: "success"};
     expect(getAssessmentCalculationState({
       estimateStatus: "ready", pipelineStatus: "complete", expectedCompanyId: companyId,
-      expectedPropertyId: estimateContext.property_id, insight, lowCents: 1_800_000,
-      highCents: 2_600_000, roofSquares: 23, generatedAt: new Date().toISOString(),
+      expectedPropertyId: estimateContext.property_id, insight, lowCents: readyEstimate.range_low_cents,
+      highCents: readyEstimate.range_high_cents, roofSquares: Number(readyEstimate.roof_squares), generatedAt: new Date().toISOString(),
     }).status).toBe("ready");
     expect(getAssessmentCalculationState({
       estimateStatus: "pending", pipelineStatus: "processing", expectedCompanyId: companyId,
@@ -407,6 +466,43 @@ describe.runIf(runIntegration)("canonical assessment journey", () => {
       expectedPropertyId: estimateContext.property_id, insight: null, lowCents: null,
       highCents: null, roofSquares: null, generatedAt: new Date().toISOString(),
     }).status).toBe("review_required");
+
+    const deliveryFetch = vi.fn(async () => new Response(null, {status: 202}));
+    const deliveryRepository = new SupabaseEstimateDeliveryRepository(service);
+    const firstDeliveries = await sendQueuedEstimateDeliveries(deliveryRepository, {
+      smsWebhookUrl: "https://sms.example.test",
+      emailWebhookUrl: "https://email.example.test",
+      sharedSecret: "fake-shared-secret",
+    }, deliveryFetch);
+    const replayedDeliveries = await sendQueuedEstimateDeliveries(deliveryRepository, {
+      smsWebhookUrl: "https://sms.example.test",
+      emailWebhookUrl: "https://email.example.test",
+      sharedSecret: "fake-shared-secret",
+    }, deliveryFetch);
+    expect(firstDeliveries).toHaveLength(2);
+    expect(replayedDeliveries).toEqual([]);
+    expect(deliveryFetch).toHaveBeenCalledTimes(2);
+    expect(await requireRpc(service.from("estimate_deliveries").select("id, status")
+      .eq("estimate_id", estimateContext.id))).toHaveLength(2);
+
+    const slackFetch = vi.fn(async () => new Response("ok", {status: 200}));
+    const dialerRepository = new SupabaseContextDialerSlackRepository(service);
+    const firstDialer = await sendQueuedContextDialers(dialerRepository, {
+      webhookUrl: "https://slack.example.test",
+      baseUrl: "https://piw.example.test",
+    }, slackFetch);
+    const replayedDialer = await sendQueuedContextDialers(dialerRepository, {
+      webhookUrl: "https://slack.example.test",
+      baseUrl: "https://piw.example.test",
+    }, slackFetch);
+    expect(firstDialer).toHaveLength(1);
+    expect(replayedDialer).toEqual([]);
+    expect(slackFetch).toHaveBeenCalledOnce();
+    expect(await requireRpc(service.from("context_dialer_deliveries")
+      .select("id, status, attempt_count")
+      .eq("pipeline_run_id", resultPipeline.id))).toEqual([
+      expect.objectContaining({status: "sent", attempt_count: 1}),
+    ]);
 
     const preference = {contactMethod: "call", callWindow: "midday"} as const;
     const firstConsultation = await requestRoofConsultation(resumedToken, preference, "203.0.113.9", resultRepository);

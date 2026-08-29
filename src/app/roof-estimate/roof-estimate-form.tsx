@@ -35,6 +35,7 @@ export function RoofEstimateForm({ browserApiKey }: { browserApiKey?: string }) 
 
   return (
     <form action={action} className="grid gap-6" aria-label="Roof estimate request">
+      <input type="hidden" name="campaign" value="for-every-season" />
       <div className="flex items-center gap-3" aria-label={`Step ${step} of 2`}>
         {[1, 2].map((item) => (
           <span key={item} className={`h-1.5 flex-1 rounded-full ${item <= step ? "bg-accent" : "bg-border"}`} />

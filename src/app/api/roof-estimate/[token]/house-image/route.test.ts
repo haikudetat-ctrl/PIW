@@ -1,18 +1,27 @@
-import {afterEach, describe, expect, test, vi} from "vitest";
+import {afterEach, beforeEach, describe, expect, test, vi} from "vitest";
 
-const {buildGoogleSatelliteUrl, createServiceClient} = vi.hoisted(() => ({
+const {buildGoogleSatelliteUrl, createServiceClient, parseServerEnv, resolveAssessmentJourneyScope} = vi.hoisted(() => ({
   buildGoogleSatelliteUrl: vi.fn(({latitude, longitude}: {
     latitude: number;
     longitude: number;
   }) => `https://maps.example.test/static-map/${latitude},${longitude}`),
   createServiceClient: vi.fn(),
+  parseServerEnv: vi.fn((): {
+    GOOGLE_MAPS_API_KEY: string;
+    ROOF_ASSESSMENT_SIGNING_SECRET?: string;
+  } => ({GOOGLE_MAPS_API_KEY: "maps-key"})),
+  resolveAssessmentJourneyScope: vi.fn(),
 }));
 
 vi.mock("@/lib/env/server", () => ({
-  parseServerEnv: () => ({GOOGLE_MAPS_API_KEY: "maps-key"}),
+  parseServerEnv,
 }));
 vi.mock("@/lib/supabase/service", () => ({createServiceClient}));
 vi.mock("@/modules/context-dialer/static-map", () => ({buildGoogleSatelliteUrl}));
+vi.mock("@/modules/roof-assessment/analysis-telemetry", () => ({
+  resolveAssessmentJourneyScope,
+  SupabaseAssessmentJourneyScopeRepository: class {},
+}));
 
 import {GET} from "./route";
 
@@ -60,9 +69,40 @@ function serviceWithLocations(input: {
 }
 
 describe("token-scoped house image route", () => {
+  beforeEach(() => {
+    parseServerEnv.mockReturnValue({GOOGLE_MAPS_API_KEY: "maps-key"});
+  });
   afterEach(() => {
     vi.clearAllMocks();
     vi.unstubAllGlobals();
+  });
+
+  test("adds only the server-derived opaque journey correlation to the completion log", async () => {
+    serviceWithLocations({address: {latitude: 39.48, longitude: -75.02}});
+    parseServerEnv.mockReturnValue({
+      GOOGLE_MAPS_API_KEY: "maps-key",
+      ROOF_ASSESSMENT_SIGNING_SECRET: "server-only-secret",
+    });
+    resolveAssessmentJourneyScope.mockResolvedValue({
+      correlation: "raj_0123456789abcdef0123456789abcdef",
+    });
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(new Uint8Array([1]), {status: 200})));
+    const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+
+    const response = await GET(new Request("https://example.test") as never, params);
+
+    expect(response.status).toBe(200);
+    const record = JSON.parse(String(log.mock.calls[0]?.[0]));
+    expect(record).toMatchObject({
+      correlation: "raj_0123456789abcdef0123456789abcdef",
+      message: "roof estimate image request completed",
+      outcome: "ready",
+      status: 200,
+    });
+    const serialized = JSON.stringify(record);
+    expect(serialized).not.toContain(token);
+    expect(serialized).not.toContain("99999999-9999-4999-8999-999999999999");
+    expect(serialized).not.toMatch(/latitude|longitude|address|place/i);
   });
 
   test("marks a not-yet-geocoded image as transient and uncacheable", async () => {

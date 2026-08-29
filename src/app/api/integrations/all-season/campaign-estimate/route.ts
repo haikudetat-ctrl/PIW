@@ -11,6 +11,10 @@ import { runPostConsentPropertyPrefetch } from "@/modules/roof-assessment/post-c
 import { startOrResumeRoofAssessment } from "@/modules/roof-assessment/start-or-resume";
 import { SupabaseAssessmentIntakeRepository } from "@/modules/roof-assessment/supabase-assessment-intake-repository";
 import { SupabasePropertyPrefetchRepository } from "@/modules/roof-assessment/supabase-property-prefetch-repository";
+import {
+  buildAssessmentPrefetchPathLog,
+  createAssessmentJourneyCorrelation,
+} from "@/modules/roof-assessment/analysis-telemetry";
 import { fetchGooglePlaceDetails } from "@/modules/providers/adapters/google-places";
 import {
   allSeasonCampaignEstimateSchema,
@@ -129,9 +133,16 @@ export async function POST(request: NextRequest) {
 
   return handleAllSeasonCampaignEstimateRequest(request, {
     expectedSecret: environment.ALL_SEASON_INTAKE_SHARED_SECRET,
-    accept: (payload) => acceptAllSeasonCampaignEstimate(
-      toCampaignEstimateLeadInput(payload),
-      {
+    accept: (payload) => {
+      const correlation = createAssessmentJourneyCorrelation(payload.submission_id, signingKey);
+      const pathOutcome = payload.google_place_id
+        ? propertyPrefetchRepository ? "prefetch_candidate" : "async_google_flag_off"
+        : "async_manual";
+      console.info("roof_assessment_prefetch_path", buildAssessmentPrefetchPathLog({
+        correlation,
+        outcome: pathOutcome,
+      }));
+      return acceptAllSeasonCampaignEstimate(toCampaignEstimateLeadInput(payload), {
         companyId,
         startAssessment: (input) => startOrResumeRoofAssessment(input, {
           repository,
@@ -147,12 +158,15 @@ export async function POST(request: NextRequest) {
                 apiKey: environment.GOOGLE_MAPS_API_KEY,
               }),
               logCompletion: (completion) => {
-                console.info("roof_assessment_property_prefetch", completion);
+                console.info("roof_assessment_property_prefetch", {
+                  correlation,
+                  ...completion,
+                });
               },
             })
             : undefined,
         }),
-      },
-    ),
+      });
+    },
   });
 }
