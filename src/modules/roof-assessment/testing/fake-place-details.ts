@@ -1,7 +1,10 @@
 import "server-only";
 import type {SupabaseClient} from "@supabase/supabase-js";
 import type {Database} from "@/lib/database.types";
-import {runPostConsentPropertyPrefetch} from "../post-consent-property-prefetch";
+import {
+  runPostConsentPropertyPrefetch,
+  type PostConsentPropertyPrefetchDependencies,
+} from "../post-consent-property-prefetch";
 import {SupabasePropertyPrefetchRepository} from "../supabase-property-prefetch-repository";
 
 type TestEnvironment = Record<string, string | undefined>;
@@ -56,6 +59,7 @@ export function recordFakeAssessmentContext(
 export function createFakePlaceDetailsPrefetch(
   environment: TestEnvironment,
   client: SupabaseClient<Database>,
+  logCompletion?: PostConsentPropertyPrefetchDependencies["logCompletion"],
 ) {
   if (!isFakePlaceDetailsTestMode(environment)) return undefined;
   return (input: Parameters<typeof runPostConsentPropertyPrefetch>[0]) => (
@@ -83,6 +87,7 @@ export function createFakePlaceDetailsPrefetch(
           confidence: 98,
         };
       },
+      logCompletion,
     })
   );
 }

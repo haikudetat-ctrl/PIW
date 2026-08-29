@@ -44,6 +44,7 @@ function dependencies(
   continuation: {
     authorize?: PublicRoofEstimateRuntime["authorizeContinuation"];
     bind?: PublicRoofEstimateRuntime["bindAssessmentSession"];
+    accepted?: PublicRoofEstimateRuntime["onAssessmentAccepted"];
   } = {},
 ) {
   const authorizeContinuation = continuation.authorize ?? vi.fn(async () => ({
@@ -58,6 +59,7 @@ function dependencies(
       startAssessment,
       authorizeContinuation,
       bindAssessmentSession,
+      onAssessmentAccepted: continuation.accepted,
     }),
     requestHeaders: async () => new Headers({
       referer: referrer,
@@ -120,6 +122,7 @@ describe("public roof estimate server action", () => {
 
   test("keeps an unbound resume candidate on the verification path without issuing a session", async () => {
     const bindAssessmentSession = vi.fn(async () => undefined);
+    const onAssessmentAccepted = vi.fn(async () => undefined);
     const outcome = await handlePublicRoofEstimateSubmission(
       validFormData(),
       dependencies(
@@ -130,6 +133,7 @@ describe("public roof estimate server action", () => {
             attemptId: "55555555-5555-4555-8555-555555555555",
           })),
           bind: bindAssessmentSession,
+          accepted: onAssessmentAccepted,
         },
       ),
     );
@@ -139,12 +143,17 @@ describe("public roof estimate server action", () => {
       path: "/roof-estimate/resume/55555555-5555-4555-8555-555555555555",
     });
     expect(bindAssessmentSession).not.toHaveBeenCalled();
+    expect(onAssessmentAccepted).not.toHaveBeenCalled();
   });
 
   test("returns a safe restart state for a duplicate without a redirect path", async () => {
+    const onAssessmentAccepted = vi.fn(async () => undefined);
     const outcome = await handlePublicRoofEstimateSubmission(
       validFormData(),
-      dependencies(async () => ({kind: "duplicate_requires_restart"})),
+      dependencies(
+        async () => ({kind: "duplicate_requires_restart"}),
+        {accepted: onAssessmentAccepted},
+      ),
     );
 
     expect(outcome).toEqual({
@@ -152,6 +161,69 @@ describe("public roof estimate server action", () => {
       state: {error: "Please refresh the page and restart your estimate request."},
     });
     expect(outcome).not.toHaveProperty("continuationPath");
+    expect(onAssessmentAccepted).not.toHaveBeenCalled();
+  });
+
+  test("flushes accepted telemetry exactly once after the signed session cookie is bound", async () => {
+    const order: string[] = [];
+    const bindAssessmentSession = vi.fn(async () => {
+      order.push("cookie-bound");
+    });
+    const onAssessmentAccepted = vi.fn(async () => {
+      order.push("telemetry-flushed");
+    });
+
+    const outcome = await handlePublicRoofEstimateSubmission(
+      validFormData(),
+      dependencies(
+        async () => ({kind: "continue", continuationPath: "/roof-estimate/continue/safe_token"}),
+        {bind: bindAssessmentSession, accepted: onAssessmentAccepted},
+      ),
+    );
+
+    expect(outcome).toEqual({
+      kind: "redirect",
+      path: "/roof-estimate/44444444-4444-4444-8444-444444444444",
+    });
+    expect(bindAssessmentSession).toHaveBeenCalledOnce();
+    expect(onAssessmentAccepted).toHaveBeenCalledOnce();
+    expect(order).toEqual(["cookie-bound", "telemetry-flushed"]);
+  });
+
+  test("keeps the canonical redirect when the accepted telemetry hook throws", async () => {
+    const outcome = await handlePublicRoofEstimateSubmission(
+      validFormData(),
+      dependencies(
+        async () => ({kind: "continue", continuationPath: "/roof-estimate/continue/safe_token"}),
+        {accepted: vi.fn(async () => {
+          throw new Error("logger unavailable");
+        })},
+      ),
+    );
+
+    expect(outcome).toEqual({
+      kind: "redirect",
+      path: "/roof-estimate/44444444-4444-4444-8444-444444444444",
+    });
+  });
+
+  test("does not flush telemetry when session cookie binding fails", async () => {
+    const onAssessmentAccepted = vi.fn(async () => undefined);
+    const outcome = await handlePublicRoofEstimateSubmission(
+      validFormData(),
+      dependencies(
+        async () => ({kind: "continue", continuationPath: "/roof-estimate/continue/safe_token"}),
+        {
+          bind: vi.fn(async () => {
+            throw new Error("cookie unavailable");
+          }),
+          accepted: onAssessmentAccepted,
+        },
+      ),
+    );
+
+    expect(outcome.kind).toBe("state");
+    expect(onAssessmentAccepted).not.toHaveBeenCalled();
   });
 
   test("rejects an unsafe continuation path before navigation", async () => {

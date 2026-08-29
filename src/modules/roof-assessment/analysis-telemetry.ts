@@ -22,8 +22,26 @@ export interface AssessmentJourneyScopeRepository {
   findOriginatingAttempt(scope: TokenScope): Promise<{submissionId: string} | null>;
 }
 
-export function createAssessmentJourneyCorrelation(submissionId: string, signingSecret: string) {
-  return `raj_${createHmac("sha256", signingSecret).update(submissionId).digest("hex").slice(0, 32)}`;
+const JOURNEY_CORRELATION_DOMAIN = "piw-roof-assessment-journey-correlation:v1\0";
+
+function lengthPrefixed(value: string) {
+  const bytes = Buffer.from(value, "utf8");
+  const length = Buffer.allocUnsafe(4);
+  length.writeUInt32BE(bytes.byteLength);
+  return [length, bytes] as const;
+}
+
+export function createAssessmentJourneyCorrelation(
+  companyId: string,
+  submissionId: string,
+  signingSecret: string,
+) {
+  const hmac = createHmac("sha256", signingSecret).update(JOURNEY_CORRELATION_DOMAIN);
+  for (const frame of [lengthPrefixed(companyId), lengthPrefixed(submissionId)]) {
+    hmac.update(frame[0]);
+    hmac.update(frame[1]);
+  }
+  return `raj_${hmac.digest("hex").slice(0, 32)}`;
 }
 
 export async function resolveAssessmentJourneyScope(
@@ -36,7 +54,11 @@ export async function resolveAssessmentJourneyScope(
   const attempt = await repository.findOriginatingAttempt(tokenScope);
   if (!attempt) return null;
   return {
-    correlation: createAssessmentJourneyCorrelation(attempt.submissionId, signingSecret),
+    correlation: createAssessmentJourneyCorrelation(
+      tokenScope.companyId,
+      attempt.submissionId,
+      signingSecret,
+    ),
   };
 }
 

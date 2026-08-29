@@ -13,10 +13,10 @@ VIEWPORTS = (
     ("1440x900", 1440, 900),
 )
 IMAGERY_STATES = (
-    ("ready", 7.85, 8.20, True),
+    ("ready", 7.85, 8.25, True),
     ("slow", 8.85, 9.20, True),
     ("pending", 11.85, 12.20, False),
-    ("retry", 7.85, 8.20, True),
+    ("retry", 7.85, 8.25, True),
 )
 
 

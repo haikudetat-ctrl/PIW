@@ -13,10 +13,10 @@ import {
   createSupabaseContinuationAuthorizationDependencies,
 } from "@/modules/roof-assessment/assessment-continuation";
 import { signContinuation } from "@/modules/roof-assessment/continuation-token";
+import {createPostConsentPrefetchComposition} from "@/modules/roof-assessment/post-consent-prefetch-composition";
 import { startOrResumeRoofAssessment } from "@/modules/roof-assessment/start-or-resume";
 import { SupabaseAssessmentIntakeRepository } from "@/modules/roof-assessment/supabase-assessment-intake-repository";
 import {
-  createFakePlaceDetailsPrefetch,
   recordFakeAssessmentContext,
 } from "@/modules/roof-assessment/testing/fake-place-details";
 import {
@@ -52,17 +52,29 @@ const productionDependencies: PublicRoofEstimateActionDependencies = {
       service,
       signingKey,
     );
+    let acceptedComposition: ReturnType<typeof createPostConsentPrefetchComposition> | undefined;
     return {
       companyId,
-      startAssessment: (input) => {
+      startAssessment: async (input) => {
         recordFakeAssessmentContext(process.env, input);
-        return startOrResumeRoofAssessment(input, {
+        const composition = createPostConsentPrefetchComposition({
+          environment,
+          client: service,
+          companyId,
+          submissionId: input.submissionId,
+          googlePlaceId: input.googlePlaceId,
+          signingSecret: signingKey,
+          testEnvironment: process.env,
+        });
+        const result = await startOrResumeRoofAssessment(input, {
           repository,
           tokenIssuer: {
             issue: (capability) => signContinuation(capability, signingKey),
           },
-          postConsentPrefetch: createFakePlaceDetailsPrefetch(process.env, service),
+          postConsentPrefetch: composition.postConsentPrefetch,
         });
+        acceptedComposition = result.kind === "continue" ? composition : undefined;
+        return result;
       },
       authorizeContinuation: (continuation) => authorizeAssessmentContinuation(
         continuation,
@@ -75,6 +87,11 @@ const productionDependencies: PublicRoofEstimateActionDependencies = {
         signingKey,
         {nodeEnv: environment.NODE_ENV},
       ),
+      onAssessmentAccepted: () => {
+        const composition = acceptedComposition;
+        acceptedComposition = undefined;
+        composition?.markAccepted();
+      },
     };
   },
   requestHeaders: () => headers(),

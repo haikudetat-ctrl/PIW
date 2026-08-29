@@ -53,6 +53,16 @@ export async function GET(
     return errorResponse("Estimate not found", 404, "estimate_not_found");
   }
 
+  const signingSecret = process.env.ROOF_ASSESSMENT_SIGNING_SECRET;
+  if (signingSecret) {
+    const scope = await resolveAssessmentJourneyScope(
+      token,
+      new SupabaseAssessmentJourneyScopeRepository(service),
+      signingSecret,
+    );
+    correlation = scope?.correlation;
+  }
+
   const [{ data: insight }, { data: address }] = await Promise.all([
     estimate.roof_insight_id
       ? service
@@ -97,14 +107,6 @@ export async function GET(
   }
 
   const environment = parseServerEnv(process.env);
-  if (environment.ROOF_ASSESSMENT_SIGNING_SECRET) {
-    const scope = await resolveAssessmentJourneyScope(
-      token,
-      new SupabaseAssessmentJourneyScopeRepository(service),
-      environment.ROOF_ASSESSMENT_SIGNING_SECRET,
-    );
-    correlation = scope?.correlation;
-  }
   if (!environment.GOOGLE_MAPS_API_KEY) {
     return errorResponse("Google Maps is not configured", 503, "provider_not_configured");
   }

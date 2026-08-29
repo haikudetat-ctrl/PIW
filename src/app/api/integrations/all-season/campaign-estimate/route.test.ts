@@ -162,6 +162,7 @@ describe("All Season campaign estimate intake", () => {
     expect(response.status).toBe(401);
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(accept).not.toHaveBeenCalled();
+    expect(mocks.fetchGooglePlaceDetails).not.toHaveBeenCalled();
   });
 
   test("returns only the canonical continuation path for a first issue", async () => {
@@ -257,6 +258,7 @@ describe("All Season campaign estimate intake", () => {
     expect(response.status).toBe(400);
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(accept).not.toHaveBeenCalled();
+    expect(mocks.fetchGooglePlaceDetails).not.toHaveBeenCalled();
   });
 
   test("returns a generic retryable response without leaking a dependency error", async () => {
@@ -287,7 +289,7 @@ describe("All Season campaign estimate intake", () => {
       accepted: true,
       continuationPath: "/roof-estimate/continue/signed_token-123",
     });
-    expect(mocks.SupabasePropertyPrefetchRepository).toHaveBeenCalledWith({service: true});
+    expect(mocks.SupabasePropertyPrefetchRepository).not.toHaveBeenCalled();
     expect(mocks.startOrResumeRoofAssessment).toHaveBeenCalledWith(
       expect.objectContaining({googlePlaceId: validPayload.google_place_id}),
       expect.objectContaining({postConsentPrefetch: expect.any(Function)}),
@@ -309,6 +311,7 @@ describe("All Season campaign estimate intake", () => {
       expect.any(Object),
       expect.objectContaining({postConsentPrefetch: undefined}),
     );
+    expect(mocks.fetchGooglePlaceDetails).not.toHaveBeenCalled();
     expect(info).toHaveBeenCalledWith("roof_assessment_prefetch_path", expect.objectContaining({
       correlation: expect.stringMatching(/^raj_[a-f0-9]{32}$/),
       event: "assessment_prefetch_path_selected",
@@ -344,6 +347,7 @@ describe("All Season campaign estimate intake", () => {
       expect.objectContaining({googlePlaceId: undefined}),
       expect.any(Object),
     );
+    expect(mocks.fetchGooglePlaceDetails).not.toHaveBeenCalled();
     expect(info).toHaveBeenCalledWith("roof_assessment_prefetch_path", expect.objectContaining({
       correlation: expect.stringMatching(/^raj_[a-f0-9]{32}$/),
       event: "assessment_prefetch_path_selected",
@@ -352,6 +356,7 @@ describe("All Season campaign estimate intake", () => {
   });
 
   test("returns 409 without property data when the canonical intake reports a duplicate", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
     mocks.startOrResumeRoofAssessment.mockResolvedValue({kind: "duplicate_requires_restart"});
 
     const response = await POST(request(validPayload));
@@ -361,6 +366,8 @@ describe("All Season campaign estimate intake", () => {
     const body = await response.text();
     expect(body).toBe('{"error":"Please restart this estimate request.","retryable":true}');
     expect(body).not.toContain(validPayload.google_place_id);
+    expect(info).not.toHaveBeenCalled();
+    expect(mocks.fetchGooglePlaceDetails).not.toHaveBeenCalled();
   });
 
   test("still returns 202 when the selected-place fast path defers on timeout", async () => {
@@ -376,6 +383,14 @@ describe("All Season campaign estimate intake", () => {
         continuationPath: "/roof-estimate/continue/signed_token-123",
       };
     });
+    mocks.runPostConsentPropertyPrefetch.mockImplementation(async (prefetchInput, dependencies) => {
+      await dependencies.fetchGooglePlaceDetails({
+        submittedAddress: prefetchInput.submittedAddress,
+        googlePlaceId: prefetchInput.googlePlaceId,
+        signal: AbortSignal.abort(),
+      });
+      return {kind: "deferred", reason: "timeout"};
+    });
 
     const response = await POST(request(validPayload));
 
@@ -388,12 +403,7 @@ describe("All Season campaign estimate intake", () => {
         fetchGooglePlaceDetails: expect.any(Function),
       }),
     );
-    const dependencies = mocks.runPostConsentPropertyPrefetch.mock.calls[0]?.[1];
-    await dependencies.fetchGooglePlaceDetails({
-      submittedAddress: validPayload.address,
-      googlePlaceId: validPayload.google_place_id,
-      signal: AbortSignal.abort(),
-    });
+    expect(mocks.fetchGooglePlaceDetails).toHaveBeenCalledOnce();
     expect(mocks.fetchGooglePlaceDetails).toHaveBeenCalledWith(expect.objectContaining({
       apiKey: "maps-server-key",
       signal: expect.any(AbortSignal),
@@ -456,6 +466,7 @@ describe("All Season campaign estimate intake", () => {
   });
 
   test("returns a generic no-store 503 when canonical intake fails", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
     mocks.startOrResumeRoofAssessment.mockRejectedValue(
       new Error("raw intake failure with continuation-secret"),
     );
@@ -469,5 +480,56 @@ describe("All Season campaign estimate intake", () => {
     expect(body).not.toContain("continuation-secret");
     expect(body).not.toContain(validPayload.google_place_id);
     expect(body).not.toMatch(/latitude|longitude|evidence/i);
+    expect(info).not.toHaveBeenCalled();
+    expect(mocks.fetchGooglePlaceDetails).not.toHaveBeenCalled();
+  });
+
+  test("flushes candidate and completion telemetry only after accepted intake", async () => {
+    const order: string[] = [];
+    vi.spyOn(console, "info").mockImplementation(() => {
+      order.push("telemetry");
+    });
+    mocks.startOrResumeRoofAssessment.mockImplementation(async (input, dependencies) => {
+      await dependencies.postConsentPrefetch({
+        companyId: input.companyId,
+        attemptId: "33333333-3333-4333-8333-333333333333",
+        submittedAddress: input.submittedAddress,
+        googlePlaceId: input.googlePlaceId,
+      });
+      order.push("accepted");
+      return {
+        kind: "continue",
+        continuationPath: "/roof-estimate/continue/signed_token-123",
+      };
+    });
+    mocks.runPostConsentPropertyPrefetch.mockImplementation(async (_input, dependencies) => {
+      dependencies.logCompletion({
+        outcome: "applied",
+        reason: undefined,
+        providerDurationMs: 12,
+        persistenceDurationMs: 4,
+        totalDurationMs: 16,
+      });
+      return {kind: "applied", providerDurationMs: 12, totalDurationMs: 16};
+    });
+
+    const response = await POST(request(validPayload));
+
+    expect(response.status).toBe(202);
+    expect(order).toEqual(["accepted", "telemetry", "telemetry"]);
+  });
+
+  test("keeps an accepted response when telemetry logging throws", async () => {
+    vi.spyOn(console, "info").mockImplementation(() => {
+      throw new Error("logger unavailable");
+    });
+
+    const response = await POST(request(validPayload));
+
+    expect(response.status).toBe(202);
+    await expect(response.json()).resolves.toEqual({
+      accepted: true,
+      continuationPath: "/roof-estimate/continue/signed_token-123",
+    });
   });
 });

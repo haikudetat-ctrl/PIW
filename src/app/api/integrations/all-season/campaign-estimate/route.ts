@@ -7,15 +7,9 @@ import {
   type AllSeasonCampaignEstimateLeadInput,
 } from "@/modules/leads/accept-all-season-campaign-estimate";
 import { signContinuation } from "@/modules/roof-assessment/continuation-token";
-import { runPostConsentPropertyPrefetch } from "@/modules/roof-assessment/post-consent-property-prefetch";
+import {createPostConsentPrefetchComposition} from "@/modules/roof-assessment/post-consent-prefetch-composition";
 import { startOrResumeRoofAssessment } from "@/modules/roof-assessment/start-or-resume";
 import { SupabaseAssessmentIntakeRepository } from "@/modules/roof-assessment/supabase-assessment-intake-repository";
-import { SupabasePropertyPrefetchRepository } from "@/modules/roof-assessment/supabase-property-prefetch-repository";
-import {
-  buildAssessmentPrefetchPathLog,
-  createAssessmentJourneyCorrelation,
-} from "@/modules/roof-assessment/analysis-telemetry";
-import { fetchGooglePlaceDetails } from "@/modules/providers/adapters/google-places";
 import {
   allSeasonCampaignEstimateSchema,
   type AllSeasonCampaignEstimateInput,
@@ -125,48 +119,33 @@ export async function POST(request: NextRequest) {
 
   const service = createServiceClient();
   const repository = new SupabaseAssessmentIntakeRepository(service);
-  const propertyPrefetchRepository = environment.ROOF_ASSESSMENT_PROPERTY_PREFETCH_ENABLED
-    ? new SupabasePropertyPrefetchRepository(service)
-    : undefined;
   const signingKey = environment.ROOF_ASSESSMENT_SIGNING_SECRET;
   const companyId = environment.ALL_SEASON_INTAKE_COMPANY_ID;
 
   return handleAllSeasonCampaignEstimateRequest(request, {
     expectedSecret: environment.ALL_SEASON_INTAKE_SHARED_SECRET,
-    accept: (payload) => {
-      const correlation = createAssessmentJourneyCorrelation(payload.submission_id, signingKey);
-      const pathOutcome = payload.google_place_id
-        ? propertyPrefetchRepository ? "prefetch_candidate" : "async_google_flag_off"
-        : "async_manual";
-      console.info("roof_assessment_prefetch_path", buildAssessmentPrefetchPathLog({
-        correlation,
-        outcome: pathOutcome,
-      }));
-      return acceptAllSeasonCampaignEstimate(toCampaignEstimateLeadInput(payload), {
+    accept: async (payload) => {
+      const composition = createPostConsentPrefetchComposition({
+        environment,
+        client: service,
+        companyId,
+        submissionId: payload.submission_id,
+        googlePlaceId: payload.google_place_id ?? undefined,
+        signingSecret: signingKey,
+        testEnvironment: process.env,
+      });
+      const result = await acceptAllSeasonCampaignEstimate(toCampaignEstimateLeadInput(payload), {
         companyId,
         startAssessment: (input) => startOrResumeRoofAssessment(input, {
           repository,
           tokenIssuer: {
             issue: (capability) => signContinuation(capability, signingKey),
           },
-          postConsentPrefetch: propertyPrefetchRepository
-            ? (input) => runPostConsentPropertyPrefetch(input, {
-              enabled: true,
-              repository: propertyPrefetchRepository,
-              fetchGooglePlaceDetails: (details) => fetchGooglePlaceDetails({
-                ...details,
-                apiKey: environment.GOOGLE_MAPS_API_KEY,
-              }),
-              logCompletion: (completion) => {
-                console.info("roof_assessment_property_prefetch", {
-                  correlation,
-                  ...completion,
-                });
-              },
-            })
-            : undefined,
+          postConsentPrefetch: composition.postConsentPrefetch,
         }),
       });
+      if (result.kind === "continue") composition.markAccepted();
+      return result;
     },
   });
 }

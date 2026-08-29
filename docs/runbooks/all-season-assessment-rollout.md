@@ -302,16 +302,22 @@ token, internal IDs, and verification codes from release evidence.
    metrics through the initial production window.
 
 The structured records used for this gate are allowlisted and joined only by
-the opaque `raj_<32 hex>` correlation. That value is an HMAC of the immutable
-submission ID on the unique consumed originating (`attempt_kind='new'`) access
-attempt for the token-scoped assessment. It is not a capability and cannot be
-reversed without the server signing secret. Logs never contain the submission,
-attempt, assessment, token, address, Place ID, coordinates, contact data, or
-provider payload. A later resume submission cannot rebind the correlation.
+the opaque `raj_<32 hex>` correlation. That value is a domain-separated HMAC
+over the length-prefixed tenant `company_id` plus the immutable `submission_id`
+on the unique consumed originating (`attempt_kind='new'`) access attempt for
+the token-scoped assessment. It is not a capability and cannot be reversed
+without the server signing secret. Logs never contain either UUID, the attempt,
+assessment, token, address, Place ID, coordinates, contact data, or provider
+payload. A later resume submission cannot rebind the correlation, and the same
+submission UUID in two companies produces different correlations.
 
-Normalize the following logger/message names as event types, retain the first
-record per exact `(correlation, event_type)`, and reject any record without a
-valid opaque correlation:
+Normalize the following logger/message names as event types and reject any
+record without a valid opaque correlation. Retain the first record per exact
+`(correlation, event_type)` for path, completion, and reveal. For image records,
+retain the first record per outcome for the fallback/error series and select
+the first successful `ready`/`200` independently for the release denominator.
+An earlier pending or provider-failed image request must not hide a later ready
+image:
 
 - `assessment_prefetch_path_selected`: `prefetch_candidate`, `async_manual`, or
   `async_google_flag_off`; the latter two are the manual/asynchronous fallback
@@ -326,28 +332,54 @@ Use this exact logical query in the log warehouse (replace `structured_logs`
 and timestamp syntax only; do not change the joins or filters):
 
 ```sql
-with first_event as (
+with eligible_logs as (
+  select l.*
+  from structured_logs l
+  where occurred_at >= :canary_started_at
+    and correlation ~ '^raj_[0-9a-f]{32}$'
+), first_exact_event as (
   select * from (
     select l.*,
       row_number() over (
         partition by correlation, event_type order by occurred_at, ingest_id
       ) as event_rank
-    from structured_logs l
-    where occurred_at >= :canary_started_at
-      and correlation ~ '^raj_[0-9a-f]{32}$'
+    from eligible_logs l
+    where event_type in (
+      'assessment_prefetch_path_selected',
+      'roof_assessment_property_prefetch',
+      'assessment_analysis_revealed'
+    )
   ) ranked where event_rank = 1
+), first_image_by_outcome as (
+  select * from (
+    select l.*,
+      row_number() over (
+        partition by correlation, event_type, outcome, status
+        order by occurred_at, ingest_id
+      ) as outcome_rank
+    from eligible_logs l
+    where event_type = 'roof estimate image request completed'
+  ) ranked where outcome_rank = 1
+), first_successful_ready_image as (
+  select * from (
+    select l.*,
+      row_number() over (
+        partition by correlation order by occurred_at, ingest_id
+      ) as ready_rank
+    from eligible_logs l
+    where event_type = 'roof estimate image request completed'
+      and outcome = 'ready' and status = 200
+  ) ranked where ready_rank = 1
 ), clean_successful_aerial as (
   select p.correlation, r.outcome as reveal_outcome
-  from first_event p
-  join first_event c using (correlation)
-  join first_event i using (correlation)
-  join first_event r using (correlation)
+  from first_exact_event p
+  join first_exact_event c using (correlation)
+  join first_successful_ready_image i using (correlation)
+  join first_exact_event r using (correlation)
   where p.event_type = 'assessment_prefetch_path_selected'
     and p.outcome = 'prefetch_candidate'
     and c.event_type = 'roof_assessment_property_prefetch'
     and c.outcome in ('applied', 'already_applied')
-    and i.event_type = 'roof estimate image request completed'
-    and i.outcome = 'ready' and i.status = 200
     and r.event_type = 'assessment_analysis_revealed'
   order by r.occurred_at, p.correlation
   limit 30
@@ -361,10 +393,15 @@ from clean_successful_aerial;
 ```
 
 The release denominator must equal 30 and the numerator must be at least 27.
-Separately count path outcomes `async_manual` and `async_google_flag_off`, plus
-prefetch deferred/skipped and analysis `pending_at_12s`; none may be silently
-removed from operational fallback/error dashboards merely because it is outside
-the successful-aerial denominator.
+The executable query fixture covers immediate ready, coordinates-pending then
+ready, provider-failed then ready, and persistent failure. Use
+`first_image_by_outcome` separately to group/count pending and failure outcomes;
+do not filter that CTE through `first_successful_ready_image`. Separately count
+path outcomes `async_manual` and `async_google_flag_off`, prefetch
+deferred/skipped completions, and analysis `pending_at_12s` from their exact
+deduplicated series. None may be silently removed from operational
+fallback/error dashboards merely because it is outside the successful-aerial
+denominator.
 
 ## Rollback
 

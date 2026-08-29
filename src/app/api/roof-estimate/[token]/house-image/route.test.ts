@@ -79,6 +79,7 @@ describe("token-scoped house image route", () => {
 
   test("adds only the server-derived opaque journey correlation to the completion log", async () => {
     serviceWithLocations({address: {latitude: 39.48, longitude: -75.02}});
+    vi.stubEnv("ROOF_ASSESSMENT_SIGNING_SECRET", "server-only-secret");
     parseServerEnv.mockReturnValue({
       GOOGLE_MAPS_API_KEY: "maps-key",
       ROOF_ASSESSMENT_SIGNING_SECRET: "server-only-secret",
@@ -107,12 +108,54 @@ describe("token-scoped house image route", () => {
 
   test("marks a not-yet-geocoded image as transient and uncacheable", async () => {
     serviceWithLocations({address: null});
+    vi.stubEnv("ROOF_ASSESSMENT_SIGNING_SECRET", "server-only-secret");
+    parseServerEnv.mockReturnValue({
+      GOOGLE_MAPS_API_KEY: "maps-key",
+      ROOF_ASSESSMENT_SIGNING_SECRET: "server-only-secret",
+    });
+    resolveAssessmentJourneyScope.mockResolvedValue({
+      correlation: "raj_0123456789abcdef0123456789abcdef",
+    });
+    const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
 
     const response = await GET(new Request("https://example.test") as never, params);
 
     expect(response.status).toBe(404);
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(response.headers.get("retry-after")).toBe("3");
+    expect(resolveAssessmentJourneyScope).toHaveBeenCalledWith(
+      token,
+      expect.any(Object),
+      "server-only-secret",
+    );
+    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
+      correlation: "raj_0123456789abcdef0123456789abcdef",
+      outcome: "coordinates_pending",
+      status: 404,
+    });
+  });
+
+  test("retains the server-derived correlation when the image provider fails", async () => {
+    serviceWithLocations({address: {latitude: 39.48, longitude: -75.02}});
+    vi.stubEnv("ROOF_ASSESSMENT_SIGNING_SECRET", "server-only-secret");
+    parseServerEnv.mockReturnValue({
+      GOOGLE_MAPS_API_KEY: "maps-key",
+      ROOF_ASSESSMENT_SIGNING_SECRET: "server-only-secret",
+    });
+    resolveAssessmentJourneyScope.mockResolvedValue({
+      correlation: "raj_0123456789abcdef0123456789abcdef",
+    });
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, {status: 503})));
+    const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+
+    const response = await GET(new Request("https://example.test") as never, params);
+
+    expect(response.status).toBe(502);
+    expect(JSON.parse(String(log.mock.calls[0]?.[0]))).toMatchObject({
+      correlation: "raj_0123456789abcdef0123456789abcdef",
+      outcome: "provider_failed",
+      status: 502,
+    });
   });
 
   test("does not turn null coordinates into a misleading zero-zero satellite image", async () => {
