@@ -2,8 +2,11 @@
 
 **Date:** 2026-08-29
 **Status:** Proposed. Naming resolved (Rake, §4). All Season exclusivity
-resolved — no contractual constraint on reselling (§14.1). Open: territory
-sequencing, and pricing pending COGS (§7.4).
+resolved — no contractual constraint on reselling (§14.1). **Strategy updated
+2026-08-29: front door and back door — see the deck audit
+(`2026-08-29-rake-deck-positioning-audit.md`) §5, which supersedes the
+positioning in §6 below.** Open: territory sequencing, and pricing pending
+COGS (§7.4).
 **Scope:** Taking the platform in this repository to market as a product sold to
 roofing contractors beyond All Season.
 **Companion document:** `2026-08-29-all-season-growth-marketing-plan.md` covers
@@ -310,7 +313,15 @@ published is expensive.
 
 ### 5.1 Primary ICP
 
-Regional residential roofing contractors with:
+**Stated audience is all contractors** (owner direction). The platform —
+front door and back door — is trade-agnostic. Roof measurement is the roofing
+superpower on top, not the platform's definition. See deck audit §6.
+
+**Run the early pipeline in roofing regardless**, because it is the only segment
+with a demoable product until the back door and speed-to-lead ship. Claim wide,
+sell narrow, and make that a conscious sequencing choice rather than a drift.
+
+Target profile — residential contractors with:
 
 - **Revenue [ASSUMPTION]:** $3M–$25M. Below that, no marketing budget and no
   ops capacity. Above that, procurement cycles and in-house dev teams.
@@ -340,11 +351,18 @@ catastrophic, because each one consumes founder time that has no leverage.
 - Wants to replace their CRM. That is a different, much larger product.
 - Wants self-serve, month-to-month, no onboarding call.
 
-### 5.3 Expansion segments, later
+### 5.3 Expansion sequence
 
-Adjacent exterior trades — siding, windows, solar — share the property-first
-model. The architecture is explicit that solar and other exterior services are
-excluded from v1, so treat these as a **[FUTURE]** segment, not a pipeline.
+1. **Roofing** — now. The only segment with a demoable product today.
+2. **Exterior trades** (siding, windows, gutters) — once the back door ships.
+   They share the property-first model, and aerial measurement partially
+   transfers.
+3. **All contractors and home-service** — once the back door and trade-agnostic
+   front door (speed-to-lead, attribution) are live. At that point the wide
+   claim is backed by product for every prospect, not just roofers.
+
+Note that solar and non-roofing exterior services are excluded from the v1
+architecture, so step 2 is a product decision, not just a marketing one.
 
 ---
 
@@ -352,14 +370,23 @@ excluded from v1, so treat these as a **[FUTURE]** segment, not a pipeline.
 
 ### 6.1 Positioning statement
 
-*For regional roofing contractors who are spending real money on ads and
-sending reps to appointments that were never going to close — Rake measures,
-prices, and scores every lead's roof before anyone gets in a truck, and feeds
-what actually closed back to the ad platforms, so acquisition gets cheaper
-every month. Unlike measurement tools that price a roof after the visit, and
-unlike CRMs that manage work you have already won, Rake works on the half of
-the funnel that happens before a rep is dispatched — and it plugs into the CRM
-you already have.*
+**Superseded by the deck audit §5 — front door and back door.** The current
+statement:
+
+*Your CRM runs your jobs. Rake runs your front door and your back door.* Every
+lead measured, scored, and answered in minutes, with attribution back to the ad
+that produced it. Every finished job turned into a review, a referral, and the
+next lead. The messy middle — job production, scheduling, crews, accounting —
+stays where it is.
+
+For roofing specifically, the front door carries a capability no one else has:
+every lead's roof measured, priced, and scored before a rep is dispatched.
+
+Two notes on why this is the stronger frame. It converts "not another CRM" from
+a negative claim into a positive one — an explicit refusal to own the mess, which
+is credible to owners who have been sold all-in-one systems before. And the two
+ends form a loop rather than a bundle: reviews and referrals are the cheapest
+acquisition channel a contractor has, so the back door feeds the front.
 
 ### 6.2 The category frame
 
@@ -367,18 +394,19 @@ The strongest framing is a sequence, because it tells the prospect where you
 sit without attacking their existing vendors:
 
 ```
-   Ads          →    RAKE     →       CRM        →   Production
- Meta/Google      measure,        JobNimbus /       crews, materials
-                  price, score,   AccuLynx
-                  qualify, route
-                        ↑                  │
-                        └──── what closed ─┘
+  FRONT DOOR (RAKE)        THE MIDDLE            BACK DOOR (RAKE)
+                           (their CRM)
+  Ads → measure, score,    JobNimbus/AccuLynx    reviews, referrals,
+  respond, attribute       jobs, crews, $$$      repeat, lifetime value
+        ▲                                                │
+        └──────── the back door feeds the front ─────────┘
 ```
 
-That feedback arrow is the defensible part. Measurement tools do not close the
-loop to the ad account. CRMs hold the outcome data but do not send it back.
-Rake is positioned as the only component that spans from ad click to contract
-and returns the signal.
+The loop is the defensible part. Measurement tools do not close it to the ad
+account. CRMs hold the outcome data but do not send it back. Review tools sit
+downstream of everything and know nothing about where the customer came from.
+Rake is positioned as the only component that spans ad click → contract →
+referral and returns the signal to the top.
 
 ### 6.3 Competitive landscape
 
@@ -403,13 +431,17 @@ design partner asks for.
 
 ### 6.4 Message hierarchy
 
-1. **Economic (lead):** "Stop sending reps to roofs you could have disqualified
-   from a desk."
-2. **Operational:** "Your rep dials with the measurement, the score, and the
-   satellite image already on screen."
-3. **Compounding:** "Every contract you win teaches Meta what a good lead looks
-   like. Your cost per job goes down as you use it."
-4. **Trust:** "When we do not know, we say so. We will never hand your
+1. **Diagnosis (keep from the deck):** "You do not have a sales problem. You
+   have a visibility problem — and you are the source of truth. That works
+   until it does not."
+2. **Economic (front door):** "Stop sending reps to roofs you could have
+   disqualified from a desk."
+3. **Compounding (the loop):** "Every job you win teaches Meta what a good lead
+   looks like, and every job you finish produces the next one. Your cost per job
+   falls as you use it."
+4. **Scope (the refusal):** "Your CRM keeps the middle. We do not want your job
+   costing."
+5. **Trust:** "When we do not know, we say so. We will never hand your
    homeowner a made-up number."
 
 ---
@@ -504,21 +536,36 @@ attribution exact.
 An MVP with one customer sells on proof, not features. Build these before
 outbound.
 
-### 8.1 The All Season case study — the single most valuable asset
+### 8.1 There is no case study yet — plan around it
 
-Real, verifiable material already exists: 20+ years in business, in-house NJ
-Electrical and HIC licenses, and a Google profile carrying **4.5 stars across
-397 reviews** as of July 31, 2026 (`src/config/roof-estimate-brand.ts`).
+**All Season is not live in production.** The flags are still off and no real
+traffic is running (owner confirmation, 2026-08-29). This is the most
+consequential constraint in the plan and it must not be papered over.
 
-Publish the case study **only after** the All Season program in the companion
-plan has run 60–90 days with working attribution, so it can carry real
-before/after numbers: cost per lead, cost per consultation, speed to first
-contact, close rate on measured versus unmeasured leads.
+Consequences:
 
-**Do not publish a case study with invented numbers.** In a trade where every
-vendor claims to triple your leads, a case study with four honest, specific,
-attributable metrics is far more persuasive than one with a big round number —
-and it is consistent with the product's own refusal to fabricate.
+- **The demo carries the entire early sale.** There is no reference customer, no
+  before/after numbers, and no logo to show. §11.2 is therefore not one section
+  among many — it is the product's only proof.
+- **The case study moves to Q1 2027.** It requires the All Season program in the
+  companion plan to run 60–90 days *with working attribution* before it can
+  contain a single honest number.
+- **Phase 0 is double-blocking.** Pixel/CAPI and speed-to-lead gate All Season's
+  own marketing *and* every Rake claim about attribution and response time. It
+  is the highest-priority engineering work across both plans.
+- **Design partners are founding customers, not reference-followers.** Tell them
+  plainly that they are first. That is a fine pitch for three partners who are
+  buying influence and early pricing; it does not survive being scaled to ten.
+
+**When it does exist**, the raw material is strong: 20+ years in business,
+in-house NJ Electrical and HIC licenses, and a Google profile carrying **4.5
+stars across 397 reviews** as of July 31, 2026
+(`src/config/roof-estimate-brand.ts`). Publish it with four honest, specific,
+attributable metrics — cost per lead, cost per consultation, speed to first
+contact, close rate on measured versus unmeasured leads. In a trade where every
+vendor claims to triple your leads, four checkable numbers beat one big round
+one, and it is consistent with a product whose core promise is that it will not
+fabricate figures.
 
 ### 8.2 The rest of the proof stack
 
@@ -554,10 +601,12 @@ Sourcing, in priority order:
 1. **Chris's and All Season's existing network.** Roofing is relationship-
    dense; a warm introduction from a respected operator outperforms any
    outbound sequence.
-2. **New Jersey contractors generally.** There is no contractual restriction
-   (§14.1); the only self-imposed limit is All Season's immediate South Jersey
-   radius until the case study publishes. North Jersey is wide open, and
-   staying in-state means no NJ refactor is needed to sign tenant #2.
+2. **New Jersey roofing contractors.** No contractual restriction (§14.1); the
+   only self-imposed limit is All Season's immediate South Jersey radius while
+   they remain the intended case study. Staying in-state means no NJ refactor is
+   needed to sign tenant #2. Note that with All Season not yet live (§8.1), the
+   case-study restraint is worth less than it was — reassess if a good South
+   Jersey partner appears.
 3. **Trade associations** — NJ and regional roofing contractor associations.
 4. **Targeted outbound** to contractors whose ads are visibly running in Meta's
    public Ad Library. This is a genuinely good sourcing channel: it pre-
@@ -665,17 +714,23 @@ Design-partner scarcity is a real and honest close.
 
 | Quarter | Engineering | GTM unlocked |
 | --- | --- | --- |
-| **Q4 2026 (early)** | Pixel/GTM/GA4 + CAPI (§3.6); ship speed-to-lead; enable flags in a demo environment; cross-tenant isolation test suite | Credible demo; attribution teardown; security one-pager; reworked `rake.2-stack.com` |
-| **Q4 2026 (late)** | Per-company brand + campaign registry + pricing moved to DB config; onboarding runbook; per-tenant cost allocation | Design partner #1–3 in NJ; COGS-based pricing |
-| **Q1 2027** | Lift the NJ lock: served-states allowlist, Zod literals → configured enum, parameterized adapter gates. Google-Solar-only mode for non-NJ | Out-of-state tenants; real TAM |
-| **Q1–Q2 2027** | Tenant admin UI; self-service campaign config; usage metering; billing | 10–15 tenants without founder onboarding every one |
+| **Q4 2026 (early)** | Pixel/GTM/GA4 + CAPI; ship speed-to-lead; enable flags in a demo environment; cross-tenant isolation tests | Credible demo; attribution teardown; security one-pager; reworked deck and `rake.2-stack.com`; **front door becomes true and trade-agnostic** |
+| **Q4 2026 (late)** | **Review/referral engine v1 (the back door)**; per-company brand, campaign registry and pricing moved to DB config; onboarding runbook; per-tenant cost allocation | Design partners #1–3; **"all contractors" becomes an honest claim**; COGS-based pricing |
+| **Q1 2027** | Lift the NJ lock: served-states allowlist, Zod literals → configured enum, parameterized adapter gates. Google-Solar-only mode for non-NJ | Out-of-state tenants; real TAM; **All Season case study publishes** |
+| **Q1–Q2 2027** | Front/back-door scorecard (response time, attribution, estimate aging, review and referral velocity — nothing requiring accounting); tenant admin UI; usage metering; billing | 10–15 tenants without founder onboarding each one |
 | **Q2 2027+** | Public API; CRM marketplace listing; partner tooling | Partner-led distribution |
+| **Not planned** | Profitability engine; revenue/margin/crew reporting | Off-strategy — this is the middle, and it stays with their CRM |
 
 The ordering is deliberate. Everything in the first row is required for the
 *first conversation*. Everything in the second is required for the *first
-dollar*. The NJ lock — which looks like the scariest item — is deliberately
-third, because tenant #2 can be a non-competing New Jersey contractor and
-does not need it.
+dollar* — and note that the back-door build sits there, because it is what makes
+the wide audience claim honest rather than aspirational. The NJ lock — which
+looks like the scariest item — is deliberately third, because tenant #2 can be a
+New Jersey roofer and does not need it.
+
+The final row matters as much as the others. Deciding *not* to build job
+costing removes the two hardest integration projects from the roadmap and is
+what keeps a small team's surface area survivable.
 
 ---
 
@@ -750,6 +805,8 @@ ten.
 
 | Risk | Severity | Mitigation |
 | --- | --- | --- |
+| **No reference customer — All Season is not live** | **Critical** | Phase 0 is double-blocking (§8.1). Cap design partners at 3 and pitch them as founding customers |
+| Claiming "all contractors" while only roofers have a demoable product | **High** | State the roofing superpower explicitly; run the early pipeline in roofing; ship the back door to make the claim honest |
 | Selling ahead of the product; demo returns "professional review" | **Critical** | §12 gates; verify the demo path before every call |
 | Shipping the attribution gap to a paying tenant | **Critical** | §3.6 before first paid tenant |
 | Done-for-you motion does not scale; founder becomes the bottleneck | **High** | Track founder hours/tenant; cap design partners at 3 |

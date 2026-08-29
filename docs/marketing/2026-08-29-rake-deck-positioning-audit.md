@@ -9,6 +9,15 @@ product it then promises is roughly two quarters ahead of the build, and it
 omits the one capability that is finished, differentiated, and hard to copy.
 Keep the message. Change the wedge.
 
+**Updated 2026-08-29 following owner input.** The strategy is now front door and
+back door — acquisition in, reviews and referrals out, with the messy middle
+left to the incumbent CRM. This is stronger than the scorecard frame and
+resolves most of the gap below by making two of the unbuilt engines
+off-strategy rather than overdue. See §5. Audience is "all contractors" (§6);
+the scorecard screens are confirmed aspirational (§8.1); and All Season is not
+yet live, so there is no case study and the demo carries the early sale
+(§8.2).
+
 ---
 
 ## 1. What the deck says
@@ -48,8 +57,8 @@ them. The deck and the plan agree here.
 
 **The Engines packaging.** Naming discrete outcome-shaped capabilities — Lead
 Response, Profitability, Referral, Estimate Recovery — is a strong device. It
-sells outcomes rather than screens and it scales into a roadmap cleanly. See §6
-for how to use it honestly.
+sells outcomes rather than screens and it scales into a roadmap cleanly. §5.2
+reclassifies them against the front/back-door strategy.
 
 ---
 
@@ -89,9 +98,10 @@ pages. Neither does RoofCheck, the campaign-to-quote continuity, the
 assessment's need/intent/urgency scoring, or the context dialer.
 
 This is the inverse of the usual problem. The capability that is finished,
-tested, in production with a real customer, genuinely differentiated, and
-expensive for a competitor to copy has been left out of the marketing entirely,
-while five capabilities that do not exist are on the cover.
+tested, deployed, genuinely differentiated, and expensive for a competitor to
+copy has been left out of the marketing entirely, while five capabilities that
+do not exist are on the cover. (It is built and demoable but not yet running
+live traffic — see §8.2.)
 
 ### 3.3 One uncomfortable detail
 
@@ -101,9 +111,10 @@ failure is live in your own stack**: there is no Meta Pixel, GA4, or GTM
 anywhere on the website, so the `_fbp` and `_fbc` cookies the intake routes read
 are always null and the CAPI loop has nothing to match against.
 
-This is fixable and it is on the roadmap. But it cannot be sold until it is
-fixed, because the first thing a sharp prospect will do is ask you to
-demonstrate it on your own reference customer.
+This is fixable and it is near the top of the roadmap. But it cannot be sold
+until it is fixed — attribution is the one claim a prospect can ask you to
+demonstrate on your own business, and right now the honest answer is that it
+does not work yet.
 
 ---
 
@@ -126,112 +137,176 @@ quarter and one cannot.
 
 ---
 
-## 5. Recommended reconciliation
+## 5. Recommended positioning: the front door and the back door
 
-**Keep the deck's diagnosis. Change the first engine you deliver.**
+**Owner direction (2026-08-29):** be the front door and the back door of the
+customer lifecycle. Acquisition in; reviews and referrals out. A review/referral
+product is the planned back-end build. *"Everything else is messy in these
+businesses."*
 
-The deck already contains its own bridge and does not appear to know it. Page 6:
-*"Stop ending the story at the invoice. Everyone can track lead to estimate to
-job to invoice. RAKE helps owners see what happens before and after."*
+This is a better strategy than the scorecard frame, and it resolves the audit's
+central gap cleanly. It should become the positioning.
 
-**"Before" is where the build is.** The deck's own funnel — Lead → Estimate →
-Job → Customer → Referral → LTV — starts at Lead. Sell the front of that funnel
-now and expand rightward as you build.
+### 5.1 The frame
 
-So the narrative becomes:
+The deck's own funnel is Lead → Estimate → Job → Customer → Referral → Lifetime
+Value. The strategy is to own both ends and deliberately decline the middle:
 
-1. **Diagnosis (keep verbatim):** you do not have a sales problem, you have a
-   visibility problem, and you are the source of truth. That works until it
-   does not.
-2. **Narrow the first cut (new):** the most expensive blindness is at the front
-   — you are dispatching reps to roofs you could have disqualified from a desk,
-   and you cannot see which ads produced the jobs you actually won.
-3. **Wedge (built, demoable today):** every inbound lead gets its roof measured,
-   priced, and scored before anyone is dispatched, and what closes goes back to
-   the ad platform.
-4. **Expansion (the Engines, honestly staged):** as jobs flow through, the same
-   spine lights up Estimate Recovery, then Profitability, then Referral, then
-   the full Owner Scorecard.
+```
+   FRONT DOOR                 THE MIDDLE                 BACK DOOR
+   (RAKE)                     (their CRM — not us)       (RAKE)
 
-This keeps "not another CRM" (you sit in front of it), keeps the visibility
-frame (you are making the invisible front half visible), keeps the Engines, and
-makes the roadmap a reason to buy early rather than a set of claims to defend.
+   Lead → Estimate            Job, scheduling,           Customer → Referral
+   measured, scored,          crews, materials,          → Lifetime Value
+   responded to, attributed   accounting                 review, referral, repeat
+        ▲                                                        │
+        └────────────── the back door feeds the front ───────────┘
+```
 
-**Positioning line, reconciled:**
+**This makes "not another CRM" a positive claim instead of a negative one.** The
+deck currently says what RAKE is not. The front/back-door frame says what it is,
+and the refusal to touch job production and accounting becomes a deliberate
+product decision rather than a missing feature. That is a far stronger answer to
+"how are you different from AccuLynx" than "we're a visibility layer."
 
-> *You do not have a sales problem. You have a visibility problem — and it
-> starts before the first appointment. RAKE measures, prices, and scores every
-> lead's roof before you send anyone, then shows you which ads actually produced
-> the jobs you won.*
+**The loop is the real story.** Reviews and referrals are not a back-office
+nicety; they are the cheapest acquisition channel a contractor has. The back
+door feeds the front door. Roofing is referral-dense, and All Season's own
+4.5★ / 397-review profile is the proof that reputation drives inbound in this
+trade. Framing it as a loop rather than as two features is what makes this a
+platform story instead of a bundle.
 
----
+### 5.2 What this does to the Engines
 
-## 6. Using the Engines honestly
+The strategy reclassifies them, and this is the most useful output of the audit:
 
-The Engines are good packaging. Stage them with visible status rather than
-presenting five equals:
-
-| Engine | Status to show | Reality |
+| Engine | Position | Verdict |
 | --- | --- | --- |
-| **Property Intelligence** (new, lead engine) | **Live** | Built, in production |
-| **Lead Response** | **Live at launch** | Needs the speed-to-lead workflow shipped — days, not quarters |
-| **Estimate Recovery** | **Beta** | Abandonment worker exists; scoring does not |
-| **Attribution** (split out of the Scorecard) | **Beta** | Needs Pixel + CAPI. High value, low effort, big proof |
-| **Profitability** | **On the roadmap** | Needs accounting integration. Do not sell a date |
-| **Referral** | **On the roadmap** | Not started |
-| **Owner Scorecard** | **Roadmap, framed as the destination** | Genuinely the right long-term product |
+| **Property Intelligence** | Front door | ✅ Built. Lead with it |
+| **Lead Response** | Front door | Ship next. Days of work, and trade-agnostic |
+| **Attribution** | Front door | Ship next. High value, low effort, trade-agnostic |
+| **Estimate Recovery** | Front door | Partial. Natural follow-on |
+| **Referral** | **Back door** | **Promote.** Was "roadmap"; it is now strategically core |
+| **Profitability** | Messy middle | **Drop from the near-term message.** Needs accounting integration — the exact mess being declined |
+| **Owner Scorecard** | Mostly messy middle | **Demote.** Revenue, margin, crews, and callbacks all require the middle. A front/back-door scorecard is a different, smaller, buildable thing |
 
-A roadmap shown as a roadmap is an asset in a design-partner motion — it is
-precisely what a partner is buying influence over. A roadmap shown as a
-shipping product is a refund conversation.
+The gap analysis in §3 therefore reads differently now. Profitability and the
+full Scorecard are not "promised but unbuilt" — they are **off-strategy**. That
+is a cleaner story and it removes the two hardest integration projects from the
+roadmap entirely.
 
-**Split Attribution out of the Scorecard and promote it.** It is the highest
-value-to-effort item on the list, it is the one scorecard claim with real
-foundations in the schema, and it powers the free "attribution teardown"
-diagnostic in the GTM plan (§8.2) that opens conversations.
+### 5.3 Reconciled positioning copy
 
----
+Keep the deck's diagnosis verbatim (§2), then:
 
-## 7. Claims hygiene
+> **Your CRM runs your jobs. RAKE runs your front door and your back door.**
+>
+> Every lead measured, scored, and answered in minutes — with attribution back
+> to the ad that produced it. Every finished job turned into a review, a
+> referral, and the next lead.
+>
+> The messy middle stays where it is. We don't want it.
 
-The page-5 scorecard shows $412,000 revenue, $687,000 projected, 38% close rate,
-$14,800 average job, 17% referral rate, 31% gross margin, 42 open estimates.
-
-These read as illustrative UI, and in context they probably are. Two changes:
-
-1. **Label them.** "Illustrative data" in the figure itself. A prospect who
-   assumes they are a customer's real results and later learns otherwise has
-   lost trust over something you never intended to claim.
-2. **Note the brand inconsistency.** The product enforces, at the database and
-   in a reviewed runbook, that pending states "must not emit sample or
-   placeholder dollars" to homeowners. It is a genuine principle and §2.3 of the
-   GTM plan recommends selling on it. A deck that shows contractors placeholder
-   dollars undercuts the story you would most like to tell about yourself.
-
-Replace the mock scorecard with the one screen you can populate truthfully
-today: a real RoofCheck result on a real property.
+That last line is worth keeping. Contractors have been sold "one system for
+everything" repeatedly and it has repeatedly failed them. An explicit refusal to
+own the mess is credible, memorable, and differentiating.
 
 ---
 
-## 8. Open questions this raises
+## 6. Audience: "all contractors" — how to make it work
 
-**Audience width.** The deck says "contractors and home-service operators."
-The build is roofing-specific and New Jersey-locked (GTM plan §3.2). Widening
-the stated audience widens the credibility gap and the demo problem, since the
-roof-measurement wedge does not apply to a plumber. Recommend narrowing the
-stated audience to roofing and exterior contractors until the Profitability and
-Scorecard engines exist — those *are* trade-agnostic, and they are the right
-vehicle for widening later.
+**Owner direction:** claim all contractors, not roofing only.
 
-**The Launch System.** The deck references a separate 2Stack offer for newer
-contractors. Worth clarifying whether that is a distinct product line, a
-qualification off-ramp, or a lower tier — it affects packaging in GTM plan §7.2
-and is currently ambiguous to a reader.
+That widens the credibility gap the audit flagged, but the front/back-door
+strategy largely closes it — provided the capabilities are sequenced by which
+ones are trade-agnostic. This is the key distinction:
 
-**Who wrote the scorecard spec.** If the page-5 and page-6 screens came from
-real conversations with owners, that is valuable primary research and it should
-drive the roadmap order. If they are aspirational, the roadmap should instead
-be driven by the design partners in GTM plan §9.1.
+| Capability | Trade-agnostic? |
+| --- | --- |
+| Lead response / speed-to-lead | ✅ Yes |
+| Attribution (ad spend → won jobs) | ✅ Yes |
+| Estimate recovery | ✅ Yes |
+| **Review / referral engine (back door)** | ✅ **Yes — entirely** |
+| **Roof measurement (property intelligence)** | ❌ **No — roofing only** |
+
+So the honest framing for a wide audience is:
+
+- **The platform is for contractors.** Front door and back door. Lead response,
+  attribution, estimate recovery, reviews, referrals — all trade-agnostic.
+- **Roofing gets a superpower on top.** Aerial roof measurement, pricing, and
+  scoring before dispatch. Sold as a vertical advantage, not as the platform's
+  definition.
+
+This keeps the wide TAM, keeps the demo devastating for roofers, and gives
+non-roofing prospects a real product rather than a shrug.
+
+**Two consequences to accept deliberately:**
+
+1. **The 40-second demo only works for roofers.** For every other trade the
+   demo is speed-to-lead and attribution — which do not exist yet (§3.1). Until
+   they ship, *sell roofing.* Claim the wider audience in the positioning; run
+   the pipeline in roofing. This is a normal and honest sequencing, but it must
+   be a conscious choice rather than a drift.
+2. **Design partners should be roofers.** Not because the strategy is
+   roofing-only, but because they are the only segment with a demoable product
+   today, and because you have a roofing reference customer.
+
+---
+
+## 7. Roadmap implications
+
+Reordered around front door / back door, with the messy middle removed:
+
+| Stage | Build | Why |
+| --- | --- | --- |
+| **Now** | Pixel + CAPI; speed-to-lead workflow | Makes the front door true and trade-agnostic. Both are days-to-weeks, both are already promised in the deck |
+| **Next** | Review / referral engine (back door v1) | Strategically core, trade-agnostic, and the thing that widens the audience beyond roofing. Request → review → referral tracking, on the consented SMS/email channels already captured |
+| **Then** | Estimate recovery scoring; front/back-door scorecard | A small scorecard covering only what RAKE owns — response time, source attribution, estimate aging, review and referral velocity. Buildable without touching accounting |
+| **Dropped** | Profitability engine; revenue/margin/crew scorecard | Requires the middle. Off-strategy |
+
+Note the back-door build is the highest-leverage item after the front door is
+true: it is the piece that makes "all contractors" honest, and it is the loop
+that makes the platform compound.
+
+---
+
+## 8. Claims hygiene and the proof problem
+
+### 8.1 The mock scorecard
+
+Page 5 shows $412,000 revenue, $687,000 projected, 38% close rate, $14,800
+average job, 17% referral rate, 31% gross margin, 42 open estimates. **Confirmed
+aspirational**, not from customer data.
+
+Three actions:
+
+1. **Label as illustrative** in the figure, or remove it. Most of what it shows
+   is now off-strategy anyway (§5.2), so removal is the simpler fix.
+2. **Note the brand inconsistency.** The product enforces at the database level
+   that pending states "must not emit sample or placeholder dollars" to
+   homeowners. Showing contractors placeholder dollars undercuts exactly the
+   integrity story worth selling.
+3. **Do not treat these metrics as validated demand.** They are a product
+   vision, not research. Roadmap order should come from design partners.
+
+### 8.2 There is no case study yet
+
+**All Season is not live in production** — flags are still off and no real
+traffic is running. This is the most consequential answer in the set, and it
+resets several assumptions:
+
+- **No proof exists.** Every early sales conversation leads with the *demo*, not
+  with results. Plan accordingly: the demo environment is now the single most
+  important sales asset (GTM plan §11.2).
+- **The case study moves to Q1 2027.** It needs the All Season program running
+  60–90 days with working attribution first (companion plan Phase 0).
+- **Phase 0 is now double-blocking.** The Pixel/CAPI and speed-to-lead work
+  gates All Season's own marketing *and* every RAKE claim about attribution and
+  response time. It is the highest-priority engineering work in either plan.
+- **Design partners are founding customers, not references.** Price and pitch
+  accordingly — they are buying influence and early access, and they should be
+  told plainly there is no reference customer yet. That is a survivable pitch
+  for three partners; it is not survivable for ten.
 
 ---
 
@@ -239,15 +314,17 @@ be driven by the design partners in GTM plan §9.1.
 
 | # | Action | Effort |
 | --- | --- | --- |
-| 1 | Add the property-intelligence wedge to the deck as the lead capability | Low |
-| 2 | Restage the Engines with honest status labels (§6) | Low |
-| 3 | Label the mock scorecard as illustrative; replace the hero screen with a real RoofCheck result | Low |
-| 4 | Narrow the stated audience to roofing/exterior for now | Low |
-| 5 | Split Attribution out as its own engine and promote it | Low |
-| 6 | Keep §2's copy verbatim — do not let a rewrite lose "the owner becomes the source of truth" | — |
-| 7 | Ship Pixel + CAPI before the deck's attribution claims go in front of anyone | Medium |
-| 8 | Ship speed-to-lead so the "15 minutes" claim becomes true | Medium |
-| 9 | Reconcile `rake.2-stack.com` against the same findings | Medium |
+| 1 | Rewrite the deck around front door / back door (§5.3). Keep §2's copy verbatim — do not lose "the owner becomes the source of truth" | Low |
+| 2 | Add property intelligence as the lead front-door capability; add the review/referral engine as the named back door | Low |
+| 3 | Cut the Profitability Engine and the revenue/margin/crew scorecard from the message — they are the middle you are declining | Low |
+| 4 | Promote Referral from roadmap item to strategic pillar | Low |
+| 5 | Remove or clearly label the mock scorecard; replace the hero screen with a real RoofCheck result | Low |
+| 6 | Split Attribution out as its own front-door engine | Low |
+| 7 | Keep "all contractors" in the positioning, but state the roofing superpower explicitly and run the early pipeline in roofing (§6) | Low |
+| 8 | Ship Pixel + CAPI and the speed-to-lead workflow — makes the front door true, trade-agnostic, and demoable beyond roofing | Medium |
+| 9 | Build review/referral v1 — the back door, and what makes "all contractors" honest | Medium |
+| 10 | Reconcile `rake.2-stack.com` against all of the above | Medium |
+| 11 | Clarify how the 2Stack Launch System relates to RAKE: separate product, qualification off-ramp, or lower tier (affects GTM plan §7.2) | Low |
 
 ---
 
