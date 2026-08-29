@@ -1,8 +1,9 @@
 # PIW multi-tenant go-to-market plan
 
 **Date:** 2026-08-29
-**Status:** Proposed — awaiting decisions on naming, territory policy, and the
-All Season exclusivity question (§14)
+**Status:** Proposed. Naming resolved (Rake, §4). All Season exclusivity
+resolved — no contractual constraint on reselling (§14.1). Open: territory
+sequencing, and pricing pending COGS (§7.4).
 **Scope:** Taking the platform in this repository to market as a product sold to
 roofing contractors beyond All Season.
 **Companion document:** `2026-08-29-all-season-growth-marketing-plan.md` covers
@@ -51,10 +52,12 @@ A JobNimbus integration already exists in this repo
 alongside the incumbent CRM instead of replacing it is the single most
 important GTM decision in this document.**
 
-**The strategic tension to resolve first.** All Season is in Galloway, Atlantic
-County. Every early prospect is, by definition, a potential All Season
-competitor. §14 lays out the options; it needs a decision from Chris before
-outbound starts.
+**No contractual blocker.** All Season is buying access to the platform, not
+ownership of it; there is no exclusivity or IP constraint on selling to other
+contractors, New Jersey included (§14.1). What remains is commercial judgment
+with a short shelf life: All Season is the only source of the case study, so
+avoid their immediate South Jersey radius until it is published, then sell on
+merit.
 
 ---
 
@@ -416,10 +419,12 @@ design partner asks for.
 ### 7.1 Territory exclusivity as the core commercial mechanic
 
 Recommended: **sell county-level or DMA-level exclusivity.** In contractor
-software this is a well-understood construct, and it does three things at once:
-it creates genuine urgency ("Ocean County is open, and it will not be after we
-sign someone"), it justifies premium pricing, and it defuses the All Season
-conflict in §14 by making non-competition contractual rather than incidental.
+software this is a well-understood construct, and it does two things at once: it
+creates genuine urgency ("Ocean County is open, and it will not be after we sign
+someone"), and it justifies premium pricing. Because there is no contractual
+constraint from All Season (§14.1), this is a lever you are choosing for
+commercial reasons, not a concession — which also means you set the territory
+granularity to whatever prices best, rather than to whatever avoids a conflict.
 
 The cost is that it caps total addressable revenue per market and demands
 careful territory definition. That is an acceptable trade for the first
@@ -549,8 +554,10 @@ Sourcing, in priority order:
 1. **Chris's and All Season's existing network.** Roofing is relationship-
    dense; a warm introduction from a respected operator outperforms any
    outbound sequence.
-2. **Non-competing NJ contractors** — North Jersey, given All Season's South
-   Jersey base (see §14).
+2. **New Jersey contractors generally.** There is no contractual restriction
+   (§14.1); the only self-imposed limit is All Season's immediate South Jersey
+   radius until the case study publishes. North Jersey is wide open, and
+   staying in-state means no NJ refactor is needed to sign tenant #2.
 3. **Trade associations** — NJ and regional roofing contractor associations.
 4. **Targeted outbound** to contractors whose ads are visibly running in Meta's
    public Ad Library. This is a genuinely good sourcing channel: it pre-
@@ -697,26 +704,47 @@ how good the revenue looks.
 
 ## 14. Risks and open questions
 
-### 14.1 The All Season conflict — needs a decision before outbound
+### 14.1 The All Season relationship — legally clear, commercially still worth managing
 
-Every prospect is a potential All Season competitor. Options:
+**Resolved.** The owner confirms the contractual position: All Season is buying
+*access to the platform*, not ownership of it. There is no exclusivity or IP
+constraint on reselling to other contractors, including in New Jersey. This was
+the one item that could have invalidated the plan; it does not.
 
-| Option | Upside | Downside |
-| --- | --- | --- |
-| **A. Non-competing NJ territories** (North Jersey; All Season is Galloway/South Jersey) | Fast; no engineering; honors the relationship | Small pool; territory lines will be argued |
-| **B. Out of state first** (PA, DE, NY, MD) | No conflict; large TAM | Requires the §3.2 NJ refactor first |
-| **C. All Season as an equity or revenue-share partner** | Aligns interests; converts a conflict into a champion and a referral engine | Complicates cap table and governance |
-| **D. Ignore it** | Fastest | Risks the anchor customer, the case study, and the reference. **Not recommended.** |
+Three consequences follow, and they are all favorable:
 
-**Recommendation: A now, B next, and open the conversation about C early.**
-An anchor customer who becomes an advocate is worth more than the first three
-deals you could win without them.
+1. **The design-partner pool is the whole market, not a carve-out.** §9.1 no
+   longer has to filter for non-competing geography. That matters, because the
+   non-competing-North-Jersey pool was small and the filter was the main
+   constraint on Stage 1 sourcing.
+2. **Territory exclusivity becomes a pure commercial instrument** rather than a
+   conflict-management device. It is now something you sell because it creates
+   urgency and justifies price (§7.1), not something you concede because you
+   have to.
+3. **The story to future partners and investors is cleaner.** All Season is
+   tenant #1 on a platform Chris owns — not a bespoke build he happens to be
+   reusing. That is a materially better narrative for a CRM marketplace
+   partnership or any outside capital conversation.
 
-**Open question for Chris [BLOCKING]:** what do the existing All Season
-agreements say about exclusivity, IP ownership, and the right to resell this
-platform? Nothing in this repository answers that, and it determines whether
-this plan is executable as written. Everything else here can proceed in
-parallel; this one cannot be assumed.
+**What remains is commercial judgment, not legal constraint,** and it is
+narrow: for the next 60–90 days you need All Season cooperative, because they
+are the only source of the case study, the reference call, and the real
+before/after numbers in §8.1. Signing their closest South Jersey competitor
+*during that window* buys one deal and risks the asset that unlocks the next
+ten.
+
+**Recommendation:** treat it as sequencing, not policy.
+
+- **Now through case study publication:** sell anywhere except All Season's
+  immediate South Jersey service radius. This is a short, self-expiring
+  restraint you are choosing, not one you owe.
+- **After publication:** open. Sell on commercial merit. If a South Jersey deal
+  is worth more than the reference, take it with eyes open.
+- **Worth raising early either way:** offer All Season something for the
+  reference — fee credit, locked pricing, or a revenue share on introductions
+  they make. An anchor customer who actively refers is worth more than the
+  restraint costs, and roofing is a referral-dense trade. Their 4.5★/397-review
+  reputation is itself a distribution asset.
 
 ### 14.2 Risk register
 
@@ -728,7 +756,7 @@ parallel; this one cannot be assumed.
 | Wrong-fit early customers consume all capacity | **High** | Enforce §5.2 disqualifiers without exception |
 | Pricing set below COGS because Google API costs were assumed | **High** | §7.4 before quoting anyone |
 | Google Solar 9,500/month cap shared across tenants | Medium | Per-tenant Google projects and quotas |
-| Damaging the All Season relationship | **High** | §14.1 |
+| Losing All Season's cooperation before the case study publishes | **High** | Not a legal risk (§14.1) but a reference risk. Avoid their South Jersey radius until publication; offer fee credit or referral share for the reference |
 | A funded competitor ships the same loop | Medium | Move fast on design partners; the evidence/confidence model and the CRM-feedback loop are the durable parts |
 | Google Solar coverage gaps outside NJ | Medium | **[VERIFY]** coverage before selling a territory |
 | Support burden as tenants scale | Medium | Runbooks exist and are good; extend them per tenant |
@@ -744,8 +772,10 @@ parallel; this one cannot be assumed.
   scope; entering it means building a materially different product.
 - **It does not compete with JobNimbus or AccuLynx.** It integrates with them.
   This is the highest-leverage strategic choice in the document.
-- **It does not lift the NJ lock first.** Tenant #2 can be a non-competing New
-  Jersey contractor. Sequencing the refactor third buys a quarter.
+- **It does not lift the NJ lock first.** Tenant #2 can be a New Jersey
+  contractor, and with no contractual restriction (§14.1) that pool is now the
+  full state minus a short, self-imposed South Jersey pause. Sequencing the
+  refactor third buys a quarter.
 - **It does not claim results All Season has not yet produced.** The case study
   waits for the companion plan to run with working attribution. A product whose
   core promise is "we will not fabricate a number" cannot fabricate its own.
@@ -787,3 +817,4 @@ parallel; this one cannot be assumed.
 | JobNimbus integration exists | `src/modules/access-route/jobnimbus-canary.ts`; `.env.example` |
 | No Pixel/GA4/GTM | `grep` over `apps/website` |
 | Existing Rake marketing pass at `rake.2-stack.com` | Reported by the repository owner; page not readable from this environment (egress blocked) |
+| No contractual exclusivity or IP constraint on reselling the platform; All Season buys access | Confirmed by the repository owner, 2026-08-29. Not verifiable from this repository — the agreements are not in it |
