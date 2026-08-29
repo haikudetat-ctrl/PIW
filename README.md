@@ -35,6 +35,7 @@ schema and records remain available for audit and older lead workspaces.
 ## Documentation
 
 - [All Season campaign landing pages](docs/campaigns/README.md)
+- [All Season growth marketing plan](docs/marketing/2026-08-29-all-season-growth-marketing-plan.md)
 - [Architecture design](docs/superpowers/specs/2026-07-29-property-intelligence-worker-architecture-design.md)
 - [Foundation implementation plan](docs/superpowers/plans/2026-07-29-piw-foundation-implementation.md)
 - [CRM implementation plan](docs/superpowers/plans/2026-07-29-piw-crm-implementation.md)
