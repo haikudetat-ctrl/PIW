@@ -351,7 +351,53 @@ catastrophic, because each one consumes founder time that has no leverage.
 - Wants to replace their CRM. That is a different, much larger product.
 - Wants self-serve, month-to-month, no onboarding call.
 
-### 5.3 Expansion sequence
+### 5.3 Second segment: rep-turned-owner (Launch System)
+
+**Owner direction, 2026-08-29.** A distinct segment: top outside sales reps at
+roofing and home-service companies who are preparing to start their own
+company. This is the audience the deck's 2Stack **Launch System** was reaching
+for, and it deserves its own offer rather than being a footnote.
+
+**Why it is strategically valuable, not a distraction:**
+
+1. **They are greenfield.** No incumbent CRM to integrate around, no legacy
+   data, no migration, no committee. The cheapest install this platform will
+   ever have, and the only segment where you set the foundation instead of
+   working around someone else's.
+2. **They are a testbed while All Season is dark.** With no live tenant (§8.1),
+   a new company launching on the platform can produce the first real
+   attribution and response-time numbers — and it can exercise the back door
+   from its first completed job, since it has no review history to inherit.
+3. **They graduate.** A rep who launches on Launch System becomes a full Rake
+   tenant as they grow. This is a farm system, not a side business.
+4. **Low competitive overlap.** Nobody is selling an operating system to
+   pre-launch contractors. The incumbents all require you to already be a
+   company.
+
+**Qualification is the whole game here.** The segment's failure mode is
+under-capitalized optimists. Disqualify on: no closing track record, needing
+income inside 30 days, wanting a lead list rather than a company, or wanting
+someone else to run their crews. A landing page draft carrying this
+qualification is published (see §5.5).
+
+**Packaging.** Launch System is a distinct offer, not a Rake tier: a setup-fee
+foundation engagement (entity, licensing sequence, insurance, supplier
+accounts, pricing model, contracts) followed by the Rake front door on a
+monthly fee, with the back door added once jobs start completing. Price the
+foundation work as real labor — it is the most hands-on thing 2Stack does.
+
+**The open commercial question:** whether Launch System is priced for margin on
+its own or as a loss-leader into a multi-year Rake tenancy. Given the graduation
+path in point 3 and the lifetime value of a tenant acquired at founding, a
+deliberate under-price on the foundation is defensible — but it should be a
+decision, not an accident.
+
+**Constraint to respect:** every hour spent on a pre-launch contractor is an
+hour not spent on a design partner with revenue today. Cap this segment
+explicitly during Stage 1 (§9.1) — the founder-hours metric in §13 covers both
+segments and is the ceiling on running them in parallel.
+
+### 5.4 Expansion sequence
 
 1. **Roofing** — now. The only segment with a demoable product today.
 2. **Exterior trades** (siding, windows, gutters) — once the back door ships.
@@ -363,6 +409,26 @@ catastrophic, because each one consumes founder time that has no leverage.
 
 Note that solar and non-roofing exterior services are excluded from the v1
 architecture, so step 2 is a product decision, not just a marketing one.
+
+### 5.5 Published positioning drafts
+
+Two first-pass landing pages exist, both built on the front/back-door strategy
+and both deliberately free of testimonials, logos, and results claims, since
+none can yet be substantiated (§8.1):
+
+- **RAKE (established contractors)** — the main go-to-market page. Carries the
+  visibility diagnosis, the front/back-door loop, an honest live/next/never
+  build-status section, and the founding-customer offer.
+  `docs/marketing/pages/rake-landing.html`
+- **Launch System (rep-turned-owner)** — the §5.3 segment. Leads with "You can
+  sell. That was never the question," then the seven failure modes that
+  actually end new contractors.
+  `docs/marketing/pages/launch-system-landing.html`
+
+Both need a real booking link wired to their CTAs before use. The RAKE page's
+build-status section must be re-checked against the codebase before every
+publish — it is the page's main credibility asset and a stale claim there costs
+more than it would anywhere else.
 
 ---
 
@@ -469,6 +535,13 @@ careful territory definition. That is an acceptable trade for the first
 | **Pilot** (90 days) | One campaign funnel, instant estimate, speed-to-lead, CRM sync, weekly review. Done-for-you setup. | Design partners |
 | **Core** | Everything in Pilot + all three campaign themes, abandonment recovery, consultation routing, attribution reporting, one county exclusive | Primary offer |
 | **Managed** | Core + Rake runs the ad account, creative production, multi-county exclusivity, cost-intelligence dashboard | Highest ACV, lowest scale |
+| **Launch System** | Foundation engagement (entity, licensing, insurance, suppliers, pricing, contracts) + front door, back door added once jobs complete | Rep-turned-owner (§5.3). A distinct offer, not a Rake tier |
+
+Launch System resolves the deck's ambiguity about what the 2Stack Launch System
+is: **a distinct offer for a distinct segment**, not a lower Rake tier and not a
+qualification off-ramp. A pre-launch contractor and an established one are
+buying different things — foundation versus optimization — and blurring them
+would confuse both pages and both pitches.
 
 **Managed is where the near-term money is** and it is where the companion
 All Season plan becomes reusable intellectual property. You have already built
@@ -612,6 +685,12 @@ Sourcing, in priority order:
    public Ad Library. This is a genuinely good sourcing channel: it pre-
    qualifies on the hardest criterion (active ad spend), and you can reference
    their actual live ads in the first email.
+
+**Launch System sourcing runs separately** (§5.3) and reaches a different person
+through different channels: trade communities where reps talk, supplier reps and
+distributors who see who is about to go out on their own, and — carefully —
+All Season's own network. Cap it during Stage 1; the founder-hours ceiling in
+§13 applies across both segments, not per segment.
 
 ### 9.2 Stage 2 — Repeatable sale (Q1 2027)
 
