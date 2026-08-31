@@ -110,8 +110,10 @@ describe("development assessment sandbox", () => {
     render(<AssessmentSandbox />);
 
     expect(screen.getByRole("heading", {name: "Your roof weather outlook"})).toBeVisible();
-    expect(screen.getByText("$18,000")).toBeVisible();
-    expect(screen.getByText("$26,000")).toBeVisible();
+    expect(screen.getByRole("heading", {name: "Complete System"})).toBeVisible();
+    expect(screen.getByLabelText("Recommended package")).toBeVisible();
+    expect(screen.getByText("$18,400")).toBeVisible();
+    expect(screen.getByText("$37,950")).toBeVisible();
     expect(screen.getByText(/23\.0 measured roofing squares/)).toBeVisible();
   });
 

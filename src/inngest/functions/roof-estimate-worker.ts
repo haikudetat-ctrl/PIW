@@ -10,7 +10,6 @@ import {
   roofPricingAdjustmentDisclosureSchema,
   roofPricingPackagesSchema,
   type FinalizedRoofEstimate,
-  type RoofPricingPackage,
 } from "@/domain/roof-pricing";
 import { propertyDiscoveryRequestedDataSchema } from "@/domain/events";
 import { inngest, propertyDiscoveryRequested } from "@/inngest/client";
