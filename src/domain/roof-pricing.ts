@@ -25,7 +25,7 @@ export const roofPricingPackageSchema = roofPricingTierRateSchema.extend({
   rangeLowCents: z.number().int().positive(),
   rangeHighCents: z.number().int().positive(),
   pricingVersion: z.string().min(1),
-  generatedAt: z.iso.datetime(),
+  generatedAt: z.iso.datetime({offset: true}),
 }).strict().superRefine((value, context) => {
   if (value.rangeHighCents < value.rangeLowCents) {
     context.addIssue({code:"custom",path:["rangeHighCents"],message:"High range must not be lower than low range"});

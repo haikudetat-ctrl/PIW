@@ -31,6 +31,18 @@ describe("roof pricing packages", () => {
     expect(result.packages[1].rangeHighCents).toBe(2_948_136);
   });
 
+  test("accepts Supabase timestamptz offsets in persisted package snapshots", () => {
+    const result = calculateRoofPricingPackages(
+      25,
+      tiers,
+      "v1",
+      "2026-08-31T18:31:47.123456+00:00",
+    );
+
+    expect(result.packages).toHaveLength(3);
+    expect(result.packages[1].generatedAt).toBe("2026-08-31T18:31:47.123456+00:00");
+  });
+
   test.each([0,-1,Number.NaN,Number.POSITIVE_INFINITY])("rejects untrusted roof-square input %s", (roofSquares) => {
     expect(() => calculateRoofPricingPackages(roofSquares, tiers, "v1", "2026-08-31T12:00:00.000Z")).toThrow();
   });
