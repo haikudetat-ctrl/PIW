@@ -25,6 +25,13 @@ export type ContextDialerSummary = {
   rangeLowCents: number | null;
   rangeHighCents: number | null;
   roofSquares: number | null;
+  pricingVersion: string | null;
+  packages: Array<{
+    tierKey: "good" | "better" | "best";
+    name: string;
+    rangeLowCents: number;
+    rangeHighCents: number;
+  }>;
 };
 
 export interface ContextDialerSlackRepository {
@@ -95,6 +102,9 @@ export function buildContextDialerSlackPayload(
       ? `${money(summary.rangeLowCents)}–${money(summary.rangeHighCents)}`
       : humanizeStatus(summary.estimateStatus ?? "pending");
   const roof = summary.roofSquares === null ? "Pending" : `${summary.roofSquares.toFixed(1)} squares`;
+  const packageLines=summary.packages.map((item) =>
+    `${escapeSlack(item.name)}: ${money(item.rangeLowCents)}–${money(item.rangeHighCents)}`,
+  ).join("\n");
   return {
     text: `New roof lead ready for context dialing: ${summary.name}`,
     blocks: [
@@ -134,12 +144,16 @@ export function buildContextDialerSlackPayload(
           },
         ],
       },
+      ...(packageLines ? [{
+        type:"section",
+        text:{type:"mrkdwn",text:`*Good / Better / Best*\n${packageLines}`},
+      }] : []),
       {
         type: "context",
         elements: [
           {
             type: "mrkdwn",
-            text: "Preliminary estimate only · verify measurements and conditions before quoting",
+            text: `Preliminary estimate only · verify measurements and conditions before quoting${summary.pricingVersion ? ` · Pricing ${escapeSlack(summary.pricingVersion)}` : ""}`,
           },
         ],
       },
@@ -220,7 +234,7 @@ export class SupabaseContextDialerSlackRepository implements ContextDialerSlackR
         delivery.estimateId
           ? this.client
               .from("roof_estimates")
-              .select("status, range_low_cents, range_high_cents, roof_squares")
+              .select("status, range_low_cents, range_high_cents, roof_squares, pricing_version, roof_estimate_packages(tier_key, customer_name, range_low_cents, range_high_cents, display_order)")
               .eq("id", delivery.estimateId)
               .eq("company_id", delivery.companyId)
               .maybeSingle()
@@ -242,6 +256,12 @@ export class SupabaseContextDialerSlackRepository implements ContextDialerSlackR
       roofSquares: estimate?.roof_squares === null || estimate?.roof_squares === undefined
         ? null
         : Number(estimate.roof_squares),
+      pricingVersion:estimate?.pricing_version ?? null,
+      packages:(estimate?.roof_estimate_packages ?? []).flatMap((item) =>
+        item.tier_key === "good" || item.tier_key === "better" || item.tier_key === "best"
+          ? [{tierKey:item.tier_key as "good"|"better"|"best",name:item.customer_name,rangeLowCents:item.range_low_cents,rangeHighCents:item.range_high_cents}]
+          : [],
+      ).sort((left,right) => ["good","better","best"].indexOf(left.tierKey)-["good","better","best"].indexOf(right.tierKey)),
     };
   }
 

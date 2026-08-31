@@ -100,10 +100,21 @@ function calculationForPreview(state: ResultPreviewState | null): CalculationSta
     return {
       status: "ready",
       source: "google",
-      lowCents: 1_800_000,
-      highCents: 2_600_000,
+      lowCents: 2_185_000,
+      highCents: 2_760_000,
       roofSquares: 23,
-      generatedAt: "2026-08-26T12:00:00.000Z",
+      generatedAt: "2026-08-31T12:00:00.000Z",
+      pricingVersion: "all-season-nj-2026-v1",
+      packages: [
+        {tierKey:"good",displayOrder:1,customerName:"Complete System",customerDescription:"A dependable complete-system approach focused on sound protection and practical value.",warrantySummary:"Enhanced manufacturer-backed material protection.",differentiators:["Complete roofing system","Architectural finish"],lowCentsPerSquare:80000,highCentsPerSquare:97500,recommended:false,measuredRoofSquares:23,rangeLowCents:1840000,rangeHighCents:2242500,pricingVersion:"all-season-nj-2026-v1",generatedAt:"2026-08-31T12:00:00.000Z"},
+        {tierKey:"better",displayOrder:2,customerName:"Recommended",customerDescription:"An upgraded system balancing stronger protection, appearance, and long-term confidence.",warrantySummary:"Extended material and workmanship coverage.",differentiators:["Upgraded material weight","Enhanced color depth"],lowCentsPerSquare:95000,highCentsPerSquare:120000,recommended:true,measuredRoofSquares:23,rangeLowCents:2185000,rangeHighCents:2760000,pricingVersion:"all-season-nj-2026-v1",generatedAt:"2026-08-31T12:00:00.000Z"},
+        {tierKey:"best",displayOrder:3,customerName:"Signature System",customerDescription:"A premium system built around elevated curb appeal, durability, and detailing.",warrantySummary:"Extended workmanship coverage with premium system protection.",differentiators:["Premium dimensional profile","Impact protection"],lowCentsPerSquare:125000,highCentsPerSquare:165000,recommended:false,measuredRoofSquares:23,rangeLowCents:2875000,rangeHighCents:3795000,pricingVersion:"all-season-nj-2026-v1",generatedAt:"2026-08-31T12:00:00.000Z"},
+      ],
+      adjustments: [
+        {code:"decking_sheet",label:"Decking replacement",explanation:"Only where field inspection confirms it is needed.",calculationKind:"per_unit",lowValue:95,highValue:150,displayOrder:1},
+        {code:"second_layer",label:"Additional tear-off layer",explanation:"Applies only when another existing layer must be removed.",calculationKind:"per_square",lowValue:75,highValue:125,displayOrder:2},
+        {code:"steep_pitch",label:"Steep-roof access",explanation:"Applied after pitch and access conditions are field-confirmed.",calculationKind:"percentage",lowValue:15,highValue:35,displayOrder:3},
+      ],
     };
   }
   if (state === "review_required") {

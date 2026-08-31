@@ -10,6 +10,20 @@ const insight = {
 };
 
 describe("trustworthy public assessment result states", () => {
+  test("admits a complete sanitized Good Better Best snapshot", () => {
+    const packages=[
+      {tierKey:"good",displayOrder:1,customerName:"Complete System",customerDescription:"Complete.",warrantySummary:"Enhanced.",differentiators:["Finish"],lowCentsPerSquare:80000,highCentsPerSquare:97500,recommended:false,measuredRoofSquares:25,rangeLowCents:2000000,rangeHighCents:2437500,pricingVersion:"v1",generatedAt:"2026-08-31T12:00:00.000Z"},
+      {tierKey:"better",displayOrder:2,customerName:"Recommended",customerDescription:"Upgraded.",warrantySummary:"Extended.",differentiators:["Weight"],lowCentsPerSquare:95000,highCentsPerSquare:120000,recommended:true,measuredRoofSquares:25,rangeLowCents:2375000,rangeHighCents:3000000,pricingVersion:"v1",generatedAt:"2026-08-31T12:00:00.000Z"},
+      {tierKey:"best",displayOrder:3,customerName:"Signature System",customerDescription:"Premium.",warrantySummary:"Extended.",differentiators:["Impact"],lowCentsPerSquare:125000,highCentsPerSquare:165000,recommended:false,measuredRoofSquares:25,rangeLowCents:3125000,rangeHighCents:4125000,pricingVersion:"v1",generatedAt:"2026-08-31T12:00:00.000Z"},
+    ];
+    const state=getAssessmentCalculationState({
+      estimateStatus:"ready",pipelineStatus:"complete",expectedCompanyId:insight.companyId,
+      expectedPropertyId:insight.propertyId,insight,lowCents:2375000,highCents:3000000,
+      roofSquares:25,generatedAt:"2026-08-31T12:00:00.000Z",pricingVersion:"v1",packages,adjustments:[],
+    });
+    expect(state).toMatchObject({status:"ready",pricingVersion:"v1",packages:[{tierKey:"good"},{tierKey:"better"},{tierKey:"best"}]});
+  });
+
   test("admits a range only from a complete trustworthy Google calculation", () => {
     const state = getAssessmentCalculationState({
       estimateStatus: "ready", pipelineStatus: "complete",

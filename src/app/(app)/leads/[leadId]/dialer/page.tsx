@@ -80,7 +80,7 @@ export default async function ContextDialerPage({
       : noResult,
     supabase
       .from("roof_estimates")
-      .select("id, roof_insight_id, status, total_roof_sqft, roof_squares, range_low_cents, range_high_cents, pricing_version, assumptions, failure_reason, updated_at")
+      .select("id, roof_insight_id, status, total_roof_sqft, roof_squares, range_low_cents, range_high_cents, pricing_version, assumptions, failure_reason, updated_at, roof_estimate_packages(tier_key, display_order, customer_name, range_low_cents, range_high_cents)")
       .eq("company_id", lead.company_id)
       .eq("lead_id", lead.id)
       .maybeSingle(),
@@ -225,8 +225,18 @@ export default async function ContextDialerPage({
                 {formatCurrency(estimate.range_low_cents)}–{formatCurrency(estimate.range_high_cents)}
               </p>
               <p className="mt-2 text-sm text-ink-muted">
-                {Number(estimate.roof_squares).toFixed(1)} squares · {Math.round(Number(estimate.total_roof_sqft)).toLocaleString()} sq ft · New Jersey average pricing
+                {Number(estimate.roof_squares).toFixed(1)} squares · {Math.round(Number(estimate.total_roof_sqft)).toLocaleString()} sq ft · Better package primary range
               </p>
+              {estimate.roof_estimate_packages.length > 0 ? (
+                <dl className="mt-5 grid gap-3 border-t border-border pt-4">
+                  {[...estimate.roof_estimate_packages].sort((left,right)=>left.display_order-right.display_order).map((item)=>(
+                    <div key={item.tier_key} className="flex items-center justify-between gap-4 text-sm">
+                      <dt className="font-semibold text-ink">{item.customer_name}</dt>
+                      <dd className="text-ink-muted">{formatCurrency(item.range_low_cents)}–{formatCurrency(item.range_high_cents)}</dd>
+                    </div>
+                  ))}
+                </dl>
+              ) : null}
             </>
           ) : (
             <p className="text-sm text-ink-muted">

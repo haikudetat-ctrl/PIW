@@ -500,7 +500,9 @@ export class SupabaseRoofEstimateWorkerRepository
       !data ||
       data.total_roof_sqft === null ||
       data.roof_squares === null ||
-      data.pricing_version.length === 0
+      data.pricing_version.length === 0 ||
+      !Array.isArray(data.roof_estimate_packages) ||
+      data.roof_estimate_packages.length !== 3
     ) return null;
     const estimate = finalizedEstimateFromRows({
       roofSquares: Number(data.roof_squares),
