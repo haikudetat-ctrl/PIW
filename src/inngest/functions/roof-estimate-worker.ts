@@ -1,10 +1,17 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  calculatePreliminaryRoofEstimate,
   googleSolarInsightSchema,
   type GoogleSolarInsight,
 } from "@/domain/roof-estimate";
+import {
+  composeEstimateEmail,
+  composeEstimateSms,
+  roofPricingAdjustmentDisclosureSchema,
+  roofPricingPackagesSchema,
+  type FinalizedRoofEstimate,
+  type RoofPricingPackage,
+} from "@/domain/roof-pricing";
 import { propertyDiscoveryRequestedDataSchema } from "@/domain/events";
 import { inngest, propertyDiscoveryRequested } from "@/inngest/client";
 import type { Database, Json } from "@/lib/database.types";
@@ -42,7 +49,7 @@ export type ReusableRoofEstimate = {
   roofInsightId: string | null;
   totalRoofSqft: number;
   assumptions: Json;
-  estimate: ReturnType<typeof calculatePreliminaryRoofEstimate>;
+  estimate: FinalizedRoofEstimate;
 };
 
 export type RoofInsightRecord = {
@@ -50,6 +57,45 @@ export type RoofInsightRecord = {
   insight: GoogleSolarInsight;
   retrievedAt: string;
 };
+
+function finalizedEstimateFromRows(input: {
+  roofSquares: number;
+  pricingVersion: string;
+  assumptions: Json;
+  rows: Array<Record<string, unknown>>;
+}): FinalizedRoofEstimate {
+  const packages=roofPricingPackagesSchema.parse(input.rows.map((row) => ({
+    tierKey:row.tier_key,
+    displayOrder:row.display_order,
+    customerName:row.customer_name,
+    customerDescription:row.customer_description,
+    warrantySummary:row.warranty_summary,
+    differentiators:row.differentiators,
+    lowCentsPerSquare:row.low_cents_per_square,
+    highCentsPerSquare:row.high_cents_per_square,
+    recommended:row.tier_key === "better",
+    measuredRoofSquares:Number(row.measured_roof_squares),
+    rangeLowCents:row.range_low_cents,
+    rangeHighCents:row.range_high_cents,
+    pricingVersion:row.pricing_version,
+    generatedAt:row.calculated_at,
+  })));
+  const assumptionObject=input.assumptions && typeof input.assumptions === "object" && !Array.isArray(input.assumptions)
+    ? input.assumptions as Record<string, Json | undefined>
+    : {};
+  const rawAdjustments=Array.isArray(assumptionObject.adjustmentDisclosures)
+    ? assumptionObject.adjustmentDisclosures
+    : [];
+  const adjustments=rawAdjustments.map((item) => roofPricingAdjustmentDisclosureSchema.parse(item));
+  return {
+    roofSquares:input.roofSquares,
+    packages,
+    adjustments,
+    primary:packages[1],
+    pricingVersion:input.pricingVersion,
+    generatedAt:packages[0].generatedAt,
+  };
+}
 
 export interface RoofEstimateWorkerRepository {
   assertConsentedScope(event: RoofEstimateEvent): Promise<EstimateScope>;
@@ -67,7 +113,7 @@ export interface RoofEstimateWorkerRepository {
     estimateId: string;
     companyId: string;
     reusable: ReusableRoofEstimate;
-  }): Promise<void>;
+  }): Promise<FinalizedRoofEstimate>;
   findCachedInsight(input: {
     companyId: string;
     normalizedAddress: string;
@@ -119,7 +165,7 @@ export interface RoofEstimateWorkerRepository {
     insightRecord: RoofInsightRecord | null;
     status: "ready" | "no_coverage" | "quota_exhausted" | "failed";
     failureReason?: string;
-  }): Promise<void>;
+  }): Promise<FinalizedRoofEstimate | null>;
   queueDeliveries(input: {
     estimateId: string;
     companyId: string;
@@ -128,7 +174,7 @@ export interface RoofEstimateWorkerRepository {
     phone: string;
     email: string;
     status: "ready" | "no_coverage" | "quota_exhausted" | "failed";
-    estimate?: ReturnType<typeof calculatePreliminaryRoofEstimate>;
+    estimate?: FinalizedRoofEstimate;
   }): Promise<void>;
   queueContextDialer(input: {
     estimateId: string;
@@ -168,7 +214,7 @@ export async function runRoofEstimate(
     estimateId: scope.estimateId,
   });
   if (reusable) {
-    await repository.reuseEstimate({
+    const reusedEstimate = await repository.reuseEstimate({
       estimateId: scope.estimateId,
       companyId: scope.companyId,
       reusable,
@@ -181,7 +227,7 @@ export async function runRoofEstimate(
       phone: scope.phone,
       email: scope.email,
       status: "ready",
-      estimate: reusable.estimate,
+      estimate: reusedEstimate,
     });
     await repository.queueContextDialer({
       estimateId: scope.estimateId,
@@ -307,11 +353,7 @@ export async function runRoofEstimate(
 
   const insight = insightRecord.insight;
   const status = insight.status === "success" ? "ready" : "no_coverage";
-  const estimate =
-    insight.status === "success"
-      ? calculatePreliminaryRoofEstimate(insight.totalRoofSqft)
-      : undefined;
-  await repository.finalizeEstimate({
+  const estimate = await repository.finalizeEstimate({
     estimateId: scope.estimateId,
     companyId: scope.companyId,
     insightRecord,
@@ -327,7 +369,7 @@ export async function runRoofEstimate(
     phone: scope.phone,
     email: scope.email,
     status,
-    estimate,
+    estimate: estimate ?? undefined,
   });
   await repository.queueContextDialer({
     estimateId: scope.estimateId,
@@ -445,7 +487,7 @@ export class SupabaseRoofEstimateWorkerRepository
   }): Promise<ReusableRoofEstimate | null> {
     const { data, error } = await this.client
       .from("roof_estimates")
-      .select("id, roof_insight_id, total_roof_sqft, roof_squares, price_per_square_low_cents, price_per_square_high_cents, range_low_cents, range_high_cents, pricing_version, assumptions")
+      .select("id, roof_insight_id, total_roof_sqft, roof_squares, pricing_version, assumptions, roof_estimate_packages(tier_key, display_order, measured_roof_squares, low_cents_per_square, high_cents_per_square, range_low_cents, range_high_cents, customer_name, customer_description, warranty_summary, differentiators, pricing_version, calculated_at)")
       .eq("company_id", input.companyId)
       .eq("property_id", input.propertyId)
       .eq("status", "ready")
@@ -458,22 +500,20 @@ export class SupabaseRoofEstimateWorkerRepository
       !data ||
       data.total_roof_sqft === null ||
       data.roof_squares === null ||
-      data.range_low_cents === null ||
-      data.range_high_cents === null
+      data.pricing_version.length === 0
     ) return null;
+    const estimate = finalizedEstimateFromRows({
+      roofSquares: Number(data.roof_squares),
+      pricingVersion: data.pricing_version,
+      assumptions: data.assumptions,
+      rows: data.roof_estimate_packages,
+    });
     return {
       sourceEstimateId: data.id,
       roofInsightId: data.roof_insight_id,
       totalRoofSqft: Number(data.total_roof_sqft),
       assumptions: data.assumptions,
-      estimate: {
-        roofSquares: Number(data.roof_squares),
-        rangeLowCents: data.range_low_cents,
-        rangeHighCents: data.range_high_cents,
-        pricePerSquareLowCents: data.price_per_square_low_cents,
-        pricePerSquareHighCents: data.price_per_square_high_cents,
-        pricingVersion: data.pricing_version,
-      },
+      estimate,
     };
   }
 
@@ -482,37 +522,13 @@ export class SupabaseRoofEstimateWorkerRepository
     companyId: string;
     reusable: ReusableRoofEstimate;
   }) {
-    const priorAssumptions =
-      input.reusable.assumptions &&
-      typeof input.reusable.assumptions === "object" &&
-      !Array.isArray(input.reusable.assumptions)
-        ? input.reusable.assumptions
-        : {};
-    const { error } = await this.client
-      .from("roof_estimates")
-      .update({
-        reused_from_estimate_id: input.reusable.sourceEstimateId,
-        roof_insight_id: input.reusable.roofInsightId,
-        status: "ready",
-        total_roof_sqft: input.reusable.totalRoofSqft,
-        roof_squares: input.reusable.estimate.roofSquares,
-        price_per_square_low_cents: input.reusable.estimate.pricePerSquareLowCents,
-        price_per_square_high_cents: input.reusable.estimate.pricePerSquareHighCents,
-        range_low_cents: input.reusable.estimate.rangeLowCents,
-        range_high_cents: input.reusable.estimate.rangeHighCents,
-        pricing_version: input.reusable.estimate.pricingVersion,
-        assumptions: {
-          ...priorAssumptions,
-          reusedFromEstimateId: input.reusable.sourceEstimateId,
-          reusedAt: new Date().toISOString(),
-        },
-        failure_reason: null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", input.estimateId)
-      .eq("company_id", input.companyId)
-      .eq("status", "pending");
-    if (error) throw new Error("Failed to reuse stored roof estimate");
+    const { error } = await this.client.rpc("reuse_roof_estimate_packages", {
+      p_company_id: input.companyId,
+      p_target_estimate_id: input.estimateId,
+      p_source_estimate_id: input.reusable.sourceEstimateId,
+    });
+    if (error) throw new Error("Failed to reuse stored roof estimate packages");
+    return this.loadFinalizedEstimate(input.companyId, input.estimateId);
   }
 
   async findCachedInsight(input: { companyId: string; normalizedAddress: string }) {
@@ -729,25 +745,25 @@ export class SupabaseRoofEstimateWorkerRepository
     const success = input.insightRecord?.insight.status === "success"
       ? input.insightRecord.insight
       : null;
-    const estimate = success
-      ? calculatePreliminaryRoofEstimate(success.totalRoofSqft)
-      : null;
+    if (input.status === "ready" && input.insightRecord && success) {
+      const {error} = await this.client.rpc("finalize_roof_estimate_packages", {
+        p_company_id: input.companyId,
+        p_estimate_id: input.estimateId,
+        p_roof_insight_id: input.insightRecord.id,
+      });
+      if (error) throw new Error(`Failed to finalize roof pricing packages: ${error.message}`);
+      return this.loadFinalizedEstimate(input.companyId, input.estimateId);
+    }
     const { error } = await this.client
       .from("roof_estimates")
       .update({
         roof_insight_id: input.insightRecord?.id ?? null,
         status: input.status,
         total_roof_sqft: success?.totalRoofSqft ?? null,
-        roof_squares: estimate?.roofSquares ?? null,
-        price_per_square_low_cents: estimate?.pricePerSquareLowCents ?? 50_000,
-        price_per_square_high_cents: estimate?.pricePerSquareHighCents ?? 75_000,
-        range_low_cents: estimate?.rangeLowCents ?? null,
-        range_high_cents: estimate?.rangeHighCents ?? null,
-        pricing_version: estimate?.pricingVersion ?? "nj-asphalt-v1",
+        roof_squares: null,
+        range_low_cents: null,
+        range_high_cents: null,
         assumptions: {
-          material: "architectural asphalt shingles",
-          market: "New Jersey average",
-          excludes: ["decking replacement", "permit variance", "site-specific complexity"],
           preliminary: true,
         },
         failure_reason: input.failureReason ?? null,
@@ -756,6 +772,23 @@ export class SupabaseRoofEstimateWorkerRepository
       .eq("id", input.estimateId)
       .eq("company_id", input.companyId);
     if (error) throw new Error("Failed to finalize roof estimate");
+    return null;
+  }
+
+  private async loadFinalizedEstimate(companyId: string, estimateId: string) {
+    const {data, error} = await this.client
+      .from("roof_estimates")
+      .select("roof_squares, pricing_version, assumptions, roof_estimate_packages(tier_key, display_order, measured_roof_squares, low_cents_per_square, high_cents_per_square, range_low_cents, range_high_cents, customer_name, customer_description, warranty_summary, differentiators, pricing_version, calculated_at)")
+      .eq("company_id", companyId)
+      .eq("id", estimateId)
+      .single();
+    if (error || !data || data.roof_squares === null) throw new Error("Failed to load finalized roof pricing packages");
+    return finalizedEstimateFromRows({
+      roofSquares: Number(data.roof_squares),
+      pricingVersion: data.pricing_version,
+      assumptions: data.assumptions,
+      rows: data.roof_estimate_packages,
+    });
   }
 
   async queueDeliveries(input: {
@@ -766,13 +799,24 @@ export class SupabaseRoofEstimateWorkerRepository
     phone: string;
     email: string;
     status: "ready" | "no_coverage" | "quota_exhausted" | "failed";
-    estimate?: ReturnType<typeof calculatePreliminaryRoofEstimate>;
+    estimate?: FinalizedRoofEstimate;
   }) {
     const ready = input.status === "ready" && input.estimate;
-    const money = (cents: number) =>
-      new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(cents / 100);
+    const {data: publicEstimate, error: tokenError} = await this.client
+      .from("roof_estimates")
+      .select("public_token")
+      .eq("company_id", input.companyId)
+      .eq("id", input.estimateId)
+      .single();
+    if (tokenError || !publicEstimate) throw new Error("Failed to load estimate delivery link");
+    const environment=parseServerEnv(process.env);
+    const host=environment.VERCEL_PROJECT_PRODUCTION_URL ?? environment.VERCEL_URL ?? "localhost:3000";
+    const baseUrl=host.includes("://") ? host : `https://${host}`;
+    const resultUrl=new URL(`/roof-estimate/${publicEstimate.public_token}`,baseUrl).toString();
+    const email=ready ? composeEstimateEmail({name:input.name,resultUrl,estimate:input.estimate!}) : null;
+    const sms=ready ? composeEstimateSms({name:input.name,resultUrl,estimate:input.estimate!}) : null;
     const body = ready
-      ? `Hi ${input.name}, your preliminary New Jersey roof replacement range is ${money(input.estimate!.rangeLowCents)}–${money(input.estimate!.rangeHighCents)}. This is an early estimate, not a final quote. Includes data from Google Maps. Reply or book an inspection for a confirmed proposal.`
+      ? sms!
       : `Hi ${input.name}, we received your roof estimate request. We could not produce a reliable instant range, so our team will review the property and follow up.`;
     const rows = [
       {
@@ -790,8 +834,8 @@ export class SupabaseRoofEstimateWorkerRepository
         lead_id: input.leadId,
         channel: "email",
         destination: input.email,
-        composed_subject: ready ? "Your preliminary roof estimate" : "We received your roof estimate request",
-        composed_body: body,
+        composed_subject: ready ? email!.subject : "We received your roof estimate request",
+        composed_body: ready ? email!.body : body,
       },
     ];
     const { error } = await this.client

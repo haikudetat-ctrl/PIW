@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  roofPricingAdjustmentDisclosureSchema,
+  roofPricingPackagesSchema,
+} from "./roof-pricing";
 
 export const ROOF_ASSESSMENT_VERSION = "roof-check-v1" as const;
 
@@ -199,9 +203,38 @@ const readyCalculationStateSchema = z.object({
   }
 });
 
+const packageReadyCalculationStateSchema = z.object({
+  status: z.literal("ready"),
+  source: z.literal("google"),
+  lowCents: z.number().int().positive(),
+  highCents: z.number().int().positive(),
+  roofSquares: z.number().positive(),
+  generatedAt: z.iso.datetime(),
+  pricingVersion: z.string().min(1),
+  packages: roofPricingPackagesSchema,
+  adjustments: z.array(roofPricingAdjustmentDisclosureSchema),
+}).strict().superRefine((value, context) => {
+  const better=value.packages[1];
+  if (
+    better?.tierKey !== "better"
+    || better.rangeLowCents !== value.lowCents
+    || better.rangeHighCents !== value.highCents
+  ) {
+    context.addIssue({
+      code:"custom",
+      path:["packages",1],
+      message:"Better package must match the compatibility range",
+    });
+  }
+  if (value.packages.some((item) => item.measuredRoofSquares !== value.roofSquares)) {
+    context.addIssue({code:"custom",path:["roofSquares"],message:"Package measurements must agree"});
+  }
+});
+
 export const calculationStateSchema = z.union([
   pendingCalculationStateSchema,
   reviewRequiredCalculationStateSchema,
+  packageReadyCalculationStateSchema,
   readyCalculationStateSchema,
 ]);
 
