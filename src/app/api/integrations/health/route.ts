@@ -9,6 +9,9 @@ import {
 export async function GET() {
   return NextResponse.json({
     status: "ok",
+    databaseHost: process.env.NEXT_PUBLIC_SUPABASE_URL
+      ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).host
+      : null,
     vendors: integrationFlagsSnapshot(process.env),
     leadconduit: leadConduitReceiptFlagsSnapshot(process.env),
   });
