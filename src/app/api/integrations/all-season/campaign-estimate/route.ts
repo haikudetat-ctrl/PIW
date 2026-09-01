@@ -2,6 +2,9 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { parseServerEnv } from "@/lib/env/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { inngest } from "@/inngest/client";
+import { SupabaseMetaRepository, type ReservedMetaEvent } from "@/modules/marketing/meta-repository";
+import { verifyConsentCookie, type VerifiedConsent } from "@/modules/privacy/consent";
 import {
   acceptAllSeasonCampaignEstimate,
   type AllSeasonCampaignEstimateLeadInput,
@@ -42,9 +45,31 @@ export function toCampaignEstimateLeadInput(
 
 type CampaignEstimateDependencies = {
   expectedSecret: string;
+  companyId?: string;
+  metaTrackingEnabled?: boolean;
   accept: (
     payload: AllSeasonCampaignEstimateInput,
-  ) => ReturnType<typeof acceptAllSeasonCampaignEstimate>;
+  ) => Promise<CampaignEstimateAcceptance>;
+  findLeadId?: (submissionId: string) => Promise<string | null>;
+  verifyAdvertisingConsent?: (request: NextRequest) => Promise<VerifiedConsent | null>;
+  recordConsent?: (input: {
+    leadId: string;
+    companyId: string;
+    consent: VerifiedConsent;
+    occurredAt: string;
+  }) => Promise<void>;
+  reserveLead?: (input: {
+    leadId: string;
+    companyId: string;
+    consentId: string;
+    occurredAt: string;
+  }) => Promise<ReservedMetaEvent | null>;
+  requestDelivery?: (deliveryId: string) => Promise<void>;
+  reportError?: (error: unknown) => void;
+};
+
+type CampaignEstimateAcceptance = Awaited<ReturnType<typeof acceptAllSeasonCampaignEstimate>> & {
+  leadId?: string;
 };
 
 function secretsMatch(actual: string, expected: string) {
@@ -57,6 +82,62 @@ function noStoreJson(body: unknown, status: number) {
     status,
     headers: {"cache-control": "no-store"},
   });
+}
+
+async function reserveMetaLeadAfterAcceptance({
+  request,
+  result,
+  submissionId,
+  dependencies,
+}: {
+  request: NextRequest;
+  result: CampaignEstimateAcceptance;
+  submissionId: string;
+  dependencies: CampaignEstimateDependencies;
+}) {
+  if (
+    result.kind !== "continue"
+    || !dependencies.metaTrackingEnabled
+    || !dependencies.companyId
+    || !dependencies.verifyAdvertisingConsent
+    || !dependencies.recordConsent
+    || !dependencies.reserveLead
+  ) return null;
+
+  try {
+    const leadId = result.leadId ?? await dependencies.findLeadId?.(submissionId);
+    if (!leadId) return null;
+
+    const consent = await dependencies.verifyAdvertisingConsent(request);
+    if (!consent) return null;
+
+    const occurredAt = new Date().toISOString();
+    await dependencies.recordConsent({
+      leadId,
+      companyId: dependencies.companyId,
+      consent,
+      occurredAt,
+    });
+    if (!consent.preferences.advertising) return null;
+
+    const reserved = await dependencies.reserveLead({
+      leadId,
+      companyId: dependencies.companyId,
+      consentId: consent.consentId,
+      occurredAt,
+    });
+    if (!reserved) return null;
+
+    try {
+      await dependencies.requestDelivery?.(reserved.deliveryId);
+    } catch (error) {
+      (dependencies.reportError ?? console.error)(error);
+    }
+    return reserved.envelope;
+  } catch (error) {
+    (dependencies.reportError ?? console.error)(error);
+    return null;
+  }
 }
 
 export async function handleAllSeasonCampaignEstimateRequest(
@@ -83,8 +164,14 @@ export async function handleAllSeasonCampaignEstimateRequest(
         409,
       );
     }
+    const metaEvent = await reserveMetaLeadAfterAcceptance({
+      request,
+      result,
+      submissionId: parsed.data.submission_id,
+      dependencies,
+    });
     return noStoreJson(
-      {accepted: true, continuationPath: result.continuationPath},
+      {accepted: true, continuationPath: result.continuationPath, metaEvent},
       202,
     );
   } catch {
@@ -121,9 +208,51 @@ export async function POST(request: NextRequest) {
   const repository = new SupabaseAssessmentIntakeRepository(service);
   const signingKey = environment.ROOF_ASSESSMENT_SIGNING_SECRET;
   const companyId = environment.ALL_SEASON_INTAKE_COMPANY_ID;
+  const metaRepository = new SupabaseMetaRepository(service as never);
 
   return handleAllSeasonCampaignEstimateRequest(request, {
     expectedSecret: environment.ALL_SEASON_INTAKE_SHARED_SECRET,
+    companyId,
+    metaTrackingEnabled: environment.META_TRACKING_ENABLED,
+    findLeadId: async (submissionId) => {
+      const {data, error} = await service
+        .from("roof_assessment_access_attempts")
+        .select("lead_id")
+        .eq("company_id", companyId)
+        .eq("submission_id", submissionId)
+        .maybeSingle();
+      if (error || !data?.lead_id) return null;
+      return data.lead_id;
+    },
+    verifyAdvertisingConsent: async (incoming) =>
+      verifyConsentCookie(
+        incoming.headers.get("x-piw-privacy-consent") ?? undefined,
+        environment.PRIVACY_CONSENT_SIGNING_SECRET ?? "",
+      ),
+    recordConsent: async ({leadId, companyId: consentCompanyId, consent, occurredAt}) => {
+      const {error} = await service.rpc("record_privacy_consent", {
+        p_evidence_id: crypto.randomUUID(),
+        p_consent_id: consent.consentId,
+        p_company_id: consentCompanyId,
+        p_lead_id: leadId,
+        p_policy_version: consent.policyVersion,
+        p_analytics_granted: consent.preferences.analytics,
+        p_advertising_granted: consent.preferences.advertising,
+        p_gpc_detected: consent.gpcDetected,
+        p_source: consent.gpcDetected ? "gpc" : "preferences",
+        p_request_ip: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "",
+        p_user_agent: request.headers.get("user-agent") ?? "",
+        p_occurred_at: occurredAt,
+      });
+      if (error) throw new Error("Failed to record privacy consent evidence");
+    },
+    reserveLead: (input) => metaRepository.reserveLead(input),
+    requestDelivery: async (deliveryId) => {
+      await inngest.send({
+        name: "marketing/meta.delivery.requested",
+        data: {deliveryId},
+      });
+    },
     accept: async (payload) => {
       const composition = createPostConsentPrefetchComposition({
         environment,

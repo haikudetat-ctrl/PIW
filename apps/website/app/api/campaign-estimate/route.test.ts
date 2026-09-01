@@ -134,6 +134,7 @@ describe("campaign estimate proxy", () => {
     await expect(response.json()).resolves.toEqual({
       accepted: true,
       estimateUrl: "https://piw.example/roof-estimate/continue/signed_token-123",
+      metaEvent: null,
     });
     expect(forwarded).toEqual(expect.objectContaining({
       submission_id: submissionId,
@@ -166,6 +167,33 @@ describe("campaign estimate proxy", () => {
     expect(forwarded).not.toHaveProperty("utm_term");
     expect(forwarded).not.toHaveProperty("utm_content");
     expect(forwarded).not.toHaveProperty("fbclid");
+  });
+
+  test("returns a PIW-issued Lead envelope without synthesizing one", async () => {
+    const response = await handleCampaignEstimateRequest(
+      request(googleSubmission()),
+      async () => Response.json({
+        accepted: true,
+        continuationPath: "/roof-estimate/continue/signed_token-123",
+        metaEvent: {
+          name: "Lead",
+          eventId: "33333333-3333-4333-8333-333333333333",
+          issuedAt: "2026-09-01T16:01:00.000Z",
+        },
+      }, {status: 202}),
+      publicAppUrl,
+    );
+
+    expect(response.status).toBe(202);
+    await expect(response.json()).resolves.toEqual({
+      accepted: true,
+      estimateUrl: "https://piw.example/roof-estimate/continue/signed_token-123",
+      metaEvent: {
+        name: "Lead",
+        eventId: "33333333-3333-4333-8333-333333333333",
+        issuedAt: "2026-09-01T16:01:00.000Z",
+      },
+    });
   });
 
   test("accepts a complete manual New Jersey address and formats it for PIW", async () => {
@@ -203,6 +231,7 @@ describe("campaign estimate proxy", () => {
     await expect(response.json()).resolves.toEqual({
       accepted: true,
       estimateUrl: "https://piw.example/roof-estimate/continue/other_token-456",
+      metaEvent: null,
     });
   });
 
@@ -341,6 +370,7 @@ describe("campaign estimate proxy", () => {
     await expect(response.json()).resolves.toEqual({
       accepted: true,
       estimateUrl: "http://localhost:3000/roof-estimate/continue/safe_token",
+      metaEvent: null,
     });
   });
 

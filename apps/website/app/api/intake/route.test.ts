@@ -82,6 +82,41 @@ describe("lead intake proxy", () => {
     }));
   });
 
+  test("returns only the PIW-issued Lead envelope", async () => {
+    const response = await handleIntakeRequest(
+      request({
+        submission_id: "11111111-1111-4111-8111-111111111111",
+        name: "Alex Rivera",
+        email: "alex@example.com",
+        phone: "201-555-0100",
+        address: "1 Main St, Newark, NJ",
+        project_interest: "roofing",
+        consent_to_contact: true,
+        consent_to_process_property: true,
+      }),
+      async () => Response.json({
+        accepted: true,
+        leadId: "22222222-2222-4222-8222-222222222222",
+        duplicate: false,
+        metaEvent: {
+          name: "Lead",
+          eventId: "33333333-3333-4333-8333-333333333333",
+          issuedAt: "2026-09-01T16:01:00.000Z",
+        },
+      }, {status: 202}),
+    );
+
+    expect(response.status).toBe(202);
+    await expect(response.json()).resolves.toEqual({
+      accepted: true,
+      metaEvent: {
+        name: "Lead",
+        eventId: "33333333-3333-4333-8333-333333333333",
+        issuedAt: "2026-09-01T16:01:00.000Z",
+      },
+    });
+  });
+
   test("rejects invalid submissions without calling the webhook", async () => {
     const forward = vi.fn(async () => new Response(null, {status: 200}));
     const response = await handleIntakeRequest(request({name: ""}), forward);

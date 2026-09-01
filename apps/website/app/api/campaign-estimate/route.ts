@@ -74,6 +74,11 @@ const campaignEstimateSchema = z.object({
 const acceptedResponseSchema = z.strictObject({
   accepted: z.literal(true),
   continuationPath: z.string().regex(/^\/roof-estimate\/continue\/[A-Za-z0-9_-]+$/),
+  metaEvent: z.strictObject({
+    name: z.literal("Lead"),
+    eventId: z.uuid(),
+    issuedAt: z.iso.datetime({offset: true}),
+  }).nullable().optional(),
 });
 
 type ForwardEstimate = (
@@ -238,7 +243,11 @@ export async function handleCampaignEstimateRequest(
     estimateUrl.searchParams.set("privacy_handoff", privacyHandoff);
   }
 
-  return noStoreJson({accepted: true, estimateUrl: estimateUrl.toString()}, 202);
+  return noStoreJson({
+    accepted: true,
+    estimateUrl: estimateUrl.toString(),
+    metaEvent: accepted.data.metaEvent ?? null,
+  }, 202);
 }
 
 export async function POST(request: NextRequest) {
