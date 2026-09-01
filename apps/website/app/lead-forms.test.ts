@@ -5,10 +5,13 @@ import path from "node:path";
 import { JSDOM } from "jsdom";
 import { describe, expect, test, vi } from "vitest";
 
-const script = readFileSync(path.join(__dirname, "script.js"), "utf8");
-const quoteDrawer = readFileSync(path.join(__dirname, "quote-drawer.js"), "utf8");
-const homepage = readFileSync(path.join(__dirname, "index.html"), "utf8");
-const contactPage = readFileSync(path.join(__dirname, "contact.html"), "utf8");
+// The browser scripts and pages under test are served from apps/website/public.
+const publicDir = path.join(__dirname, "..", "public");
+
+const script = readFileSync(path.join(publicDir, "script.js"), "utf8");
+const quoteDrawer = readFileSync(path.join(publicDir, "quote-drawer.js"), "utf8");
+const homepage = readFileSync(path.join(publicDir, "index.html"), "utf8");
+const contactPage = readFileSync(path.join(publicDir, "contact.html"), "utf8");
 
 const estimateUrl = "https://piw.example/roof-estimate/continue/safe_token";
 
