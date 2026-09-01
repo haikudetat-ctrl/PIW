@@ -1,6 +1,6 @@
 begin;
 
-select plan(46);
+select plan(51);
 
 select has_table('public', 'meta_event_deliveries', 'Meta delivery ledger exists');
 select has_column('public', 'meta_event_deliveries', 'consent_id', 'delivery retains the verified consent identifier');
@@ -152,12 +152,17 @@ select * from public.record_privacy_consent(
 select * from public.record_privacy_consent(
   '92000000-0000-4000-8000-000000000106', '92000000-0000-4000-8000-000000000205',
   '92000000-0000-4000-8000-000000000001', (select measurement_lead_id from meta_fixture_ids),
-  'piw-privacy-v1', false, true, false, 'preferences', null, 'pgtap', '2026-09-01T12:15:00Z'
+  'piw-privacy-v1', false, false, false, 'preferences', null, 'pgtap', '2026-09-01T12:15:00Z'
 );
 select * from public.record_privacy_consent(
   '92000000-0000-4000-8000-000000000107', '92000000-0000-4000-8000-000000000206',
   '92000000-0000-4000-8000-000000000002', (select other_lead_id from meta_fixture_ids),
   'piw-privacy-v1', false, true, false, 'preferences', null, 'pgtap', '2026-09-01T12:16:00Z'
+);
+select * from public.record_privacy_consent(
+  '92000000-0000-4000-8000-000000000108', '92000000-0000-4000-8000-000000000207',
+  '92000000-0000-4000-8000-000000000001', (select measurement_lead_id from meta_fixture_ids),
+  'piw-privacy-v1', false, true, false, 'preferences', null, 'pgtap', '2026-09-01T12:15:00Z'
 );
 
 select is(
@@ -185,11 +190,46 @@ select is(
     '92000000-0000-4000-8000-000000000203', 'piw-privacy-v1', '2026-09-01T13:00:00Z'
   )), 0::bigint, 'revocation does not return an already-reserved Lead event'
 );
+
+-- Revoke the exact consent used by the persisted delivery after event_time.
+-- The reservation remains idempotently addressable, but delivery is no
+-- longer eligible for recovery or an authoritative claim.
+select * from public.record_privacy_consent(
+  '92000000-0000-4000-8000-000000000109', '92000000-0000-4000-8000-000000000202',
+  '92000000-0000-4000-8000-000000000001', (select lead_id from meta_fixture_ids),
+  'piw-privacy-v1', false, false, false, 'preferences', null, 'pgtap', '2026-09-01T13:01:00Z'
+);
 select is(
-  (select event_id from public.reserve_meta_lead_delivery(
+  (select count(*) from public.list_pending_meta_deliveries(50, '2026-09-01T13:02:00Z')
+   where id=(select id from first_lead_reservation)),
+  0::bigint, 'post-reservation revocation suppresses the delivery from pending recovery'
+);
+select is(
+  (select count(*) from public.claim_meta_delivery(
+    (select id from first_lead_reservation), '2026-09-01T13:02:00Z'
+  )),
+  0::bigint, 'claim is the final authority and rejects a post-reservation revocation'
+);
+update public.meta_event_deliveries
+set status='pending', attempt_count=0, last_attempted_at=null
+where id=(select id from first_lead_reservation);
+select is(
+  (select event_name || ':' || event_id::text || ':' || event_time::text
+   from public.reserve_meta_lead_delivery(
     (select lead_id from meta_fixture_ids), '92000000-0000-4000-8000-000000000001',
     '92000000-0000-4000-8000-000000000202', 'piw-privacy-v1', '2026-09-01T13:00:00Z'
-  )), (select event_id from first_lead_reservation), 'Lead retry returns the original event ID'
+  )),
+  (select event_name || ':' || event_id::text || ':' || event_time::text from first_lead_reservation),
+  'Lead retry after revocation returns the original event envelope'
+);
+select is(
+  (select count(*) from public.list_pending_meta_deliveries(50, '2026-09-01T13:03:00Z')
+   where id=(select id from first_lead_reservation))
+  +
+  (select count(*) from public.claim_meta_delivery(
+    (select id from first_lead_reservation), '2026-09-01T13:03:00Z'
+  )),
+  0::bigint, 'idempotent reservation retry cannot re-enable listing or claim eligibility'
 );
 select is((select count(*) from public.meta_event_deliveries where event_name='Lead'), 1::bigint, 'one Lead delivery exists');
 select is(
@@ -197,6 +237,32 @@ select is(
     (select lead_id from meta_fixture_ids), '92000000-0000-4000-8000-000000000002',
     '92000000-0000-4000-8000-000000000206', 'piw-privacy-v1', '2026-09-01T13:00:00Z'
   )), 0::bigint, 'cross-company Lead reservation is rejected'
+);
+
+-- A grant recorded only after event_time must never retroactively authorize a
+-- delivery, even if it is the latest consent state at claim/list time.
+select * from public.record_privacy_consent(
+  '92000000-0000-4000-8000-000000000110', '92000000-0000-4000-8000-000000000205',
+  '92000000-0000-4000-8000-000000000001', (select measurement_lead_id from meta_fixture_ids),
+  'piw-privacy-v1', false, true, false, 'preferences', null, 'pgtap', '2026-09-01T13:05:00Z'
+);
+insert into public.meta_event_deliveries(
+  id, company_id, lead_id, consent_id, policy_version, event_name, event_time
+) values (
+  '92000000-0000-4000-8000-000000000401', '92000000-0000-4000-8000-000000000001',
+  (select measurement_lead_id from meta_fixture_ids), '92000000-0000-4000-8000-000000000205',
+  'piw-privacy-v1', 'Lead', '2026-09-01T13:00:00Z'
+);
+select is(
+  (select count(*) from public.list_pending_meta_deliveries(50, '2026-09-01T13:10:00Z')
+   where id='92000000-0000-4000-8000-000000000401'),
+  0::bigint, 'a later Advertising grant does not retroactively authorize pending recovery'
+);
+select is(
+  (select count(*) from public.claim_meta_delivery(
+    '92000000-0000-4000-8000-000000000401', '2026-09-01T13:10:00Z'
+  )),
+  0::bigint, 'a later Advertising grant does not retroactively authorize claim'
 );
 
 select is(
@@ -215,7 +281,7 @@ where id=(select measurement_assessment_id from meta_fixture_ids);
 select is(
   (select count(*) from public.reserve_meta_assessment_delivery(
     (select measurement_assessment_id from meta_fixture_ids), '92000000-0000-4000-8000-000000000001',
-    '92000000-0000-4000-8000-000000000205', 'piw-privacy-v1', '2026-09-01T13:00:00Z'
+    '92000000-0000-4000-8000-000000000207', 'piw-privacy-v1', '2026-09-01T13:00:00Z'
   )), 0::bigint, 'measurement ranges without Good Better Best packages reserve nothing'
 );
 
@@ -309,20 +375,25 @@ select throws_ok(
   '42501', null, 'service role writes only through constrained RPCs'
 );
 
+create temp table active_lead_reservation as
+select * from public.reserve_meta_lead_delivery(
+  (select other_lead_id from meta_fixture_ids), '92000000-0000-4000-8000-000000000002',
+  '92000000-0000-4000-8000-000000000206', 'piw-privacy-v1', '2026-09-01T13:00:00Z'
+);
 create temp table first_claim as
-select * from public.claim_meta_delivery((select id from first_lead_reservation), '2026-09-01T13:01:00Z');
+select * from public.claim_meta_delivery((select id from active_lead_reservation), '2026-09-01T13:01:00Z');
 select is(
   (select status || ':' || attempt_count::text from first_claim), 'sending:1',
   'claim atomically transitions a pending row and increments its attempt count'
 );
 select is(
-  (select count(*) from public.claim_meta_delivery((select id from first_lead_reservation), '2026-09-01T13:02:00Z')),
+  (select count(*) from public.claim_meta_delivery((select id from active_lead_reservation), '2026-09-01T13:02:00Z')),
   0::bigint, 'a fresh sending row cannot be claimed twice'
 );
 select is(
   (select status || ':' || coalesce(last_error_category, 'null') || ':' || coalesce(meta_trace_id, 'null')
    from public.complete_meta_delivery(
-     (select id from first_lead_reservation), 'retryable_failed', 429,
+     (select id from active_lead_reservation), 'retryable_failed', 429,
      repeat('A', 64), E' Network timeout\n429! ', '2026-09-01T13:03:00Z'
    )),
   'retryable_failed:network_timeout_429_:null',
@@ -330,20 +401,20 @@ select is(
 );
 select is(
   (select status || ':' || attempt_count::text
-   from public.claim_meta_delivery((select id from first_lead_reservation), '2026-09-01T13:04:00Z')),
+   from public.claim_meta_delivery((select id from active_lead_reservation), '2026-09-01T13:04:00Z')),
   'sending:2', 'retryable failure can be claimed for another bounded attempt'
 );
 select is(
   (select status || ':' || payload_hash || ':' || coalesce(meta_trace_id, 'null') || ':' || coalesce(last_error_category, 'null')
    from public.complete_meta_delivery(
-     (select id from first_lead_reservation), 'sent', 200,
+     (select id from active_lead_reservation), 'sent', 200,
      repeat('B', 64), E' trace ID\n123! ', '2026-09-01T13:05:00Z'
    )),
   'sent:' || repeat('b', 64) || ':trace_ID_123_:null',
   'sent completion normalizes the hash, sanitizes trace metadata, and clears error data'
 );
 select is(
-  (select count(*) from public.claim_meta_delivery((select id from first_lead_reservation), '2026-09-01T13:06:00Z')),
+  (select count(*) from public.claim_meta_delivery((select id from active_lead_reservation), '2026-09-01T13:06:00Z')),
   0::bigint, 'sent delivery cannot be claimed again'
 );
 
@@ -386,10 +457,23 @@ with inserted_leads as (
          'pending-meta-' || value || '@example.com', value || ' Pending Meta Way'
   from pg_catalog.generate_series(1, 51) as value
   returning id, company_id
+), scoped_leads as materialized (
+  select id, company_id, extensions.gen_random_uuid() as consent_id
+  from inserted_leads
+), inserted_consent as (
+  insert into public.privacy_consent_evidence(
+    evidence_id, consent_id, company_id, lead_id, policy_version,
+    advertising_granted, gpc_detected, source, occurred_at
+  )
+  select extensions.gen_random_uuid(), consent_id, company_id, id,
+         'piw-privacy-v1', true, false, 'preferences', '2026-09-01T13:00:00Z'
+  from scoped_leads
+  returning consent_id
 )
 insert into public.meta_event_deliveries(company_id, lead_id, consent_id, policy_version, event_name, event_time)
-select company_id, id, extensions.gen_random_uuid(), 'piw-privacy-v1', 'Lead', '2026-09-01T13:10:00Z'
-from inserted_leads;
+select lead.company_id, lead.id, lead.consent_id, 'piw-privacy-v1', 'Lead', '2026-09-01T13:10:00Z'
+from scoped_leads as lead
+join inserted_consent as consent on consent.consent_id=lead.consent_id;
 select is(
   (select count(*) from public.list_pending_meta_deliveries(500, '2026-09-01T13:20:00Z')),
   50::bigint, 'pending listing clamps callers to fifty rows'
@@ -397,7 +481,11 @@ select is(
 
 update public.meta_event_deliveries
 set status='sending', attempt_count=1, last_attempted_at='2026-09-01T13:00:00Z', updated_at='2026-09-01T13:00:00Z'
-where id=(select id from public.meta_event_deliveries where status='pending' order by id limit 1);
+where id=(
+  select id from public.meta_event_deliveries
+  where status='pending' and event_time='2026-09-01T13:10:00Z'
+  order by id limit 1
+);
 select ok(
   exists(
     select 1 from public.list_pending_meta_deliveries(50, '2026-09-01T13:11:00Z') as pending

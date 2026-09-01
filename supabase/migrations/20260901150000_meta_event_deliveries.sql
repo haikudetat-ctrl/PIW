@@ -181,6 +181,7 @@ as $$
     from public.meta_event_deliveries as delivery
     where delivery.id = p_delivery_id
       and p_claimed_at is not null
+      and delivery.event_time <= p_claimed_at
       and delivery.attempt_count < 5
       and (
         delivery.status in ('pending', 'retryable_failed')
@@ -188,6 +189,41 @@ as $$
           delivery.status = 'sending'
           and delivery.last_attempted_at <= p_claimed_at - interval '10 minutes'
         )
+      )
+      -- Revalidate both historical eligibility and current consent in the
+      -- same statement that locks and transitions the delivery. A later
+      -- grant cannot authorize the historical event, while a later
+      -- revocation suppresses a previously valid reservation.
+      and exists (
+        select 1
+        from lateral (
+          select evidence.company_id, evidence.lead_id,
+                 evidence.policy_version, evidence.advertising_granted
+          from public.privacy_consent_evidence as evidence
+          where evidence.consent_id = delivery.consent_id
+            and evidence.policy_version = delivery.policy_version
+            and evidence.occurred_at <= delivery.event_time
+          order by evidence.occurred_at desc, evidence.created_at desc, evidence.evidence_id desc
+          limit 1
+        ) as consent_at_event
+        join lateral (
+          select evidence.company_id, evidence.lead_id,
+                 evidence.policy_version, evidence.advertising_granted
+          from public.privacy_consent_evidence as evidence
+          where evidence.consent_id = delivery.consent_id
+            and evidence.policy_version = delivery.policy_version
+            and evidence.occurred_at <= p_claimed_at
+          order by evidence.occurred_at desc, evidence.created_at desc, evidence.evidence_id desc
+          limit 1
+        ) as current_consent on true
+        where consent_at_event.company_id = delivery.company_id
+          and consent_at_event.lead_id = delivery.lead_id
+          and consent_at_event.policy_version = delivery.policy_version
+          and consent_at_event.advertising_granted
+          and current_consent.company_id = delivery.company_id
+          and current_consent.lead_id = delivery.lead_id
+          and current_consent.policy_version = delivery.policy_version
+          and current_consent.advertising_granted
       )
     for update skip locked
   )
@@ -212,6 +248,7 @@ as $$
   select delivery.id
   from public.meta_event_deliveries as delivery
   where p_observed_at is not null
+    and delivery.event_time <= p_observed_at
     and delivery.attempt_count < 5
     and (
       delivery.status in ('pending', 'retryable_failed')
@@ -219,6 +256,37 @@ as $$
         delivery.status = 'sending'
         and delivery.last_attempted_at <= p_observed_at - interval '10 minutes'
       )
+    )
+    and exists (
+      select 1
+      from lateral (
+        select evidence.company_id, evidence.lead_id,
+               evidence.policy_version, evidence.advertising_granted
+        from public.privacy_consent_evidence as evidence
+        where evidence.consent_id = delivery.consent_id
+          and evidence.policy_version = delivery.policy_version
+          and evidence.occurred_at <= delivery.event_time
+        order by evidence.occurred_at desc, evidence.created_at desc, evidence.evidence_id desc
+        limit 1
+      ) as consent_at_event
+      join lateral (
+        select evidence.company_id, evidence.lead_id,
+               evidence.policy_version, evidence.advertising_granted
+        from public.privacy_consent_evidence as evidence
+        where evidence.consent_id = delivery.consent_id
+          and evidence.policy_version = delivery.policy_version
+          and evidence.occurred_at <= p_observed_at
+        order by evidence.occurred_at desc, evidence.created_at desc, evidence.evidence_id desc
+        limit 1
+      ) as current_consent on true
+      where consent_at_event.company_id = delivery.company_id
+        and consent_at_event.lead_id = delivery.lead_id
+        and consent_at_event.policy_version = delivery.policy_version
+        and consent_at_event.advertising_granted
+        and current_consent.company_id = delivery.company_id
+        and current_consent.lead_id = delivery.lead_id
+        and current_consent.policy_version = delivery.policy_version
+        and current_consent.advertising_granted
     )
   order by delivery.updated_at, delivery.id
   limit least(greatest(coalesce(p_limit, 50), 0), 50);
