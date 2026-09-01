@@ -1,15 +1,18 @@
 "use client";
 
 import {FormEvent, useState} from "react";
+import {useMetaPixel, type MetaBrowserEventEnvelope} from "./meta-pixel-provider";
 
 export function LeadWebhookForm() {
+  const {trackConversion} = useMetaPixel();
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const formElement = event.currentTarget;
     setStatus("sending");
 
-    const form = new FormData(event.currentTarget);
+    const form = new FormData(formElement);
     const response = await fetch("/api/intake", {
       method: "POST",
       headers: {"content-type": "application/json"},
@@ -22,8 +25,14 @@ export function LeadWebhookForm() {
       }),
     }).catch(() => null);
 
+    const payload = await response?.json().catch(() => null) as {
+      metaEvent?: MetaBrowserEventEnvelope | null;
+    } | null | undefined;
     setStatus(response?.ok ? "sent" : "error");
-    if (response?.ok) event.currentTarget.reset();
+    if (response?.ok) {
+      if (payload?.metaEvent) trackConversion(payload.metaEvent);
+      formElement.reset();
+    }
   }
 
   return (

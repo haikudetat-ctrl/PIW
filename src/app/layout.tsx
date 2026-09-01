@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Bebas_Neue, Geist, Geist_Mono, Montserrat } from "next/font/google";
 import { cookies } from "next/headers";
 import { PrivacyConsentProvider } from "@/components/privacy/privacy-consent-provider";
+import { MetaPixelProvider } from "@/components/marketing/meta-pixel-provider";
 import {
   PRIVACY_COOKIE_NAME,
   verifyConsentCookie,
@@ -52,7 +53,7 @@ export default async function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <PrivacyConsentProvider initialConsent={initialConsent}>
-          {children}
+          <MetaPixelProvider>{children}</MetaPixelProvider>
         </PrivacyConsentProvider>
       </body>
     </html>

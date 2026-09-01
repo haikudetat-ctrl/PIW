@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import {cookies} from "next/headers";
 import {PrivacyConsentProvider} from "../components/privacy-consent-provider";
+import {MetaPixelProvider} from "../components/meta-pixel-provider";
 import {PRIVACY_COOKIE_NAME, readWebsiteConsent} from "../lib/privacy-consent";
 import "./styles.css";
 
@@ -20,7 +21,7 @@ export default async function RootLayout({children}: Readonly<{children: React.R
     <html lang="en">
       <body>
         <PrivacyConsentProvider initialConsent={initialConsent}>
-          {children}
+          <MetaPixelProvider>{children}</MetaPixelProvider>
         </PrivacyConsentProvider>
       </body>
     </html>

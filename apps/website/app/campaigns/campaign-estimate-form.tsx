@@ -3,6 +3,7 @@
 import {FormEvent, useCallback, useState} from "react";
 import {AddressAutocomplete} from "./address-autocomplete";
 import {buildCampaignSubmission, type CampaignDefinition} from "./campaigns";
+import {useMetaPixel, type MetaBrowserEventEnvelope} from "../../components/meta-pixel-provider";
 
 function track(event: string, campaign: string) {
   const detail = {event, campaign, page_path: window.location.pathname};
@@ -12,6 +13,7 @@ function track(event: string, campaign: string) {
 }
 
 export function CampaignEstimateForm({campaign}: {campaign: CampaignDefinition}) {
+  const {trackConversion} = useMetaPixel();
   const [step, setStep] = useState<1 | 2>(1);
   const [manual, setManual] = useState(false);
   const [selectedAddress, setSelectedAddress] = useState("");
@@ -63,8 +65,13 @@ export function CampaignEstimateForm({campaign}: {campaign: CampaignDefinition})
         })),
         credentials: "same-origin",
       });
-      const payload = await response.json().catch(() => ({})) as {estimateUrl?: string; error?: string};
+      const payload = await response.json().catch(() => ({})) as {
+        estimateUrl?: string;
+        error?: string;
+        metaEvent?: MetaBrowserEventEnvelope | null;
+      };
       if (!response.ok || !payload.estimateUrl) throw new Error(payload.error ?? "Submission failed");
+      if (payload.metaEvent) trackConversion(payload.metaEvent);
       track("campaign_form_success", campaign.slug);
       window.location.assign(payload.estimateUrl);
     } catch {
