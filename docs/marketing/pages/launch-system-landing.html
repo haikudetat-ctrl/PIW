@@ -1,0 +1,790 @@
+<title>2Stack Launch System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<style>
+  /* ---- Light palette (complete, on bare :root) ---- */
+  :root {
+    --ground:      #EEF1F4;
+    --surface:     #FFFFFF;
+    --surface-alt: #E4E9ED;
+    --line:        #CFD7DE;
+    --line-strong: #A8B4BE;
+    --ink:         #14171A;
+    --ink-soft:    #3D464E;
+    --ink-muted:   #6B7680;
+    --chalk:       #14618F;
+    --chalk-soft:  #E1EDF6;
+    --flag:        #A85A14;
+    --shadow:      0 1px 2px rgba(20, 23, 26, .06), 0 8px 24px rgba(20, 23, 26, .05);
+
+    --display: "Barlow Condensed", "Arial Narrow", Helvetica, sans-serif;
+    --body:    "Barlow", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    --mono:    "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+    --measure: 64ch;
+    --pad: clamp(20px, 5vw, 48px);
+    --gap: clamp(48px, 8vh, 96px);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:      #14171A;
+      --surface:     #1B2025;
+      --surface-alt: #22282E;
+      --line:        #2C333A;
+      --line-strong: #414A53;
+      --ink:         #EDEFF1;
+      --ink-soft:    #C3CAD1;
+      --ink-muted:   #8E99A3;
+      --chalk:       #5FA8DC;
+      --chalk-soft:  #1B2C39;
+      --flag:        #E0913C;
+      --shadow:      0 1px 2px rgba(0, 0, 0, .4), 0 10px 30px rgba(0, 0, 0, .3);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:      #14171A;
+    --surface:     #1B2025;
+    --surface-alt: #22282E;
+    --line:        #2C333A;
+    --line-strong: #414A53;
+    --ink:         #EDEFF1;
+    --ink-soft:    #C3CAD1;
+    --ink-muted:   #8E99A3;
+    --chalk:       #5FA8DC;
+    --chalk-soft:  #1B2C39;
+    --flag:        #E0913C;
+    --shadow:      0 1px 2px rgba(0, 0, 0, .4), 0 10px 30px rgba(0, 0, 0, .3);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 17px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding-inline: var(--pad);
+  }
+  .narrow { max-width: var(--measure); }
+
+  /* ---- Type ---- */
+  h1, h2, h3 {
+    font-family: var(--display);
+    font-weight: 700;
+    line-height: .98;
+    letter-spacing: -.005em;
+    text-wrap: balance;
+    margin: 0;
+  }
+  h1 { font-size: clamp(2.9rem, 8.5vw, 5.6rem); }
+  h2 { font-size: clamp(2rem, 5vw, 3.1rem); }
+  h3 { font-size: clamp(1.25rem, 2.4vw, 1.5rem); line-height: 1.1; }
+  p  { margin: 0; }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: .72rem;
+    font-weight: 500;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--chalk);
+    margin: 0;
+  }
+  .eyebrow-quiet { color: var(--ink-muted); }
+
+  .lede  { font-size: clamp(1.06rem, 2vw, 1.25rem); color: var(--ink-soft); }
+  .small { font-size: .93rem; color: var(--ink-muted); }
+
+  a { color: var(--chalk); }
+  :focus-visible {
+    outline: 2px solid var(--chalk);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  /* ---- Chalk line: the page's one orchestrated moment ---- */
+  .chalkline {
+    height: 2px;
+    background: var(--chalk);
+    transform-origin: left center;
+    transform: scaleX(1);
+  }
+  .chalkline.snap {
+    animation: snap .62s cubic-bezier(.16, 1.2, .3, 1) both;
+  }
+  @keyframes snap {
+    0%   { transform: scaleX(0); }
+    100% { transform: scaleX(1); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .chalkline.snap { animation: none; }
+  }
+
+  .rule {
+    height: 1px;
+    background: var(--line);
+    border: 0;
+    margin: 0;
+  }
+
+  /* ---- Hero ---- */
+  .hero {
+    padding-block: clamp(56px, 12vh, 116px) clamp(48px, 9vh, 88px);
+    position: relative;
+    overflow: hidden;
+  }
+  /* shingle-course texture, very faint */
+  .hero::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: repeating-linear-gradient(
+      to bottom,
+      transparent 0 46px,
+      var(--line) 46px 47px
+    );
+    opacity: .5;
+    pointer-events: none;
+    mask-image: linear-gradient(to bottom, transparent, #000 40%, transparent);
+    -webkit-mask-image: linear-gradient(to bottom, transparent, #000 40%, transparent);
+  }
+  .hero > * { position: relative; }
+
+  .hero-head { display: flex; flex-direction: column; gap: 22px; }
+  .hero h1 { text-transform: uppercase; }
+  .hero h1 .quiet { color: var(--ink-muted); display: block; }
+  .hero-sub { max-width: 54ch; }
+
+  .cta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    margin-top: 8px;
+  }
+
+  .btn {
+    font-family: var(--display);
+    font-size: 1.12rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    text-decoration: none;
+    padding: 14px 30px;
+    border-radius: 2px;
+    border: 1px solid transparent;
+    display: inline-block;
+    transition: transform .12s ease, background-color .15s ease, border-color .15s ease;
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn-primary {
+    background: var(--chalk);
+    color: var(--ground);
+    border-color: var(--chalk);
+  }
+  .btn-primary:hover { background: var(--ink); border-color: var(--ink); }
+  .btn-ghost {
+    color: var(--ink);
+    border-color: var(--line-strong);
+    background: transparent;
+  }
+  .btn-ghost:hover { border-color: var(--chalk); color: var(--chalk); }
+
+  /* ---- Section scaffolding ---- */
+  section { padding-block: var(--gap); }
+  .band { background: var(--surface-alt); }
+
+  .sec-head {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-bottom: 40px;
+    max-width: 58ch;
+  }
+
+  /* ---- Reality check quote block ---- */
+  .reckon {
+    display: grid;
+    gap: 26px;
+    border-left: 2px solid var(--chalk);
+    padding-left: clamp(20px, 4vw, 40px);
+  }
+  .reckon p:first-of-type {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: clamp(1.5rem, 3.4vw, 2.1rem);
+    line-height: 1.12;
+    color: var(--ink);
+  }
+
+  /* ---- Failure line items ---- */
+  .items { display: grid; gap: 0; }
+  .item {
+    display: grid;
+    grid-template-columns: 132px 1fr;
+    gap: clamp(14px, 3vw, 32px);
+    padding-block: 24px;
+    border-top: 1px solid var(--line);
+    align-items: start;
+  }
+  .item:last-child { border-bottom: 1px solid var(--line); }
+  .item-tag {
+    font-family: var(--mono);
+    font-size: .7rem;
+    font-weight: 500;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--flag);
+    padding-top: .34em;
+  }
+  .item h3 { margin-bottom: 7px; }
+  .item p { color: var(--ink-soft); max-width: 62ch; }
+
+  /* ---- Three doors ---- */
+  .doors { display: grid; gap: 20px; grid-template-columns: repeat(3, 1fr); }
+  .door {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-top: 2px solid var(--chalk);
+    border-radius: 2px;
+    padding: 28px 26px 30px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    box-shadow: var(--shadow);
+  }
+  .door ul {
+    margin: 4px 0 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 9px;
+  }
+  .door li {
+    font-size: .96rem;
+    color: var(--ink-soft);
+    padding-left: 18px;
+    position: relative;
+  }
+  .door li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: .62em;
+    width: 8px;
+    height: 1px;
+    background: var(--chalk);
+  }
+
+  .disclaim {
+    margin-top: 30px;
+    padding: 20px 24px;
+    background: var(--chalk-soft);
+    border-radius: 2px;
+    font-size: 1rem;
+    color: var(--ink-soft);
+  }
+  .disclaim strong { color: var(--ink); }
+
+  /* ---- Sequence (ordered — order carries meaning) ---- */
+  .seq { display: grid; gap: 0; counter-reset: step; }
+  .step {
+    display: grid;
+    grid-template-columns: 64px 1fr;
+    gap: clamp(16px, 3vw, 30px);
+    padding-block: 26px;
+    border-top: 1px solid var(--line);
+    align-items: start;
+  }
+  .step:last-child { border-bottom: 1px solid var(--line); }
+  .step::before {
+    counter-increment: step;
+    content: counter(step, decimal-leading-zero);
+    font-family: var(--mono);
+    font-size: 1.05rem;
+    color: var(--chalk);
+    padding-top: .12em;
+    font-variant-numeric: tabular-nums;
+  }
+  .step h3 { margin-bottom: 6px; }
+  .step p { color: var(--ink-soft); max-width: 60ch; }
+  .step .when {
+    font-family: var(--mono);
+    font-size: .72rem;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+    display: block;
+    margin-bottom: 8px;
+  }
+
+  /* ---- Fit / no fit ---- */
+  .fit { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .fit-col {
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    padding: 26px 24px 28px;
+    background: var(--surface);
+  }
+  .fit-col.no { background: transparent; }
+  .fit-col h3 { margin-bottom: 16px; }
+  .fit-col ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 12px; }
+  .fit-col li {
+    font-size: .98rem;
+    color: var(--ink-soft);
+    padding-left: 26px;
+    position: relative;
+  }
+  .fit-col.yes li::before {
+    content: "";
+    position: absolute;
+    left: 2px;
+    top: .34em;
+    width: 9px;
+    height: 15px;
+    border-right: 2px solid var(--chalk);
+    border-bottom: 2px solid var(--chalk);
+    transform: rotate(42deg);
+  }
+  .fit-col.no li::before {
+    content: "";
+    position: absolute;
+    left: 1px;
+    top: .68em;
+    width: 13px;
+    height: 2px;
+    background: var(--line-strong);
+  }
+
+  /* ---- Q&A ---- */
+  .qa { display: grid; gap: 0; }
+  .q {
+    padding-block: 24px;
+    border-top: 1px solid var(--line);
+    display: grid;
+    gap: 8px;
+  }
+  .q:last-child { border-bottom: 1px solid var(--line); }
+  .q h3 { font-size: 1.16rem; }
+  .q p { color: var(--ink-soft); max-width: 66ch; }
+
+  /* ---- Close ---- */
+  .close { padding-block: clamp(64px, 11vh, 120px); }
+  .close-inner { display: flex; flex-direction: column; gap: 22px; max-width: 52ch; }
+  .close h2 { text-transform: uppercase; }
+
+  footer {
+    border-top: 1px solid var(--line);
+    padding-block: 34px 44px;
+    color: var(--ink-muted);
+    font-size: .88rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 28px;
+    align-items: baseline;
+  }
+  .brandmark {
+    font-family: var(--display);
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--ink);
+    font-size: 1.05rem;
+  }
+
+  @media (max-width: 860px) {
+    .doors { grid-template-columns: 1fr; }
+    .fit   { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 620px) {
+    body { font-size: 16px; }
+    .item { grid-template-columns: 1fr; gap: 6px; }
+    .item-tag { padding-top: 0; }
+    .step { grid-template-columns: 34px 1fr; }
+    .btn { width: 100%; text-align: center; }
+    .cta-row { flex-direction: column; align-items: stretch; }
+  }
+</style>
+
+<header class="hero">
+  <div class="wrap hero-head">
+    <p class="eyebrow">2Stack&nbsp;/ Launch System</p>
+    <h1>You can sell.<span class="quiet">That was never<br>the question.</span></h1>
+    <div class="chalkline snap" aria-hidden="true"></div>
+    <p class="lede hero-sub">
+      Almost nobody who leaves to start their own roofing company fails at selling.
+      They fail at the forty things that happen after the handshake. Launch System
+      puts those in place before you need them — so month three doesn't decide it for you.
+    </p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="#book">Book a call</a>
+      <a class="btn btn-ghost" href="#included">See what's included</a>
+    </div>
+    <p class="small">Built for closers going out on their own. New Jersey and the surrounding market.</p>
+  </div>
+</header>
+
+<hr class="rule">
+
+<section>
+  <div class="wrap narrow reckon">
+    <p>You've already run the numbers on the back of a proposal.</p>
+    <p class="lede">
+      You know what the job sold for. You know roughly what the crew and the material cost.
+      You know what landed in somebody else's account. And you've thought: I brought that in.
+      I could do this myself.
+    </p>
+    <p class="lede">
+      You're probably right. The selling is the part you've already proven. What nobody
+      walks you through is everything the company was quietly doing behind you while you sold.
+    </p>
+  </div>
+</section>
+
+<section class="band">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">What actually goes wrong</p>
+      <h2>It's never the selling.</h2>
+      <p class="lede">
+        These are the seven that take people out. Not in year three — usually somewhere
+        between month two and month six, while the first jobs are still running.
+      </p>
+    </div>
+
+    <div class="items">
+      <div class="item">
+        <span class="item-tag">Lead flow</span>
+        <div>
+          <h3>Your book came with the company</h3>
+          <p>
+            The first few jobs come from your phone — friends, past customers, the referral
+            you were already sitting on. Then it goes quiet, and you find out whose name the
+            phone was actually ringing for. Most new contractors have no idea how expensive
+            a lead is until they buy their first one.
+          </p>
+        </div>
+      </div>
+
+      <div class="item">
+        <span class="item-tag">Cash</span>
+        <div>
+          <h3>You pay before you get paid</h3>
+          <p>
+            Material on delivery. Crew on Friday. The homeowner pays on completion, or when
+            the finance company funds, or when the check clears. Profitable companies run out
+            of money in that gap constantly. It is the single most common way this ends.
+          </p>
+        </div>
+      </div>
+
+      <div class="item">
+        <span class="item-tag">Licensing</span>
+        <div>
+          <h3>Paperwork gates the first permit</h3>
+          <p>
+            Entity, HIC registration, general liability, workers' comp, supplier accounts.
+            None of it is hard. All of it takes longer than you think, has to be done in a
+            particular order, and blocks you from pulling a permit until it's finished.
+          </p>
+        </div>
+      </div>
+
+      <div class="item">
+        <span class="item-tag">Crews</span>
+        <div>
+          <h3>Your best sub is already someone's best sub</h3>
+          <p>
+            The crew you'd want is booked by the company you just left, and they are not
+            going to risk that relationship for one unproven job. Finding, vetting, and
+            keeping installers is a job by itself, and it doesn't wait until you're ready.
+          </p>
+        </div>
+      </div>
+
+      <div class="item">
+        <span class="item-tag">Permits</span>
+        <div>
+          <h3>Every town is its own country</h3>
+          <p>
+            Different forms, different fees, different inspection windows, different
+            tolerance for a contractor nobody there has heard of. You'll learn this
+            municipality by municipality, on the clock, with a homeowner waiting.
+          </p>
+        </div>
+      </div>
+
+      <div class="item">
+        <span class="item-tag">Warranty</span>
+        <div>
+          <h3>The callback is yours now</h3>
+          <p>
+            When you were selling, a leak in year two was somebody else's problem to
+            resolve. Now it's a truck, a day, and a conversation you're having personally —
+            and how you handle it decides what your reviews say about you.
+          </p>
+        </div>
+      </div>
+
+      <div class="item">
+        <span class="item-tag">The phone</span>
+        <div>
+          <h3>You're on a roof when the lead comes in</h3>
+          <p>
+            You cannot sell and answer at the same time, and the homeowner is not waiting.
+            They called three companies. Whoever answers first usually wins, and for the
+            first year that person needs to be you or a system standing in for you.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="included">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">What Launch System is</p>
+      <h2>The company, installed around your selling.</h2>
+      <p class="lede">
+        We set up the two ends that decide whether a new contractor makes it — where the
+        work comes from, and what each finished job produces next — plus the foundation
+        underneath both.
+      </p>
+    </div>
+
+    <div class="doors">
+      <article class="door">
+        <p class="eyebrow-quiet eyebrow">Foundation</p>
+        <h3>The part that gates everything</h3>
+        <ul>
+          <li>Entity, HIC registration, and insurance sequenced in the right order</li>
+          <li>Supplier accounts and terms</li>
+          <li>A pricing model per square you can actually defend</li>
+          <li>Contracts, scope templates, and a change-order process</li>
+          <li>One CRM, set up once, that you'll still be using in year three</li>
+        </ul>
+      </article>
+
+      <article class="door">
+        <p class="eyebrow-quiet eyebrow">Front door</p>
+        <h3>Where the work comes from</h3>
+        <ul>
+          <li>Site and landing pages built to convert, not to look at</li>
+          <li>Instant roof estimate from a homeowner's address</li>
+          <li>Every lead answered in minutes, including while you're on a roof</li>
+          <li>Ad tracking that tells you which spend produced which job</li>
+          <li>Nothing goes cold in an inbox</li>
+        </ul>
+      </article>
+
+      <article class="door">
+        <p class="eyebrow-quiet eyebrow">Back door</p>
+        <h3>What every finished job produces</h3>
+        <ul>
+          <li>A review request that actually goes out, every time</li>
+          <li>Referrals asked for at the moment people are happiest</li>
+          <li>Past customers who come back and send neighbors</li>
+          <li>A reputation that compounds instead of restarting</li>
+        </ul>
+      </article>
+    </div>
+
+    <p class="disclaim">
+      <strong>We don't run your jobs.</strong> Crews, scheduling, material orders, job
+      costing — that stays yours, in your CRM. We're not trying to be the system that runs
+      your company. We're the two ends: how work comes in, and what it produces on the way out.
+    </p>
+  </div>
+</section>
+
+<section class="band">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">How it runs</p>
+      <h2>What the first ninety days look like.</h2>
+      <p class="lede">
+        In order, because the order matters — you can't pull a permit before the paperwork
+        clears, and you shouldn't spend on ads before anything is set up to answer them.
+      </p>
+    </div>
+
+    <div class="seq">
+      <div class="step">
+        <div>
+          <span class="when">Before you commit</span>
+          <h3>The honest conversation</h3>
+          <p>
+            What you're selling now, what you'd be walking away from, what your agreement
+            with your current employer actually says, and how much runway you have. If the
+            timing is wrong we'll tell you, and you'll have lost an hour.
+          </p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div>
+          <span class="when">Weeks 1–3</span>
+          <h3>Foundation</h3>
+          <p>
+            Entity, registration, insurance, supplier accounts, pricing model, contracts.
+            The unglamorous sequence that has to finish before anything else can start.
+          </p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div>
+          <span class="when">Weeks 3–6</span>
+          <h3>Front door on</h3>
+          <p>
+            Site and landing pages live, instant estimate running on your pricing, lead
+            response wired up, tracking in place before the first dollar of ad spend.
+          </p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div>
+          <span class="when">Weeks 6–10</span>
+          <h3>First jobs, watched closely</h3>
+          <p>
+            We stay on the leads and the numbers with you while the first jobs run. This is
+            where most of the real learning happens and where a small problem is still small.
+          </p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div>
+          <span class="when">Week 10 onward</span>
+          <h3>Back door on</h3>
+          <p>
+            Once jobs are completing, reviews and referrals turn on. This is the part that
+            makes the second year cheaper than the first.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">Fit</p>
+      <h2>We'd rather tell you now.</h2>
+    </div>
+
+    <div class="fit">
+      <div class="fit-col yes">
+        <h3>This works if</h3>
+        <ul>
+          <li>You have a real closing track record and can point to the numbers</li>
+          <li>You're planning this for the next three to twelve months, not next week</li>
+          <li>You have some runway, or a clear plan for getting it</li>
+          <li>You want to own a company, not just keep more of each sale</li>
+          <li>You're willing to do the boring setup properly the first time</li>
+        </ul>
+      </div>
+      <div class="fit-col no">
+        <h3>This doesn't work if</h3>
+        <ul>
+          <li>You're looking to buy a list of leads and nothing else</li>
+          <li>You want to skip licensing or insurance to move faster</li>
+          <li>You want someone to run your crews and your jobs</li>
+          <li>You need income within thirty days</li>
+          <li>You're still deciding whether you actually want to be an owner</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="band">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">Straight answers</p>
+      <h2>The questions everyone asks.</h2>
+    </div>
+
+    <div class="qa">
+      <div class="q">
+        <h3>Do I have to quit before we start?</h3>
+        <p>
+          No, and usually you shouldn't. Most of the foundation work happens while you're
+          still earning. We'd rather build it around your current schedule than have you
+          burning savings during setup.
+        </p>
+      </div>
+      <div class="q">
+        <h3>What about my non-compete?</h3>
+        <p>
+          Take it to an employment attorney before you do anything — that's a legal
+          question and we're not the ones to answer it. Bring us whatever they tell you
+          and we'll plan the launch around it, including timing and geography.
+        </p>
+      </div>
+      <div class="q">
+        <h3>What does it cost?</h3>
+        <p>
+          There's a setup fee for the build and a monthly fee once the front door is
+          running. We'll give you both on the call, along with what you should expect to
+          spend on ads — which is usually the bigger number and the one people forget to plan for.
+        </p>
+      </div>
+      <div class="q">
+        <h3>Do I own what you build?</h3>
+        <p>
+          The entity, the brand, the domain, the customer list, the reviews — yours,
+          in your name, from day one. The platform is licensed while you're a customer.
+          Ask us to be specific about which is which on the call, and we will be.
+        </p>
+      </div>
+      <div class="q">
+        <h3>How many of these are you taking?</h3>
+        <p>
+          A small number right now, deliberately. This is hands-on work and we'd rather do
+          it properly for a few people than badly for a lot of them.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="close" id="book">
+  <div class="wrap close-inner">
+    <p class="eyebrow">Next step</p>
+    <h2>One call. No deck.</h2>
+    <p class="lede">
+      Tell us what you're selling now and what you're thinking about. We'll tell you
+      what it actually takes, what it costs, and whether the timing makes sense. If it
+      doesn't, we'll say so — that's a better outcome for both of us than a bad launch.
+    </p>
+    <div class="chalkline" aria-hidden="true"></div>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="#book">Book a call</a>
+    </div>
+    <p class="small">Roofing and exterior contractors. New Jersey and the surrounding market.</p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap" style="display:flex; flex-wrap:wrap; gap:10px 28px; align-items:baseline; width:100%;">
+    <span class="brandmark">2Stack</span>
+    <span>Launch System</span>
+    <span style="margin-left:auto;">Powered by RAKE</span>
+  </div>
+</footer>
