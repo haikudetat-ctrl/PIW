@@ -7,6 +7,31 @@ export type Json =
   | Json[]
 
 export type Database = {
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       admin_profiles: {
@@ -2555,6 +2580,72 @@ export type Database = {
           },
         ]
       }
+      privacy_consent_evidence: {
+        Row: {
+          advertising_granted: boolean
+          analytics_granted: boolean
+          company_id: string | null
+          consent_id: string
+          created_at: string
+          evidence_id: string
+          gpc_detected: boolean
+          lead_id: string | null
+          necessary_granted: boolean
+          occurred_at: string
+          policy_version: string
+          request_ip: unknown
+          source: string
+          user_agent: string | null
+        }
+        Insert: {
+          advertising_granted?: boolean
+          analytics_granted?: boolean
+          company_id?: string | null
+          consent_id: string
+          created_at?: string
+          evidence_id: string
+          gpc_detected: boolean
+          lead_id?: string | null
+          necessary_granted?: boolean
+          occurred_at: string
+          policy_version: string
+          request_ip?: unknown
+          source: string
+          user_agent?: string | null
+        }
+        Update: {
+          advertising_granted?: boolean
+          analytics_granted?: boolean
+          company_id?: string | null
+          consent_id?: string
+          created_at?: string
+          evidence_id?: string
+          gpc_detected?: boolean
+          lead_id?: string | null
+          necessary_granted?: boolean
+          occurred_at?: string
+          policy_version?: string
+          request_ip?: unknown
+          source?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "privacy_consent_evidence_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "privacy_consent_evidence_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       properties: {
         Row: {
           canonical_address: string | null
@@ -4427,6 +4518,25 @@ export type Database = {
           is_duplicate: boolean
         }[]
       }
+      record_privacy_consent: {
+        Args: {
+          p_advertising_granted: boolean
+          p_analytics_granted: boolean
+          p_company_id: string
+          p_consent_id: string
+          p_evidence_id: string
+          p_gpc_detected: boolean
+          p_lead_id: string
+          p_occurred_at: string
+          p_policy_version: string
+          p_request_ip: unknown
+          p_source: string
+          p_user_agent: string
+        }
+        Returns: {
+          evidence_id: string
+        }[]
+      }
       record_roof_assessment_verification_start: {
         Args: {
           p_attempt_id: string
@@ -4924,6 +5034,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       address_match_method: [
@@ -5014,4 +5127,3 @@ export const Constants = {
     },
   },
 } as const
-
