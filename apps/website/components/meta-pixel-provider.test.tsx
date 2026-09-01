@@ -4,7 +4,7 @@ import {act} from "react";
 import {createRoot, type Root} from "react-dom/client";
 import {afterEach, beforeEach, describe, expect, test, vi} from "vitest";
 
-const state = vi.hoisted(() => ({advertising: false, pathname: "/campaigns/seasonal-shield"}));
+const state = vi.hoisted(() => ({advertising: false, enabled: true, pathname: "/campaigns/seasonal-shield"}));
 
 vi.mock("./privacy-consent-provider", () => ({
   usePrivacyConsent: () => ({preferences: {advertising: state.advertising}}),
@@ -33,7 +33,7 @@ async function renderProvider(
   const root = createRoot(container);
   mountedRoots.push(root);
   await act(async () => root.render(
-    <MetaPixelProvider><TrackerCapture onReady={onReady} /></MetaPixelProvider>,
+    <MetaPixelProvider enabled={state.enabled}><TrackerCapture onReady={onReady} /></MetaPixelProvider>,
   ));
   return {container, root};
 }
@@ -54,6 +54,7 @@ afterEach(async () => {
 beforeEach(() => {
   vi.stubEnv("NEXT_PUBLIC_META_PIXEL_ID", "3142520615938086");
   state.advertising = false;
+  state.enabled = true;
   state.pathname = "/campaigns/seasonal-shield";
 });
 
@@ -74,13 +75,31 @@ describe("website MetaPixelProvider", () => {
     expect(currentFbq()).toBeUndefined();
   });
 
+  test("does not load or convert when tracking is disabled with a configured pixel ID", async () => {
+    state.advertising = true;
+    state.enabled = false;
+    let trackConversion: ReturnType<typeof useMetaPixel>["trackConversion"] | undefined;
+    await renderProvider((track) => {
+      trackConversion = track;
+    });
+
+    trackConversion?.({
+      name: "Lead",
+      eventId: "10111111-1111-4111-8111-111111111111",
+      issuedAt: new Date().toISOString(),
+    });
+
+    expect(document.querySelector('script[src*="connect.facebook.net"]')).toBeNull();
+    expect(currentFbq()).toBeUndefined();
+  });
+
   test("grant loads once and tracks the current PageView once", async () => {
     state.advertising = true;
     const fbq = vi.fn();
     (window as Window & {fbq?: BrowserFbq}).fbq = fbq;
     const {root} = await renderProvider();
     await act(async () => root.render(
-      <MetaPixelProvider><TrackerCapture onReady={() => undefined} /></MetaPixelProvider>,
+      <MetaPixelProvider enabled={state.enabled}><TrackerCapture onReady={() => undefined} /></MetaPixelProvider>,
     ));
 
     expect(document.querySelectorAll('script[src*="connect.facebook.net"]')).toHaveLength(1);
@@ -127,7 +146,7 @@ describe("website MetaPixelProvider", () => {
     }));
     state.advertising = false;
     await act(async () => root.render(
-      <MetaPixelProvider><TrackerCapture onReady={() => undefined} /></MetaPixelProvider>,
+      <MetaPixelProvider enabled={state.enabled}><TrackerCapture onReady={() => undefined} /></MetaPixelProvider>,
     ));
     resolveRequest?.();
     await request;
@@ -143,12 +162,12 @@ describe("website MetaPixelProvider", () => {
     expect(fbq.mock.calls.filter((call) => call[1] === "PageView")).toHaveLength(1);
     state.pathname = "/campaigns/weather-report";
     await act(async () => root.render(
-      <MetaPixelProvider><TrackerCapture onReady={() => undefined} /></MetaPixelProvider>,
+      <MetaPixelProvider enabled={state.enabled}><TrackerCapture onReady={() => undefined} /></MetaPixelProvider>,
     ));
     expect(fbq.mock.calls.filter((call) => call[1] === "PageView")).toHaveLength(2);
     state.pathname = "/campaigns/seasonal-shield";
     await act(async () => root.render(
-      <MetaPixelProvider><TrackerCapture onReady={() => undefined} /></MetaPixelProvider>,
+      <MetaPixelProvider enabled={state.enabled}><TrackerCapture onReady={() => undefined} /></MetaPixelProvider>,
     ));
 
     expect(fbq.mock.calls.filter((call) => call[1] === "PageView")).toHaveLength(3);

@@ -97,11 +97,10 @@ the Vercel UI or with the same prompted `vercel env add` command. After any
 `NEXT_PUBLIC_*` value changes, redeploy that project: Next.js embeds it at
 build time.
 
-**Release gate:** verify the deployed Pixel providers read their respective
-tracking flags before relying on the flag-only rollback below. If a deployed
-provider does not read the flag, remove `NEXT_PUBLIC_META_PIXEL_ID` as the
-immediate browser-side stop and redeploy, then repair the provider gate before
-re-enabling tracking.
+The deployed Pixel providers receive an explicit enabled boolean from each
+server layout. When either tracking flag is `false`, that provider does not
+load Meta, send a `PageView`, or send a conversion even if its public Pixel ID
+is configured. This is the normal browser-side kill switch.
 
 ## 3. Test Events validation
 
@@ -226,9 +225,9 @@ vercel env add NEXT_PUBLIC_META_TRACKING_ENABLED production
 
 Do **not** delete `meta_event_deliveries` rows during rollback. They are needed
 to distinguish accepted events from unsent work and to preserve idempotency.
-If browser Pixel traffic must stop before the flag-gate deployment is verified,
-remove `NEXT_PUBLIC_META_PIXEL_ID` from both projects and redeploy as the
-emergency fallback. If the CAPI token is compromised, revoke it in Events
+If a deployment cannot be completed and browser Pixel traffic must stop, remove
+`NEXT_PUBLIC_META_PIXEL_ID` from both projects and redeploy as the emergency
+fallback. If the CAPI token is compromised, revoke it in Events
 Manager, set PIW `META_TRACKING_ENABLED=false`, redeploy, then install a new
 token only after reviewing access and Test Events evidence.
 

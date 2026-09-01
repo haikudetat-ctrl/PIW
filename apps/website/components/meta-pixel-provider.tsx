@@ -92,7 +92,7 @@ export function useMetaPixel() {
   return useContext(MetaPixelContext);
 }
 
-export function MetaPixelProvider({children}: {children: ReactNode}) {
+export function MetaPixelProvider({children, enabled}: {children: ReactNode; enabled: boolean}) {
   const {preferences} = usePrivacyConsent();
   const pathname = usePathname();
   const previousPageViewPath = useRef<string | null>(null);
@@ -100,23 +100,25 @@ export function MetaPixelProvider({children}: {children: ReactNode}) {
   const advertising = preferences.advertising === true;
   const pixelId = getPixelId();
   const advertisingRef = useRef(advertising);
+  const enabledRef = useRef(enabled);
   const pixelIdRef = useRef(pixelId);
 
   useLayoutEffect(() => {
     advertisingRef.current = advertising;
+    enabledRef.current = enabled;
     pixelIdRef.current = pixelId;
-  }, [advertising, pixelId]);
+  }, [advertising, enabled, pixelId]);
 
   useEffect(() => {
-    if (!advertising || !pixelId) return;
+    if (!enabled || !advertising || !pixelId) return;
     if (previousPageViewPath.current === pathname) return;
     trackPageView(pixelId);
     previousPageViewPath.current = pathname;
-  }, [advertising, pathname, pixelId]);
+  }, [advertising, enabled, pathname, pixelId]);
 
   const trackConversion = useCallback((envelope: MetaBrowserEventEnvelope | null | undefined) => {
     const currentPixelId = pixelIdRef.current;
-    if (!advertisingRef.current || !currentPixelId || !isCurrentEnvelope(envelope)) return;
+    if (!enabledRef.current || !advertisingRef.current || !currentPixelId || !isCurrentEnvelope(envelope)) return;
     if (conversions.current.has(envelope.eventId)) return;
 
     const fbq = ensurePixel();

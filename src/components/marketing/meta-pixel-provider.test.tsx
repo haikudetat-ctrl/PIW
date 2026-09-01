@@ -5,6 +5,7 @@ import {afterEach, beforeEach, describe, expect, test, vi} from "vitest";
 
 const state = vi.hoisted(() => ({
   advertising: false,
+  enabled: true,
   pathname: "/roof-estimate/example",
 }));
 
@@ -29,7 +30,7 @@ function renderProvider(
   onReady: (track: ReturnType<typeof useMetaPixel>["trackConversion"]) => void = () => undefined,
 ) {
   return render(
-    <MetaPixelProvider>
+    <MetaPixelProvider enabled={state.enabled}>
       <TrackerCapture onReady={onReady} />
     </MetaPixelProvider>,
   );
@@ -49,6 +50,7 @@ afterEach(() => {
 beforeEach(() => {
   vi.stubEnv("NEXT_PUBLIC_META_PIXEL_ID", "3142520615938086");
   state.advertising = false;
+  state.enabled = true;
   state.pathname = "/roof-estimate/example";
 });
 
@@ -78,6 +80,25 @@ describe("PIW MetaPixelProvider", () => {
     expect(currentFbq()).toBeUndefined();
   });
 
+  test("does not load or convert when tracking is disabled with a configured pixel ID", async () => {
+    state.advertising = true;
+    state.enabled = false;
+    let trackConversion: ReturnType<typeof useMetaPixel>["trackConversion"] | undefined;
+    renderProvider((track) => {
+      trackConversion = track;
+    });
+    await waitFor(() => expect(trackConversion).toBeDefined());
+
+    trackConversion?.({
+      name: "Lead",
+      eventId: "10111111-1111-4111-8111-111111111111",
+      issuedAt: new Date().toISOString(),
+    });
+
+    expect(document.querySelector('script[src*="connect.facebook.net"]')).toBeNull();
+    expect(currentFbq()).toBeUndefined();
+  });
+
   test("grant loads once and tracks the current PageView once", async () => {
     state.advertising = true;
     const fbq = vi.fn();
@@ -86,7 +107,7 @@ describe("PIW MetaPixelProvider", () => {
 
     await waitFor(() => expect(document.querySelectorAll('script[src*="connect.facebook.net"]')).toHaveLength(1));
     rerender(
-      <MetaPixelProvider>
+      <MetaPixelProvider enabled={state.enabled}>
         <TrackerCapture onReady={() => undefined} />
       </MetaPixelProvider>,
     );
@@ -135,7 +156,7 @@ describe("PIW MetaPixelProvider", () => {
       issuedAt: new Date().toISOString(),
     }));
     state.advertising = false;
-    rerender(<MetaPixelProvider><TrackerCapture onReady={() => undefined} /></MetaPixelProvider>);
+    rerender(<MetaPixelProvider enabled={state.enabled}><TrackerCapture onReady={() => undefined} /></MetaPixelProvider>);
     resolveRequest?.();
     await request;
 
@@ -152,7 +173,7 @@ describe("PIW MetaPixelProvider", () => {
     });
     await waitFor(() => expect(staleTrack).toBeDefined());
     state.pathname = "/leads";
-    rerender(<MetaPixelProvider><TrackerCapture onReady={() => undefined} /></MetaPixelProvider>);
+    rerender(<MetaPixelProvider enabled={state.enabled}><TrackerCapture onReady={() => undefined} /></MetaPixelProvider>);
 
     staleTrack?.({
       name: "Lead",
@@ -170,10 +191,10 @@ describe("PIW MetaPixelProvider", () => {
     const {rerender} = renderProvider();
     await waitFor(() => expect(fbq.mock.calls.filter((call) => call[1] === "PageView")).toHaveLength(1));
     state.pathname = "/roof-estimate/second";
-    rerender(<MetaPixelProvider><TrackerCapture onReady={() => undefined} /></MetaPixelProvider>);
+    rerender(<MetaPixelProvider enabled={state.enabled}><TrackerCapture onReady={() => undefined} /></MetaPixelProvider>);
     await waitFor(() => expect(fbq.mock.calls.filter((call) => call[1] === "PageView")).toHaveLength(2));
     state.pathname = "/roof-estimate/example";
-    rerender(<MetaPixelProvider><TrackerCapture onReady={() => undefined} /></MetaPixelProvider>);
+    rerender(<MetaPixelProvider enabled={state.enabled}><TrackerCapture onReady={() => undefined} /></MetaPixelProvider>);
 
     await waitFor(() => expect(fbq.mock.calls.filter((call) => call[1] === "PageView")).toHaveLength(3));
   });

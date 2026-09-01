@@ -42,7 +42,7 @@ async function renderForm() {
   const root = createRoot(container);
   mountedRoots.push(root);
   await act(async () => root.render(
-    <MetaPixelProvider><CampaignEstimateForm campaign={campaigns["seasonal-shield"]} /></MetaPixelProvider>,
+    <MetaPixelProvider enabled><CampaignEstimateForm campaign={campaigns["seasonal-shield"]} /></MetaPixelProvider>,
   ));
   return {container, root};
 }
@@ -143,7 +143,7 @@ describe("CampaignEstimateForm Meta Lead", () => {
     ));
     state.advertising = false;
     await act(async () => root.render(
-      <MetaPixelProvider><CampaignEstimateForm campaign={campaigns["seasonal-shield"]} /></MetaPixelProvider>,
+      <MetaPixelProvider enabled><CampaignEstimateForm campaign={campaigns["seasonal-shield"]} /></MetaPixelProvider>,
     ));
     const completed = new Promise<void>((resolve) => {
       window.addEventListener("allseason:campaign_form_success", () => resolve(), {once: true});

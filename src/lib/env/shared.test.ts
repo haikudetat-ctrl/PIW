@@ -56,7 +56,7 @@ describe("parseServerEnv", () => {
     })).toThrow();
   });
 
-  test("permits a Meta Test Events code only outside production", () => {
+  test("permits a Meta Test Events code in Vercel preview and rejects it in the production deployment", () => {
     const configured = {
       ...base,
       META_TRACKING_ENABLED: "true",
@@ -68,6 +68,11 @@ describe("parseServerEnv", () => {
     };
 
     expect(parseServerEnv(configured).META_TEST_EVENT_CODE).toBe("TEST123");
+    expect(parseServerEnv({
+      ...configured,
+      NODE_ENV: "production",
+      DEPLOYMENT_ENV: "preview",
+    }).META_TEST_EVENT_CODE).toBe("TEST123");
     expect(() => parseServerEnv({
       ...configured,
       NODE_ENV: "production",

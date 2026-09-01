@@ -148,7 +148,7 @@ const serverEnvSchema = z
     }
     if (
       value.META_TEST_EVENT_CODE
-      && (value.NODE_ENV === "production" || value.DEPLOYMENT_ENV === "production")
+      && value.DEPLOYMENT_ENV === "production"
     ) {
       context.addIssue({
         code: "custom",

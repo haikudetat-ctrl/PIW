@@ -87,7 +87,7 @@ export function useMetaPixel() {
   return useContext(MetaPixelContext);
 }
 
-export function MetaPixelProvider({children}: {children: ReactNode}) {
+export function MetaPixelProvider({children, enabled}: {children: ReactNode; enabled: boolean}) {
   const {preferences} = usePrivacyConsent();
   const pathname = usePathname();
   const previousPageViewPath = useRef<string | null>(null);
@@ -95,26 +95,29 @@ export function MetaPixelProvider({children}: {children: ReactNode}) {
   const advertising = preferences.advertising === true;
   const pixelId = getPixelId();
   const advertisingRef = useRef(advertising);
+  const enabledRef = useRef(enabled);
   const pathnameRef = useRef(pathname);
   const pixelIdRef = useRef(pixelId);
 
   useLayoutEffect(() => {
     advertisingRef.current = advertising;
+    enabledRef.current = enabled;
     pathnameRef.current = pathname;
     pixelIdRef.current = pixelId;
-  }, [advertising, pathname, pixelId]);
+  }, [advertising, enabled, pathname, pixelId]);
 
   useEffect(() => {
-    if (!advertising || !pixelId || !pathname.startsWith("/roof-estimate")) return;
+    if (!enabled || !advertising || !pixelId || !pathname.startsWith("/roof-estimate")) return;
     if (previousPageViewPath.current === pathname) return;
     trackPageView(pixelId);
     previousPageViewPath.current = pathname;
-  }, [advertising, pathname, pixelId]);
+  }, [advertising, enabled, pathname, pixelId]);
 
   const trackConversion = useCallback((envelope: MetaBrowserEventEnvelope | null | undefined) => {
     const currentPixelId = pixelIdRef.current;
     if (
-      !advertisingRef.current
+      !enabledRef.current
+      || !advertisingRef.current
       || !currentPixelId
       || !pathnameRef.current.startsWith("/roof-estimate")
       || !isCurrentEnvelope(envelope)

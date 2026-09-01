@@ -13,6 +13,7 @@ export const metadata: Metadata = {
 export default async function RootLayout({children}: Readonly<{children: React.ReactNode}>) {
   const cookieStore = await cookies();
   const signingSecret = process.env.PRIVACY_CONSENT_SIGNING_SECRET;
+  const metaTrackingEnabled = process.env.NEXT_PUBLIC_META_TRACKING_ENABLED === "true";
   const initialConsent = signingSecret
     ? readWebsiteConsent(cookieStore.get(PRIVACY_COOKIE_NAME)?.value, signingSecret)
     : null;
@@ -21,7 +22,7 @@ export default async function RootLayout({children}: Readonly<{children: React.R
     <html lang="en">
       <body>
         <PrivacyConsentProvider initialConsent={initialConsent}>
-          <MetaPixelProvider>{children}</MetaPixelProvider>
+          <MetaPixelProvider enabled={metaTrackingEnabled}>{children}</MetaPixelProvider>
         </PrivacyConsentProvider>
       </body>
     </html>

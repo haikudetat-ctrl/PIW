@@ -42,6 +42,7 @@ export default async function RootLayout({
 }>) {
   const cookieStore = await cookies();
   const signingSecret = process.env.PRIVACY_CONSENT_SIGNING_SECRET;
+  const metaTrackingEnabled = process.env.META_TRACKING_ENABLED === "true";
   const initialConsent = signingSecret
     ? verifyConsentCookie(cookieStore.get(PRIVACY_COOKIE_NAME)?.value, signingSecret)
     : null;
@@ -53,7 +54,7 @@ export default async function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <PrivacyConsentProvider initialConsent={initialConsent}>
-          <MetaPixelProvider>{children}</MetaPixelProvider>
+          <MetaPixelProvider enabled={metaTrackingEnabled}>{children}</MetaPixelProvider>
         </PrivacyConsentProvider>
       </body>
     </html>

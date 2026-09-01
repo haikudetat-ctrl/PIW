@@ -34,7 +34,7 @@ async function renderForm() {
   document.body.append(container);
   const root = createRoot(container);
   mountedRoots.push(root);
-  await act(async () => root.render(<MetaPixelProvider><LeadWebhookForm /></MetaPixelProvider>));
+  await act(async () => root.render(<MetaPixelProvider enabled><LeadWebhookForm /></MetaPixelProvider>));
   return {container, root};
 }
 
@@ -106,7 +106,7 @@ describe("LeadWebhookForm Meta Lead", () => {
     ));
     state.advertising = false;
     await act(async () => root.render(
-      <MetaPixelProvider><LeadWebhookForm /></MetaPixelProvider>,
+      <MetaPixelProvider enabled><LeadWebhookForm /></MetaPixelProvider>,
     ));
     await act(async () => resolveResponse?.(Response.json({accepted: true, metaEvent: eventEnvelope})));
 
