@@ -14,6 +14,13 @@ const optionalSigningSecret = z.preprocess(
     "Roof assessment signing secret must be at least 32 bytes",
   ),
 );
+const optionalPrivacyConsentSigningSecret = z.preprocess(
+  (value) => value === "" ? undefined : value,
+  z.string().optional().refine(
+    (value) => value === undefined || Buffer.byteLength(value, "utf8") >= 32,
+    "Privacy consent signing secret must be at least 32 bytes",
+  ),
+);
 
 const serverEnvSchema = z
   .object({
@@ -28,6 +35,7 @@ const serverEnvSchema = z
     ROOF_ASSESSMENT_ENABLED: booleanString,
     ROOF_ASSESSMENT_PROPERTY_PREFETCH_ENABLED: booleanString,
     ROOF_ASSESSMENT_SIGNING_SECRET: optionalSigningSecret,
+    PRIVACY_CONSENT_SIGNING_SECRET: optionalPrivacyConsentSigningSecret,
     TWILIO_VERIFY_ENABLED: booleanString,
     TWILIO_API_KEY_SID: optionalString,
     TWILIO_API_KEY_SECRET: optionalString,
@@ -124,6 +132,13 @@ const serverEnvSchema = z
         code: "custom",
         path: ["ROOF_ASSESSMENT_SIGNING_SECRET"],
         message: "Roof assessment signing secret is required when assessments are enabled",
+      });
+    }
+    if (value.DEPLOYMENT_ENV === "production" && !value.PRIVACY_CONSENT_SIGNING_SECRET) {
+      context.addIssue({
+        code: "custom",
+        path: ["PRIVACY_CONSENT_SIGNING_SECRET"],
+        message: "Privacy consent signing secret is required in production",
       });
     }
     if (

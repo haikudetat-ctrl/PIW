@@ -144,6 +144,7 @@ describe("parseServerEnv", () => {
         ...base,
         NODE_ENV: "production",
         DEPLOYMENT_ENV: "production",
+        PRIVACY_CONSENT_SIGNING_SECRET: "a".repeat(32),
         PAID_PROVIDERS_ENABLED: "true",
       }),
     ).toThrow("Google Maps API key is required");
@@ -211,6 +212,27 @@ describe("parseServerEnv", () => {
 
   test("allows disabled environments to omit the signing secret", () => {
     expect(parseServerEnv(base).ROOF_ASSESSMENT_SIGNING_SECRET).toBeUndefined();
+  });
+
+  test("requires the privacy consent signing secret in production", () => {
+    expect(() => parseServerEnv({
+      ...base,
+      NODE_ENV: "production",
+      DEPLOYMENT_ENV: "production",
+    })).toThrow("Privacy consent signing secret is required in production");
+  });
+
+  test("allows test and development environments to omit the privacy consent signing secret", () => {
+    expect(parseServerEnv(base).PRIVACY_CONSENT_SIGNING_SECRET).toBeUndefined();
+    expect(parseServerEnv({ ...base, NODE_ENV: "development", DEPLOYMENT_ENV: "development" })
+      .PRIVACY_CONSENT_SIGNING_SECRET).toBeUndefined();
+  });
+
+  test("requires a privacy consent signing secret of at least 32 bytes", () => {
+    expect(() => parseServerEnv({
+      ...base,
+      PRIVACY_CONSENT_SIGNING_SECRET: "short-secret",
+    })).toThrow("Privacy consent signing secret must be at least 32 bytes");
   });
 
   test("requires complete Twilio Verify and assessment session configuration when enabled", () => {
