@@ -1,3 +1,4 @@
+import "server-only";
 import { z } from "zod";
 import {
   hashMetaValue,
@@ -8,6 +9,7 @@ import {
 
 const META_REQUEST_TIMEOUT_MS = 8_000;
 const META_GRAPH_ORIGIN = "https://graph.facebook.com";
+const LOCAL_REJECTION_PAYLOAD_HASH = hashMetaValue("meta-capi-local-rejection-v1");
 
 const successResponseSchema = z.object({
   events_received: z.number().int().nonnegative(),
@@ -178,19 +180,42 @@ export class MetaConversionClient {
   }) {}
 
   async send(source: MetaDeliverySource): Promise<MetaDeliveryResult> {
-    if (!/^\d+$/.test(this.config.pixelId)) throw new Error("Invalid Meta Pixel ID");
-    if (!/^v\d+\.\d+$/.test(this.config.graphApiVersion)) {
-      throw new Error("Invalid Meta Graph API version");
+    if (
+      typeof this.config.pixelId !== "string"
+      || !/^\d+$/.test(this.config.pixelId)
+      || typeof this.config.graphApiVersion !== "string"
+      || !/^v\d+\.\d+$/.test(this.config.graphApiVersion)
+      || typeof this.config.accessToken !== "string"
+      || !this.config.accessToken.trim()
+    ) {
+      return {
+        outcome: "permanent_failed",
+        httpStatus: null,
+        traceId: null,
+        errorCategory: "invalid_config",
+        payloadHash: LOCAL_REJECTION_PAYLOAD_HASH,
+      };
     }
-    if (!this.config.accessToken) throw new Error("Missing Meta access token");
 
-    const payload = buildMetaCapiPayload(source);
-    const payloadHash = hashMetaValue(JSON.stringify(payload));
-    const requestBody = {
-      ...payload,
-      ...(this.config.testEventCode ? { test_event_code: this.config.testEventCode } : {}),
-      access_token: this.config.accessToken,
-    };
+    let payloadHash: string;
+    let requestBody: string;
+    try {
+      const payload: MetaCapiPayload = buildMetaCapiPayload(source);
+      payloadHash = hashMetaValue(JSON.stringify(payload));
+      requestBody = JSON.stringify({
+        ...payload,
+        ...(this.config.testEventCode ? { test_event_code: this.config.testEventCode } : {}),
+        access_token: this.config.accessToken,
+      });
+    } catch {
+      return {
+        outcome: "permanent_failed",
+        httpStatus: null,
+        traceId: null,
+        errorCategory: "invalid_payload",
+        payloadHash: LOCAL_REJECTION_PAYLOAD_HASH,
+      };
+    }
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), META_REQUEST_TIMEOUT_MS);
 
@@ -201,7 +226,7 @@ export class MetaConversionClient {
         {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify(requestBody),
+          body: requestBody,
           signal: controller.signal,
         },
       );

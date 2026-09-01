@@ -24,7 +24,9 @@ export type MetaDeliverySource = {
 
 export function normalizeMetaEmail(value: string): string {
   const normalized = value.trim().toLowerCase();
-  if (!normalized) throw new Error("Meta email must not be empty");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
+    throw new Error("Invalid Meta email");
+  }
   return normalized;
 }
 

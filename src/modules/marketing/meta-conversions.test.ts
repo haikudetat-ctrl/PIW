@@ -97,6 +97,62 @@ describe("Meta payload construction", () => {
 });
 
 describe("MetaConversionClient", () => {
+  test.each([
+    ["Pixel ID", { pixelId: "pixel/3142520615938086" }],
+    ["Graph API version", { graphApiVersion: "latest" }],
+    ["access token", { accessToken: "   " }],
+  ])("returns a permanent sanitized failure for an invalid local %s", async (_label, override) => {
+    const fetchImpl = vi.fn<typeof fetch>();
+    const client = new MetaConversionClient({
+      pixelId: "3142520615938086",
+      accessToken: "private-token",
+      graphApiVersion: "v26.0",
+      fetchImpl,
+      ...override,
+    });
+
+    const result = await client.send(fixture);
+
+    expect(result).toEqual({
+      outcome: "permanent_failed",
+      httpStatus: null,
+      traceId: null,
+      errorCategory: "invalid_config",
+      payloadHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+    });
+    expect(JSON.stringify(result)).not.toMatch(/private-token|Chris@Example\.COM/);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    ["event time", { eventTime: "not-a-date" }],
+    ["event source URL", { eventSourceUrl: "https://attacker.example/private-address" }],
+    ["email", { email: "not-an-email" }],
+    ["phone", { phone: "555-0124" }],
+  ])("returns a permanent sanitized failure for an invalid local %s", async (_label, override) => {
+    const fetchImpl = vi.fn<typeof fetch>();
+    const client = new MetaConversionClient({
+      pixelId: "3142520615938086",
+      accessToken: "private-token",
+      graphApiVersion: "v26.0",
+      fetchImpl,
+    });
+
+    const result = await client.send({ ...fixture, ...override });
+
+    expect(result).toEqual({
+      outcome: "permanent_failed",
+      httpStatus: null,
+      traceId: null,
+      errorCategory: "invalid_payload",
+      payloadHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+    });
+    expect(JSON.stringify(result)).not.toMatch(
+      /private-token|not-an-email|private-address|Chris@Example\.COM/,
+    );
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
   test("sends the access token in the body and returns only allowlisted success fields", async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
       events_received: 1,
@@ -312,6 +368,28 @@ describe("SupabaseMetaRepository", () => {
     } as never, () => fixture.eventTime);
 
     await expect(repository.claim(fixture.deliveryId)).resolves.toBeNull();
+    expect(from).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    ["reserveLead", (repository: SupabaseMetaRepository) => repository.reserveLead({
+      leadId: deliveryRow.lead_id,
+      companyId: deliveryRow.company_id,
+      consentId: deliveryRow.consent_id,
+      occurredAt: fixture.eventTime,
+    })],
+    ["claim", (repository: SupabaseMetaRepository) => repository.claim(fixture.deliveryId)],
+    ["listPending", (repository: SupabaseMetaRepository) => repository.listPending(50)],
+  ] as const)("rejects null RPC data during %s instead of reporting no work", async (operation, invoke) => {
+    const from = vi.fn();
+    const repository = new SupabaseMetaRepository({
+      rpc: vi.fn().mockResolvedValue({ data: null, error: null }),
+      from,
+    } as never, () => fixture.eventTime);
+
+    await expect(invoke(repository)).rejects.toThrow(
+      `Meta delivery persistence failed during ${operation}`,
+    );
     expect(from).not.toHaveBeenCalled();
   });
 

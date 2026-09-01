@@ -90,7 +90,7 @@ export class MetaRepositoryError extends Error {
 }
 
 function oneDelivery(data: unknown, operation: string) {
-  const parsed = deliveryRowsSchema.safeParse(data ?? []);
+  const parsed = deliveryRowsSchema.safeParse(data);
   if (!parsed.success) throw new MetaRepositoryError(operation);
   return parsed.data[0] ?? null;
 }
@@ -213,7 +213,7 @@ export class SupabaseMetaRepository {
       p_observed_at: this.now(),
     });
     if (error) throw new MetaRepositoryError("listPending");
-    const parsed = pendingRowsSchema.safeParse(data ?? []);
+    const parsed = pendingRowsSchema.safeParse(data);
     if (!parsed.success) throw new MetaRepositoryError("listPending");
     return parsed.data.map((row) => row.id);
   }
