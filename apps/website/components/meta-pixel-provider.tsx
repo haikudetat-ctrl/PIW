@@ -1,6 +1,6 @@
 "use client";
 
-import {createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef} from "react";
+import {createContext, type ReactNode, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef} from "react";
 import {usePathname} from "next/navigation";
 import {usePrivacyConsent} from "./privacy-consent-provider";
 
@@ -95,20 +95,28 @@ export function useMetaPixel() {
 export function MetaPixelProvider({children}: {children: ReactNode}) {
   const {preferences} = usePrivacyConsent();
   const pathname = usePathname();
-  const pageViews = useRef(new Set<string>());
+  const previousPageViewPath = useRef<string | null>(null);
   const conversions = useRef(new Set<string>());
   const advertising = preferences.advertising === true;
   const pixelId = getPixelId();
+  const advertisingRef = useRef(advertising);
+  const pixelIdRef = useRef(pixelId);
+
+  useLayoutEffect(() => {
+    advertisingRef.current = advertising;
+    pixelIdRef.current = pixelId;
+  }, [advertising, pixelId]);
 
   useEffect(() => {
     if (!advertising || !pixelId) return;
-    if (pageViews.current.has(pathname)) return;
+    if (previousPageViewPath.current === pathname) return;
     trackPageView(pixelId);
-    pageViews.current.add(pathname);
+    previousPageViewPath.current = pathname;
   }, [advertising, pathname, pixelId]);
 
   const trackConversion = useCallback((envelope: MetaBrowserEventEnvelope | null | undefined) => {
-    if (!advertising || !pixelId || !isCurrentEnvelope(envelope)) return;
+    const currentPixelId = pixelIdRef.current;
+    if (!advertisingRef.current || !currentPixelId || !isCurrentEnvelope(envelope)) return;
     if (conversions.current.has(envelope.eventId)) return;
 
     const fbq = ensurePixel();
@@ -118,7 +126,7 @@ export function MetaPixelProvider({children}: {children: ReactNode}) {
       fbq("trackCustom", "AssessmentCompleted", {}, {eventID: envelope.eventId});
     }
     conversions.current.add(envelope.eventId);
-  }, [advertising, pixelId]);
+  }, []);
 
   const value = useMemo(() => ({trackConversion}), [trackConversion]);
 
