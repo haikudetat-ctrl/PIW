@@ -2296,6 +2296,94 @@ export type Database = {
           },
         ]
       }
+      meta_event_deliveries: {
+        Row: {
+          assessment_id: string | null
+          attempt_count: number
+          company_id: string
+          consent_id: string
+          created_at: string
+          event_id: string
+          event_name: string
+          event_time: string
+          id: string
+          last_attempted_at: string | null
+          last_error_category: string | null
+          lead_id: string
+          meta_http_status: number | null
+          meta_trace_id: string | null
+          payload_hash: string | null
+          policy_version: string
+          sent_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          assessment_id?: string | null
+          attempt_count?: number
+          company_id: string
+          consent_id: string
+          created_at?: string
+          event_id?: string
+          event_name: string
+          event_time: string
+          id?: string
+          last_attempted_at?: string | null
+          last_error_category?: string | null
+          lead_id: string
+          meta_http_status?: number | null
+          meta_trace_id?: string | null
+          payload_hash?: string | null
+          policy_version: string
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          assessment_id?: string | null
+          attempt_count?: number
+          company_id?: string
+          consent_id?: string
+          created_at?: string
+          event_id?: string
+          event_name?: string
+          event_time?: string
+          id?: string
+          last_attempted_at?: string | null
+          last_error_category?: string | null
+          lead_id?: string
+          meta_http_status?: number | null
+          meta_trace_id?: string | null
+          payload_hash?: string | null
+          policy_version?: string
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_event_deliveries_company_id_assessment_id_fkey"
+            columns: ["company_id", "assessment_id"]
+            isOneToOne: false
+            referencedRelation: "roof_assessments"
+            referencedColumns: ["company_id", "id"]
+          },
+          {
+            foreignKeyName: "meta_event_deliveries_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meta_event_deliveries_company_id_lead_id_fkey"
+            columns: ["company_id", "lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["company_id", "id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           body: string | null
@@ -4332,6 +4420,36 @@ export type Database = {
           from_stage: Database["public"]["Enums"]["lead_stage"]
         }[]
       }
+      claim_meta_delivery: {
+        Args: { p_claimed_at: string; p_delivery_id: string }
+        Returns: {
+          assessment_id: string | null
+          attempt_count: number
+          company_id: string
+          consent_id: string
+          created_at: string
+          event_id: string
+          event_name: string
+          event_time: string
+          id: string
+          last_attempted_at: string | null
+          last_error_category: string | null
+          lead_id: string
+          meta_http_status: number | null
+          meta_trace_id: string | null
+          payload_hash: string | null
+          policy_version: string
+          sent_at: string | null
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "meta_event_deliveries"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       claim_outbox_events: {
         Args: { p_claimed_by: string; p_limit: number }
         Returns: {
@@ -4367,6 +4485,43 @@ export type Database = {
           outcome: string
           side_effects_applied: boolean
         }[]
+      }
+      complete_meta_delivery: {
+        Args: {
+          p_completed_at: string
+          p_delivery_id: string
+          p_diagnostic: string
+          p_meta_http_status: number
+          p_payload_hash: string
+          p_status: string
+        }
+        Returns: {
+          assessment_id: string | null
+          attempt_count: number
+          company_id: string
+          consent_id: string
+          created_at: string
+          event_id: string
+          event_name: string
+          event_time: string
+          id: string
+          last_attempted_at: string | null
+          last_error_category: string | null
+          lead_id: string
+          meta_http_status: number | null
+          meta_trace_id: string | null
+          payload_hash: string | null
+          policy_version: string
+          sent_at: string | null
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "meta_event_deliveries"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       complete_outbox_event: {
         Args: { p_event_id: string }
@@ -4468,6 +4623,12 @@ export type Database = {
         }
         Returns: boolean
       }
+      list_pending_meta_deliveries: {
+        Args: { p_limit: number; p_observed_at: string }
+        Returns: {
+          id: string
+        }[]
+      }
       lookup_ai_content_cache: {
         Args: {
           p_content_type: string
@@ -4564,6 +4725,78 @@ export type Database = {
           status: string
           timezone: string
         }[]
+      }
+      reserve_meta_assessment_delivery: {
+        Args: {
+          p_assessment_id: string
+          p_company_id: string
+          p_consent_id: string
+          p_event_time: string
+          p_policy_version: string
+        }
+        Returns: {
+          assessment_id: string | null
+          attempt_count: number
+          company_id: string
+          consent_id: string
+          created_at: string
+          event_id: string
+          event_name: string
+          event_time: string
+          id: string
+          last_attempted_at: string | null
+          last_error_category: string | null
+          lead_id: string
+          meta_http_status: number | null
+          meta_trace_id: string | null
+          payload_hash: string | null
+          policy_version: string
+          sent_at: string | null
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "meta_event_deliveries"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      reserve_meta_lead_delivery: {
+        Args: {
+          p_company_id: string
+          p_consent_id: string
+          p_event_time: string
+          p_lead_id: string
+          p_policy_version: string
+        }
+        Returns: {
+          assessment_id: string | null
+          attempt_count: number
+          company_id: string
+          consent_id: string
+          created_at: string
+          event_id: string
+          event_name: string
+          event_time: string
+          id: string
+          last_attempted_at: string | null
+          last_error_category: string | null
+          lead_id: string
+          meta_http_status: number | null
+          meta_trace_id: string | null
+          payload_hash: string | null
+          policy_version: string
+          sent_at: string | null
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "meta_event_deliveries"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       reserve_provider_usage: {
         Args: { p_api_name: string; p_limit: number; p_period_start: string }
