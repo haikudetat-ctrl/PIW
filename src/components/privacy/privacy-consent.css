@@ -1,20 +1,18 @@
 .privacy-consent-banner,
 .privacy-consent-dialog,
-.privacy-consent-reopen {
+.privacy-consent-reopen,
+.privacy-consent-gpc-notice {
   box-sizing: border-box;
   color: #15231d;
   font-family: Arial, Helvetica, sans-serif;
 }
 
 .privacy-consent-banner {
-  position: fixed;
-  z-index: 1000;
-  right: 1rem;
-  bottom: 1rem;
-  left: 1rem;
+  position: relative;
+  z-index: 1;
   display: flex;
-  max-width: 76rem;
-  margin-inline: auto;
+  width: min(calc(100% - 2rem), 76rem);
+  margin: 1rem auto;
   padding: 1.25rem;
   gap: 1.5rem;
   align-items: flex-end;
@@ -89,16 +87,28 @@
 }
 
 .privacy-consent-reopen {
-  position: fixed;
-  z-index: 999;
-  right: 1rem;
-  bottom: 1rem;
+  position: relative;
+  z-index: 1;
+  display: block;
   min-height: 2.5rem;
+  margin: 0.5rem 1rem 0.5rem auto;
   padding: 0.45rem 0.75rem;
   border-width: 1px;
   background: #fff;
   font-size: 0.875rem;
   box-shadow: 0 0.25rem 1rem rgb(17 35 27 / 15%);
+}
+
+.privacy-consent-gpc-notice {
+  width: min(calc(100% - 2rem), 76rem);
+  margin: 1rem auto 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid #8db7a5;
+  border-left: 0.25rem solid #075f45;
+  border-radius: 0.4rem;
+  background: #eef8f3;
+  line-height: 1.5;
+  font-weight: 700;
 }
 
 .privacy-consent-dialog-backdrop {
@@ -160,10 +170,8 @@
 
 @media (max-width: 48rem) {
   .privacy-consent-banner {
-    max-height: calc(100vh - 2rem);
     align-items: stretch;
     flex-direction: column;
-    overflow-y: auto;
   }
 
   .privacy-consent-banner__actions {
