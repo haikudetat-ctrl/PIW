@@ -86,19 +86,22 @@ export function ConsultationPreferenceForm({token}: {token:string}) {
 export function AssessmentResult({token,address,imageUrl,recommendation,responses,calculation,context,onReplay,preview=false}:{token:string;address:string;imageUrl:string;recommendation:RoofAssessmentRecommendation;responses:RoofAssessmentResponses;calculation:CalculationState;context:RoofAssessmentContext;onReplay?:()=>void;preview?:boolean}){
   const copy=getAssessmentResultCopy(recommendation); const outlook=getProjectOutlook(responses,recommendation); const range=getAssessmentResultRange(calculation); const cta=getAssessmentResultCta(recommendation,calculation);
   const packageCalculation=calculation.status==="ready"&&"packages" in calculation?calculation:null;
+  const hasRenderedReadyPackageQuote=packageCalculation!==null
+    &&packageCalculation.packages.length===3
+    &&["good","better","best"].every(tier=>packageCalculation.packages.some(item=>item.tierKey===tier));
   const {trackConversion}=useMetaPixel();
   const resultRef=useRef<HTMLElement>(null); const recorded=useRef(false); const [consultationOpen,setConsultationOpen]=useState(false);
   useEffect(()=>{
-    if(preview||recorded.current)return;
+    if(preview||recorded.current||!hasRenderedReadyPackageQuote)return;
     recorded.current=true;
-    void fetch(`/api/roof-estimate/${token}/result-view`,{method:"POST"})
+    void fetch(`/api/roof-estimate/${token}/result-view`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({renderedReadyPackageQuote:true})})
       .then(response=>response.ok?response.json():null)
       .then(body=>{
         const parsed=resultViewResponseSchema.safeParse(body);
         if(parsed.success&&parsed.data.metaEvent)trackConversion(parsed.data.metaEvent);
       })
       .catch(()=>undefined);
-  },[preview,token,trackConversion]);
+  },[preview,token,trackConversion,hasRenderedReadyPackageQuote]);
   useGSAP(()=>{if(!window.matchMedia||window.matchMedia("(prefers-reduced-motion: reduce)").matches)return;gsap.timeline({defaults:{ease:"power3.out"}}).fromTo(".assessment-result-image",{scale:.96,opacity:.58},{scale:1,opacity:1,duration:.9}).fromTo(".assessment-result-copy > *",{y:14,opacity:0},{y:0,opacity:1,duration:.45,stagger:.045},"-=0.58");},{scope:resultRef});
   return <main ref={resultRef} className={`assessment-flow ${context.accentClass} min-h-[100dvh] w-full max-w-full overflow-x-hidden px-4 py-5 text-slate-950 sm:px-7 sm:py-8`}><div className="mx-auto max-w-7xl">
     <header className="assessment-nav flex items-center justify-between border-b pb-5"><div><p className="text-xs font-black tracking-[0.2em]">ALL SEASON</p><p className="mt-1 text-[0.65rem] font-bold uppercase tracking-[0.18em] text-slate-500">{context.kicker}</p></div><span className="text-xs font-bold text-slate-500">Assessment complete</span></header>

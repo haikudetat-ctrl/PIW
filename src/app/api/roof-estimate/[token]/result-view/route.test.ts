@@ -1,6 +1,7 @@
 import {describe, expect, test, vi} from "vitest";
 import type {AssessmentResultRepository} from "@/modules/roof-assessment/request-consultation";
-import {handleResultViewRequest} from "./route";
+import {handleResultViewRequest, POST} from "./route";
+import {NextRequest} from "next/server";
 
 const token = "11111111-1111-4111-8111-111111111111";
 const advertisingConsent = {
@@ -10,6 +11,13 @@ const advertisingConsent = {
   gpcDetected: false,
   updatedAt: "2026-09-01T16:00:00.000Z",
 };
+function postRequest(origin: string | null, body: unknown = {}) {
+  return new NextRequest("https://piw.example/api/roof-estimate/11111111-1111-4111-8111-111111111111/result-view", {
+    method: "POST",
+    headers: origin ? {origin, "content-type": "application/json"} : {"content-type": "application/json"},
+    body: JSON.stringify(body),
+  });
+}
 function repo(): AssessmentResultRepository {
   return {
     findCompletedByToken: vi.fn(async () => ({
@@ -29,7 +37,7 @@ function repo(): AssessmentResultRepository {
 describe("token-scoped result view route", () => {
   test("marks the exact completed result without returning internal state", async () => {
     const repository = repo();
-    const response = await handleResultViewRequest({token, repository});
+    const response = await handleResultViewRequest({token, repository, renderedReadyPackageQuote: true});
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(await response.json()).toEqual({resultViewed: true, metaEvent: null});
@@ -39,7 +47,7 @@ describe("token-scoped result view route", () => {
   test("uses a generic not-found response when the completed binding is absent", async () => {
     const repository = repo();
     repository.findCompletedByToken = vi.fn(async () => null);
-    const response = await handleResultViewRequest({token, repository});
+    const response = await handleResultViewRequest({token, repository, renderedReadyPackageQuote: true});
     expect(response.status).toBe(404);
     expect(await response.json()).toEqual({error: "Assessment not found"});
   });
@@ -65,6 +73,7 @@ describe("token-scoped result view route", () => {
       recordConsent,
       reserveAssessment,
       requestDelivery,
+      renderedReadyPackageQuote: true,
     });
 
     expect(response.status).toBe(200);
@@ -114,6 +123,7 @@ describe("token-scoped result view route", () => {
       metaTrackingEnabled: true,
       recordConsent: vi.fn(async () => undefined),
       reserveAssessment,
+      renderedReadyPackageQuote: true,
     });
 
     await expect(response.json()).resolves.toEqual({resultViewed: true, metaEvent: null});
@@ -134,6 +144,7 @@ describe("token-scoped result view route", () => {
       metaTrackingEnabled: true,
       recordConsent,
       reserveAssessment,
+      renderedReadyPackageQuote: true,
     });
 
     await expect(response.json()).resolves.toEqual({resultViewed: true, metaEvent: null});
@@ -152,10 +163,40 @@ describe("token-scoped result view route", () => {
       recordConsent: vi.fn(async () => undefined),
       reserveAssessment: async () => { throw new Error("Meta unavailable"); },
       reportError,
+      renderedReadyPackageQuote: true,
     });
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({resultViewed: true, metaEvent: null});
     expect(reportError).toHaveBeenCalledOnce();
+  });
+
+  test("does not accept a result acknowledgement unless the ready package quote rendered", async () => {
+    const repository = repo();
+    const reserveAssessment = vi.fn();
+    const response = await handleResultViewRequest({
+      token,
+      repository,
+      consent: advertisingConsent,
+      metaTrackingEnabled: true,
+      recordConsent: vi.fn(async () => undefined),
+      reserveAssessment,
+      renderedReadyPackageQuote: false,
+    });
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({error: "Ready quote acknowledgement required"});
+    expect(repository.markResultViewed).not.toHaveBeenCalled();
+    expect(reserveAssessment).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    ["missing Origin", null, 403],
+    ["mismatched Origin", "https://attacker.example", 403],
+    ["same Origin", "https://piw.example", 400],
+  ])("%s is enforced before result-view persistence", async (_label, origin, expectedStatus) => {
+    const response = await POST(postRequest(origin), {params: Promise.resolve({token})});
+    expect(response.status).toBe(expectedStatus);
+    expect(response.headers.get("cache-control")).toBe("no-store");
   });
 });

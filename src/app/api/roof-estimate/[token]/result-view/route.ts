@@ -1,4 +1,5 @@
 import {NextResponse, type NextRequest} from "next/server";
+import {z} from "zod";
 import {inngest} from "@/inngest/client";
 import {parseServerEnv} from "@/lib/env/server";
 import {createServiceClient} from "@/lib/supabase/service";
@@ -14,10 +15,14 @@ import {
 import {trustedRequestIp} from "@/modules/roof-assessment/trusted-request-ip";
 
 const noStore = {"cache-control": "no-store"};
+const resultViewAcknowledgementSchema = z.object({
+  renderedReadyPackageQuote: z.literal(true),
+}).strict();
 
 type ResultViewDependencies = {
   token: string;
   repository: AssessmentResultRepository;
+  renderedReadyPackageQuote: boolean;
   metaTrackingEnabled?: boolean;
   consent?: VerifiedConsent | null;
   recordConsent?: (input: {
@@ -86,6 +91,9 @@ async function reserveAssessmentAfterAcknowledgement({
 }
 
 export async function handleResultViewRequest({token, repository, ...dependencies}: ResultViewDependencies) {
+  if (!dependencies.renderedReadyPackageQuote) {
+    return NextResponse.json({error: "Ready quote acknowledgement required"}, {status: 400, headers: noStore});
+  }
   try {
     const acknowledgement = await markRoofAssessmentResultViewed(token, repository);
     const metaEvent = await reserveAssessmentAfterAcknowledgement({
@@ -101,6 +109,11 @@ export async function handleResultViewRequest({token, repository, ...dependencie
   }
 }
 
+function isSameOriginRequest(request: NextRequest) {
+  const origin = request.headers.get("origin");
+  return Boolean(origin && origin === new URL(request.url).origin);
+}
+
 function readConsentCookie(request: NextRequest) {
   const nextCookies = (request as Partial<NextRequest>).cookies;
   if (nextCookies) return nextCookies.get(PRIVACY_COOKIE_NAME)?.value;
@@ -112,6 +125,15 @@ function readConsentCookie(request: NextRequest) {
 type RouteContext = {params: Promise<{token: string}>};
 export async function POST(request: NextRequest, context: RouteContext) {
   const {token} = await context.params;
+  if (!isSameOriginRequest(request)) {
+    return NextResponse.json({error: "Invalid request"}, {status: 403, headers: noStore});
+  }
+  const acknowledgement = resultViewAcknowledgementSchema.safeParse(
+    await request.json().catch(() => null),
+  );
+  if (!acknowledgement.success) {
+    return NextResponse.json({error: "Ready quote acknowledgement required"}, {status: 400, headers: noStore});
+  }
   const service = createServiceClient();
   const repository = new SupabaseAssessmentResultRepository(service);
   try {
@@ -126,6 +148,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     return handleResultViewRequest({
       token,
       repository,
+      renderedReadyPackageQuote: acknowledgement.data.renderedReadyPackageQuote,
       metaTrackingEnabled: environment.META_TRACKING_ENABLED,
       consent,
       recordConsent: async ({leadId, companyId, consent: currentConsent, occurredAt}) => {
@@ -155,6 +178,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
     });
   } catch {
     // Tracking configuration cannot make an already-rendered quote unavailable.
-    return handleResultViewRequest({token, repository});
+    return handleResultViewRequest({token, repository, renderedReadyPackageQuote: acknowledgement.data.renderedReadyPackageQuote});
   }
 }
