@@ -2617,11 +2617,13 @@ export type Database = {
           approval_review_task_id: string | null
           approved_at: string | null
           approved_by: string | null
+          assessment_access_attempt_id: string | null
           canonical_address: string | null
           company_id: string
           confidence: number
           county: string | null
           created_at: string
+          evidence_source: string | null
           google_place_id: string | null
           id: string
           latitude: number | null
@@ -2631,21 +2633,26 @@ export type Database = {
           municipality: string | null
           normalized_address: string | null
           property_id: string
+          provider_duration_ms: number | null
           provider_request_id: string | null
+          retrieved_at: string | null
+          source_identifier: string | null
           state_code: string | null
           submitted_address: string
-          worker_run_id: string
+          worker_run_id: string | null
           zip: string | null
         }
         Insert: {
           approval_review_task_id?: string | null
           approved_at?: string | null
           approved_by?: string | null
+          assessment_access_attempt_id?: string | null
           canonical_address?: string | null
           company_id: string
           confidence: number
           county?: string | null
           created_at?: string
+          evidence_source?: string | null
           google_place_id?: string | null
           id?: string
           latitude?: number | null
@@ -2655,21 +2662,26 @@ export type Database = {
           municipality?: string | null
           normalized_address?: string | null
           property_id: string
+          provider_duration_ms?: number | null
           provider_request_id?: string | null
+          retrieved_at?: string | null
+          source_identifier?: string | null
           state_code?: string | null
           submitted_address: string
-          worker_run_id: string
+          worker_run_id?: string | null
           zip?: string | null
         }
         Update: {
           approval_review_task_id?: string | null
           approved_at?: string | null
           approved_by?: string | null
+          assessment_access_attempt_id?: string | null
           canonical_address?: string | null
           company_id?: string
           confidence?: number
           county?: string | null
           created_at?: string
+          evidence_source?: string | null
           google_place_id?: string | null
           id?: string
           latitude?: number | null
@@ -2679,10 +2691,13 @@ export type Database = {
           municipality?: string | null
           normalized_address?: string | null
           property_id?: string
+          provider_duration_ms?: number | null
           provider_request_id?: string | null
+          retrieved_at?: string | null
+          source_identifier?: string | null
           state_code?: string | null
           submitted_address?: string
-          worker_run_id?: string
+          worker_run_id?: string | null
           zip?: string | null
         }
         Relationships: [
@@ -2699,6 +2714,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "admin_profiles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_addresses_company_access_attempt_fkey"
+            columns: ["company_id", "assessment_access_attempt_id"]
+            isOneToOne: false
+            referencedRelation: "roof_assessment_access_attempts"
+            referencedColumns: ["company_id", "id"]
           },
           {
             foreignKeyName: "property_addresses_company_id_fkey"
@@ -3310,6 +3332,81 @@ export type Database = {
           },
         ]
       }
+      roof_estimate_packages: {
+        Row: {
+          calculated_at: string
+          company_id: string
+          customer_description: string
+          customer_name: string
+          differentiators: Json
+          display_order: number
+          estimate_id: string
+          high_cents_per_square: number
+          id: string
+          low_cents_per_square: number
+          measured_roof_squares: number
+          pricing_version: string
+          range_high_cents: number
+          range_low_cents: number
+          rate_card_id: string
+          tier_key: string
+          warranty_summary: string
+        }
+        Insert: {
+          calculated_at?: string
+          company_id: string
+          customer_description: string
+          customer_name: string
+          differentiators: Json
+          display_order: number
+          estimate_id: string
+          high_cents_per_square: number
+          id?: string
+          low_cents_per_square: number
+          measured_roof_squares: number
+          pricing_version: string
+          range_high_cents: number
+          range_low_cents: number
+          rate_card_id: string
+          tier_key: string
+          warranty_summary: string
+        }
+        Update: {
+          calculated_at?: string
+          company_id?: string
+          customer_description?: string
+          customer_name?: string
+          differentiators?: Json
+          display_order?: number
+          estimate_id?: string
+          high_cents_per_square?: number
+          id?: string
+          low_cents_per_square?: number
+          measured_roof_squares?: number
+          pricing_version?: string
+          range_high_cents?: number
+          range_low_cents?: number
+          rate_card_id?: string
+          tier_key?: string
+          warranty_summary?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "roof_estimate_packages_company_id_estimate_id_fkey"
+            columns: ["company_id", "estimate_id"]
+            isOneToOne: false
+            referencedRelation: "roof_estimates"
+            referencedColumns: ["company_id", "id"]
+          },
+          {
+            foreignKeyName: "roof_estimate_packages_company_id_rate_card_id_fkey"
+            columns: ["company_id", "rate_card_id"]
+            isOneToOne: false
+            referencedRelation: "roof_pricing_rate_cards"
+            referencedColumns: ["company_id", "id"]
+          },
+        ]
+      }
       roof_estimates: {
         Row: {
           assumptions: Json
@@ -3495,6 +3592,159 @@ export type Database = {
             columns: ["company_id", "property_id"]
             isOneToOne: false
             referencedRelation: "properties"
+            referencedColumns: ["company_id", "id"]
+          },
+        ]
+      }
+      roof_pricing_adjustments: {
+        Row: {
+          active: boolean
+          adjustment_code: string
+          calculation_kind: string
+          company_id: string
+          customer_explanation: string
+          customer_label: string
+          display_order: number
+          high_value: number
+          id: string
+          low_value: number
+          rate_card_id: string
+        }
+        Insert: {
+          active?: boolean
+          adjustment_code: string
+          calculation_kind: string
+          company_id: string
+          customer_explanation: string
+          customer_label: string
+          display_order: number
+          high_value: number
+          id?: string
+          low_value: number
+          rate_card_id: string
+        }
+        Update: {
+          active?: boolean
+          adjustment_code?: string
+          calculation_kind?: string
+          company_id?: string
+          customer_explanation?: string
+          customer_label?: string
+          display_order?: number
+          high_value?: number
+          id?: string
+          low_value?: number
+          rate_card_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "roof_pricing_adjustments_company_id_rate_card_id_fkey"
+            columns: ["company_id", "rate_card_id"]
+            isOneToOne: false
+            referencedRelation: "roof_pricing_rate_cards"
+            referencedColumns: ["company_id", "id"]
+          },
+        ]
+      }
+      roof_pricing_rate_cards: {
+        Row: {
+          company_id: string
+          created_at: string
+          currency_code: string
+          effective_from: string
+          effective_until: string | null
+          id: string
+          market: string
+          name: string
+          status: string
+          updated_at: string
+          version: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          currency_code?: string
+          effective_from: string
+          effective_until?: string | null
+          id?: string
+          market: string
+          name: string
+          status?: string
+          updated_at?: string
+          version: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          currency_code?: string
+          effective_from?: string
+          effective_until?: string | null
+          id?: string
+          market?: string
+          name?: string
+          status?: string
+          updated_at?: string
+          version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "roof_pricing_rate_cards_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      roof_pricing_tiers: {
+        Row: {
+          company_id: string
+          customer_description: string
+          customer_name: string
+          differentiators: Json
+          display_order: number
+          high_cents_per_square: number
+          id: string
+          internal_scope_code: string
+          low_cents_per_square: number
+          rate_card_id: string
+          tier_key: string
+          warranty_summary: string
+        }
+        Insert: {
+          company_id: string
+          customer_description: string
+          customer_name: string
+          differentiators: Json
+          display_order: number
+          high_cents_per_square: number
+          id?: string
+          internal_scope_code: string
+          low_cents_per_square: number
+          rate_card_id: string
+          tier_key: string
+          warranty_summary: string
+        }
+        Update: {
+          company_id?: string
+          customer_description?: string
+          customer_name?: string
+          differentiators?: Json
+          display_order?: number
+          high_cents_per_square?: number
+          id?: string
+          internal_scope_code?: string
+          low_cents_per_square?: number
+          rate_card_id?: string
+          tier_key?: string
+          warranty_summary?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "roof_pricing_tiers_company_id_rate_card_id_fkey"
+            columns: ["company_id", "rate_card_id"]
+            isOneToOne: false
+            referencedRelation: "roof_pricing_rate_cards"
             referencedColumns: ["company_id", "id"]
           },
         ]
@@ -3923,6 +4173,37 @@ export type Database = {
           assessment_id: string
         }[]
       }
+      activate_roof_pricing_rate_card: {
+        Args: { p_company_id: string; p_rate_card_id: string }
+        Returns: undefined
+      }
+      apply_roof_assessment_property_prefetch: {
+        Args: {
+          p_attempt_id: string
+          p_canonical_address: string
+          p_company_id: string
+          p_confidence: number
+          p_county: string
+          p_google_place_id: string
+          p_latitude: number
+          p_longitude: number
+          p_match_method: Database["public"]["Enums"]["address_match_method"]
+          p_municipality: string
+          p_provider: string
+          p_provider_duration_ms: number
+          p_retrieved_at: string
+          p_source_identifier: string
+          p_state_code: string
+          p_submitted_address: string
+          p_zip: string
+        }
+        Returns: {
+          assessment_id: string
+          pipeline_run_id: string
+          property_id: string
+          side_effects_applied: boolean
+        }[]
+      }
       approve_verified_roof_assessment_resume: {
         Args: {
           p_attempt_id: string
@@ -4055,6 +4336,38 @@ export type Database = {
         Args: { p_error: string; p_event_id: string }
         Returns: undefined
       }
+      finalize_roof_estimate_packages: {
+        Args: {
+          p_company_id: string
+          p_estimate_id: string
+          p_roof_insight_id: string
+        }
+        Returns: {
+          calculated_at: string
+          company_id: string
+          customer_description: string
+          customer_name: string
+          differentiators: Json
+          display_order: number
+          estimate_id: string
+          high_cents_per_square: number
+          id: string
+          low_cents_per_square: number
+          measured_roof_squares: number
+          pricing_version: string
+          range_high_cents: number
+          range_low_cents: number
+          rate_card_id: string
+          tier_key: string
+          warranty_summary: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "roof_estimate_packages"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       is_suppressed: {
         Args: {
           p_channel: string
@@ -4174,6 +4487,51 @@ export type Database = {
           pipeline_run_id: string
           property_id: string
         }[]
+      }
+      resolve_roof_assessment_property_prefetch_scope: {
+        Args: {
+          attempt_id: string
+          company_id: string
+          google_place_id: string
+        }
+        Returns: {
+          assessment_id: string
+          eligible: boolean
+          pipeline_run_id: string
+          property_id: string
+        }[]
+      }
+      reuse_roof_estimate_packages: {
+        Args: {
+          p_company_id: string
+          p_source_estimate_id: string
+          p_target_estimate_id: string
+        }
+        Returns: {
+          calculated_at: string
+          company_id: string
+          customer_description: string
+          customer_name: string
+          differentiators: Json
+          display_order: number
+          estimate_id: string
+          high_cents_per_square: number
+          id: string
+          low_cents_per_square: number
+          measured_roof_squares: number
+          pricing_version: string
+          range_high_cents: number
+          range_low_cents: number
+          rate_card_id: string
+          tier_key: string
+          warranty_summary: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "roof_estimate_packages"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       rotate_roof_estimate_public_token: {
         Args: { p_attempt_id: string; p_company_id: string }

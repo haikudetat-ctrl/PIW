@@ -67,6 +67,9 @@ export function getAssessmentCalculationState({
   highCents,
   roofSquares,
   generatedAt,
+  pricingVersion,
+  packages,
+  adjustments,
 }: {
   estimateStatus: string;
   pipelineStatus: string | null;
@@ -77,6 +80,9 @@ export function getAssessmentCalculationState({
   highCents: number | null;
   roofSquares: number | null;
   generatedAt: string;
+  pricingVersion?: string | null;
+  packages?: unknown;
+  adjustments?: unknown;
 }): CalculationState {
   const pipelineTerminal = pipelineStatus !== null && ["complete", "partial", "review_required", "failed"].includes(pipelineStatus);
   if (estimateStatus === "pending" && !pipelineTerminal) return {status: "pending"};
@@ -88,6 +94,9 @@ export function getAssessmentCalculationState({
   const normalizedGeneratedAt = databaseTimestamp.success
     ? new Date(databaseTimestamp.data).toISOString()
     : generatedAt;
+  const packageFields=Array.isArray(packages) && packages.length > 0
+    ? {pricingVersion,packages,adjustments:adjustments ?? []}
+    : {};
   const candidate = calculationStateSchema.safeParse({
     status: "ready",
     source: "google",
@@ -95,6 +104,7 @@ export function getAssessmentCalculationState({
     highCents,
     roofSquares,
     generatedAt: normalizedGeneratedAt,
+    ...packageFields,
   });
   const trustedInsight=insight!==null&&insight.companyId===expectedCompanyId&&insight.propertyId===expectedPropertyId&&insight.provider==="google_solar"&&insight.lookupStatus==="success";
   if (estimateStatus !== "ready" || pipelineStatus!=="complete" || !trustedInsight || !candidate.success || lowCents === null || lowCents <= 0) {

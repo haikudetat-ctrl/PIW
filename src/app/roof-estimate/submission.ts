@@ -19,6 +19,7 @@ export type PublicRoofEstimateRuntime = {
   startAssessment: (input: StartAssessmentInput) => Promise<StartAssessmentResult>;
   authorizeContinuation: (continuation: string) => Promise<ContinuationAuthorization>;
   bindAssessmentSession: (assessmentId: string) => Promise<void>;
+  onAssessmentAccepted?: () => void | Promise<void>;
 };
 
 export type PublicRoofEstimateActionDependencies = {
@@ -103,6 +104,11 @@ export async function handlePublicRoofEstimateSubmission(
       };
     }
     await runtime.bindAssessmentSession(authorized.assessmentId);
+    try {
+      await runtime.onAssessmentAccepted?.();
+    } catch {
+      // Operational telemetry is fail-open after the signed session is bound.
+    }
     return {
       kind: "redirect",
       path: `/roof-estimate/${authorized.publicToken}`,

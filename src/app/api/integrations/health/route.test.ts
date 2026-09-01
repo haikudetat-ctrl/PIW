@@ -21,6 +21,7 @@ test("reports only LeadConduit receipt booleans", async () => {
   const body = await response.json();
   expect(body).toMatchObject({
     status: "ok",
+    databaseHost: "127.0.0.1:54321",
     vendors: { leadconduit: false, leadmaster: false, jobnimbus: false, calltools: false },
     leadconduit: {
       roofing: false,

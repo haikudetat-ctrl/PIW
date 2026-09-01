@@ -26,6 +26,7 @@ const serverEnvSchema = z
     INNGEST_SIGNING_KEY: z.string().min(1),
     PAID_PROVIDERS_ENABLED: booleanString,
     ROOF_ASSESSMENT_ENABLED: booleanString,
+    ROOF_ASSESSMENT_PROPERTY_PREFETCH_ENABLED: booleanString,
     ROOF_ASSESSMENT_SIGNING_SECRET: optionalSigningSecret,
     TWILIO_VERIFY_ENABLED: booleanString,
     TWILIO_API_KEY_SID: optionalString,
@@ -102,6 +103,20 @@ const serverEnvSchema = z
         code: "custom",
         path: ["GOOGLE_MAPS_API_KEY"],
         message: "Google Maps API key is required when paid providers are enabled",
+      });
+    }
+    if (
+      value.ROOF_ASSESSMENT_PROPERTY_PREFETCH_ENABLED
+      && (
+        !value.ROOF_ASSESSMENT_ENABLED
+        || !value.PAID_PROVIDERS_ENABLED
+        || !value.GOOGLE_MAPS_API_KEY
+      )
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["ROOF_ASSESSMENT_PROPERTY_PREFETCH_ENABLED"],
+        message: "Property prefetch requires roof assessments, paid providers, and a Google Maps API key",
       });
     }
     if (value.ROOF_ASSESSMENT_ENABLED && !value.ROOF_ASSESSMENT_SIGNING_SECRET) {

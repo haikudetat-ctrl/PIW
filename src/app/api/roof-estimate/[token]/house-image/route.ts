@@ -3,6 +3,10 @@ import { z } from "zod";
 import { parseServerEnv } from "@/lib/env/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { buildGoogleSatelliteUrl } from "@/modules/context-dialer/static-map";
+import {
+  resolveAssessmentJourneyScope,
+  SupabaseAssessmentJourneyScopeRepository,
+} from "@/modules/roof-assessment/analysis-telemetry";
 
 export async function GET(
   request: NextRequest,
@@ -10,12 +14,14 @@ export async function GET(
 ) {
   const startedAt = Date.now();
   const requestId = request.headers.get("x-vercel-id");
+  let correlation: string | undefined;
   const finish = (response: NextResponse, outcome: string) => {
     console.log(JSON.stringify({
       level: "info",
       message: "roof estimate image request completed",
       route: "/api/roof-estimate/[token]/house-image",
       requestId,
+      ...(correlation ? {correlation} : {}),
       outcome,
       status: response.status,
       durationMs: Date.now() - startedAt,
@@ -47,6 +53,16 @@ export async function GET(
     return errorResponse("Estimate not found", 404, "estimate_not_found");
   }
 
+  const signingSecret = process.env.ROOF_ASSESSMENT_SIGNING_SECRET;
+  if (signingSecret) {
+    const scope = await resolveAssessmentJourneyScope(
+      token,
+      new SupabaseAssessmentJourneyScopeRepository(service),
+      signingSecret,
+    );
+    correlation = scope?.correlation;
+  }
+
   const [{ data: insight }, { data: address }] = await Promise.all([
     estimate.roof_insight_id
       ? service
@@ -54,6 +70,10 @@ export async function GET(
           .select("latitude, longitude")
           .eq("id", estimate.roof_insight_id)
           .eq("company_id", estimate.company_id)
+          .eq("property_id", estimate.property_id)
+          .eq("lookup_status", "success")
+          .not("latitude", "is", null)
+          .not("longitude", "is", null)
           .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
     service
@@ -61,13 +81,19 @@ export async function GET(
       .select("latitude, longitude")
       .eq("company_id", estimate.company_id)
       .eq("property_id", estimate.property_id)
+      .not("latitude", "is", null)
+      .not("longitude", "is", null)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
   ]);
 
-  const latitudeValue = insight?.latitude ?? address?.latitude;
-  const longitudeValue = insight?.longitude ?? address?.longitude;
+  const insightHasCoordinates =
+    insight?.latitude !== null && insight?.latitude !== undefined &&
+    insight?.longitude !== null && insight?.longitude !== undefined;
+  const coordinates = insightHasCoordinates ? insight : address;
+  const latitudeValue = coordinates?.latitude;
+  const longitudeValue = coordinates?.longitude;
   const latitude = latitudeValue === null || latitudeValue === undefined
     ? Number.NaN
     : Number(latitudeValue);

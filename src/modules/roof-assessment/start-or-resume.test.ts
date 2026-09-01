@@ -7,6 +7,7 @@ import {
   type ContinuationTokenIssuer,
   type StartAssessmentInput,
 } from "./start-or-resume";
+import type {PostConsentPropertyPrefetchResult} from "./post-consent-property-prefetch";
 import {
   AssessmentIntakePersistenceError,
   SupabaseAssessmentIntakeRepository,
@@ -107,6 +108,104 @@ describe("startOrResumeRoofAssessment", () => {
     });
     expect(result).not.toHaveProperty("leadId");
     expect(result).not.toHaveProperty("publicToken");
+  });
+
+  test("runs selected-property prefetch after the committed first issue and before token issuance", async () => {
+    const calls: string[] = [];
+    const repository: AssessmentIntakeRepository = {
+      startOrResume: vi.fn().mockImplementation(async () => {
+        calls.push("commit");
+        return firstAttempt;
+      }),
+    };
+    const tokenIssuer: ContinuationTokenIssuer = {
+      issue: vi.fn().mockImplementation(async () => {
+        calls.push("token");
+        return "signed_token-123";
+      }),
+    };
+    const postConsentPrefetch = vi.fn(async () => {
+      calls.push("prefetch");
+      return {
+        kind: "applied",
+        providerDurationMs: 15,
+        totalDurationMs: 25,
+      } satisfies PostConsentPropertyPrefetchResult;
+    });
+
+    await expect(startOrResumeRoofAssessment(input, {
+      repository,
+      tokenIssuer,
+      postConsentPrefetch,
+    })).resolves.toEqual({
+      kind: "continue",
+      continuationPath: "/roof-estimate/continue/signed_token-123",
+    });
+
+    expect(calls).toEqual(["commit", "prefetch", "token"]);
+    expect(postConsentPrefetch).toHaveBeenCalledWith({
+      companyId: "22222222-2222-4222-8222-222222222222",
+      attemptId: "33333333-3333-4333-8333-333333333333",
+      submittedAddress: "12 Birch St., Trenton, NJ 08608",
+      googlePlaceId: "ChIJ-selected",
+    });
+  });
+
+  test("never prefetches a replay or manual address while preserving the canonical result", async () => {
+    const postConsentPrefetch = vi.fn();
+    const replayDependencies = dependencies({
+      ...firstAttempt,
+      continuationSecret: null,
+      isReplay: true,
+    });
+
+    await expect(startOrResumeRoofAssessment(input, {
+      ...replayDependencies,
+      postConsentPrefetch,
+    })).resolves.toEqual({kind: "duplicate_requires_restart"});
+    await expect(startOrResumeRoofAssessment({...input, googlePlaceId: undefined}, {
+      ...dependencies(),
+      postConsentPrefetch,
+    })).resolves.toEqual({
+      kind: "continue",
+      continuationPath: "/roof-estimate/continue/signed_token-123",
+    });
+
+    expect(postConsentPrefetch).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    {kind: "deferred", reason: "timeout"},
+    {kind: "deferred", reason: "provider_failed"},
+    {kind: "deferred", reason: "persistence_failed"},
+  ] as const)("issues a continuation when prefetch is %o", async (prefetchResult) => {
+    const deps = dependencies();
+    const postConsentPrefetch = vi.fn().mockResolvedValue(prefetchResult);
+
+    await expect(startOrResumeRoofAssessment(input, {
+      ...deps,
+      postConsentPrefetch,
+    })).resolves.toEqual({
+      kind: "continue",
+      continuationPath: "/roof-estimate/continue/signed_token-123",
+    });
+    expect(deps.tokenIssuer.issue).toHaveBeenCalledOnce();
+  });
+
+  test("contains an unexpected prefetch rejection and still issues a continuation", async () => {
+    const deps = dependencies();
+    const postConsentPrefetch = vi.fn().mockRejectedValue(
+      new Error("sensitive provider failure"),
+    );
+
+    await expect(startOrResumeRoofAssessment(input, {
+      ...deps,
+      postConsentPrefetch,
+    })).resolves.toEqual({
+      kind: "continue",
+      continuationPath: "/roof-estimate/continue/signed_token-123",
+    });
+    expect(deps.tokenIssuer.issue).toHaveBeenCalledOnce();
   });
 
   test("rejects an invalid phone before persistence", async () => {

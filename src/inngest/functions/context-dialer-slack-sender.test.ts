@@ -28,6 +28,12 @@ const summary: ContextDialerSummary = {
   rangeLowCents: 1_250_000,
   rangeHighCents: 1_875_000,
   roofSquares: 25,
+  pricingVersion: "all-season-nj-2026-v1",
+  packages: [
+    {tierKey:"good",name:"Complete System",rangeLowCents:2_000_000,rangeHighCents:2_437_500},
+    {tierKey:"better",name:"Recommended",rangeLowCents:2_375_000,rangeHighCents:3_000_000},
+    {tierKey:"best",name:"Signature System",rangeLowCents:3_125_000,rangeHighCents:4_125_000},
+  ],
 };
 
 function repository() {
@@ -61,6 +67,8 @@ describe("Context Dialer Slack sender", () => {
     const payload = buildContextDialerSlackPayload(summary, "https://piw.example.com");
     expect(payload.text).toContain("Alex & Casey");
     expect(JSON.stringify(payload.blocks)).toContain("$12,500–$18,750");
+    expect(JSON.stringify(payload.blocks)).toContain("Complete System: $20,000–$24,375");
+    expect(JSON.stringify(payload.blocks)).toContain("Pricing all-season-nj-2026-v1");
     expect(JSON.stringify(payload.blocks)).toContain(
       "https://piw.example.com/leads/lead-1/dialer",
     );

@@ -5,7 +5,7 @@ import {
   addressValidationResultSchema,
   type AddressValidationResult,
 } from "@/domain/property-identity";
-import { createEventEnvelope } from "@/domain/events";
+import { createEventEnvelope, eventEnvelopeSchema } from "@/domain/events";
 import { addressValidationRequested, inngest } from "@/inngest/client";
 import { parseServerEnv } from "@/lib/env/server";
 import type { Database, Json } from "@/lib/database.types";
@@ -72,6 +72,12 @@ const addressValidationAttemptSchema = z.object({
   decision: addressValidationDecisionSchema.optional(),
 });
 
+const exactAssessmentPrefetchSchema = z.object({
+  canonical_address: z.string().trim().min(1),
+  latitude: z.number().finite(),
+  longitude: z.number().finite(),
+});
+
 export type AddressValidationAttempt = {
   evidence: AddressValidationEvidence;
   providerRequestId: string;
@@ -97,6 +103,15 @@ export interface AddressValidationWorkerRepository {
     idempotencyKey: string;
   }): Promise<WorkerRunRecord>;
   markWorkerRunCompleted(workerRunId: string): Promise<void>;
+  findExactAssessmentPrefetch(input: {
+    pipelineRunId: string;
+    leadId: string;
+    propertyId: string;
+  }): Promise<null | {
+    canonicalAddress: string;
+    latitude: number;
+    longitude: number;
+  }>;
   startValidating(input: { pipelineRunId: string; companyId: string }): Promise<void>;
   validateAddress(input: {
     submittedAddress: string;
@@ -240,6 +255,16 @@ export async function runAddressValidation(
 
   if (workerRun.status === "completed") {
     return { workerRunId: workerRun.id, outcome: "already_completed" as const };
+  }
+
+  const prefetch = await repository.findExactAssessmentPrefetch({
+    pipelineRunId: event.pipelineRunId,
+    leadId: event.leadId,
+    propertyId: event.propertyId,
+  });
+  if (prefetch !== null) {
+    await repository.markWorkerRunCompleted(workerRun.id);
+    return { workerRunId: workerRun.id, outcome: "already_prefetched" as const };
   }
 
   await repository.startValidating({ pipelineRunId: event.pipelineRunId, companyId });
@@ -483,6 +508,97 @@ export class SupabaseAddressValidationWorkerRepository
       .eq("id", workerRunId)
       .neq("status", "completed");
     if (error) throw new Error("Failed to complete address-validation worker");
+  }
+
+  async findExactAssessmentPrefetch(input: {
+    pipelineRunId: string;
+    leadId: string;
+    propertyId: string;
+  }) {
+    const { data: pipelineRun, error: pipelineError } = await this.client
+      .from("pipeline_runs")
+      .select("company_id")
+      .eq("id", input.pipelineRunId)
+      .eq("lead_id", input.leadId)
+      .eq("property_id", input.propertyId)
+      .maybeSingle();
+    if (pipelineError) {
+      throw new Error("Failed to check assessment-prefetch pipeline scope");
+    }
+    if (!pipelineRun) return null;
+
+    const { data: startedEventRow, error: startedEventError } = await this.client
+      .from("domain_events")
+      .select("id, correlation_id, idempotency_key, payload")
+      .eq("company_id", pipelineRun.company_id)
+      .eq("pipeline_run_id", input.pipelineRunId)
+      .eq("event_name", "roof/assessment.started")
+      .eq("schema_version", 1)
+      .maybeSingle();
+    if (startedEventError) {
+      throw new Error("Failed to check assessment-prefetch started event");
+    }
+    if (!startedEventRow) return null;
+
+    const startedEvent = eventEnvelopeSchema.safeParse(startedEventRow.payload);
+    if (
+      !startedEvent.success ||
+      startedEvent.data.name !== "roof/assessment.started" ||
+      startedEvent.data.id !== startedEventRow.id ||
+      startedEvent.data.correlationId !== startedEventRow.correlation_id ||
+      startedEvent.data.idempotencyKey !== startedEventRow.idempotency_key ||
+      startedEvent.data.pipelineRunId !== input.pipelineRunId ||
+      startedEvent.data.leadId !== input.leadId ||
+      startedEvent.data.propertyId !== input.propertyId ||
+      startedEvent.data.idempotencyKey !==
+        `roof/assessment.started:${startedEvent.data.data.assessmentId}`
+    ) {
+      return null;
+    }
+
+    const { data, error } = await this.client
+      .from("property_addresses")
+      .select(`
+        canonical_address,
+        latitude,
+        longitude,
+        roof_assessment_access_attempts!property_addresses_company_access_attempt_fkey!inner(
+          company_id,
+          lead_id,
+          property_id,
+          attempt_kind
+        )
+      `)
+      .eq("company_id", pipelineRun.company_id)
+      .eq("property_id", input.propertyId)
+      .eq("roof_assessment_access_attempts.company_id", pipelineRun.company_id)
+      .eq("roof_assessment_access_attempts.lead_id", input.leadId)
+      .eq("roof_assessment_access_attempts.property_id", input.propertyId)
+      .eq(
+        "roof_assessment_access_attempts.assessment_id",
+        startedEvent.data.data.assessmentId,
+      )
+      .eq("roof_assessment_access_attempts.attempt_kind", "new")
+      .eq("state_code", "NJ")
+      .eq("match_method", "exact_single_match")
+      .gte("confidence", CONFIDENCE_REVIEW_THRESHOLD)
+      .not("assessment_access_attempt_id", "is", null)
+      .not("canonical_address", "is", null)
+      .not("latitude", "is", null)
+      .not("longitude", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw new Error("Failed to check exact assessment prefetch");
+    if (!data) return null;
+
+    const parsed = exactAssessmentPrefetchSchema.safeParse(data);
+    if (!parsed.success) return null;
+    return {
+      canonicalAddress: parsed.data.canonical_address,
+      latitude: parsed.data.latitude,
+      longitude: parsed.data.longitude,
+    };
   }
 
   async startValidating(input: { pipelineRunId: string; companyId: string }) {

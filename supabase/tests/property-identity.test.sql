@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(81);
+select plan(82);
 
 select has_table('public', 'property_addresses', 'property_addresses exists');
 select has_table('public', 'parcels', 'parcels exists');
@@ -34,9 +34,14 @@ select has_column(
   'public', 'property_addresses', 'worker_run_id',
   'property_addresses records the producing worker attempt'
 );
-select col_not_null(
-  'public', 'property_addresses', 'worker_run_id',
-  'property_addresses.worker_run_id is required'
+select is(
+  (select count(*)
+   from pg_constraint
+   where conrelid = 'public.property_addresses'::regclass
+     and conname = 'property_addresses_exactly_one_origin_check'
+     and contype = 'c'),
+  1::bigint,
+  'property_addresses requires exactly one worker or access-attempt origin'
 );
 select col_is_fk(
   'public', 'property_addresses', 'worker_run_id',
@@ -260,16 +265,19 @@ insert into public.worker_runs (
   'property-identity-test-address-validation'
 );
 
-insert into public.property_addresses (
-  company_id, property_id, worker_run_id, submitted_address,
-  match_method, confidence
-) values (
-  '00000000-0000-4000-8000-000000000001',
-  '77777777-7777-4777-8777-777777777777',
-  '33333333-3333-4333-8333-333333333333',
-  '12 Birch St, Trenton, NJ',
-  'exact_single_match',
-  100
+select lives_ok(
+  $$ insert into public.property_addresses (
+       company_id, property_id, worker_run_id, submitted_address,
+       match_method, confidence
+     ) values (
+       '00000000-0000-4000-8000-000000000001',
+       '77777777-7777-4777-8777-777777777777',
+       '33333333-3333-4333-8333-333333333333',
+       '12 Birch St, Trenton, NJ',
+       'exact_single_match',
+       100
+     ) $$,
+  'legacy worker-backed property address evidence remains valid'
 );
 
 select throws_ok(

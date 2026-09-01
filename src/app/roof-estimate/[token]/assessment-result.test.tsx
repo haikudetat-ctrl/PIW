@@ -36,6 +36,30 @@ describe("assessment result payoff",()=>{
     expect(screen.getByText(/23\.0 measured roofing squares/)).toBeVisible();
   });
 
+  test("renders the three package payoff and exclusions before consultation",()=>{
+    const {container}=renderResult({
+      status:"ready",source:"google",lowCents:2_375_000,highCents:3_000_000,roofSquares:25,
+      generatedAt:"2026-08-31T12:00:00.000Z",pricingVersion:"all-season-nj-2026-v1",
+      packages:[
+        {tierKey:"good",displayOrder:1,customerName:"Complete System",customerDescription:"Dependable complete roofing system.",warrantySummary:"Enhanced manufacturer protection.",differentiators:["Architectural finish"],lowCentsPerSquare:80000,highCentsPerSquare:97500,recommended:false,measuredRoofSquares:25,rangeLowCents:2000000,rangeHighCents:2437500,pricingVersion:"all-season-nj-2026-v1",generatedAt:"2026-08-31T12:00:00.000Z"},
+        {tierKey:"better",displayOrder:2,customerName:"Recommended",customerDescription:"Upgraded protection and appearance.",warrantySummary:"Extended material and workmanship coverage.",differentiators:["Upgraded material weight"],lowCentsPerSquare:95000,highCentsPerSquare:120000,recommended:true,measuredRoofSquares:25,rangeLowCents:2375000,rangeHighCents:3000000,pricingVersion:"all-season-nj-2026-v1",generatedAt:"2026-08-31T12:00:00.000Z"},
+        {tierKey:"best",displayOrder:3,customerName:"Signature System",customerDescription:"Premium finish and protection.",warrantySummary:"Extended workmanship coverage.",differentiators:["Impact protection"],lowCentsPerSquare:125000,highCentsPerSquare:165000,recommended:false,measuredRoofSquares:25,rangeLowCents:3125000,rangeHighCents:4125000,pricingVersion:"all-season-nj-2026-v1",generatedAt:"2026-08-31T12:00:00.000Z"},
+      ],
+      adjustments:[{code:"decking_sheet",label:"Decking replacement",explanation:"Only where field inspection confirms it is needed.",calculationKind:"per_unit",lowValue:95,highValue:150,displayOrder:1}],
+    });
+    expect(screen.getByRole("heading",{name:"Complete System"})).toBeVisible();
+    expect(screen.getByRole("heading",{name:"Recommended"})).toBeVisible();
+    expect(screen.getByRole("heading",{name:"Signature System"})).toBeVisible();
+    expect(screen.getByLabelText("Recommended package")).toBeVisible();
+    expect(screen.getByText("$20,000")).toBeVisible();
+    expect(screen.getByText("$41,250")).toBeVisible();
+    expect(screen.getByText("If replacement is confirmed after inspection")).toBeVisible();
+    const disclosure=screen.getByText("Decking replacement");
+    const consultation=screen.getByRole("button",{name:"Get a professional roof assessment"});
+    expect(disclosure.compareDocumentPosition(consultation)&Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(container.textContent).not.toMatch(/CertainTeed|Landmark|NorthGate|Presidential|Grand Manor|ShingleMaster/i);
+  });
+
   test("records one result view under React StrictMode",async()=>{
     const fetch=vi.fn(async()=>Response.json({resultViewed:true}));
     vi.stubGlobal("fetch",fetch);

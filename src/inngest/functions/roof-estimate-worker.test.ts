@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { GoogleSolarInsight } from "@/domain/roof-estimate";
+import {calculateRoofPricingPackages, type RoofPricingTierRate} from "@/domain/roof-pricing";
 import {
   runRoofEstimate,
   type RoofEstimateWorkerRepository,
@@ -36,6 +37,14 @@ const record: RoofInsightRecord = {
   retrievedAt: "2026-07-31T12:00:00.000Z",
 };
 
+const tierRates: RoofPricingTierRate[] = [
+  {tierKey:"good",displayOrder:1,customerName:"Complete System",customerDescription:"Complete.",warrantySummary:"Enhanced.",differentiators:["Finish"],lowCentsPerSquare:80000,highCentsPerSquare:97500},
+  {tierKey:"better",displayOrder:2,customerName:"Recommended",customerDescription:"Upgraded.",warrantySummary:"Extended.",differentiators:["Weight"],lowCentsPerSquare:95000,highCentsPerSquare:120000},
+  {tierKey:"best",displayOrder:3,customerName:"Signature System",customerDescription:"Premium.",warrantySummary:"Extended.",differentiators:["Impact"],lowCentsPerSquare:125000,highCentsPerSquare:165000},
+];
+const calculated=calculateRoofPricingPackages(25,tierRates,"all-season-nj-2026-v1","2026-08-31T12:00:00.000Z");
+const finalized={...calculated,roofSquares:25,adjustments:[],pricingVersion:"all-season-nj-2026-v1",generatedAt:"2026-08-31T12:00:00.000Z"};
+
 function repository(overrides: Record<string, unknown> = {}) {
   return {
     assertConsentedScope: vi.fn(async () => ({
@@ -48,7 +57,7 @@ function repository(overrides: Record<string, unknown> = {}) {
     upsertWorkerRunQueued: vi.fn(async () => ({ id: "worker-1", status: "queued" })),
     startEstimating: vi.fn(async () => undefined),
     findReusableEstimate: vi.fn(async () => null),
-    reuseEstimate: vi.fn(async () => undefined),
+    reuseEstimate: vi.fn(async () => finalized),
     findCachedInsight: vi.fn(async () => null),
     beginProviderRequest: vi.fn(async () => ({ providerRequestId: "request-1" })),
     markProviderCacheHit: vi.fn(async () => undefined),
@@ -62,7 +71,7 @@ function repository(overrides: Record<string, unknown> = {}) {
     completeProviderRequest: vi.fn(async () => undefined),
     blockProviderRequest: vi.fn(async () => undefined),
     failProviderRequest: vi.fn(async () => undefined),
-    finalizeEstimate: vi.fn(async () => undefined),
+    finalizeEstimate: vi.fn(async (input:{status:string}) => input.status === "ready" ? finalized : null),
     queueDeliveries: vi.fn(async () => undefined),
     queueContextDialer: vi.fn(async () => undefined),
     completePipeline: vi.fn(async () => undefined),
@@ -78,14 +87,7 @@ describe("runRoofEstimate", () => {
       roofInsightId: "insight-original",
       totalRoofSqft: 2_500,
       assumptions: { market: "New Jersey average" },
-      estimate: {
-        roofSquares: 25,
-        rangeLowCents: 1_250_000,
-        rangeHighCents: 1_875_000,
-        pricePerSquareLowCents: 50_000,
-        pricePerSquareHighCents: 75_000,
-        pricingVersion: "nj-asphalt-v1",
-      },
+      estimate: finalized,
     };
     const repo = repository({ findReusableEstimate: vi.fn(async () => reusable) });
 
@@ -121,8 +123,12 @@ describe("runRoofEstimate", () => {
       expect.objectContaining({
         status: "ready",
         estimate: expect.objectContaining({
-          rangeLowCents: 1_250_000,
-          rangeHighCents: 1_875_000,
+          pricingVersion: "all-season-nj-2026-v1",
+          packages: expect.arrayContaining([
+            expect.objectContaining({tierKey:"good",rangeLowCents:2_000_000}),
+            expect.objectContaining({tierKey:"better",rangeHighCents:3_000_000}),
+            expect.objectContaining({tierKey:"best",rangeHighCents:4_125_000}),
+          ]),
         }),
       }),
     );

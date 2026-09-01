@@ -9,6 +9,7 @@ import {
   roofAssessmentResponsesSchema,
   type RoofAssessmentResponses,
 } from "./roof-assessment";
+import {calculateRoofPricingPackages, type RoofPricingTierRate} from "./roof-pricing";
 
 const lowSignalResponses: RoofAssessmentResponses = {
   reason: "planning",
@@ -138,6 +139,34 @@ describe("progress signals", () => {
 });
 
 describe("property calculation state", () => {
+  test("accepts exactly three ordered package snapshots with Better as the compatibility range", () => {
+    const tierRates: RoofPricingTierRate[] = [
+      {tierKey:"good",displayOrder:1,customerName:"Complete System",customerDescription:"Complete.",warrantySummary:"Enhanced protection.",differentiators:["Architectural finish"],lowCentsPerSquare:80000,highCentsPerSquare:97500},
+      {tierKey:"better",displayOrder:2,customerName:"Recommended",customerDescription:"Upgraded.",warrantySummary:"Extended protection.",differentiators:["Upgraded weight"],lowCentsPerSquare:95000,highCentsPerSquare:120000},
+      {tierKey:"best",displayOrder:3,customerName:"Signature System",customerDescription:"Premium.",warrantySummary:"Extended protection.",differentiators:["Impact protection"],lowCentsPerSquare:125000,highCentsPerSquare:165000},
+    ];
+    const calculated=calculateRoofPricingPackages(25,tierRates,"v1","2026-08-31T13:00:00.000Z");
+    expect(calculationStateSchema.parse({
+      status:"ready",source:"google",lowCents:2_375_000,highCents:3_000_000,
+      roofSquares:25,generatedAt:"2026-08-31T13:00:00.000Z",pricingVersion:"v1",
+      packages:calculated.packages,adjustments:[],
+    })).toMatchObject({status:"ready",packages:[{tierKey:"good"},{tierKey:"better"},{tierKey:"best"}]});
+  });
+
+  test("rejects package snapshots whose Better range disagrees with legacy fields", () => {
+    const tierRates: RoofPricingTierRate[] = [
+      {tierKey:"good",displayOrder:1,customerName:"Complete System",customerDescription:"Complete.",warrantySummary:"Enhanced.",differentiators:["Finish"],lowCentsPerSquare:80000,highCentsPerSquare:97500},
+      {tierKey:"better",displayOrder:2,customerName:"Recommended",customerDescription:"Upgraded.",warrantySummary:"Extended.",differentiators:["Weight"],lowCentsPerSquare:95000,highCentsPerSquare:120000},
+      {tierKey:"best",displayOrder:3,customerName:"Signature System",customerDescription:"Premium.",warrantySummary:"Extended.",differentiators:["Impact"],lowCentsPerSquare:125000,highCentsPerSquare:165000},
+    ];
+    const calculated=calculateRoofPricingPackages(25,tierRates,"v1","2026-08-31T13:00:00.000Z");
+    expect(calculationStateSchema.safeParse({
+      status:"ready",source:"google",lowCents:1,highCents:2,roofSquares:25,
+      generatedAt:"2026-08-31T13:00:00.000Z",pricingVersion:"v1",
+      packages:calculated.packages,adjustments:[],
+    }).success).toBe(false);
+  });
+
   test("accepts only a trustworthy Google-derived numeric range", () => {
     expect(calculationStateSchema.parse({
       status: "ready",

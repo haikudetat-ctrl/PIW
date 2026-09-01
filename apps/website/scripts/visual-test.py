@@ -1,4 +1,7 @@
+import json
 import os
+import re
+import uuid
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 
@@ -9,9 +12,26 @@ OUT.mkdir(parents=True, exist_ok=True)
 
 with sync_playwright() as p:
     browser = p.chromium.launch(headless=True)
+    context = browser.new_context()
+    context.route(
+        "**/api/google-reviews",
+        lambda route: route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps({
+                "rating": 5,
+                "reviewCount": 0,
+                "reviews": [],
+                "attributions": [],
+                "googleMapsUri": "https://maps.google.com/",
+            }),
+        ),
+    )
     errors = []
     for name, width, height in [("desktop", 1440, 1000), ("mobile", 390, 844)]:
-        page = browser.new_page(viewport={"width": width, "height": height}, color_scheme="light")
+        page = context.new_page()
+        page.set_viewport_size({"width": width, "height": height})
+        page.emulate_media(color_scheme="light")
         page.on("console", lambda msg: errors.append(f"console: {msg.text}") if msg.type == "error" and not msg.text.startswith("Failed to load resource") else None)
         page.on("pageerror", lambda error: errors.append(f"pageerror: {error}"))
         page.goto(BASE, wait_until="networkidle")
@@ -44,7 +64,9 @@ with sync_playwright() as p:
         page.screenshot(path=str(OUT / f"home-{name}.png"), full_page=True)
         page.close()
 
-    page = browser.new_page(viewport={"width": 1280, "height": 900}, color_scheme="light")
+    page = context.new_page()
+    page.set_viewport_size({"width": 1280, "height": 900})
+    page.emulate_media(color_scheme="light")
     page.goto(BASE + "/resources/nj-roof-solar-readiness-checklist.html", wait_until="networkidle")
     assert page.locator(".readiness-item").count() == 7
     page.locator(".readiness-item input").first.check()
@@ -55,7 +77,9 @@ with sync_playwright() as p:
     page.screenshot(path=str(OUT / "checklist-desktop.png"), full_page=True)
     page.close()
 
-    page = browser.new_page(viewport={"width": 1280, "height": 900}, color_scheme="light")
+    page = context.new_page()
+    page.set_viewport_size({"width": 1280, "height": 900})
+    page.emulate_media(color_scheme="light")
     page.goto(BASE + "/service-areas/atlantic-county.html", wait_until="networkidle")
     assert "Atlantic County" in (page.locator("h1").text_content() or "")
     assert page.locator(".town-list li").count() == 6
@@ -63,7 +87,9 @@ with sync_playwright() as p:
     page.screenshot(path=str(OUT / "atlantic-county.png"), full_page=True)
     page.close()
 
-    page = browser.new_page(viewport={"width": 1280, "height": 900}, color_scheme="dark")
+    page = context.new_page()
+    page.set_viewport_size({"width": 1280, "height": 900})
+    page.emulate_media(color_scheme="dark")
     page.goto(BASE + "/#quote", wait_until="networkidle")
     form_card = page.locator(".form-card").first
     form_card.scroll_into_view_if_needed()
@@ -100,7 +126,9 @@ with sync_playwright() as p:
     page.screenshot(path=str(OUT / "home-dark-form.png"), full_page=False)
     page.close()
 
-    page = browser.new_page(viewport={"width": 390, "height": 844}, color_scheme="light")
+    page = context.new_page()
+    page.set_viewport_size({"width": 390, "height": 844})
+    page.emulate_media(color_scheme="light")
     submitted = []
     page.route("**/api/campaign-estimate", lambda route: (
         submitted.append(route.request.post_data_json),
@@ -155,12 +183,230 @@ with sync_playwright() as p:
     assert submitted[0]["consent_to_contact"] is True
     page.close()
 
-    def assessment_page(width, height, path="/roof-estimate/dev-assessment"):
-        page = browser.new_page(
-            viewport={"width": width, "height": height},
-            color_scheme="light",
-            reduced_motion="reduce",
+    entry_points = [
+        ("homepage", "/", "main-home", "all-season-main", None, "embedded"),
+        ("contact", "/contact.html", "main-contact", "all-season-main", None, "embedded"),
+        ("quote-drawer", "/", "main-drawer", "all-season-main", None, "drawer"),
+        (
+            "weather-report",
+            "/campaigns/weather-report",
+            "campaign:weather-report",
+            "weather-report",
+            "weather-report",
+            "campaign",
+        ),
+        (
+            "seasonal-shield",
+            "/campaigns/seasonal-shield",
+            "campaign:seasonal-shield",
+            "seasonal-shield",
+            "seasonal-shield",
+            "campaign",
+        ),
+        (
+            "for-every-season",
+            "/campaigns/for-every-season",
+            "campaign:for-every-season",
+            "for-every-season",
+            "for-every-season",
+            "campaign",
+        ),
+        ("piw", "/roof-estimate", "roof-estimate", "all-season-main", None, "piw"),
+    ]
+
+    def assert_submission_contract(payload, expected_entry, presentation, campaign):
+        assert payload["entry_point"] == expected_entry, payload
+        assert payload["presentation_key"] == presentation, payload
+        assert payload["campaign"] == campaign, payload
+        assert payload["consent_to_process_property"] is True, payload
+        assert payload["consent_to_contact"] is True, payload
+        forbidden = {
+            "latitude",
+            "longitude",
+            "lat",
+            "lng",
+            "coordinates",
+            "public_token",
+            "continuation",
+            "capability",
+        }
+        assert forbidden.isdisjoint(payload), (forbidden.intersection(payload), payload)
+
+    def intercept_canonical_submission(page, presentation, captured):
+        continuation = (
+            ASSESSMENT_BASE
+            + "/roof-estimate/dev-assessment?imagery=ready&presentation="
+            + presentation
         )
+
+        def fulfill_submission(route):
+            captured.append(route.request.post_data_json)
+            route.fulfill(
+                status=202,
+                content_type="application/json",
+                body=json.dumps({"accepted": True, "estimateUrl": continuation}),
+            )
+
+        page.route("**/api/campaign-estimate", fulfill_submission)
+        return continuation
+
+    def fill_embedded_form(page):
+        form = page.locator("#leadForm")
+        form.locator("[name=name]").fill("Entry Matrix Homeowner")
+        form.locator("[name=email]").fill("entry-matrix@example.com")
+        form.locator("[name=phone]").fill("201-555-0110")
+        form.locator("[name=address_line_1]").fill("18 Harbor View Drive")
+        form.locator("[name=city]").fill("Red Bank")
+        form.locator("[name=postal_code]").fill("07701")
+        form.locator("[name=consent_to_process_property]").check()
+        form.locator("[name=consent_to_contact]").check()
+        form.locator("button[type=submit]").click()
+
+    def fill_drawer_form(page):
+        page.locator(".as-quote-launcher").click()
+        panel = page.locator(".as-quote-panel")
+        panel.wait_for(state="visible")
+        values = {
+            "#as-quote-name": "Entry Matrix Homeowner",
+            "#as-quote-email": "entry-matrix@example.com",
+            "#as-quote-phone": "201-555-0110",
+            "#as-quote-address_line_1": "18 Harbor View Drive",
+            "#as-quote-city": "Red Bank",
+            "#as-quote-postal_code": "07701",
+        }
+        for selector, value in values.items():
+            page.locator(selector).fill(value)
+        panel.locator("[name=consent_to_process_property]").check()
+        panel.locator("[name=consent_to_contact]").check()
+        panel.locator("button[type=submit]").click()
+
+    def fill_campaign_form(page):
+        page.route(
+            "**/api/address-autocomplete",
+            lambda route: route.fulfill(
+                status=200,
+                content_type="application/json",
+                body=(
+                    '{"suggestions":[{"placeId":"ChIJ-task-six-fake-place",'
+                    '"address":"18 Harbor View Drive, Red Bank, NJ 07701"}]}'
+                ),
+            ),
+        )
+        form = page.locator(".campaign-form")
+        address = form.get_by_role("combobox")
+        address.fill("18 Harbor View")
+        form.get_by_role(
+            "option", name="18 Harbor View Drive, Red Bank, NJ 07701"
+        ).wait_for(state="visible")
+        form.get_by_role(
+            "option", name="18 Harbor View Drive, Red Bank, NJ 07701"
+        ).click()
+        form.get_by_role("button", name=re.compile("Continue to your details")).click()
+        form.locator("[name=name]").fill("Entry Matrix Homeowner")
+        form.locator("[name=email]").fill("entry-matrix@example.com")
+        form.locator("[name=phone]").fill("201-555-0110")
+        form.locator("[name=consent_to_process_property]").check()
+        form.locator("[name=consent_to_contact]").check()
+        form.locator("button[type=submit]").click()
+
+    for label, path, expected_entry, presentation, campaign, form_kind in entry_points:
+        page = context.new_page()
+        page.set_viewport_size({"width": 390, "height": 844})
+        page.emulate_media(color_scheme="light", reduced_motion="reduce")
+        captured = []
+        if form_kind == "piw":
+            reset = page.request.delete(
+                ASSESSMENT_BASE + "/api/test/roof-assessment-prefetch"
+            )
+            assert reset.status == 204, reset.status
+            direct_requests = []
+            page.on(
+                "request",
+                lambda request: direct_requests.append(request.post_data or "")
+                if request.method == "POST" and "/roof-estimate" in request.url
+                else None,
+            )
+            page.route(
+                "**/api/roof-estimate/*/house-image*",
+                lambda route: route.fulfill(
+                    status=404,
+                    content_type="application/json",
+                    headers={"retry-after": "3", "cache-control": "no-store"},
+                    body='{"error":"Property image unavailable"}',
+                ),
+            )
+            page.goto(ASSESSMENT_BASE + path, wait_until="networkidle")
+            piw_form = page.get_by_role("form", name="Roof estimate request")
+            assert piw_form.is_visible()
+            piw_form.locator("[name=addressLine1]").fill("18 Harbor View Drive")
+            piw_form.locator("[name=city]").fill("Red Bank")
+            piw_form.locator("[name=postalCode]").fill("07701")
+            piw_form.get_by_role("button", name="Continue", exact=True).click()
+            suffix = uuid.uuid4().hex[:8]
+            piw_form.locator("[name=name]").fill("Entry Matrix Homeowner")
+            piw_form.locator("[name=email]").fill(f"entry-{suffix}@example.com")
+            piw_form.locator("[name=phone]").fill(f"201555{int(suffix[:4], 16) % 10000:04d}")
+            for consent in ("consentEstimate", "consentEmail", "consentSms"):
+                piw_form.locator(f"[name={consent}]").check()
+            piw_form.evaluate(
+                """form => {
+                  form.elements.addressMode.value = 'google';
+                  form.elements.googlePlaceId.value = 'ChIJ-task-six-fake-place';
+                  form.elements.selectedAddress.value = '18 Harbor View Drive, Red Bank, NJ 07701';
+                }"""
+            )
+            piw_form.locator("button[type=submit]").click()
+            page.wait_for_url(
+                re.compile(rf"{re.escape(ASSESSMENT_BASE)}/roof-estimate/[0-9a-f-]{{36}}$"),
+                timeout=20_000,
+            )
+            page.get_by_role("heading", name="Analyzing your property.").wait_for(
+                state="visible"
+            )
+            diagnostics = page.request.get(
+                ASSESSMENT_BASE + "/api/test/roof-assessment-prefetch"
+            )
+            assert diagnostics.status == 200, diagnostics.status
+            events = diagnostics.json()["events"]
+            assert len([event for event in events if event["event"] == "place_details_called"]) == 1, events
+            contexts = [event for event in events if event["event"] == "assessment_context"]
+            assert len(contexts) == 1, events
+            assert contexts[0]["entryPoint"] == expected_entry, contexts
+            assert contexts[0]["presentationKey"] == presentation, contexts
+            boundary = "\n".join(direct_requests)
+            assert re.search(r'name="(?:_1_)?campaign"', boundary), boundary
+            assert "for-every-season" in boundary, boundary
+            assert not re.search(
+                r'name="(?:_1_)?(?:latitude|longitude|lat|lng|coordinates|capability|continuation|public_token)"',
+                boundary,
+            ), boundary
+            page.close()
+            continue
+        continuation = intercept_canonical_submission(page, presentation, captured)
+        page.goto(BASE + path, wait_until="networkidle")
+        if form_kind == "embedded":
+            fill_embedded_form(page)
+        elif form_kind == "drawer":
+            fill_drawer_form(page)
+        else:
+            fill_campaign_form(page)
+        page.wait_for_url(continuation, timeout=10_000)
+        page.get_by_role("heading", name="Analyzing your property.").wait_for(
+            state="visible"
+        )
+        assert len(captured) == 1, (label, captured)
+        assert_submission_contract(captured[0], expected_entry, presentation, campaign)
+        if form_kind == "campaign":
+            assert captured[0]["google_place_id"] == "ChIJ-task-six-fake-place"
+            assert "address_line_1" not in captured[0]
+        else:
+            assert captured[0]["google_place_id"] is None
+        page.close()
+
+    def assessment_page(width, height, path="/roof-estimate/dev-assessment"):
+        page = context.new_page()
+        page.set_viewport_size({"width": width, "height": height})
+        page.emulate_media(color_scheme="light", reduced_motion="reduce")
         page.on("console", lambda msg: errors.append(f"console: {msg.text}") if msg.type == "error" and not msg.text.startswith("Failed to load resource") else None)
         page.on("pageerror", lambda error: errors.append(f"pageerror: {error}"))
         page.goto(ASSESSMENT_BASE + path, wait_until="networkidle")
@@ -168,7 +414,7 @@ with sync_playwright() as p:
 
     def assert_question_action_fits(page, viewport_name, step):
         metrics = page.evaluate("""() => {
-          const action = document.querySelector('.assessment-question-actions');
+          const action = document.querySelector('.assessment-question-actions .assessment-primary-action');
           return {
             scrollHeight: document.documentElement.scrollHeight,
             innerHeight: window.innerHeight,
@@ -180,6 +426,7 @@ with sync_playwright() as p:
         assert metrics["actionBottom"] is not None, (viewport_name, step, metrics)
         assert metrics["actionTop"] >= 0, (viewport_name, step, metrics)
         assert metrics["actionBottom"] <= metrics["innerHeight"], (viewport_name, step, metrics)
+        assert metrics["actionBottom"] - metrics["actionTop"] >= 44, (viewport_name, step, metrics)
 
     viewports = [
         ("320x568", 320, 568),
@@ -220,6 +467,12 @@ with sync_playwright() as p:
                     if not action.is_disabled():
                         break
             assert not action.is_disabled(), (viewport_name, step)
+            assert_question_action_fits(page, viewport_name, step)
+            action.focus()
+            assert action.evaluate("button => document.activeElement === button"), (
+                viewport_name,
+                step,
+            )
             assert_question_action_fits(page, viewport_name, step)
             action.click()
             if step < 8:

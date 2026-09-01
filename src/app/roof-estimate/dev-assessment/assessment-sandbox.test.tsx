@@ -14,6 +14,7 @@ const completedResponses: RoofAssessmentResponses = {
   timeline: "this_season",
   ownership: "owner",
 };
+const previewAerial = "/campaigns/seasonal-shield/hero.webp";
 
 vi.mock("../[token]/assessment-experience", () => ({
   AssessmentExperience: ({children}: {children: React.ReactNode}) => <>{children}</>,
@@ -31,12 +32,51 @@ vi.mock("../[token]/assessment-questionnaire", () => ({
   ),
 }));
 
-const {AssessmentSandbox} = await import("./assessment-sandbox");
+const {AssessmentSandbox, createPreviewAerialLoader} = await import("./assessment-sandbox");
 
 describe("development assessment sandbox", () => {
   afterEach(() => {
+    vi.useRealTimers();
     window.history.replaceState({}, "", "/roof-estimate/dev-assessment");
     vi.unstubAllGlobals();
+  });
+
+  test("provides deterministic ready, slow, retry, and pending imagery fixtures", async () => {
+    vi.useFakeTimers();
+    const signal = new AbortController().signal;
+
+    await expect(createPreviewAerialLoader("ready")({
+      imageSrc: previewAerial,
+      signal,
+    })).resolves.toEqual({kind: "ready", objectUrl: previewAerial});
+
+    let slowResolved = false;
+    const slow = createPreviewAerialLoader("slow")({
+      imageSrc: previewAerial,
+      signal,
+    }).then((result) => {
+      slowResolved = true;
+      return result;
+    });
+    await vi.advanceTimersByTimeAsync(8_999);
+    expect(slowResolved).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(slow).resolves.toEqual({
+      kind: "ready",
+      objectUrl: previewAerial,
+    });
+
+    const retryThenReady = createPreviewAerialLoader("retry");
+    await expect(retryThenReady({imageSrc: previewAerial, signal}))
+      .resolves.toEqual({kind: "retry", delayMs: 2_500});
+    await expect(retryThenReady({imageSrc: previewAerial, signal}))
+      .resolves.toEqual({kind: "ready", objectUrl: previewAerial});
+
+    const pending = createPreviewAerialLoader("pending");
+    await expect(pending({imageSrc: previewAerial, signal}))
+      .resolves.toEqual({kind: "retry", delayMs: 2_500});
+    await expect(pending({imageSrc: previewAerial, signal}))
+      .resolves.toEqual({kind: "retry", delayMs: 2_500});
   });
 
   test("the consultation action does not restart the loading flow", () => {
@@ -70,8 +110,10 @@ describe("development assessment sandbox", () => {
     render(<AssessmentSandbox />);
 
     expect(screen.getByRole("heading", {name: "Your roof weather outlook"})).toBeVisible();
-    expect(screen.getByText("$18,000")).toBeVisible();
-    expect(screen.getByText("$26,000")).toBeVisible();
+    expect(screen.getByRole("heading", {name: "Complete System"})).toBeVisible();
+    expect(screen.getByLabelText("Recommended package")).toBeVisible();
+    expect(screen.getByText("$18,400")).toBeVisible();
+    expect(screen.getByText("$37,950")).toBeVisible();
     expect(screen.getByText(/23\.0 measured roofing squares/)).toBeVisible();
   });
 

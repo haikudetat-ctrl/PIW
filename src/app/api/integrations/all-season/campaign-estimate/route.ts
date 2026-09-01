@@ -7,6 +7,7 @@ import {
   type AllSeasonCampaignEstimateLeadInput,
 } from "@/modules/leads/accept-all-season-campaign-estimate";
 import { signContinuation } from "@/modules/roof-assessment/continuation-token";
+import {createPostConsentPrefetchComposition} from "@/modules/roof-assessment/post-consent-prefetch-composition";
 import { startOrResumeRoofAssessment } from "@/modules/roof-assessment/start-or-resume";
 import { SupabaseAssessmentIntakeRepository } from "@/modules/roof-assessment/supabase-assessment-intake-repository";
 import {
@@ -95,7 +96,15 @@ export async function handleAllSeasonCampaignEstimateRequest(
 }
 
 export async function POST(request: NextRequest) {
-  const environment = parseServerEnv(process.env);
+  let environment: ReturnType<typeof parseServerEnv>;
+  try {
+    environment = parseServerEnv(process.env);
+  } catch {
+    return noStoreJson(
+      { error: "All Season campaign estimate intake is not configured" },
+      503,
+    );
+  }
   if (
     !environment.ROOF_ASSESSMENT_ENABLED
     || !environment.ROOF_ASSESSMENT_SIGNING_SECRET
@@ -115,17 +124,28 @@ export async function POST(request: NextRequest) {
 
   return handleAllSeasonCampaignEstimateRequest(request, {
     expectedSecret: environment.ALL_SEASON_INTAKE_SHARED_SECRET,
-    accept: (payload) => acceptAllSeasonCampaignEstimate(
-      toCampaignEstimateLeadInput(payload),
-      {
+    accept: async (payload) => {
+      const composition = createPostConsentPrefetchComposition({
+        environment,
+        client: service,
+        companyId,
+        submissionId: payload.submission_id,
+        googlePlaceId: payload.google_place_id ?? undefined,
+        signingSecret: signingKey,
+        testEnvironment: process.env,
+      });
+      const result = await acceptAllSeasonCampaignEstimate(toCampaignEstimateLeadInput(payload), {
         companyId,
         startAssessment: (input) => startOrResumeRoofAssessment(input, {
           repository,
           tokenIssuer: {
             issue: (capability) => signContinuation(capability, signingKey),
           },
+          postConsentPrefetch: composition.postConsentPrefetch,
         }),
-      },
-    ),
+      });
+      if (result.kind === "continue") composition.markAccepted();
+      return result;
+    },
   });
 }

@@ -66,6 +66,18 @@ jobs:
       - run: npm run db:reset
       - run: npm run db:test
       - run: npm run test:integration
+        env:
+          NODE_ENV: test
+          DEPLOYMENT_ENV: test
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-publishable
+          SUPABASE_SERVICE_ROLE_KEY: ci-service
+          INNGEST_EVENT_KEY: ci-event
+          INNGEST_SIGNING_KEY: ci-signing
+          PAID_PROVIDERS_ENABLED: "false"
+          INTEGRATIONS_LEADCONDUIT_ROOFING_RECEIVER_ENABLED: "false"
+          INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_RECEIVER_ENABLED: "false"
+          INTEGRATIONS_CALLTOOLS_ENABLED: "false"
       - run: |
           npx supabase gen types typescript --local --schema public > /tmp/database.types.ts
           diff -u src/lib/database.types.ts /tmp/database.types.ts

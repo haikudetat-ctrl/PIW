@@ -1,7 +1,7 @@
 import {createHash} from "node:crypto";
 import {execFileSync} from "node:child_process";
 import {createClient} from "@supabase/supabase-js";
-import {describe, expect, test} from "vitest";
+import {describe, expect, test, vi} from "vitest";
 import type {Database} from "@/lib/database.types";
 import {
   completePublicAssessment,
@@ -18,6 +18,24 @@ import {requestRoofConsultation, SupabaseAssessmentResultRepository} from "@/mod
 import {SupabaseAssessmentIntakeRepository} from "@/modules/roof-assessment/supabase-assessment-intake-repository";
 import {startOrResumeRoofAssessment, type StartAssessmentInput} from "@/modules/roof-assessment/start-or-resume";
 import {getAssessmentCalculationState} from "@/app/roof-estimate/[token]/public-estimate-flow";
+import {
+  runAddressValidation,
+  SupabaseAddressValidationWorkerRepository,
+} from "@/inngest/functions/address-validation-worker";
+import {SupabaseRoofEstimateWorkerRepository} from "@/inngest/functions/roof-estimate-worker";
+import {runPostConsentPropertyPrefetch} from "@/modules/roof-assessment/post-consent-property-prefetch";
+import {SupabasePropertyPrefetchRepository} from "@/modules/roof-assessment/supabase-property-prefetch-repository";
+import {writeCrmProjection, SupabaseCrmWriterRepository} from "@/inngest/functions/crm-writer";
+import {runRoofEstimate} from "@/inngest/functions/roof-estimate-worker";
+import {
+  sendQueuedEstimateDeliveries,
+  SupabaseEstimateDeliveryRepository,
+} from "@/inngest/functions/estimate-delivery-sender";
+import {
+  sendQueuedContextDialers,
+  SupabaseContextDialerSlackRepository,
+} from "@/inngest/functions/context-dialer-slack-sender";
+import {seedActiveRoofPricingRateCard} from "@/integration/support/roof-pricing-fixture";
 
 const runIntegration = process.env.RUN_SUPABASE_INTEGRATION === "1";
 
@@ -68,6 +86,8 @@ describe.runIf(runIntegration)("canonical assessment journey", () => {
     const intakeRepository = new SupabaseAssessmentIntakeRepository(service);
     const publicRepository = new SupabasePublicAssessmentRepository(service);
     const resultRepository = new SupabaseAssessmentResultRepository(service);
+    const propertyPrefetchRepository = new SupabasePropertyPrefetchRepository(service);
+    let placeDetailsCalls = 0;
     let captured: CapturedContinuation | null = null;
     const start = (submissionId: string) => startOrResumeRoofAssessment(
       intake(companyId, submissionId),
@@ -79,6 +99,31 @@ describe.runIf(runIntegration)("canonical assessment journey", () => {
             return "integration_continuation";
           },
         },
+        postConsentPrefetch: (prefetchInput) => runPostConsentPropertyPrefetch(
+          prefetchInput,
+          {
+            enabled: true,
+            repository: propertyPrefetchRepository,
+            fetchGooglePlaceDetails: async ({submittedAddress, googlePlaceId, signal}) => {
+              expect(signal).toBeInstanceOf(AbortSignal);
+              expect(googlePlaceId).toBe("ChIJ-task-nine-property");
+              placeDetailsCalls += 1;
+              return {
+                submittedAddress,
+                googlePlaceId,
+                canonicalAddress: "18 HARBOR VIEW DR, RED BANK, NJ 07701",
+                latitude: 40.3501,
+                longitude: -74.0642,
+                municipality: "RED BANK",
+                county: "MONMOUTH",
+                stateCode: "NJ" as const,
+                zip: "07701",
+                matchMethod: "exact_single_match" as const,
+                confidence: 98,
+              };
+            },
+          },
+        ),
       },
     );
     const takeCaptured = () => {
@@ -94,6 +139,7 @@ describe.runIf(runIntegration)("canonical assessment journey", () => {
     };
 
     await requireRpc(service.from("companies").insert({id: companyId, name: "Canonical journey integration"}));
+    await seedActiveRoofPricingRateCard(service, companyId);
 
     const firstSubmissionId = crypto.randomUUID();
     await expect(start(firstSubmissionId)).resolves.toEqual({
@@ -111,9 +157,119 @@ describe.runIf(runIntegration)("canonical assessment journey", () => {
         .single(),
     );
     const firstEstimate = await requireRpc(
-      service.from("roof_estimates").select("public_token").eq("id", firstAttempt.estimate_id).single(),
+      service.from("roof_estimates")
+        .select("public_token, lead_id, property_id")
+        .eq("id", firstAttempt.estimate_id)
+        .single(),
     );
     const originalPublicToken = firstEstimate.public_token;
+
+    expect(placeDetailsCalls).toBe(1);
+    const pipeline = await requireRpc(service.from("pipeline_runs")
+      .select("id")
+      .eq("lead_id", firstEstimate.lead_id)
+      .eq("property_id", firstEstimate.property_id)
+      .order("started_at", {ascending: false})
+      .limit(1)
+      .single());
+    const imageCoordinates = await requireRpc(service.from("property_addresses")
+      .select("canonical_address, latitude, longitude")
+      .eq("company_id", companyId)
+      .eq("property_id", firstEstimate.property_id)
+      .not("latitude", "is", null)
+      .not("longitude", "is", null)
+      .order("created_at", {ascending: false})
+      .limit(1)
+      .single());
+    expect(imageCoordinates).toEqual({
+      canonical_address: "18 HARBOR VIEW DR, RED BANK, NJ 07701",
+      latitude: 40.3501,
+      longitude: -74.0642,
+    });
+
+    const discoveryEvents = await requireRpc(service.from("domain_events")
+      .select("id, pipeline_run_id, correlation_id, payload")
+      .eq("company_id", companyId)
+      .eq("pipeline_run_id", pipeline.id)
+      .eq("event_name", "property/discovery_requested"));
+    expect(discoveryEvents).toHaveLength(1);
+    const discoveryEvent = discoveryEvents[0];
+    const discoveryOutbox = await requireRpc(service.from("event_outbox")
+      .select("event_id")
+      .eq("event_id", discoveryEvent.id));
+    expect(discoveryOutbox).toEqual([{event_id: discoveryEvent.id}]);
+
+    const crmRepository = new SupabaseCrmWriterRepository(
+      service,
+      async () => ({ids: ["fake-inngest-event"]}),
+    );
+    const crmEvent = {
+      id: crypto.randomUUID(),
+      pipelineRunId: pipeline.id,
+      correlationId: discoveryEvent.correlation_id,
+      leadId: firstEstimate.lead_id,
+      propertyId: firstEstimate.property_id,
+      submittedAddress: intake(companyId, firstSubmissionId).submittedAddress,
+      googlePlaceId: "ChIJ-task-nine-property",
+    };
+    const firstCrm = await writeCrmProjection(crmEvent, crmRepository);
+    const replayedCrm = await writeCrmProjection(crmEvent, crmRepository);
+    expect(replayedCrm).toEqual(firstCrm);
+    expect(await requireRpc(service.from("worker_runs").select("id")
+      .eq("pipeline_run_id", pipeline.id)
+      .eq("worker_type", "crm_writer"))).toHaveLength(1);
+    expect(await requireRpc(service.from("lead_stage_history").select("id")
+      .eq("lead_id", firstEstimate.lead_id)
+      .eq("to_stage", "new"))).toHaveLength(1);
+    expect(await requireRpc(service.from("notifications").select("id")
+      .eq("lead_id", firstEstimate.lead_id)
+      .eq("type", "lead_submitted"))).toHaveLength(1);
+
+    const addressWorker = await runAddressValidation({
+      id: crypto.randomUUID(),
+      pipelineRunId: pipeline.id,
+      correlationId: discoveryEvent.correlation_id,
+      leadId: firstEstimate.lead_id,
+      propertyId: firstEstimate.property_id,
+      submittedAddress: intake(companyId, firstSubmissionId).submittedAddress,
+      googlePlaceId: "ChIJ-task-nine-property",
+      attempt: 1,
+    }, new SupabaseAddressValidationWorkerRepository(service));
+    expect(addressWorker.outcome).toBe("already_prefetched");
+    const addressProviderRequests = await requireRpc(service.from("provider_requests")
+      .select("id")
+      .eq("company_id", companyId)
+      .eq("pipeline_run_id", pipeline.id)
+      .eq("capability", "address.validate"));
+    expect(addressProviderRequests).toHaveLength(0);
+    const addressObservations = await requireRpc(service.from("property_addresses")
+      .select("id")
+      .eq("company_id", companyId)
+      .eq("property_id", firstEstimate.property_id));
+    expect(addressObservations).toHaveLength(1);
+    expect(await requireRpc(service.from("domain_events")
+      .select("id")
+      .eq("company_id", companyId)
+      .eq("pipeline_run_id", pipeline.id)
+      .eq("event_name", "property/discovery_requested"))).toHaveLength(1);
+
+    const roofWorkerRepository = new SupabaseRoofEstimateWorkerRepository(service);
+    const roofWorkerIdempotencyKey = `roof-estimate-worker:${pipeline.id}:1`;
+    const firstRoofWorker = await roofWorkerRepository.upsertWorkerRunQueued({
+      pipelineRunId: pipeline.id,
+      idempotencyKey: roofWorkerIdempotencyKey,
+    });
+    const replayedRoofWorker = await roofWorkerRepository.upsertWorkerRunQueued({
+      pipelineRunId: pipeline.id,
+      idempotencyKey: roofWorkerIdempotencyKey,
+    });
+    expect(replayedRoofWorker.id).toBe(firstRoofWorker.id);
+    const roofWorkers = await requireRpc(service.from("worker_runs")
+      .select("id")
+      .eq("pipeline_run_id", pipeline.id)
+      .eq("worker_type", "roof_estimate")
+      .eq("idempotency_key", roofWorkerIdempotencyKey));
+    expect(roofWorkers).toEqual([{id: firstRoofWorker.id}]);
 
     captured = null;
     await expect(start(crypto.randomUUID())).resolves.toMatchObject({kind: "continue"});
@@ -253,31 +409,54 @@ describe.runIf(runIntegration)("canonical assessment journey", () => {
     const estimateContext = await requireRpc(service.from("roof_estimates")
       .select("id, property_id, lead_id")
       .eq("public_token", resumedToken).single());
-    const pipeline = await requireRpc(service.from("pipeline_runs")
+    const resultPipeline = await requireRpc(service.from("pipeline_runs")
       .select("id").eq("lead_id", estimateContext.lead_id).order("started_at", {ascending: false}).limit(1).single());
-    const insightId = crypto.randomUUID();
-    await requireRpc(service.from("roof_insights").insert({
-      id: insightId,
-      company_id: companyId,
-      property_id: estimateContext.property_id,
-      provider: "google_solar",
-      normalized_address: `task-nine-${insightId}`,
-      lookup_status: "success",
-      total_roof_sqft: 2300,
-    }));
-    await requireRpc(service.from("pipeline_runs").update({status: "complete"}).eq("id", pipeline.id));
-    await requireRpc(service.from("roof_estimates").update({
-      status: "ready",
-      roof_insight_id: insightId,
-      roof_squares: 23,
-      range_low_cents: 1_800_000,
-      range_high_cents: 2_600_000,
-    }).eq("id", estimateContext.id));
+    class FakeSolarRoofRepository extends SupabaseRoofEstimateWorkerRepository {
+      override async measureRoof() {
+        return {
+          insight: {
+            status: "success" as const,
+            buildingName: "buildings/fake-canonical-journey",
+            latitude: 40.3501,
+            longitude: -74.0642,
+            imageryDate: "2026-06-01",
+            imageryQuality: "HIGH",
+            roofSegments: [{pitchDegrees: 25, azimuthDegrees: 180, areaSqft: 2_300}],
+            totalRoofSqft: 2_300,
+            rawResponse: {},
+          },
+          retrievedAt: "2026-08-28T12:00:00.000Z",
+          sourceIdentifier: "buildings/fake-canonical-journey",
+        };
+      }
+    }
+    const roofRepository = new FakeSolarRoofRepository(service);
+    const roofEvent = {
+      id: crypto.randomUUID(),
+      pipelineRunId: resultPipeline.id,
+      correlationId: discoveryEvent.correlation_id,
+      leadId: estimateContext.lead_id,
+      propertyId: estimateContext.property_id,
+      canonicalAddress: "18 HARBOR VIEW DR, RED BANK, NJ 07701",
+      latitude: 40.3501,
+      longitude: -74.0642,
+      attempt: 1,
+    };
+    const firstRoof = await runRoofEstimate(roofEvent, roofRepository);
+    const replayedRoof = await runRoofEstimate(roofEvent, roofRepository);
+    expect(firstRoof.outcome).toBe("ready");
+    expect(replayedRoof).toMatchObject({outcome: "already_completed", workerRunId: firstRoof.workerRunId});
+
+    const readyEstimate = await requireRpc(service.from("roof_estimates")
+      .select("status, roof_insight_id, roof_squares, range_low_cents, range_high_cents")
+      .eq("id", estimateContext.id).single());
+    const insightId = readyEstimate.roof_insight_id!;
+    expect(readyEstimate.status).toBe("ready");
     const insight = {id: insightId, companyId, propertyId: estimateContext.property_id, provider: "google_solar", lookupStatus: "success"};
     expect(getAssessmentCalculationState({
       estimateStatus: "ready", pipelineStatus: "complete", expectedCompanyId: companyId,
-      expectedPropertyId: estimateContext.property_id, insight, lowCents: 1_800_000,
-      highCents: 2_600_000, roofSquares: 23, generatedAt: new Date().toISOString(),
+      expectedPropertyId: estimateContext.property_id, insight, lowCents: readyEstimate.range_low_cents,
+      highCents: readyEstimate.range_high_cents, roofSquares: Number(readyEstimate.roof_squares), generatedAt: new Date().toISOString(),
     }).status).toBe("ready");
     expect(getAssessmentCalculationState({
       estimateStatus: "pending", pipelineStatus: "processing", expectedCompanyId: companyId,
@@ -290,6 +469,43 @@ describe.runIf(runIntegration)("canonical assessment journey", () => {
       highCents: null, roofSquares: null, generatedAt: new Date().toISOString(),
     }).status).toBe("review_required");
 
+    const deliveryFetch = vi.fn(async () => new Response(null, {status: 202}));
+    const deliveryRepository = new SupabaseEstimateDeliveryRepository(service);
+    const firstDeliveries = await sendQueuedEstimateDeliveries(deliveryRepository, {
+      smsWebhookUrl: "https://sms.example.test",
+      emailWebhookUrl: "https://email.example.test",
+      sharedSecret: "fake-shared-secret",
+    }, deliveryFetch);
+    const replayedDeliveries = await sendQueuedEstimateDeliveries(deliveryRepository, {
+      smsWebhookUrl: "https://sms.example.test",
+      emailWebhookUrl: "https://email.example.test",
+      sharedSecret: "fake-shared-secret",
+    }, deliveryFetch);
+    expect(firstDeliveries).toHaveLength(2);
+    expect(replayedDeliveries).toEqual([]);
+    expect(deliveryFetch).toHaveBeenCalledTimes(2);
+    expect(await requireRpc(service.from("estimate_deliveries").select("id, status")
+      .eq("estimate_id", estimateContext.id))).toHaveLength(2);
+
+    const slackFetch = vi.fn(async () => new Response("ok", {status: 200}));
+    const dialerRepository = new SupabaseContextDialerSlackRepository(service);
+    const firstDialer = await sendQueuedContextDialers(dialerRepository, {
+      webhookUrl: "https://slack.example.test",
+      baseUrl: "https://piw.example.test",
+    }, slackFetch);
+    const replayedDialer = await sendQueuedContextDialers(dialerRepository, {
+      webhookUrl: "https://slack.example.test",
+      baseUrl: "https://piw.example.test",
+    }, slackFetch);
+    expect(firstDialer).toHaveLength(1);
+    expect(replayedDialer).toEqual([]);
+    expect(slackFetch).toHaveBeenCalledOnce();
+    expect(await requireRpc(service.from("context_dialer_deliveries")
+      .select("id, status, attempt_count")
+      .eq("pipeline_run_id", resultPipeline.id))).toEqual([
+      expect.objectContaining({status: "sent", attempt_count: 1}),
+    ]);
+
     const preference = {contactMethod: "call", callWindow: "midday"} as const;
     const firstConsultation = await requestRoofConsultation(resumedToken, preference, "203.0.113.9", resultRepository);
     const retryConsultation = await requestRoofConsultation(resumedToken, preference, "203.0.113.9", resultRepository);
@@ -298,5 +514,6 @@ describe.runIf(runIntegration)("canonical assessment journey", () => {
       .select("id", {count: "exact", head: true}).eq("assessment_id", firstAttempt.assessment_id);
     if (countError) throw new Error(countError.message);
     expect(count).toBe(1);
+    expect(placeDetailsCalls).toBe(1);
   }, 30_000);
 });

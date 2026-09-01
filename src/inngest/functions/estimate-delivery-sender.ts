@@ -1,7 +1,9 @@
 import "server-only";
+import type {SupabaseClient} from "@supabase/supabase-js";
 import { inngest } from "@/inngest/client";
 import { parseServerEnv } from "@/lib/env/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import type {Database} from "@/lib/database.types";
 
 export type EstimateDelivery = {
   id: string;
@@ -87,8 +89,8 @@ export async function sendQueuedEstimateDeliveries(
   return results;
 }
 
-class SupabaseEstimateDeliveryRepository implements EstimateDeliveryRepository {
-  private readonly client = createServiceClient();
+export class SupabaseEstimateDeliveryRepository implements EstimateDeliveryRepository {
+  constructor(private readonly client: SupabaseClient<Database> = createServiceClient()) {}
 
   async listQueued(limit: number) {
     const { data, error } = await this.client

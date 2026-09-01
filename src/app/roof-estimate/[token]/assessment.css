@@ -105,7 +105,48 @@
 
 .assessment-progress-line {
   transform-origin: left;
-  animation: assessment-progress 5s linear both;
+  animation: assessment-progress 8s linear both;
+}
+
+.assessment-imagery-pending {
+  isolation: isolate;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, rgb(255 255 255 / 0.035), transparent 48%),
+    repeating-linear-gradient(115deg, rgb(167 196 204 / 0.07) 0 1px, transparent 1px 4.5rem),
+    #102f3d;
+}
+
+.assessment-imagery-pending::before {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  width: 42%;
+  content: "";
+  opacity: 0;
+  transform: translateX(-120%);
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.09), transparent);
+  pointer-events: none;
+}
+
+.assessment-imagery-status {
+  position: relative;
+  z-index: 1;
+  border: 1px solid rgb(255 255 255 / 0.14);
+  border-radius: 0.25rem;
+  background: rgb(7 31 46 / 0.88);
+  padding: 1.1rem 1.25rem;
+  box-shadow: 0 1.2rem 3.2rem rgb(2 16 24 / 0.24);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .assessment-imagery-pending::before {
+    animation: assessment-imagery-scan 2.8s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  }
+
+  .assessment-reveal-aerial {
+    animation: assessment-aerial-reveal 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -125,7 +166,24 @@
   to { transform: scaleX(1); }
 }
 
-.assessment-reveal-shell { --assessment-accent: #3c7b36; }
+@keyframes assessment-imagery-scan {
+  0% { opacity: 0; transform: translateX(-120%); }
+  24% { opacity: 0.72; }
+  68% { opacity: 0.45; }
+  100% { opacity: 0; transform: translateX(340%); }
+}
+
+@keyframes assessment-aerial-reveal {
+  from { opacity: 0; transform: scale(0.985); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.assessment-reveal-shell {
+  --assessment-accent: #3c7b36;
+  height: 100svh;
+  min-height: 0;
+  overflow: hidden;
+}
 .assessment-reveal-shell.assessment-accent-cyan { --assessment-accent: #087c92; }
 .assessment-reveal-shell.assessment-accent-blue { --assessment-accent: #185d91; }
 .assessment-context-kicker { color: var(--assessment-accent); }
@@ -250,6 +308,62 @@
     var(--assessment-ink);
 }
 
+.assessment-package-framing {
+  margin-bottom: 0.8rem;
+  color: #6b7c84;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.assessment-package-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.assessment-package-card {
+  border: 1px solid rgb(10 32 42 / 0.14);
+  border-radius: 0.35rem;
+  background: #fff;
+  padding: 1.15rem;
+}
+
+.assessment-package-card--recommended {
+  border-color: var(--assessment-ink);
+  background: linear-gradient(180deg, rgb(183 213 50 / 0.12), #fff 38%);
+  box-shadow: 0 1rem 2.4rem rgb(10 32 42 / 0.12);
+}
+
+.assessment-package-badge {
+  border-radius: 999px;
+  background: var(--assessment-ink);
+  padding: 0.28rem 0.5rem;
+  color: white;
+  font-size: 0.55rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.assessment-package-check { color: #62820e; font-weight: 900; }
+
+.assessment-adjustments {
+  border: 1px solid rgb(10 32 42 / 0.12);
+  border-radius: 0.35rem;
+  background: rgb(242 240 233 / 0.56);
+  padding: 1.25rem;
+}
+
+.assessment-adjustment-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: start;
+  padding-block: 0.9rem;
+}
+
 .assessment-consultation-panel,
 .assessment-consultation-success {
   border: 1px solid rgb(10 32 42 / 0.14);
@@ -301,6 +415,121 @@
 @media (max-width: 640px) {
   .assessment-result-copy { order: 1; }
   .assessment-result-visual { order: 2; min-height: 12rem; }
+
+  .assessment-reveal-shell {
+    padding: max(0.6rem, env(safe-area-inset-top)) 0.65rem max(0.6rem, env(safe-area-inset-bottom));
+  }
+
+  .assessment-reveal-frame {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .assessment-reveal-shell .assessment-nav {
+    min-height: 2.7rem;
+    flex: 0 0 auto;
+    padding-bottom: 0.5rem;
+  }
+
+  .assessment-reveal-shell .assessment-nav p:first-child { font-size: 0.65rem; }
+  .assessment-reveal-shell .assessment-nav p:nth-child(2) {
+    margin-top: 0.15rem;
+    font-size: 0.5rem;
+  }
+
+  .assessment-reveal-shell .assessment-nav > span {
+    padding: 0.35rem 0.55rem;
+    font-size: 0.6rem;
+  }
+
+  .assessment-reveal-stage {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    margin: 0;
+    padding: 0.55rem 0 0;
+  }
+
+  .assessment-reveal-card {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    grid-template-rows: minmax(9.75rem, 40%) minmax(0, 1fr);
+  }
+
+  .assessment-reveal-visual { min-height: 0; }
+
+  .assessment-reveal-address { padding: 0.7rem 0.8rem; }
+  .assessment-reveal-address > p:first-child { font-size: 0.5rem; }
+  .assessment-reveal-address > p:nth-child(2) {
+    margin-top: 0.2rem;
+    font-size: 0.78rem;
+    line-height: 1rem;
+  }
+
+  .assessment-reveal-address > a {
+    margin-top: 0.25rem;
+    font-size: 0.6rem;
+    line-height: 0.9rem;
+  }
+
+  .assessment-reveal-shell .assessment-imagery-pending { padding-inline: 0.8rem; }
+  .assessment-reveal-shell .assessment-imagery-status { padding: 0.55rem 0.7rem; }
+  .assessment-reveal-shell .assessment-imagery-status p:first-child { font-size: 0.7rem; }
+  .assessment-reveal-shell .assessment-imagery-status p:nth-child(2) {
+    margin-top: 0.2rem;
+    font-size: 0.6rem;
+    line-height: 0.9rem;
+  }
+
+  .assessment-reveal-copy {
+    min-height: 0;
+    justify-content: center;
+    padding: clamp(0.7rem, 2.4vh, 1.3rem) 0.8rem;
+  }
+
+  .assessment-reveal-copy .assessment-confirmation-summary { gap: clamp(0.2rem, 0.7vh, 0.45rem); }
+  .assessment-reveal-copy .assessment-context-kicker {
+    margin-bottom: 0;
+    font-size: clamp(0.52rem, 1.35vh, 0.65rem);
+    line-height: 0.8rem;
+    letter-spacing: 0.14em;
+  }
+
+  .assessment-reveal-copy .assessment-display {
+    font-size: clamp(2.05rem, 7.2vh, 3.2rem);
+    line-height: 0.86;
+  }
+
+  .assessment-confirmation-summary > p:last-child {
+    font-size: clamp(0.72rem, 1.9vh, 0.92rem);
+    line-height: 1.15rem;
+  }
+
+  .assessment-reveal-intro {
+    margin-top: clamp(0.3rem, 0.9vh, 0.55rem);
+    font-size: clamp(0.66rem, 1.65vh, 0.78rem);
+    line-height: clamp(0.95rem, 2.35vh, 1.2rem);
+  }
+
+  .assessment-reveal-next {
+    margin-top: clamp(0.35rem, 1vh, 0.65rem);
+    padding-block: clamp(0.3rem, 0.9vh, 0.55rem);
+  }
+
+  .assessment-reveal-next > p {
+    font-size: clamp(0.62rem, 1.55vh, 0.75rem);
+    line-height: clamp(0.88rem, 2.1vh, 1.1rem);
+  }
+
+  .assessment-reveal-next > p + p { margin-top: 0.1rem; }
+
+  .assessment-reveal-copy .assessment-primary-action {
+    min-height: 2.75rem;
+    margin-top: clamp(0.4rem, 1.15vh, 0.75rem);
+    padding: 0.55rem 0.8rem;
+    font-size: 0.7rem;
+  }
 
   .assessment-question-shell {
     height: 100svh;
@@ -387,7 +616,6 @@
   }
 
   .assessment-display { text-wrap: pretty; }
-  .assessment-reveal-visual { min-height: 17rem; }
 
   .assessment-question-actions {
     flex: 0 0 auto;
@@ -396,6 +624,10 @@
   }
 
   .assessment-question-actions .assessment-primary-action { min-height: 3.25rem; }
+}
+
+@media (max-width: 1100px) {
+  .assessment-package-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 640px) and (max-height: 700px) {
@@ -454,6 +686,37 @@
 }
 
 @media (min-width: 641px) and (max-width: 1023px) {
+  .assessment-reveal-frame {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .assessment-reveal-shell .assessment-nav { flex: 0 0 auto; }
+
+  .assessment-reveal-stage {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    margin: 0;
+    padding-block: 1.5rem 0;
+  }
+
+  .assessment-reveal-card {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    grid-template-columns: minmax(0, 1fr) minmax(20rem, 0.9fr);
+  }
+
+  .assessment-reveal-visual { min-height: 0; }
+
+  .assessment-reveal-copy {
+    min-height: 0;
+    border-top: 0;
+    border-left: 1px solid rgb(226 232 240);
+    padding: clamp(1.5rem, 3.5vw, 2.25rem);
+  }
+
   .assessment-question-aside {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
