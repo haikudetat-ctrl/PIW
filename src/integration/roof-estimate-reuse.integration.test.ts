@@ -6,6 +6,10 @@ import {
   SupabaseRoofEstimateWorkerRepository,
 } from "@/inngest/functions/roof-estimate-worker";
 import type { Database } from "@/lib/database.types";
+import {
+  seedActiveRoofPricingRateCard,
+  seedRoofEstimatePackageSnapshot,
+} from "@/integration/support/roof-pricing-fixture";
 
 const runIntegration = process.env.RUN_SUPABASE_INTEGRATION === "1";
 
@@ -94,11 +98,11 @@ describe.runIf(runIntegration)("property-level roof quote reuse", () => {
           status: "ready",
           total_roof_sqft: 3_100,
           roof_squares: 31,
-          price_per_square_low_cents: 50_000,
-          price_per_square_high_cents: 75_000,
-          range_low_cents: 1_550_000,
-          range_high_cents: 2_325_000,
-          pricing_version: "nj-asphalt-v1",
+          price_per_square_low_cents: 95_000,
+          price_per_square_high_cents: 120_000,
+          range_low_cents: 2_945_000,
+          range_high_cents: 3_720_000,
+          pricing_version: "integration-pricing-v1",
           assumptions: { market: "New Jersey average" },
         },
         {
@@ -107,12 +111,19 @@ describe.runIf(runIntegration)("property-level roof quote reuse", () => {
           lead_id: duplicateLeadId,
           property_id: propertyId,
           status: "pending",
-          price_per_square_low_cents: 50_000,
-          price_per_square_high_cents: 75_000,
-          pricing_version: "nj-asphalt-v1",
+          price_per_square_low_cents: 95_000,
+          price_per_square_high_cents: 120_000,
+          pricing_version: "integration-pricing-v1",
           assumptions: {},
         },
       ]));
+      const rateCardId = await seedActiveRoofPricingRateCard(client, companyId);
+      await seedRoofEstimatePackageSnapshot(client, {
+        companyId,
+        estimateId: originalEstimateId,
+        rateCardId,
+        roofSquares: 31,
+      });
 
       const result = await runRoofEstimate(
         {
@@ -142,8 +153,8 @@ describe.runIf(runIntegration)("property-level roof quote reuse", () => {
       );
       expect(duplicate).toEqual({
         status: "ready",
-        range_low_cents: 1_550_000,
-        range_high_cents: 2_325_000,
+        range_low_cents: 2_945_000,
+        range_high_cents: 3_720_000,
         reused_from_estimate_id: originalEstimateId,
       });
 

@@ -35,6 +35,7 @@ import {
   sendQueuedContextDialers,
   SupabaseContextDialerSlackRepository,
 } from "@/inngest/functions/context-dialer-slack-sender";
+import {seedActiveRoofPricingRateCard} from "@/integration/support/roof-pricing-fixture";
 
 const runIntegration = process.env.RUN_SUPABASE_INTEGRATION === "1";
 
@@ -138,6 +139,7 @@ describe.runIf(runIntegration)("canonical assessment journey", () => {
     };
 
     await requireRpc(service.from("companies").insert({id: companyId, name: "Canonical journey integration"}));
+    await seedActiveRoofPricingRateCard(service, companyId);
 
     const firstSubmissionId = crypto.randomUUID();
     await expect(start(firstSubmissionId)).resolves.toEqual({
