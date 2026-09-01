@@ -27,13 +27,17 @@ function request(body: unknown, cookie = "_fbp=fb.1.100.200; _fbc=fb.1.100.click
   });
 }
 
+function acceptedResponse() {
+  return Response.json({accepted: true, metaEvent: null}, {status: 202});
+}
+
 describe("lead intake proxy", () => {
   test("forwards verified consent only in the server-to-server consent header", async () => {
     const token = signWebsiteConsent(privacyConsent, privacySigningSecret);
     const forward = vi.fn<(
       payload: Record<string, unknown>,
       options?: {consentToken: string},
-    ) => Promise<Response>>().mockResolvedValue(new Response(null, {status: 202}));
+    ) => Promise<Response>>().mockResolvedValue(acceptedResponse());
 
     const response = await handleIntakeRequest(
       request({
@@ -56,7 +60,7 @@ describe("lead intake proxy", () => {
   });
 
   test("captures Meta attribution and forwards a normalized lead", async () => {
-    const forward = vi.fn(async () => new Response(null, {status: 200}));
+    const forward = vi.fn(async () => acceptedResponse());
     const response = await handleIntakeRequest(
       request({
         submission_id: "11111111-1111-4111-8111-111111111111",
@@ -114,6 +118,27 @@ describe("lead intake proxy", () => {
         eventId: "33333333-3333-4333-8333-333333333333",
         issuedAt: "2026-09-01T16:01:00.000Z",
       },
+    });
+  });
+
+  test("rejects an empty successful upstream response", async () => {
+    const response = await handleIntakeRequest(
+      request({
+        submission_id: "11111111-1111-4111-8111-111111111111",
+        name: "Alex Rivera",
+        email: "alex@example.com",
+        phone: "201-555-0100",
+        address: "1 Main St, Newark, NJ",
+        project_interest: "roofing",
+        consent_to_contact: true,
+        consent_to_process_property: true,
+      }),
+      async () => new Response(null, {status: 202}),
+    );
+
+    expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toEqual({
+      error: "Lead intake is temporarily unavailable",
     });
   });
 
@@ -182,7 +207,7 @@ describe("lead intake proxy", () => {
     process.env.INTAKE_WEBHOOK_SHARED_SECRET = "shared-secret";
     process.env.PRIVACY_CONSENT_SIGNING_SECRET = privacySigningSecret;
     const consentToken = signWebsiteConsent(privacyConsent, privacySigningSecret);
-    const fetch = vi.fn(async () => new Response(null, {status: 202}));
+    const fetch = vi.fn(async () => acceptedResponse());
     vi.stubGlobal("fetch", fetch);
 
     const response = await POST(request({

@@ -25,7 +25,7 @@ const acceptedResponseSchema = z.strictObject({
   accepted: z.literal(true),
   leadId: z.uuid().optional(),
   duplicate: z.boolean().optional(),
-  metaEvent: leadMetaEventSchema.nullable().optional(),
+  metaEvent: leadMetaEventSchema.nullable(),
 });
 
 type ForwardLead = (
@@ -65,16 +65,16 @@ export async function handleIntakeRequest(
     return NextResponse.json({error: "Lead intake is temporarily unavailable"}, {status: 502});
   }
 
-  const body = await upstream.json().catch(() => null);
-  if (body === null) return NextResponse.json({accepted: true, metaEvent: null}, {status: 202});
-  const accepted = acceptedResponseSchema.safeParse(body);
+  const accepted = acceptedResponseSchema.safeParse(
+    await upstream.json().catch(() => null),
+  );
   if (!accepted.success) {
     return NextResponse.json({error: "Lead intake is temporarily unavailable"}, {status: 502});
   }
 
   return NextResponse.json({
     accepted: true,
-    metaEvent: accepted.data.metaEvent ?? null,
+    metaEvent: accepted.data.metaEvent,
   }, {status: 202});
 }
 
