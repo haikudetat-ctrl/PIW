@@ -1,10 +1,21 @@
 import {NextRequest} from "next/server";
 import {afterEach, describe, expect, test, vi} from "vitest";
+import {signWebsiteConsent} from "../../../lib/privacy-consent";
 import {handleIntakeRequest, POST} from "./route";
+
+const privacySigningSecret = "0123456789abcdef0123456789abcdef";
+const privacyConsent = {
+  policyVersion: "piw-privacy-v1" as const,
+  consentId: "22222222-2222-4222-8222-222222222222",
+  preferences: {necessary: true as const, analytics: false, advertising: true},
+  gpcDetected: false,
+  updatedAt: "2026-09-01T16:00:00.000Z",
+};
 
 afterEach(() => {
   delete process.env.INTAKE_WEBHOOK_URL;
   delete process.env.INTAKE_WEBHOOK_SHARED_SECRET;
+  delete process.env.PRIVACY_CONSENT_SIGNING_SECRET;
   vi.unstubAllGlobals();
 });
 
@@ -17,6 +28,33 @@ function request(body: unknown, cookie = "_fbp=fb.1.100.200; _fbc=fb.1.100.click
 }
 
 describe("lead intake proxy", () => {
+  test("forwards verified consent only in the server-to-server consent header", async () => {
+    const token = signWebsiteConsent(privacyConsent, privacySigningSecret);
+    const forward = vi.fn<(
+      payload: Record<string, unknown>,
+      options?: {consentToken: string},
+    ) => Promise<Response>>().mockResolvedValue(new Response(null, {status: 202}));
+
+    const response = await handleIntakeRequest(
+      request({
+        submission_id: "11111111-1111-4111-8111-111111111111",
+        name: "Alex Rivera",
+        email: "alex@example.com",
+        phone: "201-555-0100",
+        address: "1 Main St, Newark, NJ",
+        project_interest: "roofing",
+        consent_to_contact: true,
+        consent_to_process_property: true,
+      }, `_fbp=fb.1.100.200; piw_privacy=${token}`),
+      forward,
+      privacySigningSecret,
+    );
+
+    expect(response.status).toBe(202);
+    expect(forward).toHaveBeenCalledWith(expect.anything(), {consentToken: token});
+    expect(forward.mock.calls[0]?.[0]).not.toHaveProperty("privacyConsent");
+  });
+
   test("captures Meta attribution and forwards a normalized lead", async () => {
     const forward = vi.fn(async () => new Response(null, {status: 200}));
     const response = await handleIntakeRequest(
@@ -107,6 +145,8 @@ describe("lead intake proxy", () => {
   test("authenticates the server-to-server request with the All Season header", async () => {
     process.env.INTAKE_WEBHOOK_URL = "https://piw.example/api/integrations/all-season/intake";
     process.env.INTAKE_WEBHOOK_SHARED_SECRET = "shared-secret";
+    process.env.PRIVACY_CONSENT_SIGNING_SECRET = privacySigningSecret;
+    const consentToken = signWebsiteConsent(privacyConsent, privacySigningSecret);
     const fetch = vi.fn(async () => new Response(null, {status: 202}));
     vi.stubGlobal("fetch", fetch);
 
@@ -119,7 +159,7 @@ describe("lead intake proxy", () => {
       project_interest: "both",
       consent_to_contact: true,
       consent_to_process_property: true,
-    }));
+    }, `piw_privacy=${consentToken}`));
 
     expect(response.status).toBe(202);
     expect(fetch).toHaveBeenCalledWith(
@@ -127,6 +167,7 @@ describe("lead intake proxy", () => {
       expect.objectContaining({
         headers: expect.objectContaining({
           "x-all-season-intake-secret": "shared-secret",
+          "x-piw-privacy-consent": consentToken,
         }),
       }),
     );

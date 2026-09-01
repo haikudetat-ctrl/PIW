@@ -1,15 +1,25 @@
 import {NextRequest} from "next/server";
 import {afterEach, describe, expect, test, vi} from "vitest";
 import {allSeasonCampaignEstimateSchema} from "../../../../../src/app/api/integrations/all-season/campaign-estimate/schema";
+import {signWebsiteConsent} from "../../../lib/privacy-consent";
 import {handleCampaignEstimateRequest, POST} from "./route";
 
 const submissionId = "11111111-1111-4111-8111-111111111111";
 const publicAppUrl = "https://piw.example/";
+const privacySigningSecret = "0123456789abcdef0123456789abcdef";
+const privacyConsent = {
+  policyVersion: "piw-privacy-v1" as const,
+  consentId: "22222222-2222-4222-8222-222222222222",
+  preferences: {necessary: true as const, analytics: false, advertising: true},
+  gpcDetected: false,
+  updatedAt: "2026-09-01T16:00:00.000Z",
+};
 
 afterEach(() => {
   delete process.env.CAMPAIGN_ESTIMATE_WEBHOOK_URL;
   delete process.env.INTAKE_WEBHOOK_SHARED_SECRET;
   delete process.env.PIW_PUBLIC_APP_URL;
+  delete process.env.PRIVACY_CONSENT_SIGNING_SECRET;
   vi.unstubAllGlobals();
 });
 
@@ -64,6 +74,50 @@ function googleSubmission(overrides: Record<string, unknown> = {}) {
 }
 
 describe("campaign estimate proxy", () => {
+  test("forwards consent and places only the signed handoff on the redirect", async () => {
+    const consentToken = signWebsiteConsent(privacyConsent, privacySigningSecret);
+    const forward = vi.fn(async () => Response.json({
+      accepted: true,
+      continuationPath: "/roof-estimate/continue/signed-continuation-value",
+    }, {status: 202}));
+
+    const response = await handleCampaignEstimateRequest(
+      request(googleSubmission(), `_fbp=fb.1.100.200; piw_privacy=${consentToken}`),
+      forward,
+      publicAppUrl,
+      "production",
+      privacySigningSecret,
+      () => new Date("2026-09-01T16:00:00.000Z"),
+    );
+
+    expect(forward).toHaveBeenCalledWith(expect.anything(), {consentToken});
+    const body = await response.json() as {estimateUrl: string};
+    const url = new URL(body.estimateUrl);
+    expect(url.searchParams.get("privacy_handoff")).toEqual(expect.any(String));
+    expect(url.search).not.toContain("advertising=true");
+    expect(url.searchParams.size).toBe(1);
+  });
+
+  test("omits consent forwarding and handoff for an invalid cookie", async () => {
+    const forward = vi.fn(async () => Response.json({
+      accepted: true,
+      continuationPath: "/roof-estimate/continue/safe-token",
+    }, {status: 202}));
+
+    const response = await handleCampaignEstimateRequest(
+      request(googleSubmission(), "piw_privacy=invalid"),
+      forward,
+      publicAppUrl,
+      "production",
+      privacySigningSecret,
+    );
+
+    expect(forward).toHaveBeenCalledOnce();
+    expect(forward.mock.calls[0]).toHaveLength(1);
+    const body = await response.json() as {estimateUrl: string};
+    expect(new URL(body.estimateUrl).search).toBe("");
+  });
+
   test("forwards a Google-normalized campaign lead with attribution and returns the PIW result URL", async () => {
     let forwarded: Record<string, unknown> | undefined;
     const response = await handleCampaignEstimateRequest(
@@ -315,10 +369,12 @@ describe("campaign estimate proxy", () => {
     process.env.CAMPAIGN_ESTIMATE_WEBHOOK_URL = "https://piw-internal.example/api/integrations/all-season/campaign-estimate";
     process.env.INTAKE_WEBHOOK_SHARED_SECRET = "shared-secret";
     process.env.PIW_PUBLIC_APP_URL = publicAppUrl;
+    process.env.PRIVACY_CONSENT_SIGNING_SECRET = privacySigningSecret;
+    const consentToken = signWebsiteConsent(privacyConsent, privacySigningSecret);
     const fetch = vi.fn(async () => Response.json({accepted: true, continuationPath: "/roof-estimate/continue/safe_token"}, {status: 202}));
     vi.stubGlobal("fetch", fetch);
 
-    const response = await POST(request(googleSubmission()));
+    const response = await POST(request(googleSubmission(), `piw_privacy=${consentToken}`));
 
     expect(response.status).toBe(202);
     expect(fetch).toHaveBeenCalledWith(
@@ -328,6 +384,7 @@ describe("campaign estimate proxy", () => {
         headers: {
           "content-type": "application/json",
           "x-all-season-intake-secret": "shared-secret",
+          "x-piw-privacy-consent": consentToken,
         },
         cache: "no-store",
       }),

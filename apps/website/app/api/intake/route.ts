@@ -1,5 +1,6 @@
 import {NextRequest, NextResponse} from "next/server";
 import {z} from "zod";
+import {PRIVACY_COOKIE_NAME, readWebsiteConsent} from "../../../lib/privacy-consent";
 
 const leadSchema = z.object({
   submission_id: z.uuid(),
@@ -14,9 +15,16 @@ const leadSchema = z.object({
   fbclid: z.string().trim().max(500).nullish(),
 });
 
-type ForwardLead = (payload: Record<string, unknown>) => Promise<Response>;
+type ForwardLead = (
+  payload: Record<string, unknown>,
+  options?: {consentToken: string},
+) => Promise<Response>;
 
-export async function handleIntakeRequest(request: NextRequest, forward: ForwardLead) {
+export async function handleIntakeRequest(
+  request: NextRequest,
+  forward: ForwardLead,
+  privacySigningSecret = process.env.PRIVACY_CONSENT_SIGNING_SECRET,
+) {
   const parsed = leadSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({error: "Invalid lead submission"}, {status: 400});
@@ -33,7 +41,13 @@ export async function handleIntakeRequest(request: NextRequest, forward: Forward
     submittedAt: new Date().toISOString(),
   };
 
-  const upstream = await forward(payload).catch(() => null);
+  const consentToken = request.cookies.get(PRIVACY_COOKIE_NAME)?.value;
+  const verifiedConsent = privacySigningSecret
+    ? readWebsiteConsent(consentToken, privacySigningSecret)
+    : null;
+  const upstream = await (verifiedConsent && consentToken
+    ? forward(payload, {consentToken})
+    : forward(payload)).catch(() => null);
   if (!upstream?.ok) {
     return NextResponse.json({error: "Lead intake is temporarily unavailable"}, {status: 502});
   }
@@ -47,13 +61,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({error: "Lead intake is not configured"}, {status: 503});
   }
 
-  return handleIntakeRequest(request, (payload) =>
+  return handleIntakeRequest(request, (payload, options) =>
     fetch(webhookUrl, {
       method: "POST",
       headers: {
         "content-type": "application/json",
         ...(process.env.INTAKE_WEBHOOK_SHARED_SECRET
           ? {"x-all-season-intake-secret": process.env.INTAKE_WEBHOOK_SHARED_SECRET}
+          : {}),
+        ...(options?.consentToken
+          ? {"x-piw-privacy-consent": options.consentToken}
           : {}),
       },
       body: JSON.stringify(payload),

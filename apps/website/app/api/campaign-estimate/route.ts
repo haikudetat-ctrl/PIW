@@ -1,5 +1,10 @@
 import {NextRequest, NextResponse} from "next/server";
 import {z} from "zod";
+import {
+  createConsentHandoff,
+  PRIVACY_COOKIE_NAME,
+  readWebsiteConsent,
+} from "../../../lib/privacy-consent";
 import {campaignSlugs} from "../../campaigns/campaigns";
 
 const optionalAttribution = z.string().trim().max(500).nullish();
@@ -71,7 +76,10 @@ const acceptedResponseSchema = z.strictObject({
   continuationPath: z.string().regex(/^\/roof-estimate\/continue\/[A-Za-z0-9_-]+$/),
 });
 
-type ForwardEstimate = (payload: Record<string, unknown>) => Promise<Response>;
+type ForwardEstimate = (
+  payload: Record<string, unknown>,
+  options?: {consentToken: string},
+) => Promise<Response>;
 
 function nullable(value: string | null | undefined) {
   return value || null;
@@ -124,6 +132,8 @@ export async function handleCampaignEstimateRequest(
   forward: ForwardEstimate,
   publicAppUrl: string,
   nodeEnv: "development" | "test" | "production" = "development",
+  privacySigningSecret = process.env.PRIVACY_CONSENT_SIGNING_SECRET,
+  now: () => Date = () => new Date(),
 ) {
   const parsed = campaignEstimateSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
@@ -180,7 +190,13 @@ export async function handleCampaignEstimateRequest(
     submittedAt: new Date().toISOString(),
   };
 
-  const upstream = await forward(payload).catch(() => null);
+  const consentToken = request.cookies.get(PRIVACY_COOKIE_NAME)?.value;
+  const verifiedConsent = privacySigningSecret
+    ? readWebsiteConsent(consentToken, privacySigningSecret)
+    : null;
+  const upstream = await (verifiedConsent && consentToken
+    ? forward(payload, {consentToken})
+    : forward(payload)).catch(() => null);
   if (!upstream) {
     return noStoreJson({error: "Estimate intake is temporarily unavailable"}, 502);
   }
@@ -201,14 +217,28 @@ export async function handleCampaignEstimateRequest(
   }
 
   const accepted = acceptedResponseSchema.safeParse(await jsonObject(upstream));
-  const estimateUrl = accepted.success
-    ? new URL(accepted.data.continuationPath, `${origin}/`).toString()
-    : null;
-  if (!estimateUrl) {
+  if (!accepted.success) {
     return noStoreJson({error: "Estimate intake is temporarily unavailable"}, 502);
   }
+  const continuationPath = accepted.data.continuationPath;
+  const estimateUrl = new URL(continuationPath, `${origin}/`);
 
-  return noStoreJson({accepted: true, estimateUrl}, 202);
+  if (verifiedConsent && privacySigningSecret) {
+    const continuation = continuationPath.slice(
+      "/roof-estimate/continue/".length,
+    );
+    const privacyHandoff = await createConsentHandoff({
+      consentId: verifiedConsent.consentId,
+      policyVersion: verifiedConsent.policyVersion,
+      analytics: verifiedConsent.preferences.analytics,
+      advertising: verifiedConsent.preferences.advertising,
+      gpc: verifiedConsent.gpcDetected,
+      issuedAt: now().toISOString(),
+    }, continuation, privacySigningSecret);
+    estimateUrl.searchParams.set("privacy_handoff", privacyHandoff);
+  }
+
+  return noStoreJson({accepted: true, estimateUrl: estimateUrl.toString()}, 202);
 }
 
 export async function POST(request: NextRequest) {
@@ -221,11 +251,14 @@ export async function POST(request: NextRequest) {
 
   return handleCampaignEstimateRequest(
     request,
-    (payload) => fetch(webhookUrl, {
+    (payload, options) => fetch(webhookUrl, {
       method: "POST",
       headers: {
         "content-type": "application/json",
         "x-all-season-intake-secret": sharedSecret,
+        ...(options?.consentToken
+          ? {"x-piw-privacy-consent": options.consentToken}
+          : {}),
       },
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(8000),
