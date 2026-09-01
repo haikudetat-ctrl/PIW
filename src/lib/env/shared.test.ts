@@ -25,6 +25,62 @@ describe("parseServerEnv", () => {
     expect(environment.JOBNIMBUS_PAGE_LIMIT).toBe(50);
     expect(environment.JOBNIMBUS_MAX_PAGES).toBe(1);
     expect(environment.COST_MONTHLY_BUDGET_USD).toBe(1500);
+    expect(environment.META_TRACKING_ENABLED).toBe(false);
+  });
+
+  test("Meta tracking fails closed until matching server and public configuration is complete", () => {
+    expect(() => parseServerEnv({ ...base, META_TRACKING_ENABLED: "true" }))
+      .toThrow("Meta Pixel ID is required when Meta tracking is enabled");
+
+    const configured = {
+      ...base,
+      META_TRACKING_ENABLED: "true",
+      META_PIXEL_ID: "3142520615938086",
+      NEXT_PUBLIC_META_PIXEL_ID: "3142520615938086",
+      META_CAPI_ACCESS_TOKEN: "private-token",
+      META_GRAPH_API_VERSION: "v26.0",
+    };
+    expect(parseServerEnv(configured)).toMatchObject({
+      META_TRACKING_ENABLED: true,
+      META_PIXEL_ID: "3142520615938086",
+      NEXT_PUBLIC_META_PIXEL_ID: "3142520615938086",
+      META_GRAPH_API_VERSION: "v26.0",
+    });
+    expect(() => parseServerEnv({
+      ...configured,
+      NEXT_PUBLIC_META_PIXEL_ID: "9999999999999999",
+    })).toThrow("Meta Pixel IDs must match");
+    expect(() => parseServerEnv({
+      ...configured,
+      META_GRAPH_API_VERSION: "latest",
+    })).toThrow();
+  });
+
+  test("permits a Meta Test Events code only outside production", () => {
+    const configured = {
+      ...base,
+      META_TRACKING_ENABLED: "true",
+      META_PIXEL_ID: "3142520615938086",
+      NEXT_PUBLIC_META_PIXEL_ID: "3142520615938086",
+      META_CAPI_ACCESS_TOKEN: "private-token",
+      META_GRAPH_API_VERSION: "v26.0",
+      META_TEST_EVENT_CODE: "TEST123",
+    };
+
+    expect(parseServerEnv(configured).META_TEST_EVENT_CODE).toBe("TEST123");
+    expect(() => parseServerEnv({
+      ...configured,
+      NODE_ENV: "production",
+      DEPLOYMENT_ENV: "production",
+      PRIVACY_CONSENT_SIGNING_SECRET: "a".repeat(32),
+    })).toThrow("Meta Test Events code is not permitted in production");
+  });
+
+  test("treats a blank optional Meta Graph API version as unset while disabled", () => {
+    expect(parseServerEnv({
+      ...base,
+      META_GRAPH_API_VERSION: "",
+    }).META_GRAPH_API_VERSION).toBeUndefined();
   });
 
   test("defaults both LeadConduit receivers to disabled", () => {
@@ -256,12 +312,17 @@ describe("parseClientEnv", () => {
     expect(
       parseClientEnv({
         ...base,
+        META_TRACKING_ENABLED: "true",
+        NEXT_PUBLIC_META_PIXEL_ID: "3142520615938086",
+        META_CAPI_ACCESS_TOKEN: "must-not-reach-client-code",
         SUPABASE_SERVICE_ROLE_KEY: "must-not-reach-client-code",
       }),
     ).toEqual({
       DEPLOYMENT_ENV: "test",
       NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321",
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "local-publishable-key",
+      META_TRACKING_ENABLED: true,
+      NEXT_PUBLIC_META_PIXEL_ID: "3142520615938086",
     });
   });
 });

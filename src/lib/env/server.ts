@@ -4,6 +4,10 @@ import { LEADCONDUIT_RECEIPT_FLOW_IDS } from "@/modules/access-route/leadconduit
 import { booleanString, deploymentEnvironmentSchema } from "./shared";
 
 const optionalString = z.preprocess((value) => value === "" ? undefined : value, z.string().min(1).optional());
+const optionalGraphApiVersion = z.preprocess(
+  (value) => value === "" ? undefined : value,
+  z.string().regex(/^v\d+\.\d+$/).optional(),
+);
 const optionalUrl = z.preprocess((value) => value === "" ? undefined : value, z.url().optional());
 const optionalUuid = z.preprocess((value) => value === "" ? undefined : value, z.uuid().optional());
 const optionalIsoDatetime = z.preprocess((value) => value === "" ? undefined : value, z.iso.datetime().optional());
@@ -31,6 +35,12 @@ const serverEnvSchema = z
     SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
     INNGEST_EVENT_KEY: z.string().min(1),
     INNGEST_SIGNING_KEY: z.string().min(1),
+    META_TRACKING_ENABLED: booleanString,
+    META_PIXEL_ID: optionalString,
+    META_CAPI_ACCESS_TOKEN: optionalString,
+    META_GRAPH_API_VERSION: optionalGraphApiVersion,
+    META_TEST_EVENT_CODE: optionalString,
+    NEXT_PUBLIC_META_PIXEL_ID: optionalString,
     PAID_PROVIDERS_ENABLED: booleanString,
     ROOF_ASSESSMENT_ENABLED: booleanString,
     ROOF_ASSESSMENT_PROPERTY_PREFETCH_ENABLED: booleanString,
@@ -96,6 +106,56 @@ const serverEnvSchema = z
     COST_RESOURCE_MAP_JSON: optionalString,
   })
   .superRefine((value, context) => {
+    if (value.META_TRACKING_ENABLED && !value.META_PIXEL_ID) {
+      context.addIssue({
+        code: "custom",
+        path: ["META_PIXEL_ID"],
+        message: "Meta Pixel ID is required when Meta tracking is enabled",
+      });
+    }
+    if (value.META_TRACKING_ENABLED && !value.META_CAPI_ACCESS_TOKEN) {
+      context.addIssue({
+        code: "custom",
+        path: ["META_CAPI_ACCESS_TOKEN"],
+        message: "Meta CAPI access token is required when Meta tracking is enabled",
+      });
+    }
+    if (value.META_TRACKING_ENABLED && !value.META_GRAPH_API_VERSION) {
+      context.addIssue({
+        code: "custom",
+        path: ["META_GRAPH_API_VERSION"],
+        message: "Meta Graph API version is required when Meta tracking is enabled",
+      });
+    }
+    if (value.META_TRACKING_ENABLED && !value.NEXT_PUBLIC_META_PIXEL_ID) {
+      context.addIssue({
+        code: "custom",
+        path: ["NEXT_PUBLIC_META_PIXEL_ID"],
+        message: "Public Meta Pixel ID is required when Meta tracking is enabled",
+      });
+    }
+    if (
+      value.META_TRACKING_ENABLED
+      && value.META_PIXEL_ID
+      && value.NEXT_PUBLIC_META_PIXEL_ID
+      && value.META_PIXEL_ID !== value.NEXT_PUBLIC_META_PIXEL_ID
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["NEXT_PUBLIC_META_PIXEL_ID"],
+        message: "Meta Pixel IDs must match",
+      });
+    }
+    if (
+      value.META_TEST_EVENT_CODE
+      && (value.NODE_ENV === "production" || value.DEPLOYMENT_ENV === "production")
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["META_TEST_EVENT_CODE"],
+        message: "Meta Test Events code is not permitted in production",
+      });
+    }
     if (
       value.PAID_PROVIDERS_ENABLED &&
       ["preview", "test"].includes(value.DEPLOYMENT_ENV)
