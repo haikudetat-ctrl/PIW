@@ -103,7 +103,7 @@ describe("token-scoped result view route", () => {
     ["pending", false, true],
     ["failed", true, true],
     ["untrusted", true, false],
-  ] as const)("%s pricing acknowledges the result without a Meta event", async (calculationStatus, hasTrustedMeasurement, hasTrustedPricingPackages) => {
+  ] as const)("%s pricing neither acknowledges nor reserves a result", async (calculationStatus, hasTrustedMeasurement, hasTrustedPricingPackages) => {
     const repository = repo();
     repository.findCompletedByToken = vi.fn(async () => ({
       companyId: "22222222-2222-4222-8222-222222222222",
@@ -126,7 +126,9 @@ describe("token-scoped result view route", () => {
       renderedReadyPackageQuote: true,
     });
 
-    await expect(response.json()).resolves.toEqual({resultViewed: true, metaEvent: null});
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({error: "Assessment quote is not ready"});
+    expect(repository.markResultViewed).not.toHaveBeenCalled();
     expect(reserveAssessment).not.toHaveBeenCalled();
   });
 

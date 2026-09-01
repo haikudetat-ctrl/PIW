@@ -26,7 +26,7 @@ export type AssessmentResultRepository = {
 };
 
 export class AssessmentResultAccessError extends Error {
-  constructor(message: string, readonly status: 400 | 404 | 429 | 503) { super(message); }
+  constructor(message: string, readonly status: 400 | 404 | 409 | 429 | 503) { super(message); }
 }
 
 export class ConsultationRateLimitError extends Error {}
@@ -136,6 +136,9 @@ export async function requestRoofConsultation(token: string, input: unknown, req
 
 export async function markRoofAssessmentResultViewed(token: string, repository: AssessmentResultRepository) {
   const context = await resolveCompleted(token, repository);
+  if (!isTrustedCompletedQuote(context)) {
+    throw new AssessmentResultAccessError("Assessment quote is not ready", 409);
+  }
   try {
     const result = await repository.markResultViewed(context);
     return {resultViewed: true as const, resultViewedAt: result.resultViewedAt, context};
