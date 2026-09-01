@@ -8,6 +8,15 @@ import {describe, expect, test, vi} from "vitest";
 const runtime = readFileSync(path.join(__dirname, "privacy-runtime.js"), "utf8");
 const consentId = "11111111-1111-4111-8111-111111111111";
 
+type StaticMetaRuntime = {
+  trackConversion(value: unknown): void;
+  trackConversionBeforeNavigation(value: unknown): Promise<void>;
+};
+
+function metaRuntime(dom: JSDOM) {
+  return (dom.window as Window & {AllSeasonMeta?: StaticMetaRuntime}).AllSeasonMeta;
+}
+
 function verifiedConsent(advertising: boolean) {
   return {
     policyVersion: "piw-privacy-v1",
@@ -106,6 +115,78 @@ describe("static privacy runtime", () => {
     expect(fbq.mock.calls.filter((call) => call[1] === "Lead")).toHaveLength(1);
   });
 
+  test("waits for a pending verified consent read before emitting a server-issued Lead", async () => {
+    const dom = runtimeDom();
+    const fbq = vi.fn();
+    Object.defineProperty(dom.window, "fbq", {value: fbq, configurable: true});
+    let resolveStatus!: (response: Response) => void;
+    const pendingStatus = new Promise<Response>((resolve) => {
+      resolveStatus = resolve;
+    });
+    const fetch = vi.fn((url: string) => {
+      if (url === "/api/privacy/consent") return pendingStatus;
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    dom.window.fetch = fetch as typeof dom.window.fetch;
+
+    await boot(dom);
+    const runtimeApi = metaRuntime(dom);
+    if (!runtimeApi) throw new Error("Missing static Meta runtime");
+    const envelope = {
+      name: "Lead",
+      eventId: "44444444-4444-4444-8444-444444444444",
+      issuedAt: new Date().toISOString(),
+    };
+    const completed = runtimeApi.trackConversionBeforeNavigation(envelope);
+
+    expect(fbq.mock.calls.filter((call) => call[1] === "Lead")).toHaveLength(0);
+
+    resolveStatus(Response.json({consent: verifiedConsent(true)}));
+    await completed;
+
+    expect(fbq).toHaveBeenCalledWith("track", "Lead", {}, {eventID: envelope.eventId});
+  });
+
+  test("releases a waiting form without a Lead when consent readiness times out", async () => {
+    const dom = runtimeDom();
+    const fbq = vi.fn();
+    Object.defineProperty(dom.window, "fbq", {value: fbq, configurable: true});
+    const fetch = vi.fn(() => new Promise<Response>(() => {}));
+    dom.window.fetch = fetch as typeof dom.window.fetch;
+
+    await boot(dom);
+    const runtimeApi = metaRuntime(dom);
+    if (!runtimeApi) throw new Error("Missing static Meta runtime");
+
+    await runtimeApi.trackConversionBeforeNavigation({
+      name: "Lead",
+      eventId: "55555555-5555-4555-8555-555555555555",
+      issuedAt: new Date().toISOString(),
+    });
+
+    expect(fbq.mock.calls.filter((call) => call[1] === "Lead")).toHaveLength(0);
+  });
+
+  test("releases a waiting form without a Lead when consent readiness fails", async () => {
+    const dom = runtimeDom();
+    const fbq = vi.fn();
+    Object.defineProperty(dom.window, "fbq", {value: fbq, configurable: true});
+    const fetch = vi.fn(async () => new Response(null, {status: 503}));
+    dom.window.fetch = fetch as typeof dom.window.fetch;
+
+    await boot(dom);
+    const runtimeApi = metaRuntime(dom);
+    if (!runtimeApi) throw new Error("Missing static Meta runtime");
+
+    await runtimeApi.trackConversionBeforeNavigation({
+      name: "Lead",
+      eventId: "66666666-6666-4666-8666-666666666666",
+      issuedAt: new Date().toISOString(),
+    });
+
+    expect(fbq.mock.calls.filter((call) => call[1] === "Lead")).toHaveLength(0);
+  });
+
   test("keeps the saved privacy controls usable after accepting advertising", async () => {
     const dom = runtimeDom();
     const fbq = vi.fn();
@@ -143,6 +224,47 @@ describe("static privacy runtime", () => {
     expect(dialog?.parentElement?.dataset.allSeasonPrivacyModal).toBe("true");
     expect(readFileSync(path.join(__dirname, "privacy-runtime.css"), "utf8"))
       .toContain(".all-season-privacy-modal");
+  });
+
+  test("returns focus to the still-connected static trigger when the modal is canceled", async () => {
+    const dom = runtimeDom();
+    dom.window.fetch = vi.fn(async () => Response.json({consent: null})) as typeof dom.window.fetch;
+
+    await boot(dom);
+    const customize = (Array.from(dom.window.document.querySelectorAll("button")) as unknown as HTMLButtonElement[])
+      .find((button) => button.textContent === "Customize");
+    if (!customize) throw new Error("Missing Customize control");
+    customize.focus();
+    customize.dispatchEvent(new dom.window.MouseEvent("click", {bubbles: true}));
+    const cancel = (Array.from(dom.window.document.querySelectorAll("button")) as unknown as HTMLButtonElement[])
+      .find((button) => button.textContent === "Cancel");
+    cancel?.dispatchEvent(new dom.window.MouseEvent("click", {bubbles: true}));
+
+    expect(customize.isConnected).toBe(true);
+    expect(dom.window.document.activeElement).toBe(customize);
+  });
+
+  test("focuses the newly rendered static Privacy choices control after saving", async () => {
+    const dom = runtimeDom();
+    dom.window.fetch = vi.fn()
+      .mockResolvedValueOnce(Response.json({consent: null}))
+      .mockResolvedValueOnce(Response.json({consent: verifiedConsent(false)})) as typeof dom.window.fetch;
+
+    await boot(dom);
+    const customize = (Array.from(dom.window.document.querySelectorAll("button")) as unknown as HTMLButtonElement[])
+      .find((button) => button.textContent === "Customize");
+    customize?.dispatchEvent(new dom.window.MouseEvent("click", {bubbles: true}));
+    const save = (Array.from(dom.window.document.querySelectorAll("button")) as unknown as HTMLButtonElement[])
+      .find((button) => button.textContent === "Save preferences");
+    save?.dispatchEvent(new dom.window.MouseEvent("click", {bubbles: true}));
+
+    await vi.waitFor(() => {
+      const reopen = dom.window.document.querySelector<HTMLButtonElement>(
+        '[data-all-season-privacy-reopen]',
+      );
+      expect(reopen?.isConnected).toBe(true);
+      expect(dom.window.document.activeElement).toBe(reopen);
+    });
   });
 
   test("keeps an actionable modal open when saving privacy choices fails", async () => {

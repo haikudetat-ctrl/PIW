@@ -133,6 +133,22 @@ describe("website privacy consent", () => {
     expect(document.activeElement).toBe(customize);
   });
 
+  test("focuses the connected Privacy choices control after first-time customization is saved", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({consent: rejectedConsent})));
+    const container = await renderConsent(null);
+    const customize = button(container, "Customize");
+    customize.focus();
+
+    await click(customize);
+    await click(button(container, "Save preferences"));
+
+    await vi.waitFor(() => {
+      const reopen = container.querySelector<HTMLButtonElement>(".privacy-consent-reopen");
+      expect(reopen?.isConnected).toBe(true);
+      expect(document.activeElement).toBe(reopen);
+    });
+  });
+
   test("starts from server-verified consent without showing the first-visit banner", async () => {
     const container = await renderConsent(rejectedConsent, <Probe />);
 

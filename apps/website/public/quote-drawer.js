@@ -54,12 +54,16 @@
     return parser.parse(payload);
   }
 
-  function trackCanonicalMetaEvent(metaEvent) {
+  async function trackCanonicalMetaEvent(metaEvent) {
     if (!metaEvent) return;
     var tracker = window.AllSeasonMeta;
-    if (!tracker || typeof tracker.trackConversion !== 'function') return;
+    if (!tracker) return;
     try {
-      tracker.trackConversion(metaEvent);
+      if (typeof tracker.trackConversionBeforeNavigation === 'function') {
+        await tracker.trackConversionBeforeNavigation(metaEvent);
+      } else if (typeof tracker.trackConversion === 'function') {
+        tracker.trackConversion(metaEvent);
+      }
     } catch {
       // Meta is intentionally nonblocking for customer intake.
     }
@@ -291,7 +295,7 @@
         if (!response.ok || !estimate) throw new Error(String(response.status));
         try { window.localStorage.setItem(DISMISSED_KEY, String(Date.now())); } catch {}
         track('quote_form_success', {trigger: root.dataset.trigger});
-        trackCanonicalMetaEvent(estimate.metaEvent);
+        await trackCanonicalMetaEvent(estimate.metaEvent);
         window.location.assign(estimate.estimateUrl);
       } catch {
         status.textContent = 'We could not send this request. Call (888) 832-5050 or try again.';

@@ -4,6 +4,11 @@
   var META_SCRIPT_SELECTOR = 'script[data-all-season-meta-pixel="true"]';
   var MAX_EVENT_AGE_MS = 10 * 60 * 1000;
   var MAX_FUTURE_SKEW_MS = 30 * 1000;
+  var CONSENT_READY_TIMEOUT_MS = 500;
+  var resolveConsentReady;
+  var consentReady = new Promise(function (resolve) {
+    resolveConsentReady = resolve;
+  });
   var consentState = {
     consent: null,
     resolved: false,
@@ -119,7 +124,35 @@
     consentState.conversionIds.add(envelope.eventId);
   }
 
-  window.AllSeasonMeta = {trackConversion: trackConversion};
+  function waitForConsentReady() {
+    if (consentState.resolved) return Promise.resolve();
+    return Promise.race([
+      consentReady,
+      new Promise(function (resolve) {
+        window.setTimeout(resolve, CONSENT_READY_TIMEOUT_MS);
+      }),
+    ]);
+  }
+
+  function trackConversionBeforeNavigation(envelope) {
+    if (!metaConfig.enabled || !metaConfig.pixelId || !isCurrentEnvelope(envelope)) {
+      return Promise.resolve();
+    }
+    return waitForConsentReady().then(function () {
+      try {
+        trackConversion(envelope);
+      } catch {
+        // Meta is intentionally nonblocking for customer intake.
+      }
+    }, function () {
+      // A failed consent read is treated as denied and never blocks navigation.
+    });
+  }
+
+  window.AllSeasonMeta = {
+    trackConversion: trackConversion,
+    trackConversionBeforeNavigation: trackConversionBeforeNavigation,
+  };
 
   function element(tag, className, text) {
     var node = document.createElement(tag);
@@ -174,6 +207,7 @@
     actions.appendChild(button("Customize", openDialog, "all-season-privacy-button all-season-privacy-quiet"));
     banner.append(copy, actions);
     document.body.appendChild(banner);
+    return banner;
   }
 
   function showReopenButton() {
@@ -181,13 +215,23 @@
     node.dataset.allSeasonPrivacyReopen = "true";
     node.setAttribute("aria-label", "Open privacy choices");
     document.body.appendChild(node);
+    return node;
   }
 
   function renderConsentSurface() {
     clearConsentSurface();
-    if (!consentState.resolved) return;
-    if (consentState.consent) showReopenButton();
-    else showBanner();
+    if (!consentState.resolved) return null;
+    if (consentState.consent) return showReopenButton();
+    return showBanner();
+  }
+
+  function focusPrivacyChoices() {
+    var control = document.querySelector("[data-all-season-privacy-reopen]");
+    if (
+      control
+      && document.documentElement.contains(control)
+      && typeof control.focus === "function"
+    ) control.focus();
   }
 
   function focusableIn(dialog) {
@@ -196,24 +240,31 @@
     )).filter(function (node) { return !node.hidden; });
   }
 
-  function closeDialog() {
-    if (!consentState.dialog) return;
+  function closeDialog(options) {
+    if (!consentState.dialog) return null;
+    var restoreFocus = !options || options.restoreFocus !== false;
     var dialogState = consentState.dialog;
+    var previousFocus = consentState.previousFocus;
     consentState.dialog = null;
     document.removeEventListener("keydown", dialogState.onKeydown);
     document.documentElement.classList.remove("all-season-privacy-modal-open");
     dialogState.backdrop.remove();
-    if (consentState.previousFocus && typeof consentState.previousFocus.focus === "function") {
-      consentState.previousFocus.focus();
-    }
     consentState.previousFocus = null;
-    renderConsentSurface();
+    if (
+      restoreFocus
+      && previousFocus
+      && document.documentElement.contains(previousFocus)
+      && typeof previousFocus.focus === "function"
+    ) {
+      previousFocus.focus();
+    }
+    return previousFocus;
   }
 
-  function openDialog(preserveError) {
+  function openDialog(preserveError, previousFocus) {
     if (consentState.dialog) return;
     if (!preserveError) consentState.error = "";
-    consentState.previousFocus = document.activeElement;
+    consentState.previousFocus = previousFocus || document.activeElement;
 
     var backdrop = element("div", "all-season-privacy-modal");
     backdrop.dataset.allSeasonPrivacyModal = "true";
@@ -320,15 +371,16 @@
       consentState.consent = payload.consent;
       consentState.resolved = true;
       setSaving(false);
-      closeDialog();
+      closeDialog({restoreFocus: false});
       renderConsentSurface();
+      focusPrivacyChoices();
       trackPageView();
     } catch {
       setSaving(false);
       consentState.error = "We could not save your privacy choices. Please try again.";
       if (consentState.dialog) {
-        closeDialog();
-        openDialog(true);
+        var previousFocus = closeDialog({restoreFocus: false});
+        openDialog(true, previousFocus);
       } else {
         renderConsentSurface();
       }
@@ -353,6 +405,7 @@
       consentState.consent = null;
     }
     consentState.resolved = true;
+    resolveConsentReady();
     renderConsentSurface();
     trackPageView();
   }

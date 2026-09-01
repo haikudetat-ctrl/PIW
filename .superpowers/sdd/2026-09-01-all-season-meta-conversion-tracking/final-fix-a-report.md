@@ -33,3 +33,23 @@ The JSDOM form tests log its normal unsupported cross-document-navigation notice
 ## Integration note
 
 The static status endpoint and proxy gate both use the existing signed-consent verifier. Any final current-consent/GPC hardening must apply the same rule to those two paths so the static and App Router runtimes remain aligned.
+
+## Final-review round 1 corrections
+
+- Static lead forms now await a bounded, consent-readiness-aware tracker before navigating. A current server-verified Advertising grant emits the exact PIW-issued `Lead` envelope; denied, failed, timed-out, disabled, and unavailable-tracker paths resolve without Meta and do not block the customer transition.
+- Static dialog cancellation restores focus only to the still-connected trigger. A successful privacy save re-renders the consent surface first and then focuses its newly mounted `Privacy choices` control.
+- The React consent provider applies the same focus rule: cancel restores a connected opener, while a first-time Customize → Save transition focuses the mounted Privacy choices control instead of the removed banner action.
+
+### Round 1 regression coverage
+
+- Pending verified-consent read with a valid server-issued Lead emits once after a granted result.
+- Consent-read timeout and failure resolve the navigation-aware tracker with no Lead.
+- Embedded form and quote drawer use the navigation-aware exact-envelope tracker.
+- Static cancel/save focus and React first-time Customize → Save focus remain connected and deterministic.
+
+### Round 1 validation
+
+- `npm test` in `apps/website`: 20 files, 153 tests passed.
+- `npm run typecheck` in `apps/website`: passed.
+- `npm run lint` in `apps/website`: passed.
+- `npm run build` in `apps/website`: passed.

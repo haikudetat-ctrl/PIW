@@ -96,9 +96,9 @@ describe("embedded lead form", () => {
       eventId: "33333333-3333-4333-8333-333333333333",
       issuedAt: "2026-09-01T16:01:00.000Z",
     } as const;
-    const trackConversion = vi.fn();
+    const trackConversionBeforeNavigation = vi.fn(async () => {});
     Object.defineProperty(dom.window, "AllSeasonMeta", {
-      value: {trackConversion},
+      value: {trackConversionBeforeNavigation},
       configurable: true,
     });
     dom.window.fetch = vi.fn(async () => Response.json({
@@ -113,7 +113,7 @@ describe("embedded lead form", () => {
       new dom.window.Event("submit", {bubbles: true, cancelable: true}),
     );
 
-    await vi.waitFor(() => expect(trackConversion).toHaveBeenCalledWith(metaEvent));
+    await vi.waitFor(() => expect(trackConversionBeforeNavigation).toHaveBeenCalledWith(metaEvent));
   });
 
   test("rejects a malformed successful estimate envelope instead of inventing a Meta event", async () => {
@@ -122,9 +122,9 @@ describe("embedded lead form", () => {
       runScripts: "outside-only",
     });
     installBrowserGlobals(dom);
-    const trackConversion = vi.fn();
+    const trackConversionBeforeNavigation = vi.fn(async () => {});
     Object.defineProperty(dom.window, "AllSeasonMeta", {
-      value: {trackConversion},
+      value: {trackConversionBeforeNavigation},
       configurable: true,
     });
     dom.window.fetch = vi.fn(async () => Response.json({
@@ -145,7 +145,7 @@ describe("embedded lead form", () => {
 
     await vi.waitFor(() => expect(dom.window.document.querySelector('[data-submit-error]'))
       .not.toBeNull());
-    expect(trackConversion).not.toHaveBeenCalled();
+    expect(trackConversionBeforeNavigation).not.toHaveBeenCalled();
   });
 
   test.each([
@@ -379,14 +379,14 @@ describe("quote drawer", () => {
       eventId: "55555555-5555-4555-8555-555555555555",
       issuedAt: "2026-09-01T16:01:00.000Z",
     } as const;
-    const trackConversion = vi.fn();
+    const trackConversionBeforeNavigation = vi.fn(async () => {});
     Object.defineProperties(dom.window, {
       AllSeasonCanonicalEstimate: {
         value: {parse: (payload: unknown) => payload},
         configurable: true,
       },
       AllSeasonMeta: {
-        value: {trackConversion},
+        value: {trackConversionBeforeNavigation},
         configurable: true,
       },
     });
@@ -416,6 +416,6 @@ describe("quote drawer", () => {
 
     form.dispatchEvent(new dom.window.Event("submit", {bubbles: true, cancelable: true}));
 
-    await vi.waitFor(() => expect(trackConversion).toHaveBeenCalledWith(metaEvent));
+    await vi.waitFor(() => expect(trackConversionBeforeNavigation).toHaveBeenCalledWith(metaEvent));
   });
 });

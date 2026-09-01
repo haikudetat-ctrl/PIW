@@ -45,12 +45,16 @@
     return {estimateUrl: value.estimateUrl, metaEvent: null};
   }
 
-  function trackCanonicalMetaEvent(metaEvent) {
+  async function trackCanonicalMetaEvent(metaEvent) {
     if (!metaEvent) return;
     var tracker = window.AllSeasonMeta;
-    if (!tracker || typeof tracker.trackConversion !== "function") return;
+    if (!tracker) return;
     try {
-      tracker.trackConversion(metaEvent);
+      if (typeof tracker.trackConversionBeforeNavigation === "function") {
+        await tracker.trackConversionBeforeNavigation(metaEvent);
+      } else if (typeof tracker.trackConversion === "function") {
+        tracker.trackConversion(metaEvent);
+      }
     } catch {
       // Meta is intentionally nonblocking for customer intake.
     }
@@ -150,7 +154,7 @@
           var payload = await response.json().catch(function () { return {}; });
           var estimate = parseCanonicalEstimateResponse(payload);
           if (!response.ok || !estimate) throw new Error(String(response.status));
-          trackCanonicalMetaEvent(estimate.metaEvent);
+          await trackCanonicalMetaEvent(estimate.metaEvent);
           window.location.assign(estimate.estimateUrl);
         } catch {
           var message = form.querySelector("[data-submit-error]");

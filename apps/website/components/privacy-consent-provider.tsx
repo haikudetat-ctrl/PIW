@@ -82,6 +82,9 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
   const [error, setError] = useState<string | null>(null);
   const dialogRef = useRef<HTMLElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  const reopenButtonRef = useRef<HTMLButtonElement | null>(null);
+  const restoreFocusAfterDialogCloseRef = useRef(true);
+  const focusPrivacyControlAfterSaveRef = useRef(false);
 
   const savePreferences = useCallback(async (value: {
     analytics: boolean;
@@ -98,6 +101,8 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
       if (!response.ok) throw new Error("Consent request failed");
       const payload: unknown = await response.json();
       if (!isConsentResponse(payload)) throw new Error("Invalid consent response");
+      restoreFocusAfterDialogCloseRef.current = false;
+      focusPrivacyControlAfterSaveRef.current = true;
       setPreferences(payload.consent.preferences);
       setDecided(true);
       setCustomizing(false);
@@ -117,6 +122,7 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
     [savePreferences],
   );
   const openPreferences = useCallback(() => {
+    restoreFocusAfterDialogCloseRef.current = true;
     previousFocusRef.current = document.activeElement instanceof HTMLElement
       ? document.activeElement
       : null;
@@ -168,10 +174,21 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
       window.cancelAnimationFrame(focusDialog);
       document.removeEventListener("keydown", onKeyDown);
       document.documentElement.classList.remove("privacy-consent-modal-open");
-      previousFocusRef.current?.focus();
+      const previousFocus = previousFocusRef.current;
+      if (restoreFocusAfterDialogCloseRef.current && previousFocus?.isConnected) {
+        previousFocus.focus();
+      }
       previousFocusRef.current = null;
+      restoreFocusAfterDialogCloseRef.current = true;
     };
   }, [customizing]);
+
+  useEffect(() => {
+    if (!focusPrivacyControlAfterSaveRef.current || !decided || customizing) return;
+    focusPrivacyControlAfterSaveRef.current = false;
+    const privacyChoices = reopenButtonRef.current;
+    if (privacyChoices?.isConnected) privacyChoices.focus();
+  }, [customizing, decided]);
 
   const value: PrivacyConsentContextValue = {
     preferences,
@@ -192,7 +209,12 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
           onCustomize={openPreferences}
         />
       ) : (
-        <button type="button" className="privacy-consent-reopen" onClick={openPreferences}>
+        <button
+          ref={reopenButtonRef}
+          type="button"
+          className="privacy-consent-reopen"
+          onClick={openPreferences}
+        >
           Privacy choices
         </button>
       )}
