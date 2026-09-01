@@ -12,6 +12,11 @@ export type CompletedAssessmentContext = {
   companyId: string;
   assessmentId: string;
   estimateId: string;
+  /** Internal-only eligibility evidence. It is never serialized to the browser. */
+  leadId?: string;
+  calculationStatus?: "pending" | "ready" | "review_required" | "failed";
+  hasTrustedMeasurement?: boolean;
+  hasTrustedPricingPackages?: boolean;
 };
 
 export type AssessmentResultRepository = {
@@ -32,8 +37,26 @@ const preferenceSchema = z.object({
 }).strict();
 const ipSchema = z.union([z.ipv4(), z.ipv6()]);
 const workflowStatusSchema = z.enum(["requested", "contacted", "booked", "closed"]);
-const estimateRowSchema = z.object({id: z.uuid(), company_id: z.uuid()}).strict();
-const assessmentRowSchema = z.object({id: z.uuid()}).strict();
+const calculationStatusSchema = z.enum(["pending", "ready", "review_required", "failed"]);
+const estimateRowSchema = z.object({
+  id: z.uuid(),
+  company_id: z.uuid(),
+  lead_id: z.uuid(),
+  status: calculationStatusSchema,
+  roof_squares: z.coerce.number().finite().nullable(),
+  range_low_cents: z.coerce.number().int().nullable(),
+  range_high_cents: z.coerce.number().int().nullable(),
+  pricing_version: z.string().min(1).nullable(),
+}).strict();
+const assessmentRowSchema = z.object({id: z.uuid(), lead_id: z.uuid()}).strict();
+const packageRowSchema = z.object({
+  tier_key: z.enum(["good", "better", "best"]),
+  display_order: z.number().int().positive(),
+  measured_roof_squares: z.coerce.number().finite(),
+  range_low_cents: z.coerce.number().int(),
+  range_high_cents: z.coerce.number().int(),
+  pricing_version: z.string().min(1),
+}).strict();
 const consultationRpcSchema = z.array(z.object({
   request_id: z.uuid(),
   status: workflowStatusSchema,
@@ -60,6 +83,17 @@ export function parseResultViewedRpcResult(data: unknown) {
   const parsed = resultViewedRpcSchema.safeParse(data);
   if (!parsed.success) throw new Error("Result view persistence failed");
   return {resultViewedAt: parsed.data[0].result_viewed_at};
+}
+
+/**
+ * Determines eligibility from server-only quote evidence. The browser receives
+ * only a compact event envelope after this check has passed.
+ */
+export function isTrustedCompletedQuote(context: CompletedAssessmentContext) {
+  return context.calculationStatus === "ready"
+    && context.hasTrustedMeasurement === true
+    && context.hasTrustedPricingPackages === true
+    && Boolean(context.leadId);
 }
 
 function parsePreference(input: unknown): ConsultationPreference {
@@ -103,8 +137,8 @@ export async function requestRoofConsultation(token: string, input: unknown, req
 export async function markRoofAssessmentResultViewed(token: string, repository: AssessmentResultRepository) {
   const context = await resolveCompleted(token, repository);
   try {
-    await repository.markResultViewed(context);
-    return {resultViewed: true as const};
+    const result = await repository.markResultViewed(context);
+    return {resultViewed: true as const, resultViewedAt: result.resultViewedAt, context};
   } catch {
     throw new AssessmentResultAccessError("Assessment result is temporarily unavailable", 503);
   }
@@ -117,19 +151,60 @@ export class SupabaseAssessmentResultRepository implements AssessmentResultRepos
 
   async findCompletedByToken(token: string) {
     const {data: estimate, error} = await this.service.from("roof_estimates")
-      .select("id, company_id").eq("public_token", token).maybeSingle();
+      .select("id, company_id, lead_id, status, roof_squares, range_low_cents, range_high_cents, pricing_version")
+      .eq("public_token", token).maybeSingle();
     if (error) throw error;
     if (!estimate) return null;
     const parsedEstimate = estimateRowSchema.safeParse(estimate);
     if (!parsedEstimate.success) throw new Error("Malformed estimate result");
     const {data: assessment, error: assessmentError} = await this.service.from("roof_assessments")
-      .select("id").eq("company_id", parsedEstimate.data.company_id).eq("estimate_id", parsedEstimate.data.id)
+      .select("id, lead_id").eq("company_id", parsedEstimate.data.company_id).eq("estimate_id", parsedEstimate.data.id)
       .eq("status", "completed").maybeSingle();
     if (assessmentError) throw assessmentError;
     if (!assessment) return null;
     const parsedAssessment = assessmentRowSchema.safeParse(assessment);
     if (!parsedAssessment.success) throw new Error("Malformed assessment result");
-    return {companyId: parsedEstimate.data.company_id, estimateId: parsedEstimate.data.id, assessmentId: parsedAssessment.data.id};
+    if (parsedAssessment.data.lead_id !== parsedEstimate.data.lead_id) return null;
+    const {data: packages, error: packagesError} = await this.service.from("roof_estimate_packages")
+      .select("tier_key, display_order, measured_roof_squares, range_low_cents, range_high_cents, pricing_version")
+      .eq("company_id", parsedEstimate.data.company_id)
+      .eq("estimate_id", parsedEstimate.data.id);
+    if (packagesError) throw packagesError;
+    const parsedPackages = z.array(packageRowSchema).safeParse(packages);
+    if (!parsedPackages.success) throw new Error("Malformed assessment result");
+
+    const estimateContext = parsedEstimate.data;
+    const hasTrustedMeasurement = estimateContext.roof_squares !== null
+      && estimateContext.roof_squares > 0
+      && estimateContext.range_low_cents !== null
+      && estimateContext.range_low_cents > 0
+      && estimateContext.range_high_cents !== null
+      && estimateContext.range_high_cents >= estimateContext.range_low_cents;
+    const packagesMatchMeasurement = hasTrustedMeasurement
+      && estimateContext.pricing_version !== null
+      && parsedPackages.data.length === 3
+      && parsedPackages.data.every((item) =>
+        item.measured_roof_squares === estimateContext.roof_squares
+        && item.pricing_version === estimateContext.pricing_version,
+      );
+    const good = parsedPackages.data.find((item) => item.tier_key === "good");
+    const better = parsedPackages.data.find((item) => item.tier_key === "better");
+    const best = parsedPackages.data.find((item) => item.tier_key === "best");
+    const hasTrustedPricingPackages = packagesMatchMeasurement
+      && good?.display_order === 1
+      && better?.display_order === 2
+      && better.range_low_cents === estimateContext.range_low_cents
+      && better.range_high_cents === estimateContext.range_high_cents
+      && best?.display_order === 3;
+    return {
+      companyId: estimateContext.company_id,
+      leadId: estimateContext.lead_id,
+      estimateId: estimateContext.id,
+      assessmentId: parsedAssessment.data.id,
+      calculationStatus: estimateContext.status,
+      hasTrustedMeasurement,
+      hasTrustedPricingPackages,
+    };
   }
 
   async requestConsultation(context: CompletedAssessmentContext, preference: ConsultationPreference, requestIp: string): Promise<ConsultationSummary> {

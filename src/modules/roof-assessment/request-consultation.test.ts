@@ -1,6 +1,7 @@
 import {describe, expect, test, vi} from "vitest";
 import {
   AssessmentResultAccessError,
+  isTrustedCompletedQuote,
   markRoofAssessmentResultViewed,
   parseConsultationRpcResult,
   parseResultViewedRpcResult,
@@ -11,8 +12,12 @@ import {
 const token = "11111111-1111-4111-8111-111111111111";
 const context = {
   companyId: "22222222-2222-4222-8222-222222222222",
+  leadId: "55555555-5555-4555-8555-555555555555",
   assessmentId: "33333333-3333-4333-8333-333333333333",
   estimateId: "44444444-4444-4444-8444-444444444444",
+  calculationStatus: "ready" as const,
+  hasTrustedMeasurement: true,
+  hasTrustedPricingPackages: true,
 };
 
 function repository(overrides: Partial<AssessmentResultRepository> = {}): AssessmentResultRepository {
@@ -54,8 +59,17 @@ describe("assessment result actions", () => {
 
   test("marks only the completed assessment bound to the public token", async () => {
     const repo = repository();
-    await expect(markRoofAssessmentResultViewed(token, repo)).resolves.toEqual({resultViewed: true});
+    await expect(markRoofAssessmentResultViewed(token, repo)).resolves.toMatchObject({resultViewed: true, context});
     expect(repo.markResultViewed).toHaveBeenCalledWith(context);
+  });
+
+  test.each([
+    [{...context}, true],
+    [{...context, calculationStatus: "pending" as const}, false],
+    [{...context, calculationStatus: "failed" as const}, false],
+    [{...context, hasTrustedPricingPackages: false}, false],
+  ])("requires ready measurement and complete package pricing before Meta eligibility", (candidate, expected) => {
+    expect(isTrustedCompletedQuote(candidate)).toBe(expected);
   });
 
   test.each([
