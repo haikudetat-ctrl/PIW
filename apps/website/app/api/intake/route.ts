@@ -43,21 +43,22 @@ export async function handleIntakeRequest(
     return NextResponse.json({error: "Invalid lead submission"}, {status: 400});
   }
 
+  const consentToken = request.cookies.get(PRIVACY_COOKIE_NAME)?.value;
+  const verifiedConsent = privacySigningSecret
+    ? readWebsiteConsent(consentToken, privacySigningSecret)
+    : null;
+  const advertisingAllowed = verifiedConsent?.preferences.advertising === true;
   const payload = {
     ...parsed.data,
     attribution: {
       fbclid: parsed.data.fbclid ?? null,
-      fbp: request.cookies.get("_fbp")?.value ?? null,
-      fbc: request.cookies.get("_fbc")?.value ?? null,
+      fbp: advertisingAllowed ? request.cookies.get("_fbp")?.value ?? null : null,
+      fbc: advertisingAllowed ? request.cookies.get("_fbc")?.value ?? null : null,
     },
     source: "all-season-website",
     submittedAt: new Date().toISOString(),
   };
 
-  const consentToken = request.cookies.get(PRIVACY_COOKIE_NAME)?.value;
-  const verifiedConsent = privacySigningSecret
-    ? readWebsiteConsent(consentToken, privacySigningSecret)
-    : null;
   const upstream = await (verifiedConsent && consentToken
     ? forward(payload, {consentToken})
     : forward(payload)).catch(() => null);

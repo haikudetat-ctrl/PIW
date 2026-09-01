@@ -1,7 +1,7 @@
 import {NextRequest} from "next/server";
 import {describe, expect, test} from "vitest";
-import {readWebsiteConsent} from "../../../../lib/privacy-consent";
-import {handlePrivacyConsentRequest} from "./route";
+import {readWebsiteConsent, signWebsiteConsent} from "../../../../lib/privacy-consent";
+import {handlePrivacyConsentRequest, handlePrivacyConsentStatusRequest} from "./route";
 
 const signingSecret = "0123456789abcdef0123456789abcdef";
 const consentId = "11111111-1111-4111-8111-111111111111";
@@ -15,7 +15,39 @@ function request(body: unknown, headers: Record<string, string> = {}) {
   });
 }
 
+function statusRequest(cookie?: string) {
+  return new NextRequest("https://allseason.example/api/privacy/consent", {
+    headers: cookie ? {cookie} : undefined,
+  });
+}
+
 describe("website privacy consent endpoint", () => {
+  test("returns only a server-verified current consent snapshot", async () => {
+    const token = signWebsiteConsent({
+      policyVersion: "piw-privacy-v1",
+      consentId,
+      preferences: {necessary: true, analytics: false, advertising: true},
+      gpcDetected: false,
+      updatedAt: now.toISOString(),
+    }, signingSecret);
+
+    const verified = await handlePrivacyConsentStatusRequest(
+      statusRequest(`piw_privacy=${token}`),
+      {signingSecret},
+    );
+    const invalid = await handlePrivacyConsentStatusRequest(
+      statusRequest("piw_privacy=not-signed"),
+      {signingSecret},
+    );
+
+    expect(verified.headers.get("cache-control")).toBe("no-store");
+    await expect(verified.json()).resolves.toMatchObject({consent: {
+      consentId,
+      preferences: {advertising: true},
+    }});
+    await expect(invalid.json()).resolves.toEqual({consent: null});
+  });
+
   test("sets a PIW-compatible HttpOnly consent cookie", async () => {
     const response = await handlePrivacyConsentRequest(
       request({analytics: true, advertising: true}),

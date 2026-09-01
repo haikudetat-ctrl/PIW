@@ -146,12 +146,17 @@ export async function handleCampaignEstimateRequest(
   }
 
   const input = parsed.data;
+  const consentToken = request.cookies.get(PRIVACY_COOKIE_NAME)?.value;
+  const verifiedConsent = privacySigningSecret
+    ? readWebsiteConsent(consentToken, privacySigningSecret)
+    : null;
+  const advertisingAllowed = verifiedConsent?.preferences.advertising === true;
   const evidence = browserEvidenceSchema.safeParse({
     clientIpAddress: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim(),
     clientUserAgent: request.headers.get("user-agent")?.trim(),
     referrer: request.headers.get("referer"),
-    fbp: request.cookies.get("_fbp")?.value,
-    fbc: request.cookies.get("_fbc")?.value,
+    fbp: advertisingAllowed ? request.cookies.get("_fbp")?.value : null,
+    fbc: advertisingAllowed ? request.cookies.get("_fbc")?.value : null,
   });
   if (!evidence.success) {
     return noStoreJson({error: "Invalid estimate submission"}, 400);
@@ -195,10 +200,6 @@ export async function handleCampaignEstimateRequest(
     submittedAt: new Date().toISOString(),
   };
 
-  const consentToken = request.cookies.get(PRIVACY_COOKIE_NAME)?.value;
-  const verifiedConsent = privacySigningSecret
-    ? readWebsiteConsent(consentToken, privacySigningSecret)
-    : null;
   const upstream = await (verifiedConsent && consentToken
     ? forward(payload, {consentToken})
     : forward(payload)).catch(() => null);

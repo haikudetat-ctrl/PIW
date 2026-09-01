@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 
+import {readFileSync} from "node:fs";
+import path from "node:path";
 import {act} from "react";
 import {createRoot, type Root} from "react-dom/client";
 import {afterEach, describe, expect, test, vi} from "vitest";
@@ -108,6 +110,27 @@ describe("website privacy consent", () => {
     await vi.waitFor(() => expect(container.querySelector("output")?.textContent)
       .toContain('"analytics":true'));
     expect(container.querySelector("output")?.textContent).toContain('"advertising":false');
+  });
+
+  test("opens a viewport-safe modal with an Escape close path", async () => {
+    const container = await renderConsent(null);
+    const customize = button(container, "Customize");
+    customize.focus();
+
+    await click(customize);
+
+    const dialog = document.querySelector<HTMLElement>('[role="dialog"][aria-modal="true"]');
+    expect(dialog?.getAttribute("aria-describedby")).toBe("privacy-dialog-description");
+    expect(dialog?.parentElement?.classList.contains("privacy-consent-backdrop")).toBe(true);
+    expect(readFileSync(path.join(process.cwd(), "app", "styles.css"), "utf8"))
+      .toMatch(/\.privacy-consent-backdrop\s*\{[\s\S]*?position:\s*fixed/);
+
+    await act(async () => {
+      document.dispatchEvent(new KeyboardEvent("keydown", {key: "Escape", bubbles: true}));
+    });
+
+    expect(document.querySelector('[role="dialog"][aria-modal="true"]')).toBeNull();
+    expect(document.activeElement).toBe(customize);
   });
 
   test("starts from server-verified consent without showing the first-visit banner", async () => {

@@ -155,8 +155,8 @@ describe("campaign estimate proxy", () => {
         utm_content: "blue-hero",
         utm_term: "roof replacement",
         fbclid: "click-123",
-        fbp: "fb.1.100.200",
-        fbc: "fb.1.100.click",
+        fbp: null,
+        fbc: null,
       },
     }));
     expect(typeof forwarded?.submittedAt).toBe("string");
@@ -167,6 +167,33 @@ describe("campaign estimate proxy", () => {
     expect(forwarded).not.toHaveProperty("utm_term");
     expect(forwarded).not.toHaveProperty("utm_content");
     expect(forwarded).not.toHaveProperty("fbclid");
+  });
+
+  test("forwards Meta attribution only with verified advertising consent", async () => {
+    const token = signWebsiteConsent(privacyConsent, privacySigningSecret);
+    let forwarded: Record<string, unknown> | undefined;
+
+    const response = await handleCampaignEstimateRequest(
+      request(googleSubmission(), `_fbp=fb.1.100.200; _fbc=fb.1.100.click; piw_privacy=${token}`),
+      async (payload) => {
+        forwarded = payload;
+        return Response.json({
+          accepted: true,
+          continuationPath: "/roof-estimate/continue/safe-token",
+        }, {status: 202});
+      },
+      publicAppUrl,
+      "production",
+      privacySigningSecret,
+    );
+
+    expect(response.status).toBe(202);
+    expect(forwarded).toEqual(expect.objectContaining({
+      attribution: expect.objectContaining({
+        fbp: "fb.1.100.200",
+        fbc: "fb.1.100.click",
+      }),
+    }));
   });
 
   test("returns a PIW-issued Lead envelope without synthesizing one", async () => {

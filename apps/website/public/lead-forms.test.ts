@@ -85,6 +85,69 @@ describe("embedded lead form", () => {
     });
   });
 
+  test("emits the exact PIW-issued Meta envelope before continuing to the estimate", async () => {
+    const dom = new JSDOM(`<!doctype html><body>${leadFormMarkup()}</body>`, {
+      url: "https://allseason.example/",
+      runScripts: "outside-only",
+    });
+    installBrowserGlobals(dom);
+    const metaEvent = {
+      name: "Lead",
+      eventId: "33333333-3333-4333-8333-333333333333",
+      issuedAt: "2026-09-01T16:01:00.000Z",
+    } as const;
+    const trackConversion = vi.fn();
+    Object.defineProperty(dom.window, "AllSeasonMeta", {
+      value: {trackConversion},
+      configurable: true,
+    });
+    dom.window.fetch = vi.fn(async () => Response.json({
+      accepted: true,
+      estimateUrl,
+      metaEvent,
+    }, {status: 202})) as typeof dom.window.fetch;
+
+    dom.window.eval(script);
+    await new Promise((resolve) => dom.window.setTimeout(resolve, 0));
+    dom.window.document.querySelector("form")?.dispatchEvent(
+      new dom.window.Event("submit", {bubbles: true, cancelable: true}),
+    );
+
+    await vi.waitFor(() => expect(trackConversion).toHaveBeenCalledWith(metaEvent));
+  });
+
+  test("rejects a malformed successful estimate envelope instead of inventing a Meta event", async () => {
+    const dom = new JSDOM(`<!doctype html><body>${leadFormMarkup()}</body>`, {
+      url: "https://allseason.example/",
+      runScripts: "outside-only",
+    });
+    installBrowserGlobals(dom);
+    const trackConversion = vi.fn();
+    Object.defineProperty(dom.window, "AllSeasonMeta", {
+      value: {trackConversion},
+      configurable: true,
+    });
+    dom.window.fetch = vi.fn(async () => Response.json({
+      accepted: true,
+      estimateUrl,
+      metaEvent: {
+        name: "Lead",
+        eventId: "not-a-uuid",
+        issuedAt: "2026-09-01T16:01:00.000Z",
+      },
+    }, {status: 202})) as typeof dom.window.fetch;
+
+    dom.window.eval(script);
+    await new Promise((resolve) => dom.window.setTimeout(resolve, 0));
+    dom.window.document.querySelector("form")?.dispatchEvent(
+      new dom.window.Event("submit", {bubbles: true, cancelable: true}),
+    );
+
+    await vi.waitFor(() => expect(dom.window.document.querySelector('[data-submit-error]'))
+      .not.toBeNull());
+    expect(trackConversion).not.toHaveBeenCalled();
+  });
+
   test.each([
     ["homepage", homepage, "main-home", "all-season-main"],
     ["contact", contactPage, "main-contact", "all-season-main"],
@@ -303,5 +366,56 @@ describe("quote drawer", () => {
       utm_medium: "paid-social",
       fbclid: "click-123",
     }));
+  });
+
+  test("emits the exact PIW-issued Meta envelope before moving to the estimate", async () => {
+    const dom = new JSDOM("<!doctype html><body></body>", {
+      url: "https://allseason.example/",
+      runScripts: "outside-only",
+    });
+    installBrowserGlobals(dom);
+    const metaEvent = {
+      name: "Lead",
+      eventId: "55555555-5555-4555-8555-555555555555",
+      issuedAt: "2026-09-01T16:01:00.000Z",
+    } as const;
+    const trackConversion = vi.fn();
+    Object.defineProperties(dom.window, {
+      AllSeasonCanonicalEstimate: {
+        value: {parse: (payload: unknown) => payload},
+        configurable: true,
+      },
+      AllSeasonMeta: {
+        value: {trackConversion},
+        configurable: true,
+      },
+    });
+    dom.window.fetch = vi.fn(async () => Response.json({
+      accepted: true,
+      estimateUrl,
+      metaEvent,
+    }, {status: 202})) as typeof dom.window.fetch;
+
+    dom.window.eval(quoteDrawer);
+    dom.window.document.dispatchEvent(new dom.window.Event("DOMContentLoaded"));
+    const form = dom.window.document.querySelector<HTMLFormElement>(".as-quote-form")!;
+    const values = {
+      name: "Alex Rivera",
+      email: "alex@example.com",
+      phone: "201-555-0100",
+      address_line_1: "1 Main St",
+      city: "Newark",
+      postal_code: "07102",
+    };
+    for (const [name, value] of Object.entries(values)) {
+      form.querySelector<HTMLInputElement>(`[name="${name}"]`)!.value = value;
+    }
+    (Array.from(form.querySelectorAll('input[type="checkbox"]')) as unknown as HTMLInputElement[]).forEach((input) => {
+      input.checked = true;
+    });
+
+    form.dispatchEvent(new dom.window.Event("submit", {bubbles: true, cancelable: true}));
+
+    await vi.waitFor(() => expect(trackConversion).toHaveBeenCalledWith(metaEvent));
   });
 });

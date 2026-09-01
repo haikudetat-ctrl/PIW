@@ -82,7 +82,37 @@ describe("lead intake proxy", () => {
       submission_id: "11111111-1111-4111-8111-111111111111",
       source: "all-season-website",
       google_place_id: "ChIJ-selected",
-      attribution: {fbclid: "click-123", fbp: "fb.1.100.200", fbc: "fb.1.100.click"},
+      attribution: {fbclid: "click-123", fbp: null, fbc: null},
+    }));
+  });
+
+  test("forwards Meta attribution only with verified advertising consent", async () => {
+    const token = signWebsiteConsent(privacyConsent, privacySigningSecret);
+    let forwarded: Record<string, unknown> | undefined;
+    const response = await handleIntakeRequest(
+      request({
+        submission_id: "11111111-1111-4111-8111-111111111111",
+        name: "Alex Rivera",
+        email: "alex@example.com",
+        phone: "201-555-0100",
+        address: "1 Main St, Newark, NJ",
+        project_interest: "both",
+        consent_to_contact: true,
+        consent_to_process_property: true,
+      }, `_fbp=fb.1.100.200; _fbc=fb.1.100.click; piw_privacy=${token}`),
+      async (payload) => {
+        forwarded = payload;
+        return acceptedResponse();
+      },
+      privacySigningSecret,
+    );
+
+    expect(response.status).toBe(202);
+    expect(forwarded).toEqual(expect.objectContaining({
+      attribution: expect.objectContaining({
+        fbp: "fb.1.100.200",
+        fbc: "fb.1.100.click",
+      }),
     }));
   });
 

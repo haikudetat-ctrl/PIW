@@ -48,6 +48,23 @@
     if (Array.isArray(window.dataLayer)) window.dataLayer.push(payload);
   }
 
+  function parseCanonicalEstimateResponse(payload) {
+    var parser = window.AllSeasonCanonicalEstimate;
+    if (!parser || typeof parser.parse !== 'function') return null;
+    return parser.parse(payload);
+  }
+
+  function trackCanonicalMetaEvent(metaEvent) {
+    if (!metaEvent) return;
+    var tracker = window.AllSeasonMeta;
+    if (!tracker || typeof tracker.trackConversion !== 'function') return;
+    try {
+      tracker.trackConversion(metaEvent);
+    } catch {
+      // Meta is intentionally nonblocking for customer intake.
+    }
+  }
+
   function autoOpenAllowed() {
     try {
       var dismissedAt = Number(window.localStorage.getItem(DISMISSED_KEY));
@@ -270,10 +287,12 @@
           credentials: 'same-origin'
         });
         var payload = await response.json().catch(function () { return {}; });
-        if (!response.ok || !payload.estimateUrl) throw new Error(String(response.status));
+        var estimate = parseCanonicalEstimateResponse(payload);
+        if (!response.ok || !estimate) throw new Error(String(response.status));
         try { window.localStorage.setItem(DISMISSED_KEY, String(Date.now())); } catch {}
         track('quote_form_success', {trigger: root.dataset.trigger});
-        window.location.assign(payload.estimateUrl);
+        trackCanonicalMetaEvent(estimate.metaEvent);
+        window.location.assign(estimate.estimateUrl);
       } catch {
         status.textContent = 'We could not send this request. Call (888) 832-5050 or try again.';
         track('quote_form_error', {trigger: root.dataset.trigger});

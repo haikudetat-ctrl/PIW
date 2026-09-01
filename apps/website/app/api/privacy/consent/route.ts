@@ -21,6 +21,10 @@ export type WebsitePrivacyConsentDependencies = {
   createId: () => string;
 };
 
+export type WebsitePrivacyConsentStatusDependencies = {
+  signingSecret: string | undefined;
+};
+
 function noStoreJson(body: unknown, status: number) {
   return NextResponse.json(body, {
     status,
@@ -30,6 +34,17 @@ function noStoreJson(body: unknown, status: number) {
 
 function readCookie(request: NextRequest) {
   return request.cookies.get(PRIVACY_COOKIE_NAME)?.value;
+}
+
+/** Returns only server-verified consent; browser storage is never trusted. */
+export async function handlePrivacyConsentStatusRequest(
+  request: NextRequest,
+  dependencies: WebsitePrivacyConsentStatusDependencies,
+) {
+  const consent = dependencies.signingSecret
+    ? readWebsiteConsent(readCookie(request), dependencies.signingSecret)
+    : null;
+  return noStoreJson({consent}, 200);
 }
 
 export async function handlePrivacyConsentRequest(
@@ -76,5 +91,15 @@ export async function POST(request: NextRequest) {
     });
   } catch {
     return noStoreJson({error: "Privacy consent is temporarily unavailable"}, 503);
+  }
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    return await handlePrivacyConsentStatusRequest(request, {
+      signingSecret: process.env.PRIVACY_CONSENT_SIGNING_SECRET,
+    });
+  } catch {
+    return noStoreJson({consent: null}, 200);
   }
 }

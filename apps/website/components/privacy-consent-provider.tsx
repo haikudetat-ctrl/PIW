@@ -5,6 +5,8 @@ import {
   type ReactNode,
   useCallback,
   useContext,
+  useEffect,
+  useRef,
   useState,
 } from "react";
 import type {
@@ -78,6 +80,8 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
   const [customizing, setCustomizing] = useState(false);
   const [draft, setDraft] = useState(preferences);
   const [error, setError] = useState<string | null>(null);
+  const dialogRef = useRef<HTMLElement | null>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
 
   const savePreferences = useCallback(async (value: {
     analytics: boolean;
@@ -113,10 +117,61 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
     [savePreferences],
   );
   const openPreferences = useCallback(() => {
+    previousFocusRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
     setDraft(preferences);
     setError(null);
     setCustomizing(true);
   }, [preferences]);
+
+  useEffect(() => {
+    if (!customizing) return;
+
+    const dialog = dialogRef.current;
+    document.documentElement.classList.add("privacy-consent-modal-open");
+    const focusDialog = window.requestAnimationFrame(() => {
+      const firstControl = dialog?.querySelector<HTMLElement>(
+        'input:not([disabled]), button:not([disabled]), a[href]',
+      );
+      (firstControl ?? dialog)?.focus();
+    });
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!dialog) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setCustomizing(false);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(
+        'input:not([disabled]), button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+      ));
+      if (focusable.length === 0) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      window.cancelAnimationFrame(focusDialog);
+      document.removeEventListener("keydown", onKeyDown);
+      document.documentElement.classList.remove("privacy-consent-modal-open");
+      previousFocusRef.current?.focus();
+      previousFocusRef.current = null;
+    };
+  }, [customizing]);
 
   const value: PrivacyConsentContextValue = {
     preferences,
@@ -143,15 +198,29 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
       )}
       {children}
       {customizing ? (
-        <div className="privacy-consent-backdrop">
-          <section role="dialog" aria-modal="true" aria-labelledby="privacy-dialog-title">
+        <div
+          className="privacy-consent-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setCustomizing(false);
+          }}
+        >
+          <section
+            ref={dialogRef}
+            className="privacy-consent-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="privacy-dialog-title"
+            aria-describedby="privacy-dialog-description"
+            tabIndex={-1}
+          >
+            <p className="privacy-consent-dialog-kicker">Privacy controls</p>
             <h2 id="privacy-dialog-title">Privacy choices</h2>
-            <p>Choose which nonessential technologies we may use.</p>
-            <label>
+            <p id="privacy-dialog-description">Choose which nonessential technologies we may use.</p>
+            <label className="privacy-consent-choice">
               <input type="checkbox" aria-label="Necessary" checked disabled />
-              Necessary
+              <span>Necessary</span>
             </label>
-            <label>
+            <label className="privacy-consent-choice">
               <input
                 type="checkbox"
                 aria-label="Analytics"
@@ -162,9 +231,9 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
                   analytics: event.target.checked,
                 }))}
               />
-              Analytics
+              <span>Analytics</span>
             </label>
-            <label>
+            <label className="privacy-consent-choice">
               <input
                 type="checkbox"
                 aria-label="Advertising"
@@ -175,19 +244,22 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
                   advertising: event.target.checked,
                 }))}
               />
-              Advertising
+              <span>Advertising</span>
             </label>
             {error ? <p role="alert">{error}</p> : null}
-            <button
-              type="button"
-              disabled={saving}
-              onClick={() => void savePreferences(draft)}
-            >
-              Save preferences
-            </button>
-            <button type="button" disabled={saving} onClick={() => setCustomizing(false)}>
-              Cancel
-            </button>
+            <div className="privacy-consent-dialog-actions">
+              <button
+                type="button"
+                className="privacy-consent-primary"
+                disabled={saving}
+                onClick={() => void savePreferences(draft)}
+              >
+                Save preferences
+              </button>
+              <button type="button" className="privacy-consent-secondary" disabled={saving} onClick={() => setCustomizing(false)}>
+                Cancel
+              </button>
+            </div>
           </section>
         </div>
       ) : null}
