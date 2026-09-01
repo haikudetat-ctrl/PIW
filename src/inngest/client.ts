@@ -50,6 +50,10 @@ export const appointmentRepAssigned = eventType("appointments/rep.assigned", {
   schema: staticSchema<AppointmentRepAssignedData>(),
 });
 
+export const metaDeliveryRequested = eventType("marketing/meta.delivery.requested", {
+  schema: staticSchema<{deliveryId: string}>(),
+});
+
 export const inngest = new Inngest({
   id: "property-intelligence-worker",
 });
