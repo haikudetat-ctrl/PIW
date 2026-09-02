@@ -75,10 +75,29 @@ Added or strengthened tests for:
   Over-limit grants are rejected; a current grant can still be revoked once,
   and all unavailable/limited website sync paths remain tracking-denied.
 
+## Round 2 app-layer closure
+
+- Website-cookie `gpcDetected` is now treated strictly as historical evidence.
+  With live request/browser GPC absent, website status, intake, campaign, and
+  canonical synchronization clear the historical flag and never synthesize a
+  `Sec-GPC` header. A later PIW grant can therefore become current; live
+  navigator/Sec-GPC still forces denial.
+- PIW and website React consent providers now assign monotonic authorization
+  request epochs in addition to their choice epochs. A delayed boot/status
+  grant cannot overwrite a newer denial, supersede a save, or authorize a
+  Pixel callback after a newer request has resolved.
+- The static runtime applies the same monotonic authority rule across boot,
+  focus/visibility revalidation, pre-event checks, timeouts, and saves. A
+  delayed boot grant after a focus denial remains stale and emits no PageView
+  or conversion.
+- Round 2 intentionally does not extend the interim count-based limiter or
+  equal-time storage behavior. Those database-level concerns are reserved for
+  the forward atomic RPC migration in Final Fix C.
+
 ## Verification
 
-- `npm run test:run` — PASS: 135 files / 904 tests (6 files / 7 tests skipped)
-- `npm --prefix apps/website test` — PASS: 20 files / 171 tests
+- `npm run test:run` — PASS: 135 files / 905 tests (6 files / 7 tests skipped)
+- `npm --prefix apps/website test` — PASS: 21 files / 175 tests
 - `npm run typecheck` — PASS
 - `npm --prefix apps/website run typecheck` — PASS
 - `npm run lint` — PASS with 11 pre-existing unrelated warnings and no errors

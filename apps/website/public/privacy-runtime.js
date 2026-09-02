@@ -19,6 +19,7 @@
     dialog: null,
     previousFocus: null,
   };
+  var authorityEpoch = 0;
 
   function config() {
     var node = document.getElementById("all-season-meta-config");
@@ -382,6 +383,7 @@
   async function savePreferences(preferences) {
     if (consentState.saving) return;
     setSaving(true);
+    var saveEpoch = ++authorityEpoch;
     consentState.error = "";
     var gpcDetected = browserGpcIsEnabled();
     var requested = gpcDetected
@@ -397,6 +399,7 @@
       });
       var payload = await response.json().catch(function () { return null; });
       if (!response.ok || !payload || !isVerifiedConsent(payload.consent)) throw new Error("Unable to save");
+      if (saveEpoch !== authorityEpoch) return;
       consentState.consent = payload.consent;
       consentState.resolved = true;
       setSaving(false);
@@ -419,6 +422,7 @@
   }
 
   async function revalidateConsent() {
+    var requestEpoch = ++authorityEpoch;
     try {
       var response = await window.fetch("/api/privacy/consent", {
         method: "GET",
@@ -430,10 +434,12 @@
         cache: "no-store",
       });
       var payload = await response.json().catch(function () { return null; });
+      if (requestEpoch !== authorityEpoch) return false;
       consentState.consent = response.ok && payload && isVerifiedConsent(payload.consent)
         ? payload.consent
         : null;
     } catch {
+      if (requestEpoch !== authorityEpoch) return false;
       consentState.consent = null;
     }
     consentState.resolved = true;
@@ -441,10 +447,17 @@
   }
 
   function authorizeAdvertising() {
+    var requestEpoch = authorityEpoch + 1;
     return Promise.race([
       revalidateConsent(),
       new Promise(function (resolve) {
-        window.setTimeout(function () { resolve(false); }, CONSENT_READY_TIMEOUT_MS);
+        window.setTimeout(function () {
+          if (authorityEpoch === requestEpoch) {
+            authorityEpoch += 1;
+            consentState.consent = null;
+          }
+          resolve(false);
+        }, CONSENT_READY_TIMEOUT_MS);
       }),
     ]);
   }
@@ -458,9 +471,11 @@
 
   function boot() {
     void loadVerifiedConsent();
-    window.addEventListener("focus", function () { void revalidateConsent(); });
+    window.addEventListener("focus", function () {
+      if (!consentState.saving) void revalidateConsent();
+    });
     document.addEventListener("visibilitychange", function () {
-      if (document.visibilityState === "visible") void revalidateConsent();
+      if (document.visibilityState === "visible" && !consentState.saving) void revalidateConsent();
     });
   }
 

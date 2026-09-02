@@ -29,6 +29,11 @@ function Probe() {
   );
 }
 
+function AuthorizationProbe() {
+  const {authorizeAdvertising} = usePrivacyConsent();
+  return <button type="button" onClick={() => void authorizeAdvertising()}>Revalidate consent</button>;
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
   Object.defineProperty(navigator, "globalPrivacyControl", {
@@ -102,6 +107,27 @@ describe("PrivacyConsentProvider", () => {
     await waitFor(() => expect(screen.getByTestId("preferences")).toHaveTextContent(
       '{"necessary":true,"analytics":true,"advertising":true}',
     ));
+  });
+
+  test("does not let a delayed boot grant overwrite a newer canonical denial", async () => {
+    let resolveBoot: ((response: Response) => void) | undefined;
+    const denial = {...advertisingConsent, preferences: {...advertisingConsent.preferences, advertising: false}};
+    const fetch = vi.fn()
+      .mockImplementationOnce(() => new Promise<Response>((resolve) => { resolveBoot = resolve; }))
+      .mockResolvedValueOnce(Response.json({consent: denial}));
+    vi.stubGlobal("fetch", fetch);
+    render(
+      <PrivacyConsentProvider initialConsent={advertisingConsent}>
+        <Probe /><AuthorizationProbe />
+      </PrivacyConsentProvider>,
+    );
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("button", {name: "Revalidate consent"}));
+    await waitFor(() => expect(screen.getByTestId("preferences")).toHaveTextContent('"advertising":false'));
+    resolveBoot?.(Response.json({consent: advertisingConsent}));
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(screen.getByTestId("preferences")).toHaveTextContent('"advertising":false');
   });
 
   test("newly detected GPC immediately suppresses an existing Advertising grant and records a canonical denial", async () => {

@@ -169,6 +169,32 @@ describe("website privacy consent endpoint", () => {
     }));
   });
 
+  test("treats stale cookie GPC as historical when a later PIW grant exists and live GPC is off", async () => {
+    const historicalGpc = {
+      policyVersion: "piw-privacy-v1" as const,
+      consentId,
+      preferences: {necessary: true as const, analytics: true, advertising: false},
+      gpcDetected: true,
+      updatedAt: "2026-09-01T16:00:00.000Z",
+    };
+    const laterGrant = {
+      ...historicalGpc,
+      preferences: {...historicalGpc.preferences, advertising: true},
+      gpcDetected: false,
+      updatedAt: "2026-09-01T16:01:00.000Z",
+    };
+    const token = signWebsiteConsent(historicalGpc, signingSecret);
+    const synchronize = vi.fn(async () => laterGrant);
+
+    const response = await handlePrivacyConsentStatusRequest(
+      statusRequest(`piw_privacy=${token}`),
+      {signingSecret, now: () => now, synchronize} as never,
+    );
+
+    await expect(response.json()).resolves.toEqual({consent: laterGrant});
+    expect(synchronize).toHaveBeenCalledWith(expect.objectContaining({gpcDetected: false}));
+  });
+
   test("sets a PIW-compatible HttpOnly consent cookie", async () => {
     const response = await handlePrivacyConsentRequest(
       request({analytics: true, advertising: true}),

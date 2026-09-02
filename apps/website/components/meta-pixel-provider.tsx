@@ -130,7 +130,9 @@ export function MetaPixelProvider({children, enabled}: {children: ReactNode; ena
   }, [advertising, authorizeAdvertising, enabled, pathname, pixelId]);
 
   useEffect(() => {
-    const revalidate = () => { void authorizeAdvertising(); };
+    const revalidate = () => {
+      if (advertisingRef.current && !browserGpcIsEnabled()) void authorizeAdvertising();
+    };
     const onVisibility = () => { if (document.visibilityState === "visible") revalidate(); };
     window.addEventListener("focus", revalidate);
     document.addEventListener("visibilitychange", onVisibility);

@@ -37,7 +37,9 @@ export function applyWebsiteGlobalPrivacyControl(
   active: boolean,
   updatedAt: string,
 ): VerifiedWebsiteConsent {
-  if (!active) return consent;
+  // `gpcDetected` in a cookie is historical evidence, not a live browser
+  // signal. Only the current request may carry GPC authority forward.
+  if (!active) return {...consent, gpcDetected: false};
   return {
     ...consent,
     preferences: normalizeConsentPreferences(consent.preferences, true),
@@ -82,6 +84,7 @@ export async function synchronizeCanonicalWebsiteConsent({
   publicPiwUrl,
   websiteOrigin,
   nodeEnv,
+  liveGpcDetected = false,
 }: {
   consent: VerifiedWebsiteConsent;
   signingSecret: string | undefined;
@@ -89,10 +92,14 @@ export async function synchronizeCanonicalWebsiteConsent({
   publicPiwUrl: string | undefined;
   websiteOrigin: string;
   nodeEnv: string | undefined;
+  liveGpcDetected?: boolean;
 }): Promise<VerifiedWebsiteConsent | null> {
   if (!signingSecret || !sharedSecret) return null;
   const origin = piwOrigin(publicPiwUrl, nodeEnv);
   if (!origin) return null;
+  const requestConsent = liveGpcDetected
+    ? consent
+    : {...consent, gpcDetected: false};
 
   try {
     const response = await fetch(new URL("/api/privacy/consent/current", `${origin}/`), {
@@ -100,8 +107,8 @@ export async function synchronizeCanonicalWebsiteConsent({
       headers: {
         origin: websiteOrigin,
         "x-all-season-intake-secret": sharedSecret,
-        "x-piw-privacy-consent": signWebsiteConsent(consent, signingSecret),
-        ...(consent.gpcDetected ? {"sec-gpc": "1"} : {}),
+        "x-piw-privacy-consent": signWebsiteConsent(requestConsent, signingSecret),
+        ...(liveGpcDetected ? {"sec-gpc": "1"} : {}),
       },
       cache: "no-store",
       redirect: "error",
@@ -127,6 +134,7 @@ export async function resolveCanonicalWebsiteConsent(input: {
   publicPiwUrl: string | undefined;
   websiteOrigin: string;
   nodeEnv: string | undefined;
+  liveGpcDetected?: boolean;
 }): Promise<VerifiedWebsiteConsent | null> {
   const canonical = await synchronizeCanonicalWebsiteConsent(input);
   return currentCanonicalWebsiteConsent(input.consent, canonical);

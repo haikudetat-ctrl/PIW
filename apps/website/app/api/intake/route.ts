@@ -159,6 +159,7 @@ export async function POST(request: NextRequest) {
       publicPiwUrl: process.env.PIW_PUBLIC_APP_URL,
       websiteOrigin: request.nextUrl.origin,
       nodeEnv: process.env.NODE_ENV,
+      liveGpcDetected: requestHasGpc(request),
     }),
   );
 }

@@ -28,6 +28,11 @@ function Probe() {
   return <output data-testid="privacy-state">{JSON.stringify(consent)}</output>;
 }
 
+function AuthorizationProbe() {
+  const {authorizeAdvertising} = usePrivacyConsent();
+  return <button type="button" onClick={() => void authorizeAdvertising()}>Revalidate consent</button>;
+}
+
 async function renderConsent(initialConsent: VerifiedWebsiteConsent | null, children = <div />) {
   const container = document.createElement("div");
   document.body.append(container);
@@ -189,6 +194,27 @@ describe("website privacy consent", () => {
 
     await vi.waitFor(() => expect(container.querySelector("output")?.textContent)
       .toContain('"advertising":true'));
+  });
+
+  test("does not let a delayed boot grant overwrite a newer canonical denial", async () => {
+    const grant: VerifiedWebsiteConsent = {
+      ...rejectedConsent,
+      preferences: {necessary: true, analytics: true, advertising: true},
+    };
+    let resolveBoot: ((response: Response) => void) | undefined;
+    const fetch = vi.fn()
+      .mockImplementationOnce(() => new Promise<Response>((resolve) => { resolveBoot = resolve; }))
+      .mockResolvedValueOnce(Response.json({consent: rejectedConsent}));
+    vi.stubGlobal("fetch", fetch);
+    const container = await renderConsent(grant, <><Probe /><AuthorizationProbe /></>);
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    await click(button(container, "Revalidate consent"));
+    await vi.waitFor(() => expect(container.querySelector("output")?.textContent)
+      .toContain('"advertising":false'));
+    resolveBoot?.(Response.json({consent: grant}));
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(container.querySelector("output")?.textContent).toContain('"advertising":false');
   });
 
   test("active browser GPC suppresses an existing grant and synchronizes a denial", async () => {

@@ -137,11 +137,14 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
   const returnFocusRef = useRef<HTMLElement | null>(null);
   const gpcSyncAttemptedRef = useRef(false);
   const canonicalResolutionRef = useRef(0);
+  const authorizationResolutionRef = useRef(0);
   const consentIdentityRef = useRef(initialConsentId && initialPolicyVersion
     ? {consentId: initialConsentId, policyVersion: initialPolicyVersion}
     : null);
 
   const authorizeAdvertising = useCallback(async () => {
+    const authorization = ++authorizationResolutionRef.current;
+    const choiceResolution = canonicalResolutionRef.current;
     const identity = consentIdentityRef.current;
     if (!identity || browserGpcIsEnabled()) return false;
     try {
@@ -157,11 +160,14 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
         || payload.consent.policyVersion !== identity.policyVersion) {
         throw new Error("Divergent consent status response");
       }
+      if (authorization !== authorizationResolutionRef.current
+        || choiceResolution !== canonicalResolutionRef.current) return false;
       setStoredPreferences(payload.consent.preferences);
       setCanonicalReady(true);
       return payload.consent.preferences.advertising && !payload.consent.gpcDetected;
     } catch {
-      setCanonicalReady(false);
+      if (authorization === authorizationResolutionRef.current
+        && choiceResolution === canonicalResolutionRef.current) setCanonicalReady(false);
       return false;
     }
   }, []);
@@ -193,6 +199,7 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
 
   const updatePreferences = useCallback(async (input: PrivacyConsentUpdate) => {
     const resolution = ++canonicalResolutionRef.current;
+    authorizationResolutionRef.current += 1;
     const previousStatus = status;
     const backgroundGpcSync = input.source === "gpc" && previousStatus === "saved";
     const requestGpcDetected = gpcDefaultActive;
@@ -239,6 +246,7 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
   useEffect(() => {
     if (!initialConsentId || !initialPolicyVersion) return;
     const resolution = ++canonicalResolutionRef.current;
+    const authorization = ++authorizationResolutionRef.current;
     let active = true;
 
     void (async () => {
@@ -256,12 +264,16 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
           payload.consent.consentId !== initialConsentId
           || payload.consent.policyVersion !== initialPolicyVersion
         ) throw new Error("Divergent consent status response");
-        if (!active || resolution !== canonicalResolutionRef.current) return;
+        if (!active
+          || resolution !== canonicalResolutionRef.current
+          || authorization !== authorizationResolutionRef.current) return;
         setStoredPreferences(payload.consent.preferences);
         setStatus("saved");
         setCanonicalReady(true);
       } catch {
-        if (active && resolution === canonicalResolutionRef.current) {
+        if (active
+          && resolution === canonicalResolutionRef.current
+          && authorization === authorizationResolutionRef.current) {
           setCanonicalReady(false);
         }
       }

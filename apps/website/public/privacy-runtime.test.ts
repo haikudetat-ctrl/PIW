@@ -156,6 +156,26 @@ describe("static privacy runtime", () => {
     expect(fbq.mock.calls.filter((call) => call[1] === "Lead")).toHaveLength(0);
   });
 
+  test("does not let a delayed boot grant overwrite a newer focus denial", async () => {
+    const dom = runtimeDom();
+    const fbq = vi.fn();
+    Object.defineProperty(dom.window, "fbq", {value: fbq, configurable: true});
+    let resolveBoot: ((response: Response) => void) | undefined;
+    const fetch = vi.fn()
+      .mockImplementationOnce(() => new Promise<Response>((resolve) => { resolveBoot = resolve; }))
+      .mockResolvedValueOnce(Response.json({consent: verifiedConsent(false)}));
+    dom.window.fetch = fetch as typeof dom.window.fetch;
+
+    dom.window.eval(runtime);
+    dom.window.document.dispatchEvent(new dom.window.Event("DOMContentLoaded"));
+    dom.window.dispatchEvent(new dom.window.Event("focus"));
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+    resolveBoot?.(Response.json({consent: verifiedConsent(true)}));
+    await new Promise((resolve) => dom.window.setTimeout(resolve, 0));
+
+    expect(fbq.mock.calls.filter((call) => call[1] === "PageView")).toHaveLength(0);
+  });
+
   test("waits for a pending verified consent read before emitting a server-issued Lead", async () => {
     const dom = runtimeDom();
     const fbq = vi.fn();
