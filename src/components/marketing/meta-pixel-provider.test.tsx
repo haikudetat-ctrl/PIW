@@ -7,10 +7,14 @@ const state = vi.hoisted(() => ({
   advertising: false,
   enabled: true,
   pathname: "/roof-estimate/example",
+  authorizeAdvertising: vi.fn(async () => true),
 }));
 
 vi.mock("@/components/privacy/privacy-consent-provider", () => ({
-  usePrivacyConsent: () => ({preferences: {advertising: state.advertising}}),
+  usePrivacyConsent: () => ({
+    preferences: {advertising: state.advertising},
+    authorizeAdvertising: state.authorizeAdvertising,
+  }),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -53,6 +57,7 @@ beforeEach(() => {
   state.advertising = false;
   state.enabled = true;
   state.pathname = "/roof-estimate/example";
+  state.authorizeAdvertising.mockReset().mockResolvedValue(true);
 });
 
 describe("PIW MetaPixelProvider", () => {
@@ -154,7 +159,7 @@ describe("PIW MetaPixelProvider", () => {
     trackConversion?.(envelope);
     trackConversion?.(envelope);
 
-    expect(fbq).toHaveBeenCalledWith("track", "Lead", {}, {eventID: envelope.eventId});
+    await waitFor(() => expect(fbq).toHaveBeenCalledWith("track", "Lead", {}, {eventID: envelope.eventId}));
     expect(fbq.mock.calls.filter((call) => call[1] === "Lead")).toHaveLength(1);
   });
 
@@ -219,6 +224,48 @@ describe("PIW MetaPixelProvider", () => {
     await waitFor(() => expect(fbq.mock.calls.filter((call) => call[1] === "PageView")).toHaveLength(3));
   });
 
+  test("suppresses a mounted-tab PageView after canonical consent is revoked elsewhere", async () => {
+    state.advertising = true;
+    const fbq = vi.fn();
+    (window as Window & {fbq?: BrowserFbq}).fbq = fbq;
+    state.authorizeAdvertising.mockResolvedValueOnce(true).mockResolvedValue(false);
+    const {rerender} = renderProvider();
+    await waitFor(() => expect(fbq.mock.calls.filter((call) => call[1] === "PageView")).toHaveLength(1));
+
+    window.dispatchEvent(new Event("focus"));
+    await waitFor(() => expect(state.authorizeAdvertising).toHaveBeenCalledTimes(2));
+    state.pathname = "/roof-estimate/revoked";
+    rerender(<MetaPixelProvider enabled={state.enabled}><TrackerCapture onReady={() => undefined} /></MetaPixelProvider>);
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(fbq.mock.calls.filter((call) => call[1] === "PageView")).toHaveLength(1);
+  });
+
+  test("suppresses navigation and conversion when canonical authorization changes during the request", async () => {
+    state.advertising = true;
+    const fbq = vi.fn();
+    (window as Window & {fbq?: BrowserFbq}).fbq = fbq;
+    let resolveAuthorization: ((allowed: boolean) => void) | undefined;
+    state.authorizeAdvertising.mockImplementation(() => new Promise<boolean>((resolve) => {
+      resolveAuthorization = resolve;
+    }));
+    let trackConversion: ReturnType<typeof useMetaPixel>["trackConversion"] | undefined;
+    const {rerender} = renderProvider((track) => { trackConversion = track; });
+    trackConversion?.({
+      name: "Lead",
+      eventId: "77777777-7777-4777-8777-777777777777",
+      issuedAt: new Date().toISOString(),
+    });
+    state.pathname = "/roof-estimate/new-path";
+    rerender(<MetaPixelProvider enabled={state.enabled}><TrackerCapture onReady={() => undefined} /></MetaPixelProvider>);
+    state.advertising = false;
+    rerender(<MetaPixelProvider enabled={state.enabled}><TrackerCapture onReady={() => undefined} /></MetaPixelProvider>);
+    resolveAuthorization?.(true);
+
+    await waitFor(() => expect(state.authorizeAdvertising).toHaveBeenCalled());
+    expect(fbq.mock.calls.filter((call) => ["PageView", "Lead"].includes(String(call[1])))).toHaveLength(0);
+  });
+
   test("rejects malformed envelopes and tracks AssessmentCompleted without payload data", async () => {
     state.advertising = true;
     const fbq = vi.fn();
@@ -252,11 +299,11 @@ describe("PIW MetaPixelProvider", () => {
     });
 
     expect(fbq.mock.calls.filter((call) => call[1] === "Lead")).toHaveLength(0);
-    expect(fbq).toHaveBeenCalledWith(
+    await waitFor(() => expect(fbq).toHaveBeenCalledWith(
       "trackCustom",
       "AssessmentCompleted",
       {},
       {eventID: "66666666-6666-4666-8666-666666666666"},
-    );
+    ));
   });
 });

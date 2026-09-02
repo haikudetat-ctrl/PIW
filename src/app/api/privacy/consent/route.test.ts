@@ -8,7 +8,7 @@ const signingSecret = "0123456789abcdef0123456789abcdef";
 function request(body: unknown, headers?: HeadersInit) {
   return new Request("https://example.test/api/privacy/consent", {
     method: "POST",
-    headers: {"content-type": "application/json", ...headers},
+    headers: {"content-type": "application/json", origin: "https://example.test", ...headers},
     body: JSON.stringify(body),
   }) as NextRequest;
 }
@@ -107,6 +107,56 @@ describe("privacy consent route", () => {
       source: "banner", leadId: "not-accepted",
     }), dependencies());
     expect(response.status).toBe(400);
+  });
+
+  test.each([null, "https://attacker.example"])(
+    "rejects an unsafe browser Origin before any consent write (%s)",
+    async (origin) => {
+      const record = vi.fn(async () => undefined);
+      const headers = new Headers({"content-type": "application/json"});
+      if (origin) headers.set("origin", origin);
+      const unsafe = new Request("https://example.test/api/privacy/consent", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({analytics: false, advertising: false, gpcDetected: false, source: "banner"}),
+      }) as NextRequest;
+
+      const response = await handlePrivacyConsentRequest(unsafe, dependencies(record));
+
+      expect(response.status).toBe(403);
+      expect(record).not.toHaveBeenCalled();
+    },
+  );
+
+  test("durably throttles repeated grants while preserving an existing grant revocation", async () => {
+    const currentGrant: VerifiedConsent = {
+      policyVersion: "piw-privacy-v1",
+      consentId: "22222222-2222-4222-8222-222222222222",
+      preferences: {necessary: true, analytics: true, advertising: true},
+      gpcDetected: false,
+      updatedAt: "2026-08-28T11:59:00.000Z",
+    };
+    const token = signConsentCookie(currentGrant, signingSecret);
+    const repository = {
+      record: vi.fn(async () => undefined),
+      readCurrent: vi.fn(async () => currentGrant),
+      isWriteAllowed: vi.fn(async () => false),
+    };
+    const limitedDependencies = {...dependencies(), repository};
+
+    const grant = await handlePrivacyConsentRequest(request({
+      analytics: true, advertising: true, gpcDetected: false, source: "preferences",
+    }, {cookie: `piw_privacy=${token}`}), limitedDependencies);
+    const revoke = await handlePrivacyConsentRequest(request({
+      analytics: false, advertising: false, gpcDetected: false, source: "preferences",
+    }, {cookie: `piw_privacy=${token}`}), limitedDependencies);
+
+    expect(grant.status).toBe(429);
+    expect(revoke.status).toBe(200);
+    expect(repository.record).toHaveBeenCalledOnce();
+    expect(repository.record).toHaveBeenCalledWith(expect.objectContaining({
+      preferences: expect.objectContaining({advertising: false}),
+    }));
   });
 
   test("does not write a cookie when persistence fails", async () => {

@@ -55,6 +55,27 @@ describe("resolveCurrentVerifiedConsent", () => {
     });
   });
 
+  test("allows a later explicit grant after historical GPC is no longer live", async () => {
+    const historicalGpc: VerifiedConsent = {
+      ...granted,
+      preferences: {...granted.preferences, advertising: false},
+      gpcDetected: true,
+      updatedAt: "2026-09-01T16:01:00.000Z",
+    };
+    const laterGrant: VerifiedConsent = {
+      ...granted,
+      updatedAt: "2026-09-01T16:02:00.000Z",
+    };
+
+    await expect(resolveCurrentVerifiedConsent({
+      consentToken: signConsentCookie(historicalGpc, signingSecret),
+      signingSecret,
+      gpcDetected: false,
+      now: () => new Date("2026-09-01T16:03:00.000Z"),
+      repository: repository(laterGrant),
+    })).resolves.toEqual(laterGrant);
+  });
+
   test("fails closed when the current canonical consent is unavailable or divergent", async () => {
     const divergent: VerifiedConsent = {
       ...granted,

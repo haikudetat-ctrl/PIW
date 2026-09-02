@@ -12,6 +12,8 @@ import {
 } from "@/modules/privacy/consent-repository";
 
 const MAX_FUTURE_CONSENT_SKEW_MS = 30 * 1000;
+const CONSENT_WRITE_LIMIT = 12;
+const CONSENT_WRITE_WINDOW_MS = 60 * 60 * 1000;
 
 export type CurrentPrivacyConsentSyncDependencies = {
   signingSecret: string | undefined;
@@ -26,6 +28,13 @@ function unavailable(status = 503) {
   return NextResponse.json(
     {error: "Privacy consent is unavailable"},
     {status, headers: {"cache-control": "no-store"}},
+  );
+}
+
+function rateLimited() {
+  return NextResponse.json(
+    {error: "Privacy consent request limit exceeded"},
+    {status: 429, headers: {"cache-control": "no-store", "retry-after": "3600"}},
   );
 }
 
@@ -103,15 +112,26 @@ export async function handleCurrentPrivacyConsentSyncRequest(
       consentId: candidate.consentId,
       policyVersion: candidate.policyVersion,
     });
-    if (
-      current
-      && Date.parse(current.updatedAt) >= Date.parse(candidate.updatedAt)
-      // An equal-time (or older) grant must never win over a live GPC signal.
-      // A current denial is already safe, while a later explicit grant remains
-      // governed by its own event ordering at the delivery boundary.
-      && (!candidate.gpcDetected || current.gpcDetected || !current.preferences.advertising)
-    ) {
+    const currentTime = current ? Date.parse(current.updatedAt) : Number.NEGATIVE_INFINITY;
+    const candidateTime = Date.parse(candidate.updatedAt);
+    const equalTimeCandidateDenies = currentTime === candidateTime
+      && current?.preferences.advertising === true
+      && candidate.preferences.advertising === false;
+    if (current && currentTime >= candidateTime && !equalTimeCandidateDenies) {
       return NextResponse.json({consent: current}, {headers: {"cache-control": "no-store"}});
+    }
+
+    const writeAllowed = dependencies.repository.isWriteAllowed
+      ? await dependencies.repository.isWriteAllowed({
+          consentId: candidate.consentId,
+          since: new Date(now.getTime() - CONSENT_WRITE_WINDOW_MS).toISOString(),
+          limit: CONSENT_WRITE_LIMIT,
+        })
+      : true;
+    if (!writeAllowed) {
+      const isCurrentGrantRevocation = !candidate.preferences.advertising
+        && current?.preferences.advertising === true;
+      if (!isCurrentGrantRevocation) return rateLimited();
     }
 
     await dependencies.repository.record({

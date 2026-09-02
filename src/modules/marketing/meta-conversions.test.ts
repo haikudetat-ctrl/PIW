@@ -380,7 +380,7 @@ describe("SupabaseMetaRepository", () => {
     const canonicalRevocation = {
       advertising_granted: false,
       gpc_detected: false,
-      occurred_at: "2026-09-01T12:01:00.000Z",
+      occurred_at: fixture.eventTime,
     };
     const historicalQuery = {
       select: vi.fn(() => historicalQuery),

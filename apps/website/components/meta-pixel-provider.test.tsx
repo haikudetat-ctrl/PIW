@@ -4,10 +4,18 @@ import {act} from "react";
 import {createRoot, type Root} from "react-dom/client";
 import {afterEach, beforeEach, describe, expect, test, vi} from "vitest";
 
-const state = vi.hoisted(() => ({advertising: false, enabled: true, pathname: "/campaigns/seasonal-shield"}));
+const state = vi.hoisted(() => ({
+  advertising: false,
+  enabled: true,
+  pathname: "/campaigns/seasonal-shield",
+  authorizeAdvertising: vi.fn(async () => true),
+}));
 
 vi.mock("./privacy-consent-provider", () => ({
-  usePrivacyConsent: () => ({preferences: {advertising: state.advertising}}),
+  usePrivacyConsent: () => ({
+    preferences: {advertising: state.advertising},
+    authorizeAdvertising: state.authorizeAdvertising,
+  }),
 }));
 
 vi.mock("next/navigation", () => ({usePathname: () => state.pathname}));
@@ -57,6 +65,7 @@ beforeEach(() => {
   state.advertising = false;
   state.enabled = true;
   state.pathname = "/campaigns/seasonal-shield";
+  state.authorizeAdvertising.mockReset().mockResolvedValue(true);
 });
 
 describe("website MetaPixelProvider", () => {
@@ -143,6 +152,7 @@ describe("website MetaPixelProvider", () => {
     trackConversion?.(envelope);
     trackConversion?.(envelope);
 
+    await act(async () => undefined);
     expect(fbq).toHaveBeenCalledWith("track", "Lead", {}, {eventID: envelope.eventId});
     expect(fbq.mock.calls.filter((call) => call[1] === "Lead")).toHaveLength(1);
   });
@@ -192,6 +202,24 @@ describe("website MetaPixelProvider", () => {
     expect(fbq.mock.calls.filter((call) => call[1] === "PageView")).toHaveLength(3);
   });
 
+  test("revalidates a mounted tab and suppresses tracking after a cross-origin revocation", async () => {
+    state.advertising = true;
+    const fbq = vi.fn();
+    (window as Window & {fbq?: BrowserFbq}).fbq = fbq;
+    state.authorizeAdvertising.mockResolvedValueOnce(true).mockResolvedValue(false);
+    const {root} = await renderProvider();
+    await act(async () => undefined);
+    expect(fbq.mock.calls.filter((call) => call[1] === "PageView")).toHaveLength(1);
+
+    await act(async () => window.dispatchEvent(new Event("focus")));
+    state.pathname = "/campaigns/weather-report";
+    await act(async () => root.render(
+      <MetaPixelProvider enabled={state.enabled}><TrackerCapture onReady={() => undefined} /></MetaPixelProvider>,
+    ));
+
+    expect(fbq.mock.calls.filter((call) => call[1] === "PageView")).toHaveLength(1);
+  });
+
   test("rejects malformed envelopes and tracks AssessmentCompleted without payload data", async () => {
     state.advertising = true;
     const fbq = vi.fn();
@@ -207,6 +235,7 @@ describe("website MetaPixelProvider", () => {
       eventId: "not-a-uuid",
       issuedAt: now.toISOString(),
     });
+    await act(async () => undefined);
     trackConversion?.({
       name: "Lead",
       eventId: "44444444-4444-4444-8444-444444444444",
@@ -222,6 +251,7 @@ describe("website MetaPixelProvider", () => {
       eventId: "66666666-6666-4666-8666-666666666666",
       issuedAt: now.toISOString(),
     });
+    await act(async () => undefined);
 
     expect(fbq.mock.calls.filter((call) => call[1] === "Lead")).toHaveLength(0);
     expect(fbq).toHaveBeenCalledWith(

@@ -53,10 +53,32 @@ Added or strengthened tests for:
 - pending CAPI delivery suppression after website revocation, including a
   later grant.
 
+## Round 1 review closure
+
+- PIW and website React Pixel providers now revalidate canonical consent on
+  focus, visible-tab restoration, pathname changes, and immediately before
+  every PageView or conversion. Async authority epochs prevent an in-flight
+  grant from emitting after navigation, revocation, or a local consent change.
+- The static public-page runtime follows the same rule. Its pre-navigation
+  check is bounded so unavailable consent infrastructure never blocks a form
+  redirect; uncertainty suppresses Meta only.
+- Historical `gpcDetected` evidence remains a denial record but no longer
+  masquerades as a live browser signal. PIW permits a later explicit grant
+  after GPC is absent, while live navigator/Sec-GPC remains authoritative.
+- Equal-time canonical conflicts are deny-wins for ordinary revocations as
+  well as GPC. Queued CAPI eligibility has an exact-event-time revocation
+  regression so a same-time denial prevents contact/attribution access.
+- Both browser consent POST routes reject a missing, malformed, or mismatched
+  `Origin` before parsing or persistence. Consent writes are durably limited
+  against existing unlinked `privacy_consent_evidence` (12 writes per opaque
+  consent ID per hour), with no process-local production state or new schema.
+  Over-limit grants are rejected; a current grant can still be revoked once,
+  and all unavailable/limited website sync paths remain tracking-denied.
+
 ## Verification
 
-- `npm run test:run` — PASS: 135 files / 893 tests (6 files / 7 tests skipped)
-- `npm --prefix apps/website test` — PASS: 20 files / 166 tests
+- `npm run test:run` — PASS: 135 files / 904 tests (6 files / 7 tests skipped)
+- `npm --prefix apps/website test` — PASS: 20 files / 171 tests
 - `npm run typecheck` — PASS
 - `npm --prefix apps/website run typecheck` — PASS
 - `npm run lint` — PASS with 11 pre-existing unrelated warnings and no errors
@@ -64,8 +86,9 @@ Added or strengthened tests for:
 - `npm run build` — PASS
 - `npm --prefix apps/website run build` — PASS
 
-The first sandboxed website build could not spawn Turbopack's CSS worker; the
-same local build passed when rerun in the normal local execution environment.
+The first sandboxed builds could not fetch configured Google Fonts or spawn
+Turbopack's CSS worker; both local builds passed when rerun in the normal local
+execution environment.
 
 ## Deliberate non-actions
 

@@ -124,12 +124,19 @@
     consentState.pageViewTracked = true;
   }
 
-  function trackConversion(envelope) {
+  function emitConversion(envelope) {
     if (!metaConfig.enabled || !metaConfig.pixelId || !advertisingAllowed() || !isCurrentEnvelope(envelope)) return;
     if (consentState.conversionIds.has(envelope.eventId)) return;
     var fbq = ensurePixel();
     fbq("track", "Lead", {}, {eventID: envelope.eventId});
     consentState.conversionIds.add(envelope.eventId);
+  }
+
+  function trackConversion(envelope) {
+    if (!isCurrentEnvelope(envelope)) return;
+    void authorizeAdvertising().then(function (allowed) {
+      if (allowed) emitConversion(envelope);
+    });
   }
 
   function waitForConsentReady() {
@@ -147,13 +154,15 @@
       return Promise.resolve();
     }
     return waitForConsentReady().then(function () {
+      return authorizeAdvertising().then(function (allowed) {
+        if (allowed) emitConversion(envelope);
+      });
+    }).catch(function () {
       try {
-        trackConversion(envelope);
+        consentState.consent = null;
       } catch {
         // Meta is intentionally nonblocking for customer intake.
       }
-    }, function () {
-      // A failed consent read is treated as denied and never blocks navigation.
     });
   }
 
@@ -409,7 +418,7 @@
     }
   }
 
-  async function loadVerifiedConsent() {
+  async function revalidateConsent() {
     try {
       var response = await window.fetch("/api/privacy/consent", {
         method: "GET",
@@ -428,6 +437,20 @@
       consentState.consent = null;
     }
     consentState.resolved = true;
+    return advertisingAllowed();
+  }
+
+  function authorizeAdvertising() {
+    return Promise.race([
+      revalidateConsent(),
+      new Promise(function (resolve) {
+        window.setTimeout(function () { resolve(false); }, CONSENT_READY_TIMEOUT_MS);
+      }),
+    ]);
+  }
+
+  async function loadVerifiedConsent() {
+    await revalidateConsent();
     resolveConsentReady();
     renderConsentSurface();
     trackPageView();
@@ -435,6 +458,10 @@
 
   function boot() {
     void loadVerifiedConsent();
+    window.addEventListener("focus", function () { void revalidateConsent(); });
+    document.addEventListener("visibilitychange", function () {
+      if (document.visibilityState === "visible") void revalidateConsent();
+    });
   }
 
   if (document.readyState === "loading") {

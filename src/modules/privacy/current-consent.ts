@@ -28,7 +28,6 @@ function canonicalCanSupersedeLocal(
   local: VerifiedConsent,
   canonical: VerifiedConsent,
 ) {
-  if (local.gpcDetected) return false;
   if (local.preferences.advertising || !canonical.preferences.advertising) return true;
   return Date.parse(canonical.updatedAt) > Date.parse(local.updatedAt);
 }
@@ -62,7 +61,7 @@ export async function resolveCurrentVerifiedConsent({
       policyVersion: local.policyVersion,
     });
     if (!canonical || !sameConsentIdentity(local, canonical)) return null;
-    if (local.gpcDetected) return applyGpc(canonical, true, local.updatedAt);
+    if (gpcDetected) return applyGpc(canonical, true, local.updatedAt);
     return canonicalCanSupersedeLocal(local, canonical) ? canonical : null;
   } catch {
     return null;

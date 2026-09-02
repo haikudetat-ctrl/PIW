@@ -43,6 +43,16 @@ function noStoreJson(body: unknown, status: number) {
   });
 }
 
+function isSameOriginRequest(request: NextRequest) {
+  const origin = request.headers.get("origin");
+  if (!origin) return false;
+  try {
+    return new URL(origin).origin === origin && origin === request.nextUrl.origin;
+  } catch {
+    return false;
+  }
+}
+
 function readCookie(request: NextRequest) {
   return request.cookies.get(PRIVACY_COOKIE_NAME)?.value;
 }
@@ -128,6 +138,7 @@ export async function handlePrivacyConsentRequest(
   request: NextRequest,
   dependencies: WebsitePrivacyConsentDependencies,
 ) {
+  if (!isSameOriginRequest(request)) return noStoreJson({error: "Invalid request origin"}, 403);
   const parsed = consentRequestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return noStoreJson({error: "Invalid privacy consent"}, 400);
 

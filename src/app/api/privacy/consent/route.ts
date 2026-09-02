@@ -25,6 +25,8 @@ const consentRequestSchema = z.strictObject({
   gpcDetected: z.boolean(),
   source: z.enum(["banner", "preferences", "gpc"]),
 });
+const CONSENT_WRITE_LIMIT = 12;
+const CONSENT_WRITE_WINDOW_MS = 60 * 60 * 1000;
 
 type PrivacyConsentDependencies = {
   signingSecret: string | undefined;
@@ -56,6 +58,30 @@ function unavailableStatus() {
     {consent: null},
     {headers: {"cache-control": "no-store"}},
   );
+}
+
+function forbidden() {
+  return NextResponse.json(
+    {error: "Invalid request origin"},
+    {status: 403, headers: {"cache-control": "no-store"}},
+  );
+}
+
+function rateLimited() {
+  return NextResponse.json(
+    {error: "Privacy consent request limit exceeded"},
+    {status: 429, headers: {"cache-control": "no-store", "retry-after": "3600"}},
+  );
+}
+
+function isSameOriginRequest(request: NextRequest) {
+  const origin = request.headers.get("origin");
+  if (!origin) return false;
+  try {
+    return new URL(origin).origin === origin && origin === new URL(request.url).origin;
+  } catch {
+    return false;
+  }
 }
 
 function hasUsableSigningSecret(secret: string | undefined) {
@@ -187,6 +213,7 @@ export async function handlePrivacyConsentRequest(
   request: NextRequest,
   dependencies: PrivacyConsentDependencies,
 ) {
+  if (!isSameOriginRequest(request)) return forbidden();
   const parsed = consentRequestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json(
@@ -213,6 +240,24 @@ export async function handlePrivacyConsentRequest(
   };
 
   try {
+    const writeAllowed = dependencies.repository.isWriteAllowed
+      ? await dependencies.repository.isWriteAllowed({
+          consentId,
+          since: new Date(dependencies.now().getTime() - CONSENT_WRITE_WINDOW_MS).toISOString(),
+          limit: CONSENT_WRITE_LIMIT,
+        })
+      : true;
+    if (!writeAllowed) {
+      const current = "readCurrent" in dependencies.repository
+        ? await (dependencies.repository as CurrentPrivacyConsentRepository).readCurrent({
+            consentId,
+            policyVersion: CONSENT_POLICY_VERSION,
+          })
+        : null;
+      const isCurrentGrantRevocation = !preferences.advertising
+        && current?.preferences.advertising === true;
+      if (!isCurrentGrantRevocation) return rateLimited();
+    }
     await dependencies.repository.record({
       evidenceId: dependencies.createId(),
       consentId,

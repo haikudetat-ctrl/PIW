@@ -29,6 +29,7 @@ export type PrivacyConsentContextValue = {
   preferences: ConsentPreferences;
   openPreferences(): void;
   updatePreferences(input: PrivacyConsentUpdate): Promise<void>;
+  authorizeAdvertising(): Promise<boolean>;
 };
 
 type PrivacyConsentProviderProps = {
@@ -114,9 +115,6 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
   const [storedPreferences, setStoredPreferences] = useState<ConsentPreferences>(
     initialConsent?.preferences ?? DEFAULT_PREFERENCES,
   );
-  const [storedGpcDetected, setStoredGpcDetected] = useState(
-    initialConsent?.gpcDetected === true,
-  );
   // A PIW-origin cookie proves its identity but not that its Advertising
   // decision is still current after a website-side update. Do not expose a
   // stored grant until the same-origin status endpoint resolves it.
@@ -126,8 +124,10 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
     browserGpcIsEnabled,
     serverGpcIsDisabled,
   );
-  const gpcDefaultActive = storedGpcDetected || browserGpcDetected;
-  const preferences: ConsentPreferences = gpcDefaultActive || !canonicalReady
+  // Historical GPC evidence keeps its recorded denial, but only the live
+  // browser signal disables a later explicit choice.
+  const gpcDefaultActive = browserGpcDetected;
+  const preferences: ConsentPreferences = browserGpcDetected || !canonicalReady
     ? {...storedPreferences, advertising: false}
     : storedPreferences;
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -137,6 +137,34 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
   const returnFocusRef = useRef<HTMLElement | null>(null);
   const gpcSyncAttemptedRef = useRef(false);
   const canonicalResolutionRef = useRef(0);
+  const consentIdentityRef = useRef(initialConsentId && initialPolicyVersion
+    ? {consentId: initialConsentId, policyVersion: initialPolicyVersion}
+    : null);
+
+  const authorizeAdvertising = useCallback(async () => {
+    const identity = consentIdentityRef.current;
+    if (!identity || browserGpcIsEnabled()) return false;
+    try {
+      const response = await fetch("/api/privacy/consent", {
+        method: "GET",
+        cache: "no-store",
+        credentials: "same-origin",
+      });
+      if (!response.ok) throw new Error("Consent status request failed");
+      const payload: unknown = await response.json();
+      if (!isConsentResponse(payload)
+        || payload.consent.consentId !== identity.consentId
+        || payload.consent.policyVersion !== identity.policyVersion) {
+        throw new Error("Divergent consent status response");
+      }
+      setStoredPreferences(payload.consent.preferences);
+      setCanonicalReady(true);
+      return payload.consent.preferences.advertising && !payload.consent.gpcDetected;
+    } catch {
+      setCanonicalReady(false);
+      return false;
+    }
+  }, []);
 
   const closePreferences = useCallback(() => {
     setDialogOpen(false);
@@ -176,7 +204,6 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
     if (!advertising) {
       setStoredPreferences({necessary: true, analytics: input.analytics, advertising: false});
     }
-    setStoredGpcDetected(requestGpcDetected);
     setCanonicalReady(false);
     try {
       const response = await fetch("/api/privacy/consent", {
@@ -194,7 +221,10 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
       if (!isConsentResponse(payload)) throw new Error("Consent response was invalid");
       if (resolution !== canonicalResolutionRef.current) return;
       setStoredPreferences(payload.consent.preferences);
-      setStoredGpcDetected(payload.consent.gpcDetected);
+      consentIdentityRef.current = {
+        consentId: payload.consent.consentId,
+        policyVersion: payload.consent.policyVersion,
+      };
       setStatus("saved");
       setCanonicalReady(true);
       if (dialogOpen) closePreferences();
@@ -228,7 +258,6 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
         ) throw new Error("Divergent consent status response");
         if (!active || resolution !== canonicalResolutionRef.current) return;
         setStoredPreferences(payload.consent.preferences);
-        setStoredGpcDetected(payload.consent.gpcDetected);
         setStatus("saved");
         setCanonicalReady(true);
       } catch {
@@ -287,6 +316,7 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
     preferences,
     openPreferences,
     updatePreferences,
+    authorizeAdvertising,
   };
   const saving = status === "saving";
 

@@ -93,7 +93,7 @@ export function useMetaPixel() {
 }
 
 export function MetaPixelProvider({children, enabled}: {children: ReactNode; enabled: boolean}) {
-  const {preferences} = usePrivacyConsent();
+  const {preferences, authorizeAdvertising} = usePrivacyConsent();
   const pathname = usePathname();
   const previousPageViewPath = useRef<string | null>(null);
   const conversions = useRef(new Set<string>());
@@ -103,20 +103,37 @@ export function MetaPixelProvider({children, enabled}: {children: ReactNode; ena
   const enabledRef = useRef(enabled);
   const pathnameRef = useRef(pathname);
   const pixelIdRef = useRef(pixelId);
+  const authorityEpoch = useRef(0);
 
   useLayoutEffect(() => {
     advertisingRef.current = advertising;
     enabledRef.current = enabled;
     pathnameRef.current = pathname;
     pixelIdRef.current = pixelId;
+    authorityEpoch.current += 1;
   }, [advertising, enabled, pathname, pixelId]);
 
   useEffect(() => {
     if (!enabled || !advertising || !pixelId || !pathname.startsWith("/roof-estimate")) return;
     if (previousPageViewPath.current === pathname) return;
-    trackPageView(pixelId);
-    previousPageViewPath.current = pathname;
-  }, [advertising, enabled, pathname, pixelId]);
+    const epoch = authorityEpoch.current;
+    void authorizeAdvertising().then((allowed) => {
+      if (!allowed || epoch !== authorityEpoch.current || pathnameRef.current !== pathname) return;
+      trackPageView(pixelId);
+      previousPageViewPath.current = pathname;
+    });
+  }, [advertising, authorizeAdvertising, enabled, pathname, pixelId]);
+
+  useEffect(() => {
+    const revalidate = () => { void authorizeAdvertising(); };
+    const onVisibility = () => { if (document.visibilityState === "visible") revalidate(); };
+    window.addEventListener("focus", revalidate);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("focus", revalidate);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [authorizeAdvertising]);
 
   const trackConversion = useCallback((envelope: MetaBrowserEventEnvelope | null | undefined) => {
     const currentPixelId = pixelIdRef.current;
@@ -130,14 +147,16 @@ export function MetaPixelProvider({children, enabled}: {children: ReactNode; ena
     ) return;
     if (conversions.current.has(envelope.eventId)) return;
 
-    const fbq = ensurePixel();
-    if (envelope.name === "Lead") {
-      fbq("track", "Lead", {}, {eventID: envelope.eventId});
-    } else {
-      fbq("trackCustom", "AssessmentCompleted", {}, {eventID: envelope.eventId});
-    }
-    conversions.current.add(envelope.eventId);
-  }, []);
+    const epoch = authorityEpoch.current;
+    void authorizeAdvertising().then((allowed) => {
+      if (!allowed || epoch !== authorityEpoch.current || !advertisingRef.current || browserGpcIsEnabled()) return;
+      if (conversions.current.has(envelope.eventId)) return;
+      const fbq = ensurePixel();
+      if (envelope.name === "Lead") fbq("track", "Lead", {}, {eventID: envelope.eventId});
+      else fbq("trackCustom", "AssessmentCompleted", {}, {eventID: envelope.eventId});
+      conversions.current.add(envelope.eventId);
+    });
+  }, [authorizeAdvertising]);
 
   const value = useMemo(() => ({trackConversion}), [trackConversion]);
 

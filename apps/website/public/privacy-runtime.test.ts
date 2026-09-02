@@ -131,8 +131,29 @@ describe("static privacy runtime", () => {
     (dom.window as Window & {AllSeasonMeta?: {trackConversion(value: unknown): void}})
       .AllSeasonMeta?.trackConversion(envelope);
 
-    expect(fbq).toHaveBeenCalledWith("track", "Lead", {}, {eventID: envelope.eventId});
+    await vi.waitFor(() => expect(fbq).toHaveBeenCalledWith("track", "Lead", {}, {eventID: envelope.eventId}));
     expect(fbq.mock.calls.filter((call) => call[1] === "Lead")).toHaveLength(1);
+  });
+
+  test("revalidates before conversion and suppresses a mounted static page after revocation", async () => {
+    const dom = runtimeDom();
+    const fbq = vi.fn();
+    Object.defineProperty(dom.window, "fbq", {value: fbq, configurable: true});
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(Response.json({consent: verifiedConsent(true)}))
+      .mockResolvedValue(Response.json({consent: verifiedConsent(false)}));
+    dom.window.fetch = fetch as typeof dom.window.fetch;
+    await boot(dom);
+
+    metaRuntime(dom)?.trackConversion({
+      name: "Lead",
+      eventId: "34333333-3333-4333-8333-333333333333",
+      issuedAt: new Date().toISOString(),
+    });
+    await new Promise((resolve) => dom.window.setTimeout(resolve, 0));
+
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(fbq.mock.calls.filter((call) => call[1] === "Lead")).toHaveLength(0);
   });
 
   test("waits for a pending verified consent read before emitting a server-issued Lead", async () => {
@@ -144,7 +165,11 @@ describe("static privacy runtime", () => {
       resolveStatus = resolve;
     });
     const fetch = vi.fn((url: string) => {
-      if (url === "/api/privacy/consent") return pendingStatus;
+      if (url === "/api/privacy/consent") {
+        return fetch.mock.calls.length === 1
+          ? pendingStatus
+          : Promise.resolve(Response.json({consent: verifiedConsent(true)}));
+      }
       throw new Error(`Unexpected request: ${url}`);
     });
     dom.window.fetch = fetch as typeof dom.window.fetch;

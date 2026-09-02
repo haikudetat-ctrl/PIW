@@ -10,7 +10,10 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock("./privacy-consent-provider", () => ({
-  usePrivacyConsent: () => ({preferences: {advertising: state.advertising}}),
+  usePrivacyConsent: () => ({
+    preferences: {advertising: state.advertising},
+    authorizeAdvertising: async () => state.advertising,
+  }),
 }));
 
 vi.mock("next/navigation", () => ({usePathname: () => state.pathname}));

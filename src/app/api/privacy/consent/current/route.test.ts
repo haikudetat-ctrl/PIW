@@ -159,6 +159,49 @@ describe("current privacy consent sync endpoint", () => {
     }));
   });
 
+  test("records an equal-time non-GPC denial instead of retaining a grant", async () => {
+    const equalTimeGrant = {...grantedConsent, updatedAt: now.toISOString()};
+    const denied: VerifiedConsent = {
+      ...equalTimeGrant,
+      preferences: {...equalTimeGrant.preferences, advertising: false},
+    };
+    const repository = {
+      record: vi.fn(async () => undefined),
+      readCurrent: vi.fn().mockResolvedValueOnce(equalTimeGrant).mockResolvedValueOnce(denied),
+    };
+    const token = signConsentCookie(denied, signingSecret);
+
+    const response = await handleCurrentPrivacyConsentSyncRequest(request(token), dependencies({repository}));
+
+    await expect(response.json()).resolves.toEqual({consent: denied});
+    expect(repository.record).toHaveBeenCalledWith(expect.objectContaining({
+      gpcDetected: false,
+      preferences: expect.objectContaining({advertising: false}),
+    }));
+  });
+
+  test("durably throttles repeated canonical grants but permits one current-grant revocation", async () => {
+    const currentGrant = {...grantedConsent, updatedAt: "2026-09-01T15:59:00.000Z"};
+    const repository = {
+      record: vi.fn(async () => undefined),
+      readCurrent: vi.fn(async () => currentGrant),
+      isWriteAllowed: vi.fn(async () => false),
+    };
+    const newerGrant = {...grantedConsent, updatedAt: now.toISOString()};
+    const denial = {...newerGrant, preferences: {...newerGrant.preferences, advertising: false}};
+
+    const grantResponse = await handleCurrentPrivacyConsentSyncRequest(
+      request(signConsentCookie(newerGrant, signingSecret)), dependencies({repository}),
+    );
+    const denialResponse = await handleCurrentPrivacyConsentSyncRequest(
+      request(signConsentCookie(denial, signingSecret)), dependencies({repository}),
+    );
+
+    expect(grantResponse.status).toBe(429);
+    expect(denialResponse.status).toBe(200);
+    expect(repository.record).toHaveBeenCalledOnce();
+  });
+
   test.each([
     ["a missing server credential", request(signConsentCookie(grantedConsent, signingSecret), {"x-all-season-intake-secret": ""})],
     ["an untrusted origin", request(signConsentCookie(grantedConsent, signingSecret), {origin: "https://attacker.example"})],

@@ -23,6 +23,7 @@ export type PrivacyConsentContextValue = {
   acceptAll(): Promise<void>;
   rejectNonessential(): Promise<void>;
   savePreferences(value: {analytics: boolean; advertising: boolean}): Promise<void>;
+  authorizeAdvertising(): Promise<boolean>;
 };
 
 type PrivacyConsentProviderProps = {
@@ -108,6 +109,9 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
   const focusPrivacyControlAfterSaveRef = useRef(false);
   const gpcSyncAttemptedRef = useRef(false);
   const canonicalResolutionRef = useRef(0);
+  const consentIdentityRef = useRef(initialConsentId && initialPolicyVersion
+    ? {consentId: initialConsentId, policyVersion: initialPolicyVersion}
+    : null);
   const browserGpcDetected = useSyncExternalStore(
     subscribeToBrowserGpc,
     browserGpcIsEnabled,
@@ -119,6 +123,31 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
       : preferences,
     [browserGpcDetected, canonicalReady, preferences],
   );
+
+  const authorizeAdvertising = useCallback(async () => {
+    const identity = consentIdentityRef.current;
+    if (!identity || browserGpcIsEnabled()) return false;
+    try {
+      const response = await fetch("/api/privacy/consent", {
+        method: "GET",
+        cache: "no-store",
+        credentials: "same-origin",
+      });
+      if (!response.ok) throw new Error("Consent status request failed");
+      const payload: unknown = await response.json();
+      if (!isConsentResponse(payload)
+        || payload.consent.consentId !== identity.consentId
+        || payload.consent.policyVersion !== identity.policyVersion) {
+        throw new Error("Divergent consent status response");
+      }
+      setPreferences(payload.consent.preferences);
+      setCanonicalReady(true);
+      return payload.consent.preferences.advertising && !payload.consent.gpcDetected;
+    } catch {
+      setCanonicalReady(false);
+      return false;
+    }
+  }, []);
 
   const savePreferences = useCallback(async (value: {
     analytics: boolean;
@@ -154,6 +183,10 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
       restoreFocusAfterDialogCloseRef.current = false;
       focusPrivacyControlAfterSaveRef.current = true;
       setPreferences(payload.consent.preferences);
+      consentIdentityRef.current = {
+        consentId: payload.consent.consentId,
+        policyVersion: payload.consent.policyVersion,
+      };
       setDecided(true);
       setCanonicalReady(true);
       setCustomizing(false);
@@ -289,6 +322,7 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
     acceptAll,
     rejectNonessential,
     savePreferences,
+    authorizeAdvertising,
   };
 
   return (

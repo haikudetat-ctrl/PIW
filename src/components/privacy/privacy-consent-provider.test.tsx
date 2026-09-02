@@ -157,6 +157,38 @@ describe("PrivacyConsentProvider", () => {
     );
   });
 
+  test("allows an explicit grant after a historical GPC denial is no longer live", async () => {
+    const historicalGpc: VerifiedConsent = {
+      ...rejectedConsent,
+      gpcDetected: true,
+      updatedAt: "2026-08-28T12:01:00.000Z",
+    };
+    const laterGrant: VerifiedConsent = {
+      ...advertisingConsent,
+      gpcDetected: false,
+      updatedAt: "2026-08-28T12:02:00.000Z",
+    };
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(Response.json({consent: historicalGpc}))
+      .mockResolvedValueOnce(Response.json({consent: laterGrant}));
+    vi.stubGlobal("fetch", fetch);
+    render(<PrivacyConsentProvider initialConsent={historicalGpc}><Probe /></PrivacyConsentProvider>);
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole("button", {name: "Privacy choices"}));
+    const advertising = screen.getByRole("checkbox", {name: "Advertising"});
+    expect(advertising).toBeEnabled();
+    fireEvent.click(advertising);
+    fireEvent.click(screen.getByRole("button", {name: "Save preferences"}));
+
+    await waitFor(() => expect(screen.getByTestId("preferences")).toHaveTextContent(
+      '{"necessary":true,"analytics":true,"advertising":true}',
+    ));
+    expect(fetch).toHaveBeenLastCalledWith("/api/privacy/consent", expect.objectContaining({
+      body: expect.stringContaining('"gpcDetected":false'),
+    }));
+  });
+
   test("saved visitors can reopen privacy choices", () => {
     render(<PrivacyConsentProvider initialConsent={rejectedConsent}><div /></PrivacyConsentProvider>);
 

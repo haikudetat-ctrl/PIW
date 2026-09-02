@@ -21,6 +21,11 @@ export type PrivacyConsentEvidenceInput = {
 
 export interface PrivacyConsentRepository {
   record(input: PrivacyConsentEvidenceInput): Promise<void>;
+  isWriteAllowed?(input: {
+    consentId: string;
+    since: string;
+    limit: number;
+  }): Promise<boolean>;
 }
 
 /** Server-only read boundary for the unlinked, cross-origin current preference. */
@@ -95,6 +100,29 @@ export class SupabasePrivacyConsentRepository implements CurrentPrivacyConsentRe
       p_occurred_at: input.occurredAt,
     });
     if (error) throw new Error("Failed to record privacy consent evidence");
+  }
+
+  async isWriteAllowed(input: {consentId: string; since: string; limit: number}) {
+    type CountQuery = {
+      eq(column: string, value: string): CountQuery;
+      gte(column: string, value: string): PromiseLike<{
+        count: number | null;
+        error: {message: string} | null;
+      }>;
+    };
+    const service = this.service as unknown as {
+      from(table: "privacy_consent_evidence"): {
+        select(columns: "evidence_id", options: {count: "exact"; head: true}): CountQuery;
+      };
+    };
+    const {count, error} = await service
+      .from("privacy_consent_evidence")
+      .select("evidence_id", {count: "exact", head: true})
+      .eq("consent_id", input.consentId)
+      .eq("policy_version", "piw-privacy-v1")
+      .gte("created_at", input.since);
+    if (error || count === null) throw new Error("Failed to rate limit privacy consent");
+    return count < input.limit;
   }
 
   async readCurrent(input: {

@@ -63,4 +63,23 @@ describe("SupabasePrivacyConsentRepository current consent", () => {
       "Failed to read current privacy consent",
     );
   });
+
+  test.each([[11, true], [12, false]] as const)(
+    "uses durable evidence count %i to enforce the bounded write window",
+    async (count, allowed) => {
+      const query = {
+        select: vi.fn(() => query),
+        eq: vi.fn(() => query),
+        gte: vi.fn(async () => ({count, error: null})),
+      };
+      const repository = new SupabasePrivacyConsentRepository({from: vi.fn(() => query)} as never);
+
+      await expect(repository.isWriteAllowed({
+        consentId,
+        since: "2026-09-01T15:00:00.000Z",
+        limit: 12,
+      })).resolves.toBe(allowed);
+      expect(query.gte).toHaveBeenCalledWith("created_at", "2026-09-01T15:00:00.000Z");
+    },
+  );
 });

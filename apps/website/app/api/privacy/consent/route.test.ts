@@ -10,7 +10,7 @@ const now = new Date("2026-09-01T16:00:00.000Z");
 function request(body: unknown, headers: Record<string, string> = {}) {
   return new NextRequest("https://allseason.example/api/privacy/consent", {
     method: "POST",
-    headers: {"content-type": "application/json", ...headers},
+    headers: {"content-type": "application/json", origin: "https://allseason.example", ...headers},
     body: JSON.stringify(body),
   });
 }
@@ -214,5 +214,44 @@ describe("website privacy consent endpoint", () => {
       request({analytics: false, advertising: false}),
       {...dependencies, signingSecret: "short"},
     )).status).toBe(503);
+  });
+
+  test.each([null, "https://attacker.example"])(
+    "rejects an unsafe browser Origin before synchronization (%s)",
+    async (origin) => {
+      const synchronize = vi.fn(async () => null);
+      const headers = new Headers({"content-type": "application/json"});
+      if (origin) headers.set("origin", origin);
+      const unsafe = new NextRequest("https://allseason.example/api/privacy/consent", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({analytics: false, advertising: false}),
+      });
+
+      const response = await handlePrivacyConsentRequest(unsafe, {
+        signingSecret, nodeEnv: "test", now: () => now, createId: () => consentId, synchronize,
+      });
+
+      expect(response.status).toBe(403);
+      expect(synchronize).not.toHaveBeenCalled();
+    },
+  );
+
+  test("keeps tracking denied when the durable canonical limiter rejects a grant", async () => {
+    const response = await handlePrivacyConsentRequest(
+      request({analytics: true, advertising: true}),
+      {
+        signingSecret,
+        nodeEnv: "test",
+        now: () => now,
+        createId: () => consentId,
+        synchronize: async () => null,
+      },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      consent: {preferences: {advertising: false}},
+    });
   });
 });
