@@ -1,7 +1,7 @@
 import {describe, expect, test, vi} from "vitest";
 import type {NextRequest} from "next/server";
-import {signConsentCookie} from "@/modules/privacy/consent";
-import {handlePrivacyConsentRequest} from "./route";
+import {signConsentCookie, type VerifiedConsent} from "@/modules/privacy/consent";
+import {handlePrivacyConsentRequest, handlePrivacyConsentStatusRequest} from "./route";
 
 const signingSecret = "0123456789abcdef0123456789abcdef";
 
@@ -10,6 +10,12 @@ function request(body: unknown, headers?: HeadersInit) {
     method: "POST",
     headers: {"content-type": "application/json", ...headers},
     body: JSON.stringify(body),
+  }) as NextRequest;
+}
+
+function statusRequest(cookie?: string, headers?: HeadersInit) {
+  return new Request("https://example.test/api/privacy/consent", {
+    headers: { ...(cookie ? {cookie} : {}), ...headers },
   }) as NextRequest;
 }
 
@@ -120,5 +126,100 @@ describe("privacy consent route", () => {
 
     expect(response.status).toBe(503);
     expect(unavailable.repository.record).not.toHaveBeenCalled();
+  });
+
+  test("returns the current canonical revocation rather than a stale PIW grant", async () => {
+    const token = signConsentCookie({
+      consentId: "22222222-2222-4222-8222-222222222222",
+      preferences: {necessary: true, analytics: true, advertising: true},
+      gpcDetected: false,
+      updatedAt: "2026-08-28T12:00:00.000Z",
+    }, signingSecret);
+    const revoked: VerifiedConsent = {
+      consentId: "22222222-2222-4222-8222-222222222222",
+      policyVersion: "piw-privacy-v1" as const,
+      preferences: {necessary: true, analytics: false, advertising: false},
+      gpcDetected: false,
+      updatedAt: "2026-08-28T12:01:00.000Z",
+    };
+    const readCurrent = vi.fn(async () => revoked);
+
+    const response = await handlePrivacyConsentStatusRequest(
+      statusRequest(`piw_privacy=${token}`),
+      {
+        signingSecret,
+        deploymentEnvironment: "production",
+        requestIp: null,
+        now: () => new Date("2026-08-28T12:01:00.000Z"),
+        createId: () => "33333333-3333-4333-8333-333333333333",
+        repository: {record: vi.fn(async () => undefined), readCurrent},
+      },
+    );
+
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.headers.get("set-cookie")).toContain("piw_privacy=");
+    await expect(response.json()).resolves.toMatchObject({consent: {
+      consentId: "22222222-2222-4222-8222-222222222222",
+      preferences: {advertising: false},
+      updatedAt: "2026-08-28T12:01:00.000Z",
+    }});
+    expect(readCurrent).toHaveBeenCalledWith({
+      consentId: "22222222-2222-4222-8222-222222222222",
+      policyVersion: "piw-privacy-v1",
+    });
+  });
+
+  test("fails closed in status when current consent is unavailable or GPC is active", async () => {
+    const token = signConsentCookie({
+      consentId: "22222222-2222-4222-8222-222222222222",
+      preferences: {necessary: true, analytics: true, advertising: true},
+      gpcDetected: false,
+      updatedAt: "2026-08-28T12:00:00.000Z",
+    }, signingSecret);
+    const grant: VerifiedConsent = {
+      consentId: "22222222-2222-4222-8222-222222222222",
+      policyVersion: "piw-privacy-v1" as const,
+      preferences: {necessary: true, analytics: true, advertising: true},
+      gpcDetected: false,
+      updatedAt: "2026-08-28T12:01:00.000Z",
+    };
+    const gpcRecord = vi.fn(async () => undefined);
+    const unavailable = await handlePrivacyConsentStatusRequest(
+      statusRequest(`piw_privacy=${token}`),
+      {
+        signingSecret,
+        deploymentEnvironment: "test",
+        requestIp: null,
+        now: () => new Date("2026-08-28T12:01:00.000Z"),
+        createId: () => "33333333-3333-4333-8333-333333333333",
+        repository: {record: vi.fn(async () => undefined), readCurrent: vi.fn(async () => null)},
+      },
+    );
+    const gpc = await handlePrivacyConsentStatusRequest(
+      statusRequest(`piw_privacy=${token}`, {"x-all-season-gpc": "1"}),
+      {
+        signingSecret,
+        deploymentEnvironment: "test",
+        requestIp: null,
+        now: () => new Date("2026-08-28T12:01:00.000Z"),
+        createId: () => "33333333-3333-4333-8333-333333333333",
+        repository: {record: gpcRecord, readCurrent: vi.fn(async () => grant)},
+      },
+    );
+
+    await expect(unavailable.json()).resolves.toMatchObject({consent: {
+      preferences: {advertising: false},
+    }});
+    expect(unavailable.headers.get("set-cookie")).toBeNull();
+    await expect(gpc.json()).resolves.toMatchObject({consent: {
+      gpcDetected: true,
+      preferences: {advertising: false},
+    }});
+    expect(gpcRecord).toHaveBeenCalledWith(expect.objectContaining({
+      consentId: "22222222-2222-4222-8222-222222222222",
+      gpcDetected: true,
+      preferences: {necessary: true, analytics: true, advertising: false},
+      source: "gpc",
+    }));
   });
 });

@@ -88,6 +88,7 @@ describe("campaign estimate proxy", () => {
       "production",
       privacySigningSecret,
       () => new Date("2026-09-01T16:00:00.000Z"),
+      async ({localConsent}) => localConsent,
     );
 
     expect(forward).toHaveBeenCalledWith(expect.anything(), {consentToken});
@@ -110,6 +111,8 @@ describe("campaign estimate proxy", () => {
       publicAppUrl,
       "production",
       privacySigningSecret,
+      () => new Date("2026-09-01T16:00:00.000Z"),
+      async ({localConsent}) => localConsent,
     );
 
     expect(forward).toHaveBeenCalledOnce();
@@ -185,6 +188,8 @@ describe("campaign estimate proxy", () => {
       publicAppUrl,
       "production",
       privacySigningSecret,
+      () => new Date("2026-09-01T16:00:00.000Z"),
+      async ({localConsent}) => localConsent,
     );
 
     expect(response.status).toBe(202);
@@ -194,6 +199,59 @@ describe("campaign estimate proxy", () => {
         fbc: "fb.1.100.click",
       }),
     }));
+  });
+
+  test("keeps estimate delivery available but withholds residual Meta identifiers and the handoff when canonical consent is unavailable", async () => {
+    const token = signWebsiteConsent(privacyConsent, privacySigningSecret);
+    const forward = vi.fn(async () => Response.json({
+      accepted: true,
+      continuationPath: "/roof-estimate/continue/safe-token",
+    }, {status: 202}));
+    const resolveCanonical = vi.fn(async () => null);
+
+    const response = await handleCampaignEstimateRequest(
+      request(googleSubmission(), `_fbp=fb.1.100.200; _fbc=fb.1.100.click; piw_privacy=${token}`),
+      forward,
+      publicAppUrl,
+      "production",
+      privacySigningSecret,
+      () => new Date("2026-09-01T16:00:00.000Z"),
+      resolveCanonical,
+    );
+
+    expect(response.status).toBe(202);
+    expect(resolveCanonical).toHaveBeenCalledOnce();
+    expect(forward).toHaveBeenCalledWith(expect.objectContaining({
+      attribution: expect.objectContaining({fbp: null, fbc: null}),
+    }));
+    expect(forward.mock.calls[0]).toHaveLength(1);
+    const body = await response.json() as {estimateUrl: string};
+    expect(new URL(body.estimateUrl).search).toBe("");
+  });
+
+  test("accepts Meta identifiers and a handoff only after a canonical current grant", async () => {
+    const token = signWebsiteConsent(privacyConsent, privacySigningSecret);
+    let forwarded: Record<string, unknown> | undefined;
+
+    const response = await handleCampaignEstimateRequest(
+      request(googleSubmission(), `_fbp=fb.1.100.200; _fbc=fb.1.100.click; piw_privacy=${token}`),
+      async (payload) => {
+        forwarded = payload;
+        return Response.json({accepted: true, continuationPath: "/roof-estimate/continue/safe-token"}, {status: 202});
+      },
+      publicAppUrl,
+      "production",
+      privacySigningSecret,
+      () => new Date("2026-09-01T16:00:00.000Z"),
+      async ({localConsent}) => localConsent,
+    );
+
+    expect(response.status).toBe(202);
+    expect(forwarded).toEqual(expect.objectContaining({
+      attribution: expect.objectContaining({fbp: "fb.1.100.200", fbc: "fb.1.100.click"}),
+    }));
+    const body = await response.json() as {estimateUrl: string};
+    expect(new URL(body.estimateUrl).searchParams.get("privacy_handoff")).toEqual(expect.any(String));
   });
 
   test("returns a PIW-issued Lead envelope without synthesizing one", async () => {
@@ -428,13 +486,27 @@ describe("campaign estimate proxy", () => {
     process.env.PIW_PUBLIC_APP_URL = publicAppUrl;
     process.env.PRIVACY_CONSENT_SIGNING_SECRET = privacySigningSecret;
     const consentToken = signWebsiteConsent(privacyConsent, privacySigningSecret);
-    const fetch = vi.fn(async () => Response.json({accepted: true, continuationPath: "/roof-estimate/continue/safe_token"}, {status: 202}));
+    const fetch = vi.fn<typeof globalThis.fetch>(async (input: RequestInfo | URL) => {
+      if (String(input) === "https://piw.example/api/privacy/consent/current") {
+        return Response.json({consent: privacyConsent});
+      }
+      return Response.json({accepted: true, continuationPath: "/roof-estimate/continue/safe_token"}, {status: 202});
+    });
     vi.stubGlobal("fetch", fetch);
 
     const response = await POST(request(googleSubmission(), `piw_privacy=${consentToken}`));
 
     expect(response.status).toBe(202);
-    expect(fetch).toHaveBeenCalledWith(
+    expect(String(fetch.mock.calls[0]?.[0])).toBe("https://piw.example/api/privacy/consent/current");
+    expect(fetch.mock.calls[0]?.[1]).toEqual(expect.objectContaining({
+      headers: expect.objectContaining({
+        origin: "https://allseason.example",
+        "x-all-season-intake-secret": "shared-secret",
+        "x-piw-privacy-consent": consentToken,
+      }),
+    }));
+    expect(fetch).toHaveBeenNthCalledWith(
+      2,
       "https://piw-internal.example/api/integrations/all-season/campaign-estimate",
       expect.objectContaining({
         method: "POST",

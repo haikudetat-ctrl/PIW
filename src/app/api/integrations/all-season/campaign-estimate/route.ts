@@ -4,7 +4,12 @@ import { parseServerEnv } from "@/lib/env/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { inngest } from "@/inngest/client";
 import { SupabaseMetaRepository, type ReservedMetaEvent } from "@/modules/marketing/meta-repository";
-import { verifyConsentCookie, type VerifiedConsent } from "@/modules/privacy/consent";
+import {type VerifiedConsent} from "@/modules/privacy/consent";
+import {
+  requestHasGlobalPrivacyControl,
+  resolveCurrentVerifiedConsent,
+} from "@/modules/privacy/current-consent";
+import {SupabasePrivacyConsentRepository} from "@/modules/privacy/consent-repository";
 import {
   acceptAllSeasonCampaignEstimate,
   type AllSeasonCampaignEstimateLeadInput,
@@ -209,6 +214,7 @@ export async function POST(request: NextRequest) {
   const signingKey = environment.ROOF_ASSESSMENT_SIGNING_SECRET;
   const companyId = environment.ALL_SEASON_INTAKE_COMPANY_ID;
   const metaRepository = new SupabaseMetaRepository(service as never);
+  const privacyRepository = new SupabasePrivacyConsentRepository(service as never);
 
   return handleAllSeasonCampaignEstimateRequest(request, {
     expectedSecret: environment.ALL_SEASON_INTAKE_SHARED_SECRET,
@@ -225,10 +231,13 @@ export async function POST(request: NextRequest) {
       return data.lead_id;
     },
     verifyAdvertisingConsent: async (incoming) =>
-      verifyConsentCookie(
-        incoming.headers.get("x-piw-privacy-consent") ?? undefined,
-        environment.PRIVACY_CONSENT_SIGNING_SECRET ?? "",
-      ),
+      resolveCurrentVerifiedConsent({
+        consentToken: incoming.headers.get("x-piw-privacy-consent") ?? undefined,
+        signingSecret: environment.PRIVACY_CONSENT_SIGNING_SECRET ?? "",
+        gpcDetected: requestHasGlobalPrivacyControl(incoming.headers),
+        now: () => new Date(),
+        repository: privacyRepository,
+      }),
     recordConsent: async ({leadId, companyId: consentCompanyId, consent, occurredAt}) => {
       const {error} = await service.rpc("record_privacy_consent", {
         p_evidence_id: crypto.randomUUID(),

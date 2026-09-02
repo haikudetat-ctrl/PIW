@@ -50,6 +50,12 @@ const contactRowSchema = z.object({
   fbp: z.string().nullable(),
   fbc: z.string().nullable(),
 }).strict();
+const canonicalConsentEvidenceSchema = z.object({
+  advertising_granted: z.boolean(),
+  gpc_detected: z.boolean(),
+  occurred_at: isoDatetimeSchema,
+}).strict();
+const canonicalConsentEvidenceRowsSchema = z.array(canonicalConsentEvidenceSchema).max(1);
 
 const completionResultSchema = z.object({
   outcome: z.enum(["sent", "retryable_failed", "permanent_failed"]),
@@ -72,9 +78,25 @@ type ContactQuery = {
   eq(column: string, value: string): ContactQuery;
   maybeSingle(): PromiseLike<{ data: unknown; error: unknown }>;
 };
+type CanonicalConsentQuery = {
+  select(columns: string): CanonicalConsentQuery;
+  eq(column: "consent_id" | "policy_version", value: string): CanonicalConsentQuery;
+  is(column: "company_id" | "lead_id", value: null): CanonicalConsentQuery;
+  lte(column: "occurred_at", value: string): CanonicalConsentQuery;
+  gte(column: "occurred_at", value: string): CanonicalConsentQuery;
+  or(filters: string): CanonicalConsentQuery;
+  order(column: "occurred_at", options: {ascending: boolean}): CanonicalConsentQuery;
+  limit(value: number): CanonicalConsentQuery;
+  maybeSingle(): PromiseLike<{ data: unknown; error: unknown }>;
+  then<TResult1 = {data: unknown; error: unknown}, TResult2 = never>(
+    onfulfilled?: ((value: {data: unknown; error: unknown}) => TResult1 | PromiseLike<TResult1>) | null,
+    onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
+  ): PromiseLike<TResult1 | TResult2>;
+};
 type MetaRepositoryClient = {
   rpc(name: string, args: Record<string, unknown>): RpcResponse;
   from(table: "leads"): ContactQuery;
+  from(table: "privacy_consent_evidence"): CanonicalConsentQuery;
 };
 
 export type ReservedMetaEvent = {
@@ -167,6 +189,49 @@ export class SupabaseMetaRepository {
     return reservedEvent(row);
   }
 
+  /**
+   * Linked evidence authorizes the database reservation, but only the unlinked
+   * canonical sequence can reflect a later website-origin revocation. Read it
+   * before exposing contact or attribution fields to the CAPI sender.
+   */
+  private async hasCurrentCanonicalAdvertisingConsent(
+    row: z.infer<typeof deliveryRowSchema>,
+  ) {
+    const historicalResult = await this.client
+      .from("privacy_consent_evidence")
+      .select("advertising_granted, gpc_detected, occurred_at")
+      .eq("consent_id", row.consent_id)
+      .eq("policy_version", row.policy_version)
+      .is("company_id", null)
+      .is("lead_id", null)
+      .lte("occurred_at", row.event_time)
+      .order("occurred_at", {ascending: false})
+      .limit(1)
+      .maybeSingle();
+    if (historicalResult.error) throw new MetaRepositoryError("claimCanonicalConsent");
+    const historical = canonicalConsentEvidenceSchema.safeParse(historicalResult.data);
+    if (!historical.success || !historical.data.advertising_granted || historical.data.gpc_detected) {
+      return false;
+    }
+
+    const revocationResult = await this.client
+      .from("privacy_consent_evidence")
+      .select("advertising_granted, gpc_detected, occurred_at")
+      .eq("consent_id", row.consent_id)
+      .eq("policy_version", row.policy_version)
+      .is("company_id", null)
+      .is("lead_id", null)
+      .gte("occurred_at", row.event_time)
+      .or("advertising_granted.eq.false,gpc_detected.eq.true")
+      .limit(1);
+    if (revocationResult.error) throw new MetaRepositoryError("claimCanonicalConsent");
+    const revocations = canonicalConsentEvidenceRowsSchema.safeParse(revocationResult.data);
+    if (!revocations.success) throw new MetaRepositoryError("claimCanonicalConsent");
+    // Do not let a subsequent grant revive a historical delivery once a
+    // revocation/GPC event exists at or after its original event time.
+    return revocations.data.length === 0;
+  }
+
   async claim(deliveryId: string): Promise<MetaDeliverySource | null> {
     const { data, error } = await this.client.rpc("claim_meta_delivery", {
       p_delivery_id: deliveryId,
@@ -178,6 +243,7 @@ export class SupabaseMetaRepository {
     if (row.id !== deliveryId || row.status !== "sending") {
       throw new MetaRepositoryError("claim");
     }
+    if (!await this.hasCurrentCanonicalAdvertisingConsent(row)) return null;
 
     const contactResult = await this.client
       .from("leads")

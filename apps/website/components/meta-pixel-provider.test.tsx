@@ -48,6 +48,7 @@ afterEach(async () => {
   document.head.querySelectorAll('script[src*="connect.facebook.net"]').forEach((script) => script.remove());
   delete (window as Window & {fbq?: BrowserFbq}).fbq;
   delete (window as Window & {_fbq?: BrowserFbq})._fbq;
+  Object.defineProperty(navigator, "globalPrivacyControl", {value: undefined, configurable: true});
   vi.unstubAllEnvs();
 });
 
@@ -61,6 +62,24 @@ beforeEach(() => {
 describe("website MetaPixelProvider", () => {
   test("does not load or touch Meta while advertising is denied", async () => {
     await renderProvider();
+
+    expect(document.querySelector('script[src*="connect.facebook.net"]')).toBeNull();
+    expect(currentFbq()).toBeUndefined();
+  });
+
+  test("treats browser Global Privacy Control as authoritative even if an upstream context is stale", async () => {
+    state.advertising = true;
+    Object.defineProperty(navigator, "globalPrivacyControl", {value: true, configurable: true});
+    let trackConversion: ReturnType<typeof useMetaPixel>["trackConversion"] | undefined;
+
+    await renderProvider((track) => {
+      trackConversion = track;
+    });
+    trackConversion?.({
+      name: "Lead",
+      eventId: "12111111-1111-4111-8111-111111111111",
+      issuedAt: new Date().toISOString(),
+    });
 
     expect(document.querySelector('script[src*="connect.facebook.net"]')).toBeNull();
     expect(currentFbq()).toBeUndefined();

@@ -1,5 +1,5 @@
 import {NextRequest} from "next/server";
-import {describe, expect, test} from "vitest";
+import {describe, expect, test, vi} from "vitest";
 import {readWebsiteConsent, signWebsiteConsent} from "../../../../lib/privacy-consent";
 import {handlePrivacyConsentRequest, handlePrivacyConsentStatusRequest} from "./route";
 
@@ -15,9 +15,9 @@ function request(body: unknown, headers: Record<string, string> = {}) {
   });
 }
 
-function statusRequest(cookie?: string) {
+function statusRequest(cookie?: string, headers: Record<string, string> = {}) {
   return new NextRequest("https://allseason.example/api/privacy/consent", {
-    headers: cookie ? {cookie} : undefined,
+    headers: { ...(cookie ? {cookie} : {}), ...headers },
   });
 }
 
@@ -31,13 +31,20 @@ describe("website privacy consent endpoint", () => {
       updatedAt: now.toISOString(),
     }, signingSecret);
 
-    const verified = await handlePrivacyConsentStatusRequest(
-      statusRequest(`piw_privacy=${token}`),
-      {signingSecret},
-    );
+    const verified = await handlePrivacyConsentStatusRequest(statusRequest(`piw_privacy=${token}`), {
+      signingSecret,
+      now: () => now,
+      synchronize: async () => ({
+        policyVersion: "piw-privacy-v1",
+        consentId,
+        preferences: {necessary: true, analytics: false, advertising: true},
+        gpcDetected: false,
+        updatedAt: now.toISOString(),
+      }),
+    } as never);
     const invalid = await handlePrivacyConsentStatusRequest(
       statusRequest("piw_privacy=not-signed"),
-      {signingSecret},
+      {signingSecret, now: () => now, synchronize: async () => null} as never,
     );
 
     expect(verified.headers.get("cache-control")).toBe("no-store");
@@ -46,6 +53,120 @@ describe("website privacy consent endpoint", () => {
       preferences: {advertising: true},
     }});
     await expect(invalid.json()).resolves.toEqual({consent: null});
+  });
+
+  test("fails closed when the canonical PIW status cannot be synchronized", async () => {
+    const token = signWebsiteConsent({
+      policyVersion: "piw-privacy-v1",
+      consentId,
+      preferences: {necessary: true, analytics: true, advertising: true},
+      gpcDetected: false,
+      updatedAt: now.toISOString(),
+    }, signingSecret);
+
+    const response = await handlePrivacyConsentStatusRequest(
+      statusRequest(`piw_privacy=${token}`),
+      {
+        signingSecret,
+        now: () => now,
+        synchronize: async () => null,
+      } as never,
+    );
+
+    await expect(response.json()).resolves.toEqual({consent: {
+      policyVersion: "piw-privacy-v1",
+      consentId,
+      preferences: {necessary: true, analytics: true, advertising: false},
+      gpcDetected: false,
+      updatedAt: now.toISOString(),
+    }});
+  });
+
+  test("fails closed when canonical state belongs to a different consent identity", async () => {
+    const token = signWebsiteConsent({
+      policyVersion: "piw-privacy-v1",
+      consentId,
+      preferences: {necessary: true, analytics: true, advertising: true},
+      gpcDetected: false,
+      updatedAt: now.toISOString(),
+    }, signingSecret);
+
+    const response = await handlePrivacyConsentStatusRequest(
+      statusRequest(`piw_privacy=${token}`),
+      {
+        signingSecret,
+        now: () => now,
+        synchronize: async () => ({
+          policyVersion: "piw-privacy-v1",
+          consentId: "22222222-2222-4222-8222-222222222222",
+          preferences: {necessary: true, analytics: true, advertising: false},
+          gpcDetected: false,
+          updatedAt: "2026-09-01T16:01:00.000Z",
+        }),
+      } as never,
+    );
+
+    await expect(response.json()).resolves.toMatchObject({consent: {
+      consentId,
+      preferences: {advertising: false},
+    }});
+  });
+
+  test("does not let an older canonical grant re-enable a newer website revocation", async () => {
+    const token = signWebsiteConsent({
+      policyVersion: "piw-privacy-v1",
+      consentId,
+      preferences: {necessary: true, analytics: true, advertising: false},
+      gpcDetected: false,
+      updatedAt: "2026-09-01T16:01:00.000Z",
+    }, signingSecret);
+
+    const response = await handlePrivacyConsentStatusRequest(
+      statusRequest(`piw_privacy=${token}`),
+      {
+        signingSecret,
+        now: () => now,
+        synchronize: async () => ({
+          policyVersion: "piw-privacy-v1",
+          consentId,
+          preferences: {necessary: true, analytics: true, advertising: true},
+          gpcDetected: false,
+          updatedAt: "2026-09-01T16:00:00.000Z",
+        }),
+      } as never,
+    );
+
+    await expect(response.json()).resolves.toMatchObject({consent: {
+      preferences: {advertising: false},
+      updatedAt: "2026-09-01T16:01:00.000Z",
+    }});
+  });
+
+  test("treats browser-reported GPC as a current denial before consulting canonical state", async () => {
+    const token = signWebsiteConsent({
+      policyVersion: "piw-privacy-v1",
+      consentId,
+      preferences: {necessary: true, analytics: true, advertising: true},
+      gpcDetected: false,
+      updatedAt: "2026-09-01T16:00:00.000Z",
+    }, signingSecret);
+    const synchronize = vi.fn(async (candidate: unknown) => candidate);
+
+    const response = await handlePrivacyConsentStatusRequest(
+      statusRequest(`piw_privacy=${token}`, {"x-all-season-gpc": "1"}),
+      {signingSecret, now: () => now, synchronize} as never,
+    );
+
+    await expect(response.json()).resolves.toMatchObject({consent: {
+      gpcDetected: true,
+      preferences: {advertising: false},
+      updatedAt: now.toISOString(),
+    }});
+    expect(synchronize).toHaveBeenCalledWith(expect.objectContaining({
+      gpcDetected: true,
+      preferences: expect.objectContaining({advertising: false}),
+      updatedAt: now.toISOString(),
+    }));
   });
 
   test("sets a PIW-compatible HttpOnly consent cookie", async () => {

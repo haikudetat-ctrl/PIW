@@ -6,8 +6,10 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import type {
   ConsentPreferences,
@@ -36,6 +38,19 @@ const DEFAULT_PREFERENCES: ConsentPreferences = {
 const FAIL_MESSAGE = "We could not save your privacy choices. Please try again.";
 
 const PrivacyConsentContext = createContext<PrivacyConsentContextValue | null>(null);
+
+function browserGpcIsEnabled() {
+  if (typeof navigator === "undefined") return false;
+  return (navigator as Navigator & {globalPrivacyControl?: boolean}).globalPrivacyControl === true;
+}
+
+function subscribeToBrowserGpc() {
+  return () => undefined;
+}
+
+function serverGpcIsDisabled() {
+  return false;
+}
 
 function isUuid(value: unknown): value is string {
   return typeof value === "string"
@@ -72,10 +87,16 @@ export function usePrivacyConsent() {
 }
 
 export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsentProviderProps) {
+  const initialConsentId = initialConsent?.consentId ?? null;
+  const initialPolicyVersion = initialConsent?.policyVersion ?? null;
   const [preferences, setPreferences] = useState<ConsentPreferences>(
     initialConsent?.preferences ?? DEFAULT_PREFERENCES,
   );
   const [decided, setDecided] = useState(Boolean(initialConsent));
+  // A server-verified website cookie is not the authority for Advertising.
+  // Hold any stored grant until the same-origin status route has reconciled it
+  // with PIW's current canonical unlinked preference.
+  const [canonicalReady, setCanonicalReady] = useState(initialConsentId === null);
   const [saving, setSaving] = useState(false);
   const [customizing, setCustomizing] = useState(false);
   const [draft, setDraft] = useState(preferences);
@@ -85,37 +106,103 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
   const reopenButtonRef = useRef<HTMLButtonElement | null>(null);
   const restoreFocusAfterDialogCloseRef = useRef(true);
   const focusPrivacyControlAfterSaveRef = useRef(false);
+  const gpcSyncAttemptedRef = useRef(false);
+  const canonicalResolutionRef = useRef(0);
+  const browserGpcDetected = useSyncExternalStore(
+    subscribeToBrowserGpc,
+    browserGpcIsEnabled,
+    serverGpcIsDisabled,
+  );
+  const effectivePreferences = useMemo<ConsentPreferences>(
+    () => browserGpcDetected || !canonicalReady
+      ? {...preferences, advertising: false}
+      : preferences,
+    [browserGpcDetected, canonicalReady, preferences],
+  );
 
   const savePreferences = useCallback(async (value: {
     analytics: boolean;
     advertising: boolean;
   }) => {
+    const resolution = ++canonicalResolutionRef.current;
     setSaving(true);
     setError(null);
+    const requestedGpc = browserGpcDetected;
+    const requestedPreferences = requestedGpc
+      ? {...value, advertising: false}
+      : value;
+    // A save starts a new consent epoch. Suppress Advertising immediately,
+    // including while a revocation request is in flight or if it fails.
+    setPreferences({necessary: true, ...requestedPreferences});
+    setCanonicalReady(false);
     try {
       const response = await fetch("/api/privacy/consent", {
         method: "POST",
         headers: {"content-type": "application/json"},
-        body: JSON.stringify(value),
+        body: JSON.stringify({
+          ...requestedPreferences,
+          ...(requestedGpc ? {gpcDetected: true} : {}),
+        }),
       });
       if (!response.ok) throw new Error("Consent request failed");
       const payload: unknown = await response.json();
       if (!isConsentResponse(payload)) throw new Error("Invalid consent response");
+      if (requestedGpc && (
+        !payload.consent.gpcDetected || payload.consent.preferences.advertising
+      )) throw new Error("GPC consent response was invalid");
+      if (resolution !== canonicalResolutionRef.current) return;
       restoreFocusAfterDialogCloseRef.current = false;
       focusPrivacyControlAfterSaveRef.current = true;
       setPreferences(payload.consent.preferences);
       setDecided(true);
+      setCanonicalReady(true);
       setCustomizing(false);
     } catch {
-      setError(FAIL_MESSAGE);
+      if (resolution === canonicalResolutionRef.current) setError(FAIL_MESSAGE);
     } finally {
-      setSaving(false);
+      if (resolution === canonicalResolutionRef.current) setSaving(false);
     }
-  }, []);
+  }, [browserGpcDetected]);
+
+  useEffect(() => {
+    if (!initialConsentId || !initialPolicyVersion) return;
+    const resolution = ++canonicalResolutionRef.current;
+    let active = true;
+
+    void (async () => {
+      try {
+        const response = await fetch("/api/privacy/consent", {
+          method: "GET",
+          cache: "no-store",
+          credentials: "same-origin",
+          headers: browserGpcDetected ? {"x-all-season-gpc": "1"} : undefined,
+        });
+        if (!response.ok) throw new Error("Consent status request failed");
+        const payload: unknown = await response.json();
+        if (!isConsentResponse(payload)) throw new Error("Invalid consent status response");
+        if (
+          payload.consent.consentId !== initialConsentId
+          || payload.consent.policyVersion !== initialPolicyVersion
+        ) throw new Error("Divergent consent status response");
+        if (!active || resolution !== canonicalResolutionRef.current) return;
+        setPreferences(payload.consent.preferences);
+        setDecided(true);
+        setCanonicalReady(true);
+      } catch {
+        if (active && resolution === canonicalResolutionRef.current) {
+          setCanonicalReady(false);
+        }
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [browserGpcDetected, initialConsentId, initialPolicyVersion]);
 
   const acceptAll = useCallback(
-    () => savePreferences({analytics: true, advertising: true}),
-    [savePreferences],
+    () => savePreferences({analytics: true, advertising: !browserGpcDetected}),
+    [browserGpcDetected, savePreferences],
   );
   const rejectNonessential = useCallback(
     () => savePreferences({analytics: false, advertising: false}),
@@ -126,10 +213,16 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
     previousFocusRef.current = document.activeElement instanceof HTMLElement
       ? document.activeElement
       : null;
-    setDraft(preferences);
+    setDraft(effectivePreferences);
     setError(null);
     setCustomizing(true);
-  }, [preferences]);
+  }, [effectivePreferences]);
+
+  useEffect(() => {
+    if (!browserGpcDetected || gpcSyncAttemptedRef.current) return;
+    gpcSyncAttemptedRef.current = true;
+    void savePreferences({analytics: preferences.analytics, advertising: false});
+  }, [browserGpcDetected, preferences.analytics, savePreferences]);
 
   useEffect(() => {
     if (!customizing) return;
@@ -191,7 +284,7 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
   }, [customizing, decided]);
 
   const value: PrivacyConsentContextValue = {
-    preferences,
+    preferences: effectivePreferences,
     decided,
     acceptAll,
     rejectNonessential,
@@ -260,7 +353,7 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
                 type="checkbox"
                 aria-label="Advertising"
                 checked={draft.advertising}
-                disabled={saving}
+                disabled={saving || browserGpcDetected}
                 onChange={(event) => setDraft((current) => ({
                   ...current,
                   advertising: event.target.checked,
@@ -268,6 +361,9 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
               />
               <span>Advertising</span>
             </label>
+            {browserGpcDetected ? (
+              <p role="status">Global Privacy Control is active, so Advertising remains off.</p>
+            ) : null}
             {error ? <p role="alert">{error}</p> : null}
             <div className="privacy-consent-dialog-actions">
               <button

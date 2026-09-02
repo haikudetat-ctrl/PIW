@@ -108,6 +108,8 @@ export function usePrivacyConsent() {
 }
 
 export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsentProviderProps) {
+  const initialConsentId = initialConsent?.consentId ?? null;
+  const initialPolicyVersion = initialConsent?.policyVersion ?? null;
   const [status, setStatus] = useState<ConsentStatus>(initialConsent ? "saved" : "unset");
   const [storedPreferences, setStoredPreferences] = useState<ConsentPreferences>(
     initialConsent?.preferences ?? DEFAULT_PREFERENCES,
@@ -115,15 +117,17 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
   const [storedGpcDetected, setStoredGpcDetected] = useState(
     initialConsent?.gpcDetected === true,
   );
-  const [gpcOverridden, setGpcOverridden] = useState(false);
-  const [gpcExplained, setGpcExplained] = useState(false);
+  // A PIW-origin cookie proves its identity but not that its Advertising
+  // decision is still current after a website-side update. Do not expose a
+  // stored grant until the same-origin status endpoint resolves it.
+  const [canonicalReady, setCanonicalReady] = useState(initialConsentId === null);
   const browserGpcDetected = useSyncExternalStore(
     subscribeToBrowserGpc,
     browserGpcIsEnabled,
     serverGpcIsDisabled,
   );
-  const gpcDefaultActive = !gpcOverridden && (storedGpcDetected || browserGpcDetected);
-  const preferences: ConsentPreferences = gpcDefaultActive
+  const gpcDefaultActive = storedGpcDetected || browserGpcDetected;
+  const preferences: ConsentPreferences = gpcDefaultActive || !canonicalReady
     ? {...storedPreferences, advertising: false}
     : storedPreferences;
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -131,6 +135,8 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
   const [error, setError] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
+  const gpcSyncAttemptedRef = useRef(false);
+  const canonicalResolutionRef = useRef(0);
 
   const closePreferences = useCallback(() => {
     setDialogOpen(false);
@@ -141,7 +147,6 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
     returnFocusRef.current = document.activeElement instanceof HTMLElement
       ? document.activeElement
       : null;
-    if (gpcDefaultActive) setGpcExplained(true);
     setDraft({
       necessary: true,
       analytics: preferences.analytics,
@@ -159,15 +164,20 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
   }, [dialogOpen]);
 
   const updatePreferences = useCallback(async (input: PrivacyConsentUpdate) => {
+    const resolution = ++canonicalResolutionRef.current;
     const previousStatus = status;
-    const explicitAdvertisingGrant = gpcDefaultActive
-      && gpcExplained
-      && input.source === "preferences"
-      && input.advertising;
-    const requestGpcDetected = gpcDefaultActive && !explicitAdvertisingGrant;
+    const backgroundGpcSync = input.source === "gpc" && previousStatus === "saved";
+    const requestGpcDetected = gpcDefaultActive;
     const advertising = requestGpcDetected ? false : input.advertising;
-    setStatus("saving");
+    if (!backgroundGpcSync) setStatus("saving");
     setError(null);
+    // A consent update starts a new authority epoch. This immediately
+    // suppresses browser tracking, including a revocation in flight.
+    if (!advertising) {
+      setStoredPreferences({necessary: true, analytics: input.analytics, advertising: false});
+    }
+    setStoredGpcDetected(requestGpcDetected);
+    setCanonicalReady(false);
     try {
       const response = await fetch("/api/privacy/consent", {
         method: "POST",
@@ -182,21 +192,73 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
       if (!response.ok) throw new Error("Consent request failed");
       const payload: unknown = await response.json();
       if (!isConsentResponse(payload)) throw new Error("Consent response was invalid");
+      if (resolution !== canonicalResolutionRef.current) return;
       setStoredPreferences(payload.consent.preferences);
       setStoredGpcDetected(payload.consent.gpcDetected);
-      setGpcOverridden(Boolean(
-        explicitAdvertisingGrant
-        && payload.consent.preferences.advertising
-        && !payload.consent.gpcDetected,
-      ));
-      setGpcExplained(false);
       setStatus("saved");
+      setCanonicalReady(true);
       if (dialogOpen) closePreferences();
     } catch {
-      setStatus(previousStatus);
-      setError(FAIL_MESSAGE);
+      if (resolution === canonicalResolutionRef.current) {
+        setStatus(previousStatus);
+        setError(FAIL_MESSAGE);
+      }
     }
-  }, [closePreferences, dialogOpen, gpcDefaultActive, gpcExplained, status]);
+  }, [closePreferences, dialogOpen, gpcDefaultActive, status]);
+
+  useEffect(() => {
+    if (!initialConsentId || !initialPolicyVersion) return;
+    const resolution = ++canonicalResolutionRef.current;
+    let active = true;
+
+    void (async () => {
+      try {
+        const response = await fetch("/api/privacy/consent", {
+          method: "GET",
+          cache: "no-store",
+          credentials: "same-origin",
+          headers: browserGpcDetected ? {"x-all-season-gpc": "1"} : undefined,
+        });
+        if (!response.ok) throw new Error("Consent status request failed");
+        const payload: unknown = await response.json();
+        if (!isConsentResponse(payload)) throw new Error("Consent status response was invalid");
+        if (
+          payload.consent.consentId !== initialConsentId
+          || payload.consent.policyVersion !== initialPolicyVersion
+        ) throw new Error("Divergent consent status response");
+        if (!active || resolution !== canonicalResolutionRef.current) return;
+        setStoredPreferences(payload.consent.preferences);
+        setStoredGpcDetected(payload.consent.gpcDetected);
+        setStatus("saved");
+        setCanonicalReady(true);
+      } catch {
+        if (active && resolution === canonicalResolutionRef.current) {
+          setCanonicalReady(false);
+        }
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [browserGpcDetected, initialConsentId, initialPolicyVersion]);
+
+  // A browser-level GPC signal is immediately effective in memory and is also
+  // persisted once when it supersedes an existing Advertising grant. If the
+  // write fails, the request-time/server gates still fail closed.
+  useEffect(() => {
+    if (
+      !browserGpcDetected
+      || !storedPreferences.advertising
+      || gpcSyncAttemptedRef.current
+    ) return;
+    gpcSyncAttemptedRef.current = true;
+    void updatePreferences({
+      analytics: storedPreferences.analytics,
+      advertising: false,
+      source: "gpc",
+    });
+  }, [browserGpcDetected, storedPreferences.advertising, storedPreferences.analytics, updatePreferences]);
 
   function handleDialogKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key === "Escape") {
@@ -247,10 +309,9 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
           onCustomize={openPreferences}
         />
       ) : null}
-      {gpcDefaultActive && storedPreferences.advertising && !dialogOpen ? (
+      {gpcDefaultActive && !dialogOpen ? (
         <p className="privacy-consent-gpc-notice" role="status">
-          Global Privacy Control was detected, so Advertising is off. Open Privacy choices
-          if you want to make an explicit selection.
+          Global Privacy Control was detected, so Advertising remains off while it is active.
         </p>
       ) : null}
       <button
@@ -276,8 +337,7 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
             <p>Choose which nonessential technologies we may use.</p>
             {gpcDefaultActive ? (
               <p className="privacy-consent-gpc" role="status">
-                Global Privacy Control was detected, so Advertising started off.
-                You may explicitly turn it on here.
+                Global Privacy Control is active, so Advertising remains off while it is active.
               </p>
             ) : null}
             <div className="privacy-consent-options">
@@ -303,7 +363,7 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
                   type="checkbox"
                   aria-label="Advertising"
                   checked={draft.advertising}
-                  disabled={saving}
+                  disabled={saving || gpcDefaultActive}
                   onChange={(event) => setDraft((current) => ({
                     ...current,
                     advertising: event.target.checked,

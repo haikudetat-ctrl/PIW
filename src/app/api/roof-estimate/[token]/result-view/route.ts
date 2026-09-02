@@ -4,7 +4,12 @@ import {inngest} from "@/inngest/client";
 import {parseServerEnv} from "@/lib/env/server";
 import {createServiceClient} from "@/lib/supabase/service";
 import {SupabaseMetaRepository, type ReservedMetaEvent} from "@/modules/marketing/meta-repository";
-import {PRIVACY_COOKIE_NAME, verifyConsentCookie, type VerifiedConsent} from "@/modules/privacy/consent";
+import {PRIVACY_COOKIE_NAME, type VerifiedConsent} from "@/modules/privacy/consent";
+import {
+  requestHasGlobalPrivacyControl,
+  resolveCurrentVerifiedConsent,
+} from "@/modules/privacy/current-consent";
+import {SupabasePrivacyConsentRepository} from "@/modules/privacy/consent-repository";
 import {
   AssessmentResultAccessError,
   isTrustedCompletedQuote,
@@ -139,10 +144,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
   try {
     const environment = parseServerEnv(process.env);
     const consent = environment.META_TRACKING_ENABLED
-      ? verifyConsentCookie(
-        readConsentCookie(request),
-        environment.PRIVACY_CONSENT_SIGNING_SECRET ?? "",
-      )
+      ? await resolveCurrentVerifiedConsent({
+        consentToken: readConsentCookie(request),
+        signingSecret: environment.PRIVACY_CONSENT_SIGNING_SECRET ?? "",
+        gpcDetected: requestHasGlobalPrivacyControl(request.headers),
+        now: () => new Date(),
+        repository: new SupabasePrivacyConsentRepository(service as never),
+      })
       : null;
     const metaRepository = new SupabaseMetaRepository(service as never);
     return handleResultViewRequest({

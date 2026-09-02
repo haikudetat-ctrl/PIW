@@ -5,6 +5,7 @@ import path from "node:path";
 import {act} from "react";
 import {createRoot, type Root} from "react-dom/client";
 import {afterEach, describe, expect, test, vi} from "vitest";
+import type {VerifiedWebsiteConsent} from "../lib/privacy-consent";
 import {
   PrivacyConsentProvider,
   usePrivacyConsent,
@@ -27,7 +28,7 @@ function Probe() {
   return <output data-testid="privacy-state">{JSON.stringify(consent)}</output>;
 }
 
-async function renderConsent(initialConsent: typeof rejectedConsent | null, children = <div />) {
+async function renderConsent(initialConsent: VerifiedWebsiteConsent | null, children = <div />) {
   const container = document.createElement("div");
   document.body.append(container);
   const root = createRoot(container);
@@ -57,6 +58,10 @@ afterEach(async () => {
   for (const root of mountedRoots.splice(0)) await act(async () => root.unmount());
   document.body.replaceChildren();
   vi.unstubAllGlobals();
+  Object.defineProperty(navigator, "globalPrivacyControl", {
+    value: undefined,
+    configurable: true,
+  });
 });
 
 describe("website privacy consent", () => {
@@ -154,6 +159,75 @@ describe("website privacy consent", () => {
 
     expect(container.querySelector('section[aria-label="Privacy choices"]')).toBeNull();
     expect(container.querySelector("output")?.textContent).toContain('"decided":true');
+  });
+
+  test("holds an initial Advertising grant until the canonical status resolves", async () => {
+    const grant: VerifiedWebsiteConsent = {
+      ...rejectedConsent,
+      preferences: {necessary: true, analytics: true, advertising: true},
+    };
+    let finishStatus: ((response: Response) => void) | undefined;
+    const fetch = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === "GET") {
+        return new Promise<Response>((resolve) => {
+          finishStatus = resolve;
+        });
+      }
+      throw new Error("Only the canonical status request is expected");
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    const container = await renderConsent(grant, <Probe />);
+
+    expect(container.querySelector("output")?.textContent).toContain('"advertising":false');
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledWith(
+      "/api/privacy/consent",
+      expect.objectContaining({method: "GET", cache: "no-store"}),
+    ));
+
+    await act(async () => finishStatus?.(Response.json({consent: grant})));
+
+    await vi.waitFor(() => expect(container.querySelector("output")?.textContent)
+      .toContain('"advertising":true'));
+  });
+
+  test("active browser GPC suppresses an existing grant and synchronizes a denial", async () => {
+    Object.defineProperty(navigator, "globalPrivacyControl", {
+      value: true,
+      configurable: true,
+    });
+    const grant: VerifiedWebsiteConsent = {
+      ...rejectedConsent,
+      preferences: {necessary: true, analytics: true, advertising: true},
+    };
+    const fetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === "GET") {
+        return Response.json({consent: {
+          ...grant,
+          preferences: {necessary: true, analytics: true, advertising: false},
+          gpcDetected: true,
+        }});
+      }
+      const body = JSON.parse(String(init?.body));
+      return Response.json({consent: {
+        ...grant,
+        preferences: {necessary: true, analytics: body.analytics, advertising: false},
+        gpcDetected: true,
+      }});
+    });
+    vi.stubGlobal("fetch", fetch);
+    const container = await renderConsent(grant, <Probe />);
+
+    expect(container.querySelector("output")?.textContent).toContain('"advertising":false');
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledWith(
+      "/api/privacy/consent",
+      expect.objectContaining({
+        body: JSON.stringify({analytics: true, advertising: false, gpcDetected: true}),
+      }),
+    ));
+    await click(button(container, "Privacy choices"));
+    expect(container.querySelector<HTMLInputElement>('input[aria-label="Advertising"]')?.disabled).toBe(true);
+    expect(container.textContent).not.toMatch(/turn it on|override/i);
   });
 
   test("fails closed and keeps choices visible when saving fails", async () => {

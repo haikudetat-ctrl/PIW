@@ -73,9 +73,17 @@
     return age >= -MAX_FUTURE_SKEW_MS && age <= MAX_EVENT_AGE_MS;
   }
 
+  function browserGpcIsEnabled() {
+    return Boolean(
+      window.navigator
+      && window.navigator.globalPrivacyControl === true,
+    );
+  }
+
   function advertisingAllowed() {
     return consentState.resolved
       && consentState.consent
+      && !browserGpcIsEnabled()
       && consentState.consent.preferences.advertising === true;
   }
 
@@ -296,11 +304,19 @@
       return {label: labelNode, input: input};
     }
 
+    var gpcDetected = browserGpcIsEnabled();
     var preferences = consentState.consent ? consentState.consent.preferences : {analytics: false, advertising: false};
     var necessary = choice("Necessary", "necessary", true, true);
     var analytics = choice("Analytics", "analytics", preferences.analytics === true, false);
-    var advertising = choice("Advertising", "advertising", preferences.advertising === true, false);
+    var advertising = choice("Advertising", "advertising", preferences.advertising === true && !gpcDetected, gpcDetected);
     dialog.append(necessary.label, analytics.label, advertising.label);
+    if (gpcDetected) {
+      dialog.appendChild(element(
+        "p",
+        "all-season-privacy-gpc",
+        "Global Privacy Control is active, so Advertising remains off.",
+      ));
+    }
 
     var dialogError = errorMessage();
     if (dialogError) dialog.appendChild(dialogError);
@@ -358,11 +374,15 @@
     if (consentState.saving) return;
     setSaving(true);
     consentState.error = "";
+    var gpcDetected = browserGpcIsEnabled();
+    var requested = gpcDetected
+      ? {analytics: preferences.analytics, advertising: false, gpcDetected: true}
+      : preferences;
     try {
       var response = await window.fetch("/api/privacy/consent", {
         method: "POST",
         headers: {"content-type": "application/json", accept: "application/json"},
-        body: JSON.stringify(preferences),
+        body: JSON.stringify(requested),
         credentials: "same-origin",
         cache: "no-store",
       });
@@ -393,7 +413,10 @@
     try {
       var response = await window.fetch("/api/privacy/consent", {
         method: "GET",
-        headers: {accept: "application/json"},
+        headers: {
+          accept: "application/json",
+          ...(browserGpcIsEnabled() ? {"x-all-season-gpc": "1"} : {}),
+        },
         credentials: "same-origin",
         cache: "no-store",
       });

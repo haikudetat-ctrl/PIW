@@ -93,6 +93,26 @@ describe("static privacy runtime", () => {
     expect(fbq).toHaveBeenCalledWith("track", "PageView");
   });
 
+  test("active browser GPC suppresses a returned grant before Pixel initialization", async () => {
+    const dom = runtimeDom();
+    Object.defineProperty(dom.window.navigator, "globalPrivacyControl", {
+      value: true,
+      configurable: true,
+    });
+    const fbq = vi.fn();
+    Object.defineProperty(dom.window, "fbq", {value: fbq, configurable: true});
+    const fetch = vi.fn(async () => Response.json({consent: verifiedConsent(true)}));
+    dom.window.fetch = fetch as typeof dom.window.fetch;
+
+    await boot(dom);
+
+    expect(fetch).toHaveBeenCalledWith("/api/privacy/consent", expect.objectContaining({
+      headers: expect.objectContaining({"x-all-season-gpc": "1"}),
+    }));
+    expect(dom.window.document.querySelector('script[src*="connect.facebook.net"]')).toBeNull();
+    expect(fbq.mock.calls.filter((call) => call[1] === "PageView")).toHaveLength(0);
+  });
+
   test("emits a valid server envelope once without custom property data", async () => {
     const dom = runtimeDom();
     const fbq = vi.fn();

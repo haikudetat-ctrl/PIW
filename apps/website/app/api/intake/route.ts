@@ -1,6 +1,16 @@
 import {NextRequest, NextResponse} from "next/server";
 import {z} from "zod";
-import {PRIVACY_COOKIE_NAME, readWebsiteConsent} from "../../../lib/privacy-consent";
+import {
+  PRIVACY_COOKIE_NAME,
+  readWebsiteConsent,
+  signWebsiteConsent,
+  type VerifiedWebsiteConsent,
+} from "../../../lib/privacy-consent";
+import {
+  applyWebsiteGlobalPrivacyControl,
+  currentCanonicalWebsiteConsent,
+  resolveCanonicalWebsiteConsent,
+} from "../../../lib/canonical-privacy-consent";
 
 const leadSchema = z.object({
   submission_id: z.uuid(),
@@ -33,10 +43,42 @@ type ForwardLead = (
   options?: {consentToken: string},
 ) => Promise<Response>;
 
+type ResolveCanonicalConsent = (input: {
+  request: NextRequest;
+  localConsent: VerifiedWebsiteConsent;
+}) => Promise<VerifiedWebsiteConsent | null>;
+
+function requestHasGpc(request: NextRequest) {
+  return request.headers.get("sec-gpc") === "1" || request.headers.get("x-all-season-gpc") === "1";
+}
+
+async function currentConsentForTracking({
+  request,
+  localConsent,
+  resolveCanonical,
+}: {
+  request: NextRequest;
+  localConsent: VerifiedWebsiteConsent | null;
+  resolveCanonical: ResolveCanonicalConsent | undefined;
+}) {
+  if (!localConsent || !resolveCanonical) return null;
+  const candidate = applyWebsiteGlobalPrivacyControl(
+    localConsent,
+    requestHasGpc(request),
+    requestHasGpc(request) ? new Date().toISOString() : localConsent.updatedAt,
+  );
+  try {
+    return currentCanonicalWebsiteConsent(candidate, await resolveCanonical({request, localConsent: candidate}));
+  } catch {
+    return null;
+  }
+}
+
 export async function handleIntakeRequest(
   request: NextRequest,
   forward: ForwardLead,
   privacySigningSecret = process.env.PRIVACY_CONSENT_SIGNING_SECRET,
+  resolveCanonical?: ResolveCanonicalConsent,
 ) {
   const parsed = leadSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
@@ -47,7 +89,15 @@ export async function handleIntakeRequest(
   const verifiedConsent = privacySigningSecret
     ? readWebsiteConsent(consentToken, privacySigningSecret)
     : null;
-  const advertisingAllowed = verifiedConsent?.preferences.advertising === true;
+  const canonicalConsent = await currentConsentForTracking({
+    request,
+    localConsent: verifiedConsent,
+    resolveCanonical,
+  });
+  const advertisingAllowed = canonicalConsent?.preferences.advertising === true;
+  const canonicalConsentToken = canonicalConsent && privacySigningSecret
+    ? signWebsiteConsent(canonicalConsent, privacySigningSecret)
+    : null;
   const payload = {
     ...parsed.data,
     attribution: {
@@ -59,8 +109,8 @@ export async function handleIntakeRequest(
     submittedAt: new Date().toISOString(),
   };
 
-  const upstream = await (verifiedConsent && consentToken
-    ? forward(payload, {consentToken})
+  const upstream = await (canonicalConsentToken
+    ? forward(payload, {consentToken: canonicalConsentToken})
     : forward(payload)).catch(() => null);
   if (!upstream?.ok) {
     return NextResponse.json({error: "Lead intake is temporarily unavailable"}, {status: 502});
@@ -100,6 +150,15 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(8000),
       cache: "no-store",
+    }),
+    process.env.PRIVACY_CONSENT_SIGNING_SECRET,
+    ({localConsent}) => resolveCanonicalWebsiteConsent({
+      consent: localConsent,
+      signingSecret: process.env.PRIVACY_CONSENT_SIGNING_SECRET,
+      sharedSecret: process.env.INTAKE_WEBHOOK_SHARED_SECRET,
+      publicPiwUrl: process.env.PIW_PUBLIC_APP_URL,
+      websiteOrigin: request.nextUrl.origin,
+      nodeEnv: process.env.NODE_ENV,
     }),
   );
 }

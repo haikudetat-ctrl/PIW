@@ -9,7 +9,12 @@ import { SupabaseOutboxRepository } from "@/modules/events/supabase-outbox-repos
 import { acceptAllSeasonIntake } from "@/modules/leads/accept-all-season-intake";
 import { allSeasonSecretsMatch } from "@/modules/leads/all-season-intake-secret";
 import { fetchGooglePlaceDetails } from "@/modules/providers/adapters/google-places";
-import { verifyConsentCookie, type VerifiedConsent } from "@/modules/privacy/consent";
+import {type VerifiedConsent} from "@/modules/privacy/consent";
+import {
+  requestHasGlobalPrivacyControl,
+  resolveCurrentVerifiedConsent,
+} from "@/modules/privacy/current-consent";
+import {SupabasePrivacyConsentRepository} from "@/modules/privacy/consent-repository";
 import { SupabaseMetaRepository, type ReservedMetaEvent } from "@/modules/marketing/meta-repository";
 
 const nullableAttribution = z.string().trim().max(500).nullable();
@@ -158,16 +163,20 @@ export async function POST(request: NextRequest) {
   const forwardedFor = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "";
   const userAgent = request.headers.get("user-agent") ?? "";
   const metaRepository = new SupabaseMetaRepository(service as never);
+  const privacyRepository = new SupabasePrivacyConsentRepository(service as never);
 
   return handleAllSeasonIntakeRequest(request, {
     expectedSecret: environment.ALL_SEASON_INTAKE_SHARED_SECRET,
     companyId,
     metaTrackingEnabled: environment.META_TRACKING_ENABLED,
     verifyAdvertisingConsent: async (incoming) =>
-      verifyConsentCookie(
-        incoming.headers.get("x-piw-privacy-consent") ?? undefined,
-        environment.PRIVACY_CONSENT_SIGNING_SECRET ?? "",
-      ),
+      resolveCurrentVerifiedConsent({
+        consentToken: incoming.headers.get("x-piw-privacy-consent") ?? undefined,
+        signingSecret: environment.PRIVACY_CONSENT_SIGNING_SECRET ?? "",
+        gpcDetected: requestHasGlobalPrivacyControl(incoming.headers),
+        now: () => new Date(),
+        repository: privacyRepository,
+      }),
     recordConsent: async ({leadId, companyId: consentCompanyId, consent, occurredAt}) => {
       const {error} = await service.rpc("record_privacy_consent", {
         p_evidence_id: crypto.randomUUID(),

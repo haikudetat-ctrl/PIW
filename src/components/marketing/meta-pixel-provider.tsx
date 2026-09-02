@@ -34,6 +34,11 @@ function getPixelId() {
   return pixelId || null;
 }
 
+function browserGpcIsEnabled() {
+  return typeof navigator !== "undefined"
+    && (navigator as Navigator & {globalPrivacyControl?: boolean}).globalPrivacyControl === true;
+}
+
 function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
@@ -92,7 +97,7 @@ export function MetaPixelProvider({children, enabled}: {children: ReactNode; ena
   const pathname = usePathname();
   const previousPageViewPath = useRef<string | null>(null);
   const conversions = useRef(new Set<string>());
-  const advertising = preferences.advertising === true;
+  const advertising = preferences.advertising === true && !browserGpcIsEnabled();
   const pixelId = getPixelId();
   const advertisingRef = useRef(advertising);
   const enabledRef = useRef(enabled);
@@ -118,6 +123,7 @@ export function MetaPixelProvider({children, enabled}: {children: ReactNode; ena
     if (
       !enabledRef.current
       || !advertisingRef.current
+      || browserGpcIsEnabled()
       || !currentPixelId
       || !pathnameRef.current.startsWith("/roof-estimate")
       || !isCurrentEnvelope(envelope)

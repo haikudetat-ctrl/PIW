@@ -76,54 +76,85 @@ describe("PrivacyConsentProvider", () => {
     expect(screen.getByText(/Global Privacy Control/i)).toBeVisible();
   });
 
-  test("newly detected GPC immediately suppresses existing Advertising consent", () => {
+  test("holds an initial Advertising grant until PIW confirms current canonical consent", async () => {
+    let finishStatus: ((response: Response) => void) | undefined;
+    const fetch = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === "GET") {
+        return new Promise<Response>((resolve) => {
+          finishStatus = resolve;
+        });
+      }
+      throw new Error("Only the current-consent status request is expected");
+    });
+    vi.stubGlobal("fetch", fetch);
+    render(<PrivacyConsentProvider initialConsent={advertisingConsent}><Probe /></PrivacyConsentProvider>);
+
+    expect(screen.getByTestId("preferences")).toHaveTextContent(
+      '{"necessary":true,"analytics":true,"advertising":false}',
+    );
+    await waitFor(() => expect(fetch).toHaveBeenCalledWith(
+      "/api/privacy/consent",
+      expect.objectContaining({method: "GET", cache: "no-store"}),
+    ));
+
+    await act(async () => finishStatus?.(Response.json({consent: advertisingConsent})));
+
+    await waitFor(() => expect(screen.getByTestId("preferences")).toHaveTextContent(
+      '{"necessary":true,"analytics":true,"advertising":true}',
+    ));
+  });
+
+  test("newly detected GPC immediately suppresses an existing Advertising grant and records a canonical denial", async () => {
     Object.defineProperty(navigator, "globalPrivacyControl", {
       value: true,
       configurable: true,
     });
+    const fetch = vi.fn(async () => Response.json({consent: {
+      ...advertisingConsent,
+      preferences: {necessary: true, analytics: true, advertising: false},
+      gpcDetected: true,
+    }}));
+    vi.stubGlobal("fetch", fetch);
     render(<PrivacyConsentProvider initialConsent={advertisingConsent}><Probe /></PrivacyConsentProvider>);
 
     expect(screen.getByTestId("preferences")).toHaveTextContent(
       '{"necessary":true,"analytics":true,"advertising":false}',
     );
     expect(screen.getByText(/Global Privacy Control.*Advertising.*off/i)).toBeVisible();
+    await waitFor(() => expect(fetch).toHaveBeenCalledWith(
+      "/api/privacy/consent",
+      expect.objectContaining({
+        body: JSON.stringify({
+          analytics: true,
+          advertising: false,
+          gpcDetected: true,
+          source: "gpc",
+        }),
+      }),
+    ));
   });
 
-  test("permits an explicit Advertising grant after showing the GPC default", async () => {
+  test("keeps Advertising denied when active GPC meets an existing grant", async () => {
     Object.defineProperty(navigator, "globalPrivacyControl", {
       value: true,
       configurable: true,
     });
-    vi.stubGlobal("fetch", vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-      const request = JSON.parse(String(init?.body)) as {
-        analytics: boolean;
-        advertising: boolean;
-        gpcDetected: boolean;
-      };
-      const advertising = request.advertising && !request.gpcDetected;
-      return Response.json({consent: {
-        policyVersion: "piw-privacy-v1",
-        consentId: "11111111-1111-4111-8111-111111111111",
-        preferences: {necessary: true, analytics: request.analytics, advertising},
-        gpcDetected: request.gpcDetected,
-        updatedAt: "2026-08-28T12:00:00.000Z",
-      }});
-    }));
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({consent: {
+      ...advertisingConsent,
+      preferences: {necessary: true, analytics: true, advertising: false},
+      gpcDetected: true,
+    }})));
     render(<PrivacyConsentProvider initialConsent={advertisingConsent}><Probe /></PrivacyConsentProvider>);
     expect(screen.getByText(/Global Privacy Control.*Advertising.*off/i)).toBeVisible();
     fireEvent.click(screen.getByRole("button", {name: "Privacy choices"}));
 
     const advertising = screen.getByRole("checkbox", {name: "Advertising"});
     expect(advertising).not.toBeChecked();
-    expect(advertising).toBeEnabled();
-    fireEvent.click(advertising);
-    fireEvent.click(screen.getByRole("button", {name: "Save preferences"}));
-
-    await waitFor(() => expect(screen.getByTestId("preferences")).toHaveTextContent(
-      '{"necessary":true,"analytics":true,"advertising":true}',
-    ));
-    expect(screen.queryByText(/Global Privacy Control.*Advertising.*off/i))
-      .not.toBeInTheDocument();
+    expect(advertising).toBeDisabled();
+    expect(screen.queryByText(/explicitly turn it on/i)).not.toBeInTheDocument();
+    expect(screen.getByTestId("preferences")).toHaveTextContent(
+      '{"necessary":true,"analytics":true,"advertising":false}',
+    );
   });
 
   test("saved visitors can reopen privacy choices", () => {
