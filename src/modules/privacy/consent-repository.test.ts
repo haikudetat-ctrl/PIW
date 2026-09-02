@@ -1,5 +1,5 @@
 import {describe, expect, test, vi} from "vitest";
-import {SupabasePrivacyConsentRepository} from "./consent-repository";
+import {PrivacyConsentRateLimitError, SupabasePrivacyConsentRepository} from "./consent-repository";
 
 const consentId = "11111111-1111-4111-8111-111111111111";
 
@@ -44,6 +44,7 @@ describe("SupabasePrivacyConsentRepository current consent", () => {
     expect(query.is).toHaveBeenCalledWith("company_id", null);
     expect(query.is).toHaveBeenCalledWith("lead_id", null);
     expect(query.order).toHaveBeenCalledWith("occurred_at", {ascending: false});
+    expect(query.order).toHaveBeenCalledWith("advertising_granted", {ascending: true});
   });
 
   test("fails closed when canonical evidence cannot be read", async () => {
@@ -64,22 +65,46 @@ describe("SupabasePrivacyConsentRepository current consent", () => {
     );
   });
 
-  test.each([[11, true], [12, false]] as const)(
-    "uses durable evidence count %i to enforce the bounded write window",
-    async (count, allowed) => {
-      const query = {
-        select: vi.fn(() => query),
-        eq: vi.fn(() => query),
-        gte: vi.fn(async () => ({count, error: null})),
-      };
-      const repository = new SupabasePrivacyConsentRepository({from: vi.fn(() => query)} as never);
+  test("uses the atomic public-consent RPC and returns its canonical snapshot", async () => {
+    const rpc = vi.fn(async () => ({data: [currentEvidence()], error: null}));
+    const repository = new SupabasePrivacyConsentRepository({rpc} as never);
 
-      await expect(repository.isWriteAllowed({
-        consentId,
-        since: "2026-09-01T15:00:00.000Z",
-        limit: 12,
-      })).resolves.toBe(allowed);
-      expect(query.gte).toHaveBeenCalledWith("created_at", "2026-09-01T15:00:00.000Z");
-    },
-  );
+    await expect(repository.record({
+      evidenceId: "22222222-2222-4222-8222-222222222222",
+      consentId,
+      policyVersion: "piw-privacy-v1",
+      preferences: {necessary: true, analytics: true, advertising: false},
+      gpcDetected: true,
+      source: "gpc",
+      requestIp: "203.0.113.7",
+      userAgent: "test-agent",
+      occurredAt: "2026-09-01T16:01:00.000Z",
+    })).resolves.toMatchObject({
+      consentId,
+      preferences: {advertising: false},
+      gpcDetected: true,
+    });
+    expect(rpc).toHaveBeenCalledWith("record_public_privacy_consent", expect.objectContaining({
+      p_request_ip: "203.0.113.7",
+      p_source: "gpc",
+    }));
+  });
+
+  test("maps the database limit error to a route-safe typed error", async () => {
+    const repository = new SupabasePrivacyConsentRepository({
+      rpc: vi.fn(async () => ({data: null, error: {message: "Privacy consent request limit exceeded"}})),
+    } as never);
+
+    await expect(repository.record({
+      evidenceId: "22222222-2222-4222-8222-222222222222",
+      consentId,
+      policyVersion: "piw-privacy-v1",
+      preferences: {necessary: true, analytics: true, advertising: false},
+      gpcDetected: false,
+      source: "banner",
+      requestIp: "203.0.113.7",
+      userAgent: "test-agent",
+      occurredAt: "2026-09-01T16:01:00.000Z",
+    })).rejects.toBeInstanceOf(PrivacyConsentRateLimitError);
+  });
 });

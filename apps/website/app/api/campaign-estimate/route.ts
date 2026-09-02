@@ -12,6 +12,7 @@ import {
   currentCanonicalWebsiteConsent,
   resolveCanonicalWebsiteConsent,
 } from "../../../lib/canonical-privacy-consent";
+import {trustedWebsiteRequestIp} from "../../../lib/trusted-request-ip";
 import {campaignSlugs} from "../../campaigns/campaigns";
 
 const optionalAttribution = z.string().trim().max(500).nullish();
@@ -332,6 +333,7 @@ export async function POST(request: NextRequest) {
       publicPiwUrl: publicAppUrl,
       websiteOrigin: request.nextUrl.origin,
       nodeEnv: process.env.NODE_ENV,
+      requestIp: trustedWebsiteRequestIp(request.headers, process.env.NODE_ENV),
       liveGpcDetected: requestHasGpc(request),
     }),
   );

@@ -6,6 +6,8 @@ import {
   type ConsultationPreference,
   type ConsultationSummary,
 } from "./consultation-preference";
+import type {MetaBrowserEventEnvelope} from "@/modules/marketing/meta-events";
+import type {VerifiedConsent} from "@/modules/privacy/consent";
 export type {ConsultationCallWindow, ConsultationContactMethod, ConsultationPreference, ConsultationSummary} from "./consultation-preference";
 
 export type CompletedAssessmentContext = {
@@ -22,7 +24,19 @@ export type CompletedAssessmentContext = {
 export type AssessmentResultRepository = {
   findCompletedByToken(token: string): Promise<CompletedAssessmentContext | null>;
   requestConsultation(context: CompletedAssessmentContext, preference: ConsultationPreference, requestIp: string): Promise<ConsultationSummary>;
-  markResultViewed(context: CompletedAssessmentContext): Promise<{resultViewedAt: string}>;
+  consumeResultViewLimit(token: string, requestIp: string): Promise<boolean>;
+  markResultViewed(input: {
+    context: CompletedAssessmentContext;
+    consent: VerifiedConsent | null;
+    requestIp: string | null;
+    userAgent: string;
+  }): Promise<AssessmentResultViewAcknowledgement>;
+};
+
+export type AssessmentResultViewAcknowledgement = {
+  resultViewedAt: string;
+  metaDeliveryId: string | null;
+  metaEvent: MetaBrowserEventEnvelope | null;
 };
 
 export class AssessmentResultAccessError extends Error {
@@ -67,7 +81,16 @@ const consultationRpcSchema = z.array(z.object({
 }).strict()).length(1);
 const resultViewedRpcSchema = z.array(z.object({
   result_viewed_at: z.iso.datetime({offset: true}),
-}).strict()).length(1);
+  meta_delivery_id: z.uuid().nullable(),
+  meta_event_id: z.uuid().nullable(),
+  meta_event_name: z.literal("AssessmentCompleted").nullable(),
+  meta_event_time: z.iso.datetime({offset: true}).nullable(),
+}).strict().superRefine((row, context) => {
+  const values = [row.meta_delivery_id, row.meta_event_id, row.meta_event_name, row.meta_event_time];
+  if (values.some((value) => value === null) && values.some((value) => value !== null)) {
+    context.addIssue({code: "custom", message: "Malformed Meta acknowledgement envelope"});
+  }
+})).length(1);
 
 export function parseConsultationRpcResult(data: unknown, preference: ConsultationPreference): ConsultationSummary {
   const parsed = consultationRpcSchema.safeParse(data);
@@ -82,7 +105,16 @@ export function parseConsultationRpcResult(data: unknown, preference: Consultati
 export function parseResultViewedRpcResult(data: unknown) {
   const parsed = resultViewedRpcSchema.safeParse(data);
   if (!parsed.success) throw new Error("Result view persistence failed");
-  return {resultViewedAt: parsed.data[0].result_viewed_at};
+  const row = parsed.data[0];
+  return {
+    resultViewedAt: row.result_viewed_at,
+    metaDeliveryId: row.meta_delivery_id,
+    metaEvent: row.meta_event_id === null ? null : {
+      name: row.meta_event_name!,
+      eventId: row.meta_event_id,
+      issuedAt: row.meta_event_time!,
+    },
+  } satisfies AssessmentResultViewAcknowledgement;
 }
 
 /**
@@ -134,20 +166,50 @@ export async function requestRoofConsultation(token: string, input: unknown, req
   }
 }
 
-export async function markRoofAssessmentResultViewed(token: string, repository: AssessmentResultRepository) {
+export async function markRoofAssessmentResultViewed(
+  token: string,
+  input: {
+    consent: VerifiedConsent | null;
+    requestIp: string | null;
+    userAgent: string;
+  },
+  repository: AssessmentResultRepository,
+) {
   const context = await resolveCompleted(token, repository);
   if (!isTrustedCompletedQuote(context)) {
     throw new AssessmentResultAccessError("Assessment quote is not ready", 409);
   }
   try {
-    const result = await repository.markResultViewed(context);
-    return {resultViewed: true as const, resultViewedAt: result.resultViewedAt, context};
+    const result = await repository.markResultViewed({context, ...input});
+    return {resultViewed: true as const, ...result, context};
   } catch {
     throw new AssessmentResultAccessError("Assessment result is temporarily unavailable", 503);
   }
 }
 
 type ServiceClient = ReturnType<typeof createServiceClient>;
+type ResultViewRpcClient = {
+  rpc(
+    name: "consume_roof_assessment_result_view_limit",
+    args: {p_public_token: string; p_request_ip: string},
+  ): Promise<{data: unknown; error: {message?: string} | null}>;
+  rpc(
+    name: "acknowledge_roof_assessment_result_view",
+    args: {
+      p_company_id: string;
+      p_assessment_id: string;
+      p_estimate_id: string;
+      p_consent_id: string | null;
+      p_policy_version: string | null;
+      p_analytics_granted: boolean | null;
+      p_advertising_granted: boolean | null;
+      p_gpc_detected: boolean | null;
+      p_source: "banner" | "preferences" | "gpc" | null;
+      p_request_ip: string | null;
+      p_user_agent: string;
+    },
+  ): Promise<{data: unknown; error: {message?: string} | null}>;
+};
 
 export class SupabaseAssessmentResultRepository implements AssessmentResultRepository {
   constructor(private readonly service: ServiceClient = createServiceClient()) {}
@@ -225,11 +287,35 @@ export class SupabaseAssessmentResultRepository implements AssessmentResultRepos
     return parseConsultationRpcResult(data, preference);
   }
 
-  async markResultViewed(context: CompletedAssessmentContext) {
-    const {data, error} = await this.service.rpc("mark_roof_assessment_result_viewed", {
+  async consumeResultViewLimit(token: string, requestIp: string) {
+    const {data, error} = await (this.service as unknown as ResultViewRpcClient).rpc("consume_roof_assessment_result_view_limit", {
+      p_public_token: token,
+      p_request_ip: requestIp,
+    });
+    if (error) throw new Error("Result view rate limit failed");
+    const parsed = z.array(z.object({allowed: z.boolean()}).strict()).length(1).safeParse(data);
+    if (!parsed.success) throw new Error("Result view rate limit failed");
+    return parsed.data[0].allowed;
+  }
+
+  async markResultViewed({context, consent, requestIp, userAgent}: {
+    context: CompletedAssessmentContext;
+    consent: VerifiedConsent | null;
+    requestIp: string | null;
+    userAgent: string;
+  }) {
+    const {data, error} = await (this.service as unknown as ResultViewRpcClient).rpc("acknowledge_roof_assessment_result_view", {
       p_company_id: context.companyId,
       p_assessment_id: context.assessmentId,
       p_estimate_id: context.estimateId,
+      p_consent_id: consent?.consentId ?? null,
+      p_policy_version: consent?.policyVersion ?? null,
+      p_analytics_granted: consent?.preferences.analytics ?? null,
+      p_advertising_granted: consent?.preferences.advertising ?? null,
+      p_gpc_detected: consent?.gpcDetected ?? null,
+      p_source: consent ? (consent.gpcDetected ? "gpc" : "preferences") : null,
+      p_request_ip: requestIp,
+      p_user_agent: userAgent,
     });
     if (error) throw new Error("Result view persistence failed");
     return parseResultViewedRpcResult(data);

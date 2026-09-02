@@ -11,6 +11,7 @@ import {
 } from "@/modules/privacy/consent";
 import {
   type CurrentPrivacyConsentRepository,
+  PrivacyConsentRateLimitError,
   type PrivacyConsentRepository,
   SupabasePrivacyConsentRepository,
 } from "@/modules/privacy/consent-repository";
@@ -18,6 +19,7 @@ import {
   requestHasGlobalPrivacyControl,
   resolveCurrentVerifiedConsent,
 } from "@/modules/privacy/current-consent";
+import {trustedRequestIp} from "@/modules/roof-assessment/trusted-request-ip";
 
 const consentRequestSchema = z.strictObject({
   analytics: z.boolean(),
@@ -25,13 +27,10 @@ const consentRequestSchema = z.strictObject({
   gpcDetected: z.boolean(),
   source: z.enum(["banner", "preferences", "gpc"]),
 });
-const CONSENT_WRITE_LIMIT = 12;
-const CONSENT_WRITE_WINDOW_MS = 60 * 60 * 1000;
-
 type PrivacyConsentDependencies = {
   signingSecret: string | undefined;
   deploymentEnvironment: "development" | "preview" | "test" | "production";
-  requestIp: string;
+  requestIp: string | null;
   now: () => Date;
   createId: () => string;
   repository: PrivacyConsentRepository;
@@ -240,25 +239,7 @@ export async function handlePrivacyConsentRequest(
   };
 
   try {
-    const writeAllowed = dependencies.repository.isWriteAllowed
-      ? await dependencies.repository.isWriteAllowed({
-          consentId,
-          since: new Date(dependencies.now().getTime() - CONSENT_WRITE_WINDOW_MS).toISOString(),
-          limit: CONSENT_WRITE_LIMIT,
-        })
-      : true;
-    if (!writeAllowed) {
-      const current = "readCurrent" in dependencies.repository
-        ? await (dependencies.repository as CurrentPrivacyConsentRepository).readCurrent({
-            consentId,
-            policyVersion: CONSENT_POLICY_VERSION,
-          })
-        : null;
-      const isCurrentGrantRevocation = !preferences.advertising
-        && current?.preferences.advertising === true;
-      if (!isCurrentGrantRevocation) return rateLimited();
-    }
-    await dependencies.repository.record({
+    const recorded = await dependencies.repository.record({
       evidenceId: dependencies.createId(),
       consentId,
       policyVersion: CONSENT_POLICY_VERSION,
@@ -269,7 +250,13 @@ export async function handlePrivacyConsentRequest(
       userAgent: request.headers.get("user-agent") ?? "",
       occurredAt,
     });
-  } catch {
+    if (recorded) {
+      consent.preferences = recorded.preferences;
+      consent.gpcDetected = recorded.gpcDetected;
+      consent.updatedAt = recorded.updatedAt;
+    }
+  } catch (error) {
+    if (error instanceof PrivacyConsentRateLimitError) return rateLimited();
     return unavailable();
   }
 
@@ -284,11 +271,10 @@ export async function handlePrivacyConsentRequest(
 export async function POST(request: NextRequest) {
   try {
     const environment = parseServerEnv(process.env);
-    const forwardedFor = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "";
     return await handlePrivacyConsentRequest(request, {
       signingSecret: environment.PRIVACY_CONSENT_SIGNING_SECRET,
       deploymentEnvironment: environment.DEPLOYMENT_ENV,
-      requestIp: forwardedFor,
+      requestIp: trustedRequestIp(request.headers, environment.DEPLOYMENT_ENV),
       now: () => new Date(),
       createId: randomUUID,
       repository: new SupabasePrivacyConsentRepository(),
@@ -301,11 +287,10 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const environment = parseServerEnv(process.env);
-    const forwardedFor = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
     return await handlePrivacyConsentStatusRequest(request, {
       signingSecret: environment.PRIVACY_CONSENT_SIGNING_SECRET,
       deploymentEnvironment: environment.DEPLOYMENT_ENV,
-      requestIp: forwardedFor,
+      requestIp: trustedRequestIp(request.headers, environment.DEPLOYMENT_ENV),
       now: () => new Date(),
       createId: randomUUID,
       repository: new SupabasePrivacyConsentRepository(),

@@ -3,6 +3,7 @@ import { Bebas_Neue, Geist, Geist_Mono, Montserrat } from "next/font/google";
 import { cookies } from "next/headers";
 import { PrivacyConsentProvider } from "@/components/privacy/privacy-consent-provider";
 import { MetaPixelProvider } from "@/components/marketing/meta-pixel-provider";
+import {parseServerEnv, resolveMetaTrackingConfiguration} from "@/lib/env/server";
 import {
   PRIVACY_COOKIE_NAME,
   verifyConsentCookie,
@@ -42,7 +43,13 @@ export default async function RootLayout({
 }>) {
   const cookieStore = await cookies();
   const signingSecret = process.env.PRIVACY_CONSENT_SIGNING_SECRET;
-  const metaTrackingEnabled = process.env.META_TRACKING_ENABLED === "true";
+  let metaTrackingEnabled = false;
+  try {
+    metaTrackingEnabled = Boolean(resolveMetaTrackingConfiguration(parseServerEnv(process.env)));
+  } catch {
+    // Core startup validation may fail independently; never enable optional
+    // browser tracking from a partially parsed environment.
+  }
   const initialConsent = signingSecret
     ? verifyConsentCookie(cookieStore.get(PRIVACY_COOKIE_NAME)?.value, signingSecret)
     : null;

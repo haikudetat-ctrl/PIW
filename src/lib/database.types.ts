@@ -3360,6 +3360,27 @@ export type Database = {
           },
         ]
       }
+      roof_assessment_result_view_attempts: {
+        Row: {
+          id: string
+          request_ip: unknown
+          reserved_at: string
+          token_hash: string
+        }
+        Insert: {
+          id?: string
+          request_ip: unknown
+          reserved_at?: string
+          token_hash: string
+        }
+        Update: {
+          id?: string
+          request_ip?: unknown
+          reserved_at?: string
+          token_hash?: string
+        }
+        Relationships: []
+      }
       roof_assessment_verification_sends: {
         Row: {
           approved_at: string | null
@@ -4352,6 +4373,28 @@ export type Database = {
           assessment_id: string
         }[]
       }
+      acknowledge_roof_assessment_result_view: {
+        Args: {
+          p_advertising_granted: boolean
+          p_analytics_granted: boolean
+          p_assessment_id: string
+          p_company_id: string
+          p_consent_id: string
+          p_estimate_id: string
+          p_gpc_detected: boolean
+          p_policy_version: string
+          p_request_ip: unknown
+          p_source: string
+          p_user_agent: string
+        }
+        Returns: {
+          meta_delivery_id: string
+          meta_event_id: string
+          meta_event_name: string
+          meta_event_time: string
+          result_viewed_at: string
+        }[]
+      }
       activate_roof_pricing_rate_card: {
         Args: { p_company_id: string; p_rate_card_id: string }
         Returns: undefined
@@ -4550,6 +4593,12 @@ export type Database = {
           status: string
         }[]
       }
+      consume_roof_assessment_result_view_limit: {
+        Args: { p_public_token: string; p_request_ip: unknown }
+        Returns: {
+          allowed: boolean
+        }[]
+      }
       current_company_id: { Args: never; Returns: string }
       enqueue_domain_event: {
         Args: { p_company_id: string; p_event: Json }
@@ -4696,6 +4745,29 @@ export type Database = {
         }
         Returns: {
           evidence_id: string
+        }[]
+      }
+      record_public_privacy_consent: {
+        Args: {
+          p_advertising_granted: boolean
+          p_analytics_granted: boolean
+          p_consent_id: string
+          p_evidence_id: string
+          p_gpc_detected: boolean
+          p_occurred_at: string
+          p_policy_version: string
+          p_request_ip: unknown
+          p_source: string
+          p_user_agent: string
+        }
+        Returns: {
+          advertising_granted: boolean
+          analytics_granted: boolean
+          consent_id: string
+          evidence_id: string
+          gpc_detected: boolean
+          occurred_at: string
+          policy_version: string
         }[]
       }
       record_roof_assessment_verification_start: {

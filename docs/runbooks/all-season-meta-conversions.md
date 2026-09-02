@@ -197,10 +197,14 @@ group by event_name;
 
 Expected behavior:
 
-- The sender retries transient network errors, HTTP `429`, and Meta `5xx`.
-  It records a sanitized category and never stores a raw error body.
+- The sender retries transient network errors, HTTP `408`, HTTP `429`, and
+  Meta `5xx`. It records a sanitized category and never stores a raw error
+  body.
 - The sweeper republishes eligible `pending`, `retryable_failed`, and stale
-  `sending` rows every five minutes, up to the bounded attempt policy.
+  `sending` rows every five minutes, up to five total delivery attempts. A
+  transient fifth attempt is persisted as `permanent_failed` with the
+  sanitized `retry_exhausted` category; it is terminal and must not be
+  manually reclassified as retryable.
 - `sent` rows retain a payload hash and optional Meta trace ID. Do not resend
   them manually or delete them to make the UI look clean.
 - A current Advertising-consent revocation makes a reserved row ineligible for

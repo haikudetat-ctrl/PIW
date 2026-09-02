@@ -6,26 +6,27 @@ const optionalString = z.preprocess(
   z.string().min(1).optional(),
 );
 
-const clientEnvSchema = z
-  .object({
-    DEPLOYMENT_ENV: deploymentEnvironmentSchema,
-    NEXT_PUBLIC_SUPABASE_URL: z.url(),
-    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: z.string().min(1),
-    META_TRACKING_ENABLED: booleanString,
-    NEXT_PUBLIC_META_PIXEL_ID: optionalString,
-  })
-  .superRefine((value, context) => {
-    if (value.META_TRACKING_ENABLED && !value.NEXT_PUBLIC_META_PIXEL_ID) {
-      context.addIssue({
-        code: "custom",
-        path: ["NEXT_PUBLIC_META_PIXEL_ID"],
-        message: "Public Meta Pixel ID is required when Meta tracking is enabled",
-      });
-    }
-  });
+const softTrackingFlag = z.preprocess(
+  (value) => value === "true" || value === true ? "true" : "false",
+  booleanString,
+);
+
+const clientEnvSchema = z.object({
+  DEPLOYMENT_ENV: deploymentEnvironmentSchema,
+  NEXT_PUBLIC_SUPABASE_URL: z.url(),
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: z.string().min(1),
+  META_TRACKING_ENABLED: softTrackingFlag,
+  NEXT_PUBLIC_META_PIXEL_ID: optionalString,
+});
 
 export type ClientEnv = z.infer<typeof clientEnvSchema>;
 
 export function parseClientEnv(values: Record<string, string | undefined>) {
-  return clientEnvSchema.parse(values);
+  const parsed = clientEnvSchema.parse(values);
+  const pixelId = parsed.NEXT_PUBLIC_META_PIXEL_ID?.trim() ?? "";
+  return {
+    ...parsed,
+    META_TRACKING_ENABLED: parsed.META_TRACKING_ENABLED && /^\d{6,32}$/.test(pixelId),
+    NEXT_PUBLIC_META_PIXEL_ID: /^\d{6,32}$/.test(pixelId) ? pixelId : undefined,
+  };
 }

@@ -4,9 +4,9 @@ import { LEADCONDUIT_RECEIPT_FLOW_IDS } from "@/modules/access-route/leadconduit
 import { booleanString, deploymentEnvironmentSchema } from "./shared";
 
 const optionalString = z.preprocess((value) => value === "" ? undefined : value, z.string().min(1).optional());
-const optionalGraphApiVersion = z.preprocess(
-  (value) => value === "" ? undefined : value,
-  z.string().regex(/^v\d+\.\d+$/).optional(),
+const optionalTrackingFlag = z.preprocess(
+  (value) => value === "true" || value === true ? "true" : "false",
+  booleanString,
 );
 const optionalUrl = z.preprocess((value) => value === "" ? undefined : value, z.url().optional());
 const optionalUuid = z.preprocess((value) => value === "" ? undefined : value, z.uuid().optional());
@@ -16,13 +16,6 @@ const optionalSigningSecret = z.preprocess(
   z.string().optional().refine(
     (value) => value === undefined || Buffer.byteLength(value, "utf8") >= 32,
     "Roof assessment signing secret must be at least 32 bytes",
-  ),
-);
-const optionalPrivacyConsentSigningSecret = z.preprocess(
-  (value) => value === "" ? undefined : value,
-  z.string().optional().refine(
-    (value) => value === undefined || Buffer.byteLength(value, "utf8") >= 32,
-    "Privacy consent signing secret must be at least 32 bytes",
   ),
 );
 
@@ -35,17 +28,17 @@ const serverEnvSchema = z
     SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
     INNGEST_EVENT_KEY: z.string().min(1),
     INNGEST_SIGNING_KEY: z.string().min(1),
-    META_TRACKING_ENABLED: booleanString,
+    META_TRACKING_ENABLED: optionalTrackingFlag,
     META_PIXEL_ID: optionalString,
     META_CAPI_ACCESS_TOKEN: optionalString,
-    META_GRAPH_API_VERSION: optionalGraphApiVersion,
+    META_GRAPH_API_VERSION: optionalString,
     META_TEST_EVENT_CODE: optionalString,
     NEXT_PUBLIC_META_PIXEL_ID: optionalString,
     PAID_PROVIDERS_ENABLED: booleanString,
     ROOF_ASSESSMENT_ENABLED: booleanString,
     ROOF_ASSESSMENT_PROPERTY_PREFETCH_ENABLED: booleanString,
     ROOF_ASSESSMENT_SIGNING_SECRET: optionalSigningSecret,
-    PRIVACY_CONSENT_SIGNING_SECRET: optionalPrivacyConsentSigningSecret,
+    PRIVACY_CONSENT_SIGNING_SECRET: optionalString,
     TWILIO_VERIFY_ENABLED: booleanString,
     TWILIO_API_KEY_SID: optionalString,
     TWILIO_API_KEY_SECRET: optionalString,
@@ -106,56 +99,6 @@ const serverEnvSchema = z
     COST_RESOURCE_MAP_JSON: optionalString,
   })
   .superRefine((value, context) => {
-    if (value.META_TRACKING_ENABLED && !value.META_PIXEL_ID) {
-      context.addIssue({
-        code: "custom",
-        path: ["META_PIXEL_ID"],
-        message: "Meta Pixel ID is required when Meta tracking is enabled",
-      });
-    }
-    if (value.META_TRACKING_ENABLED && !value.META_CAPI_ACCESS_TOKEN) {
-      context.addIssue({
-        code: "custom",
-        path: ["META_CAPI_ACCESS_TOKEN"],
-        message: "Meta CAPI access token is required when Meta tracking is enabled",
-      });
-    }
-    if (value.META_TRACKING_ENABLED && !value.META_GRAPH_API_VERSION) {
-      context.addIssue({
-        code: "custom",
-        path: ["META_GRAPH_API_VERSION"],
-        message: "Meta Graph API version is required when Meta tracking is enabled",
-      });
-    }
-    if (value.META_TRACKING_ENABLED && !value.NEXT_PUBLIC_META_PIXEL_ID) {
-      context.addIssue({
-        code: "custom",
-        path: ["NEXT_PUBLIC_META_PIXEL_ID"],
-        message: "Public Meta Pixel ID is required when Meta tracking is enabled",
-      });
-    }
-    if (
-      value.META_TRACKING_ENABLED
-      && value.META_PIXEL_ID
-      && value.NEXT_PUBLIC_META_PIXEL_ID
-      && value.META_PIXEL_ID !== value.NEXT_PUBLIC_META_PIXEL_ID
-    ) {
-      context.addIssue({
-        code: "custom",
-        path: ["NEXT_PUBLIC_META_PIXEL_ID"],
-        message: "Meta Pixel IDs must match",
-      });
-    }
-    if (
-      value.META_TEST_EVENT_CODE
-      && value.DEPLOYMENT_ENV === "production"
-    ) {
-      context.addIssue({
-        code: "custom",
-        path: ["META_TEST_EVENT_CODE"],
-        message: "Meta Test Events code is not permitted in production",
-      });
-    }
     if (
       value.PAID_PROVIDERS_ENABLED &&
       ["preview", "test"].includes(value.DEPLOYMENT_ENV)
@@ -192,13 +135,6 @@ const serverEnvSchema = z
         code: "custom",
         path: ["ROOF_ASSESSMENT_SIGNING_SECRET"],
         message: "Roof assessment signing secret is required when assessments are enabled",
-      });
-    }
-    if (value.DEPLOYMENT_ENV === "production" && !value.PRIVACY_CONSENT_SIGNING_SECRET) {
-      context.addIssue({
-        code: "custom",
-        path: ["PRIVACY_CONSENT_SIGNING_SECRET"],
-        message: "Privacy consent signing secret is required in production",
       });
     }
     if (
@@ -330,6 +266,53 @@ const serverEnvSchema = z
   });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;
+
+export type MetaTrackingConfiguration = {
+  pixelId: string;
+  accessToken: string;
+  graphApiVersion: string;
+  testEventCode: string | undefined;
+};
+
+/**
+ * Meta and privacy settings are deliberately fail-open for canonical business
+ * operations: an incomplete or malformed tracking configuration disables the
+ * optional integration instead of preventing lead/quote persistence.
+ */
+export function resolveMetaTrackingConfiguration(
+  environment: Pick<ServerEnv,
+    | "META_TRACKING_ENABLED"
+    | "META_PIXEL_ID"
+    | "NEXT_PUBLIC_META_PIXEL_ID"
+    | "META_CAPI_ACCESS_TOKEN"
+    | "META_GRAPH_API_VERSION"
+    | "META_TEST_EVENT_CODE"
+    | "PRIVACY_CONSENT_SIGNING_SECRET"
+    | "DEPLOYMENT_ENV"
+  >,
+): MetaTrackingConfiguration | null {
+  const pixelId = environment.META_PIXEL_ID?.trim() ?? "";
+  const publicPixelId = environment.NEXT_PUBLIC_META_PIXEL_ID?.trim() ?? "";
+  const accessToken = environment.META_CAPI_ACCESS_TOKEN?.trim() ?? "";
+  const graphApiVersion = environment.META_GRAPH_API_VERSION?.trim() ?? "";
+  const privacySigningSecret = environment.PRIVACY_CONSENT_SIGNING_SECRET;
+  if (
+    !environment.META_TRACKING_ENABLED
+    || !/^\d{6,32}$/.test(pixelId)
+    || pixelId !== publicPixelId
+    || !accessToken
+    || !/^v\d+\.\d+$/.test(graphApiVersion)
+    || !privacySigningSecret
+    || Buffer.byteLength(privacySigningSecret, "utf8") < 32
+    || (environment.DEPLOYMENT_ENV === "production" && environment.META_TEST_EVENT_CODE)
+  ) return null;
+  return {
+    pixelId,
+    accessToken,
+    graphApiVersion,
+    testEventCode: environment.META_TEST_EVENT_CODE,
+  };
+}
 
 export function parseServerEnv(values: Record<string, string | undefined>) {
   return serverEnvSchema.parse(values);

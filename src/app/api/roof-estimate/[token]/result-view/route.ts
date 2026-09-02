@@ -1,9 +1,8 @@
 import {NextResponse, type NextRequest} from "next/server";
 import {z} from "zod";
 import {inngest} from "@/inngest/client";
-import {parseServerEnv} from "@/lib/env/server";
+import {parseServerEnv, resolveMetaTrackingConfiguration} from "@/lib/env/server";
 import {createServiceClient} from "@/lib/supabase/service";
-import {SupabaseMetaRepository, type ReservedMetaEvent} from "@/modules/marketing/meta-repository";
 import {PRIVACY_COOKIE_NAME, type VerifiedConsent} from "@/modules/privacy/consent";
 import {
   requestHasGlobalPrivacyControl,
@@ -12,7 +11,6 @@ import {
 import {SupabasePrivacyConsentRepository} from "@/modules/privacy/consent-repository";
 import {
   AssessmentResultAccessError,
-  isTrustedCompletedQuote,
   markRoofAssessmentResultViewed,
   SupabaseAssessmentResultRepository,
   type AssessmentResultRepository,
@@ -30,82 +28,52 @@ type ResultViewDependencies = {
   renderedReadyPackageQuote: boolean;
   metaTrackingEnabled?: boolean;
   consent?: VerifiedConsent | null;
-  recordConsent?: (input: {
-    leadId: string;
-    companyId: string;
-    consent: VerifiedConsent;
-    occurredAt: string;
-  }) => Promise<void>;
-  reserveAssessment?: (input: {
-    assessmentId: string;
-    companyId: string;
-    consentId: string;
-    occurredAt: string;
-  }) => Promise<ReservedMetaEvent | null>;
+  resolveConsent?: () => Promise<VerifiedConsent | null>;
+  requestIp: string | null;
+  userAgent: string;
   requestDelivery?: (deliveryId: string) => Promise<void>;
   reportError?: (error: unknown) => void;
 };
-
-async function reserveAssessmentAfterAcknowledgement({
-  acknowledgement,
-  metaTrackingEnabled,
-  consent,
-  recordConsent,
-  reserveAssessment,
-  requestDelivery,
-  reportError,
-}: Omit<ResultViewDependencies, "token" | "repository"> & {
-  acknowledgement: Awaited<ReturnType<typeof markRoofAssessmentResultViewed>>;
-}) {
-  if (
-    !metaTrackingEnabled
-    || !consent
-    || !recordConsent
-    || !reserveAssessment
-    || !isTrustedCompletedQuote(acknowledgement.context)
-  ) return null;
-
-  try {
-    const context = acknowledgement.context;
-    await recordConsent({
-      leadId: context.leadId!,
-      companyId: context.companyId,
-      consent,
-      occurredAt: acknowledgement.resultViewedAt,
-    });
-    if (!consent.preferences.advertising) return null;
-
-    const reserved = await reserveAssessment({
-      assessmentId: context.assessmentId,
-      companyId: context.companyId,
-      consentId: consent.consentId,
-      occurredAt: acknowledgement.resultViewedAt,
-    });
-    if (!reserved) return null;
-
-    try {
-      await requestDelivery?.(reserved.deliveryId);
-    } catch (error) {
-      (reportError ?? console.error)(error);
-    }
-    return reserved.envelope;
-  } catch (error) {
-    (reportError ?? console.error)(error);
-    return null;
-  }
-}
 
 export async function handleResultViewRequest({token, repository, ...dependencies}: ResultViewDependencies) {
   if (!dependencies.renderedReadyPackageQuote) {
     return NextResponse.json({error: "Ready quote acknowledgement required"}, {status: 400, headers: noStore});
   }
+  if (!dependencies.requestIp) {
+    return NextResponse.json({error: "Assessment result is temporarily unavailable"}, {status: 503, headers: noStore});
+  }
   try {
-    const acknowledgement = await markRoofAssessmentResultViewed(token, repository);
-    const metaEvent = await reserveAssessmentAfterAcknowledgement({
-      acknowledgement,
-      ...dependencies,
-    });
-    return NextResponse.json({resultViewed: true, metaEvent}, {headers: noStore});
+    const allowed = await repository.consumeResultViewLimit(token, dependencies.requestIp);
+    if (!allowed) {
+      return NextResponse.json({error: "Request limit reached. Please try again later."}, {status: 429, headers: noStore});
+    }
+    let consent = dependencies.consent ?? null;
+    if (dependencies.metaTrackingEnabled && dependencies.resolveConsent) {
+      try {
+        consent = await dependencies.resolveConsent();
+      } catch (error) {
+        // Tracking data may be unavailable without making the completed quote
+        // or its durable first-view acknowledgement unavailable.
+        (dependencies.reportError ?? console.error)(error);
+        consent = null;
+      }
+    }
+    const acknowledgement = await markRoofAssessmentResultViewed(token, {
+      consent: dependencies.metaTrackingEnabled ? consent : null,
+      requestIp: dependencies.requestIp,
+      userAgent: dependencies.userAgent,
+    }, repository);
+    if (dependencies.metaTrackingEnabled && acknowledgement.metaDeliveryId) {
+      try {
+        await dependencies.requestDelivery?.(acknowledgement.metaDeliveryId);
+      } catch (error) {
+        (dependencies.reportError ?? console.error)(error);
+      }
+    }
+    return NextResponse.json({
+      resultViewed: true,
+      metaEvent: dependencies.metaTrackingEnabled ? acknowledgement.metaEvent : null,
+    }, {headers: noStore});
   } catch (error) {
     if (error instanceof AssessmentResultAccessError) {
       return NextResponse.json({error: error.message}, {status: error.status, headers: noStore});
@@ -143,40 +111,21 @@ export async function POST(request: NextRequest, context: RouteContext) {
   const repository = new SupabaseAssessmentResultRepository(service);
   try {
     const environment = parseServerEnv(process.env);
-    const consent = environment.META_TRACKING_ENABLED
-      ? await resolveCurrentVerifiedConsent({
-        consentToken: readConsentCookie(request),
-        signingSecret: environment.PRIVACY_CONSENT_SIGNING_SECRET ?? "",
-        gpcDetected: requestHasGlobalPrivacyControl(request.headers),
-        now: () => new Date(),
-        repository: new SupabasePrivacyConsentRepository(service as never),
-      })
-      : null;
-    const metaRepository = new SupabaseMetaRepository(service as never);
+    const tracking = resolveMetaTrackingConfiguration(environment);
     return handleResultViewRequest({
       token,
       repository,
       renderedReadyPackageQuote: acknowledgement.data.renderedReadyPackageQuote,
-      metaTrackingEnabled: environment.META_TRACKING_ENABLED,
-      consent,
-      recordConsent: async ({leadId, companyId, consent: currentConsent, occurredAt}) => {
-        const {error} = await service.rpc("record_privacy_consent", {
-          p_evidence_id: crypto.randomUUID(),
-          p_consent_id: currentConsent.consentId,
-          p_company_id: companyId,
-          p_lead_id: leadId,
-          p_policy_version: currentConsent.policyVersion,
-          p_analytics_granted: currentConsent.preferences.analytics,
-          p_advertising_granted: currentConsent.preferences.advertising,
-          p_gpc_detected: currentConsent.gpcDetected,
-          p_source: currentConsent.gpcDetected ? "gpc" : "preferences",
-          p_request_ip: trustedRequestIp(request.headers, environment.DEPLOYMENT_ENV),
-          p_user_agent: request.headers.get("user-agent") ?? "",
-          p_occurred_at: occurredAt,
-        });
-        if (error) throw new Error("Failed to record privacy consent evidence");
-      },
-      reserveAssessment: (input) => metaRepository.reserveAssessment(input),
+      metaTrackingEnabled: Boolean(tracking),
+      requestIp: trustedRequestIp(request.headers, environment.DEPLOYMENT_ENV),
+      userAgent: request.headers.get("user-agent") ?? "",
+      resolveConsent: async () => resolveCurrentVerifiedConsent({
+        consentToken: readConsentCookie(request),
+        signingSecret: tracking ? environment.PRIVACY_CONSENT_SIGNING_SECRET ?? "" : "",
+        gpcDetected: requestHasGlobalPrivacyControl(request.headers),
+        now: () => new Date(),
+        repository: new SupabasePrivacyConsentRepository(service as never),
+      }),
       requestDelivery: async (deliveryId) => {
         await inngest.send({
           name: "marketing/meta.delivery.requested",
@@ -185,7 +134,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
       },
     });
   } catch {
-    // Tracking configuration cannot make an already-rendered quote unavailable.
-    return handleResultViewRequest({token, repository, renderedReadyPackageQuote: acknowledgement.data.renderedReadyPackageQuote});
+    return NextResponse.json({error: "Assessment result is temporarily unavailable"}, {status: 503, headers: noStore});
   }
 }

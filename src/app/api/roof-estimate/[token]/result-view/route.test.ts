@@ -11,6 +11,8 @@ const advertisingConsent = {
   gpcDetected: false,
   updatedAt: "2026-09-01T16:00:00.000Z",
 };
+const requestIp = "203.0.113.7";
+
 function postRequest(origin: string | null, body: unknown = {}) {
   return new NextRequest("https://piw.example/api/roof-estimate/11111111-1111-4111-8111-111111111111/result-view", {
     method: "POST",
@@ -18,6 +20,7 @@ function postRequest(origin: string | null, body: unknown = {}) {
     body: JSON.stringify(body),
   });
 }
+
 function repo(): AssessmentResultRepository {
   return {
     findCompletedByToken: vi.fn(async () => ({
@@ -30,53 +33,74 @@ function repo(): AssessmentResultRepository {
       hasTrustedPricingPackages: true,
     })),
     requestConsultation: vi.fn(),
-    markResultViewed: vi.fn(async () => ({resultViewedAt: "2026-08-26T12:00:00.000Z"})),
+    consumeResultViewLimit: vi.fn(async () => true),
+    markResultViewed: vi.fn(async () => ({
+      resultViewedAt: "2026-08-26T12:00:00.000Z",
+      metaDeliveryId: null,
+      metaEvent: null,
+    })),
+  };
+}
+
+function input(repository: AssessmentResultRepository, overrides: Partial<Parameters<typeof handleResultViewRequest>[0]> = {}) {
+  return {
+    token,
+    repository,
+    renderedReadyPackageQuote: true,
+    requestIp,
+    userAgent: "test-agent",
+    ...overrides,
   };
 }
 
 describe("token-scoped result view route", () => {
-  test("marks the exact completed result without returning internal state", async () => {
+  test("limits before looking up or acknowledging the completed result", async () => {
     const repository = repo();
-    const response = await handleResultViewRequest({token, repository, renderedReadyPackageQuote: true});
+    repository.consumeResultViewLimit = vi.fn(async () => false);
+
+    const response = await handleResultViewRequest(input(repository));
+
+    expect(response.status).toBe(429);
+    await expect(response.json()).resolves.toEqual({error: "Request limit reached. Please try again later."});
+    expect(repository.findCompletedByToken).not.toHaveBeenCalled();
+    expect(repository.markResultViewed).not.toHaveBeenCalled();
+  });
+
+  test("marks the exact completed result through one atomic acknowledgement RPC", async () => {
+    const repository = repo();
+    const response = await handleResultViewRequest(input(repository));
+
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
-    expect(await response.json()).toEqual({resultViewed: true, metaEvent: null});
-    expect(repository.markResultViewed).toHaveBeenCalledOnce();
+    await expect(response.json()).resolves.toEqual({resultViewed: true, metaEvent: null});
+    expect(repository.consumeResultViewLimit).toHaveBeenCalledWith(token, requestIp);
+    expect(repository.markResultViewed).toHaveBeenCalledWith(expect.objectContaining({
+      context: expect.objectContaining({assessmentId: "33333333-3333-4333-8333-333333333333"}),
+      consent: null,
+      requestIp,
+      userAgent: "test-agent",
+    }));
   });
 
-  test("uses a generic not-found response when the completed binding is absent", async () => {
+  test("returns and dispatches the envelope that the atomic acknowledgement reserved", async () => {
     const repository = repo();
-    repository.findCompletedByToken = vi.fn(async () => null);
-    const response = await handleResultViewRequest({token, repository, renderedReadyPackageQuote: true});
-    expect(response.status).toBe(404);
-    expect(await response.json()).toEqual({error: "Assessment not found"});
-  });
-
-  test("returns AssessmentCompleted only after a consented trusted result is acknowledged", async () => {
-    const repository = repo();
-    const reserveAssessment = vi.fn(async () => ({
-      deliveryId: "77777777-7777-4777-8777-777777777777",
-      envelope: {
+    repository.markResultViewed = vi.fn(async () => ({
+      resultViewedAt: "2026-09-01T16:05:00.000Z",
+      metaDeliveryId: "77777777-7777-4777-8777-777777777777",
+      metaEvent: {
         name: "AssessmentCompleted" as const,
         eventId: "88888888-8888-4888-8888-888888888888",
         issuedAt: "2026-09-01T16:05:00.000Z",
       },
     }));
-    const recordConsent = vi.fn(async () => undefined);
     const requestDelivery = vi.fn(async () => undefined);
 
-    const response = await handleResultViewRequest({
-      token,
-      repository,
+    const response = await handleResultViewRequest(input(repository, {
       consent: advertisingConsent,
       metaTrackingEnabled: true,
-      recordConsent,
-      reserveAssessment,
       requestDelivery,
-      renderedReadyPackageQuote: true,
-    });
+    }));
 
-    expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       resultViewed: true,
       metaEvent: {
@@ -85,18 +109,21 @@ describe("token-scoped result view route", () => {
         issuedAt: "2026-09-01T16:05:00.000Z",
       },
     });
-    expect(repository.markResultViewed).toHaveBeenCalledBefore(recordConsent);
-    expect(recordConsent).toHaveBeenCalledWith(expect.objectContaining({
-      leadId: "66666666-6666-4666-8666-666666666666",
-      companyId: "22222222-2222-4222-8222-222222222222",
-      consent: advertisingConsent,
-    }));
-    expect(reserveAssessment).toHaveBeenCalledWith(expect.objectContaining({
-      assessmentId: "33333333-3333-4333-8333-333333333333",
-      companyId: "22222222-2222-4222-8222-222222222222",
-      consentId: advertisingConsent.consentId,
-    }));
+    expect(repository.markResultViewed).toHaveBeenCalledWith(expect.objectContaining({consent: advertisingConsent}));
     expect(requestDelivery).toHaveBeenCalledWith("77777777-7777-4777-8777-777777777777");
+  });
+
+  test("never backfills an event when the first acknowledgement had no consent", async () => {
+    const repository = repo();
+    const requestDelivery = vi.fn(async () => undefined);
+    const response = await handleResultViewRequest(input(repository, {
+      consent: advertisingConsent,
+      metaTrackingEnabled: true,
+      requestDelivery,
+    }));
+
+    await expect(response.json()).resolves.toEqual({resultViewed: true, metaEvent: null});
+    expect(requestDelivery).not.toHaveBeenCalled();
   });
 
   test.each([
@@ -114,82 +141,48 @@ describe("token-scoped result view route", () => {
       hasTrustedMeasurement,
       hasTrustedPricingPackages,
     } as never));
-    const reserveAssessment = vi.fn();
 
-    const response = await handleResultViewRequest({
-      token,
-      repository,
+    const response = await handleResultViewRequest(input(repository, {
       consent: advertisingConsent,
       metaTrackingEnabled: true,
-      recordConsent: vi.fn(async () => undefined),
-      reserveAssessment,
-      renderedReadyPackageQuote: true,
-    });
+    }));
 
     expect(response.status).toBe(409);
     await expect(response.json()).resolves.toEqual({error: "Assessment quote is not ready"});
     expect(repository.markResultViewed).not.toHaveBeenCalled();
-    expect(reserveAssessment).not.toHaveBeenCalled();
   });
 
-  test("records a current consent revocation without reserving AssessmentCompleted", async () => {
+  test("keeps an acknowledged quote visible when queue dispatch fails", async () => {
     const repository = repo();
-    const recordConsent = vi.fn(async () => undefined);
-    const reserveAssessment = vi.fn();
-    const response = await handleResultViewRequest({
-      token,
-      repository,
-      consent: {
-        ...advertisingConsent,
-        preferences: {...advertisingConsent.preferences, advertising: false},
+    repository.markResultViewed = vi.fn(async () => ({
+      resultViewedAt: "2026-09-01T16:05:00.000Z",
+      metaDeliveryId: "77777777-7777-4777-8777-777777777777",
+      metaEvent: {
+        name: "AssessmentCompleted" as const,
+        eventId: "88888888-8888-4888-8888-888888888888",
+        issuedAt: "2026-09-01T16:05:00.000Z",
       },
-      metaTrackingEnabled: true,
-      recordConsent,
-      reserveAssessment,
-      renderedReadyPackageQuote: true,
-    });
-
-    await expect(response.json()).resolves.toEqual({resultViewed: true, metaEvent: null});
-    expect(recordConsent).toHaveBeenCalledOnce();
-    expect(reserveAssessment).not.toHaveBeenCalled();
-  });
-
-  test("keeps an acknowledged quote visible when Meta reservation fails", async () => {
-    const repository = repo();
+    }));
     const reportError = vi.fn();
-    const response = await handleResultViewRequest({
-      token,
-      repository,
+
+    const response = await handleResultViewRequest(input(repository, {
       consent: advertisingConsent,
       metaTrackingEnabled: true,
-      recordConsent: vi.fn(async () => undefined),
-      reserveAssessment: async () => { throw new Error("Meta unavailable"); },
+      requestDelivery: async () => { throw new Error("queue unavailable"); },
       reportError,
-      renderedReadyPackageQuote: true,
-    });
+    }));
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({resultViewed: true, metaEvent: null});
     expect(reportError).toHaveBeenCalledOnce();
   });
 
   test("does not accept a result acknowledgement unless the ready package quote rendered", async () => {
     const repository = repo();
-    const reserveAssessment = vi.fn();
-    const response = await handleResultViewRequest({
-      token,
-      repository,
-      consent: advertisingConsent,
-      metaTrackingEnabled: true,
-      recordConsent: vi.fn(async () => undefined),
-      reserveAssessment,
-      renderedReadyPackageQuote: false,
-    });
+    const response = await handleResultViewRequest(input(repository, {renderedReadyPackageQuote: false}));
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({error: "Ready quote acknowledgement required"});
-    expect(repository.markResultViewed).not.toHaveBeenCalled();
-    expect(reserveAssessment).not.toHaveBeenCalled();
+    expect(repository.consumeResultViewLimit).not.toHaveBeenCalled();
   });
 
   test.each([

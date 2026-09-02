@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   parseServerEnv: vi.fn(),
+  resolveMetaTrackingConfiguration: vi.fn(),
   createServiceClient: vi.fn(),
   acceptAllSeasonCampaignEstimate: vi.fn(),
   startOrResumeRoofAssessment: vi.fn(),
@@ -11,7 +12,10 @@ const mocks = vi.hoisted(() => ({
   fetchGooglePlaceDetails: vi.fn(),
 }));
 
-vi.mock("@/lib/env/server", () => ({parseServerEnv: mocks.parseServerEnv}));
+vi.mock("@/lib/env/server", () => ({
+  parseServerEnv: mocks.parseServerEnv,
+  resolveMetaTrackingConfiguration: mocks.resolveMetaTrackingConfiguration,
+}));
 vi.mock("@/lib/supabase/service", () => ({createServiceClient: mocks.createServiceClient}));
 vi.mock("@/modules/leads/accept-all-season-campaign-estimate", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/modules/leads/accept-all-season-campaign-estimate")>(),
@@ -100,6 +104,7 @@ const serverEnvironment = {
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.parseServerEnv.mockReturnValue(serverEnvironment);
+  mocks.resolveMetaTrackingConfiguration.mockReturnValue(null);
   mocks.createServiceClient.mockReturnValue({service: true});
   mocks.SupabasePropertyPrefetchRepository.mockImplementation(
     (class {

@@ -11,6 +11,7 @@ import {
   currentCanonicalWebsiteConsent,
   resolveCanonicalWebsiteConsent,
 } from "../../../lib/canonical-privacy-consent";
+import {trustedWebsiteRequestIp} from "../../../lib/trusted-request-ip";
 
 const leadSchema = z.object({
   submission_id: z.uuid(),
@@ -159,6 +160,7 @@ export async function POST(request: NextRequest) {
       publicPiwUrl: process.env.PIW_PUBLIC_APP_URL,
       websiteOrigin: request.nextUrl.origin,
       nodeEnv: process.env.NODE_ENV,
+      requestIp: trustedWebsiteRequestIp(request.headers, process.env.NODE_ENV),
       liveGpcDetected: requestHasGpc(request),
     }),
   );

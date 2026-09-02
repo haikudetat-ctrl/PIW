@@ -114,7 +114,7 @@ export function buildMetaCapiPayload(source: MetaDeliverySource): MetaCapiPayloa
 }
 
 export function classifyMetaResponse(status: number): "retryable" | "permanent" {
-  return status === 429 || status >= 500 ? "retryable" : "permanent";
+  return status === 408 || status === 429 || status >= 500 ? "retryable" : "permanent";
 }
 
 function sanitizedToken(value: string | undefined): string | null {

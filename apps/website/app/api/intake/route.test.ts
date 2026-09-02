@@ -23,7 +23,11 @@ afterEach(() => {
 function request(body: unknown, cookie = "_fbp=fb.1.100.200; _fbc=fb.1.100.click") {
   return new NextRequest("https://rake.example/api/intake", {
     method: "POST",
-    headers: {"content-type": "application/json", cookie},
+    headers: {
+      "content-type": "application/json",
+      cookie,
+      "x-forwarded-for": "203.0.113.10",
+    },
     body: JSON.stringify(body),
   });
 }

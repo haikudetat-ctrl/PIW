@@ -26,7 +26,12 @@ function repository(overrides: Partial<AssessmentResultRepository> = {}): Assess
     requestConsultation: vi.fn(async (_context, preference) => ({
       status: "requested" as const, ...preference, timezone: "America/New_York" as const,
     })),
-    markResultViewed: vi.fn(async () => ({resultViewedAt: "2026-08-26T12:00:00.000Z"})),
+    consumeResultViewLimit: vi.fn(async () => true),
+    markResultViewed: vi.fn(async () => ({
+      resultViewedAt: "2026-08-26T12:00:00.000Z",
+      metaDeliveryId: null,
+      metaEvent: null,
+    })),
     ...overrides,
   };
 }
@@ -59,8 +64,16 @@ describe("assessment result actions", () => {
 
   test("marks only the completed assessment bound to the public token", async () => {
     const repo = repository();
-    await expect(markRoofAssessmentResultViewed(token, repo)).resolves.toMatchObject({resultViewed: true, context});
-    expect(repo.markResultViewed).toHaveBeenCalledWith(context);
+    await expect(markRoofAssessmentResultViewed(token, {
+      consent: null,
+      requestIp: "203.0.113.7",
+      userAgent: "test-agent",
+    }, repo)).resolves.toMatchObject({resultViewed: true, context});
+    expect(repo.markResultViewed).toHaveBeenCalledWith(expect.objectContaining({
+      context,
+      consent: null,
+      requestIp: "203.0.113.7",
+    }));
   });
 
   test.each([
@@ -85,6 +98,13 @@ describe("assessment result actions", () => {
     [[]],
     [[{result_viewed_at:"not-a-time"}]],
     [[{result_viewed_at:"2026-08-26T12:00:00.000Z",assessment_id:token}]],
+    [[{
+      result_viewed_at:"2026-08-26T12:00:00.000Z",
+      meta_delivery_id: token,
+      meta_event_id: null,
+      meta_event_name: null,
+      meta_event_time: null,
+    }]],
   ])("rejects malformed raw result-view RPC output %#", (data) => {
     expect(() => parseResultViewedRpcResult(data)).toThrow("Result view persistence failed");
   });

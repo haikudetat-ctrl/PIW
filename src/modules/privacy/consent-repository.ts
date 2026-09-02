@@ -20,12 +20,8 @@ export type PrivacyConsentEvidenceInput = {
 };
 
 export interface PrivacyConsentRepository {
-  record(input: PrivacyConsentEvidenceInput): Promise<void>;
-  isWriteAllowed?(input: {
-    consentId: string;
-    since: string;
-    limit: number;
-  }): Promise<boolean>;
+  /** Returns the canonical evidence selected by the atomic database write. */
+  record(input: PrivacyConsentEvidenceInput): Promise<VerifiedConsent | void>;
 }
 
 /** Server-only read boundary for the unlinked, cross-origin current preference. */
@@ -38,12 +34,10 @@ export interface CurrentPrivacyConsentRepository extends PrivacyConsentRepositor
 
 type PrivacyConsentRpcClient = {
   rpc(
-    functionName: "record_privacy_consent",
+    functionName: "record_public_privacy_consent",
     arguments_: {
       p_evidence_id: string;
       p_consent_id: string;
-      p_company_id: null;
-      p_lead_id: null;
       p_policy_version: "piw-privacy-v1";
       p_analytics_granted: boolean;
       p_advertising_granted: boolean;
@@ -53,14 +47,17 @@ type PrivacyConsentRpcClient = {
       p_user_agent: string;
       p_occurred_at: string;
     },
-  ): Promise<{error: {message: string} | null}>;
+  ): Promise<{data: unknown; error: {message: string} | null}>;
 };
 
 type CurrentPrivacyConsentQuery = {
   select(columns: string): CurrentPrivacyConsentQuery;
   eq(column: string, value: string): CurrentPrivacyConsentQuery;
   is(column: "company_id" | "lead_id", value: null): CurrentPrivacyConsentQuery;
-  order(column: "occurred_at" | "created_at" | "evidence_id", options: {ascending: boolean}): CurrentPrivacyConsentQuery;
+  order(
+    column: "occurred_at" | "advertising_granted" | "gpc_detected" | "created_at" | "evidence_id",
+    options: {ascending: boolean},
+  ): CurrentPrivacyConsentQuery;
   limit(value: number): CurrentPrivacyConsentQuery;
   maybeSingle(): Promise<{data: unknown; error: {message: string} | null}>;
 };
@@ -77,6 +74,15 @@ const currentConsentEvidenceSchema = z.object({
   gpc_detected: z.boolean(),
   occurred_at: z.iso.datetime({offset: true}),
 }).strict();
+const publicConsentWriteSchema = z.array(currentConsentEvidenceSchema).length(1);
+
+/** Durable public-consent limits are enforced atomically by Postgres. */
+export class PrivacyConsentRateLimitError extends Error {
+  constructor() {
+    super("Privacy consent request limit exceeded");
+    this.name = "PrivacyConsentRateLimitError";
+  }
+}
 
 /** Persists public consent evidence without accepting tenant or lead scope from browsers. */
 export class SupabasePrivacyConsentRepository implements CurrentPrivacyConsentRepository {
@@ -85,11 +91,9 @@ export class SupabasePrivacyConsentRepository implements CurrentPrivacyConsentRe
   ) {}
 
   async record(input: PrivacyConsentEvidenceInput) {
-    const {error} = await this.service.rpc("record_privacy_consent", {
+    const {data, error} = await this.service.rpc("record_public_privacy_consent", {
       p_evidence_id: input.evidenceId,
       p_consent_id: input.consentId,
-      p_company_id: null,
-      p_lead_id: null,
       p_policy_version: input.policyVersion,
       p_analytics_granted: input.preferences.analytics,
       p_advertising_granted: input.preferences.advertising,
@@ -99,30 +103,23 @@ export class SupabasePrivacyConsentRepository implements CurrentPrivacyConsentRe
       p_user_agent: input.userAgent,
       p_occurred_at: input.occurredAt,
     });
+    if (error?.message === "Privacy consent request limit exceeded") {
+      throw new PrivacyConsentRateLimitError();
+    }
     if (error) throw new Error("Failed to record privacy consent evidence");
-  }
-
-  async isWriteAllowed(input: {consentId: string; since: string; limit: number}) {
-    type CountQuery = {
-      eq(column: string, value: string): CountQuery;
-      gte(column: string, value: string): PromiseLike<{
-        count: number | null;
-        error: {message: string} | null;
-      }>;
-    };
-    const service = this.service as unknown as {
-      from(table: "privacy_consent_evidence"): {
-        select(columns: "evidence_id", options: {count: "exact"; head: true}): CountQuery;
-      };
-    };
-    const {count, error} = await service
-      .from("privacy_consent_evidence")
-      .select("evidence_id", {count: "exact", head: true})
-      .eq("consent_id", input.consentId)
-      .eq("policy_version", "piw-privacy-v1")
-      .gte("created_at", input.since);
-    if (error || count === null) throw new Error("Failed to rate limit privacy consent");
-    return count < input.limit;
+    const parsed = publicConsentWriteSchema.safeParse(data);
+    if (!parsed.success) throw new Error("Failed to record privacy consent evidence");
+    const evidence = parsed.data[0];
+    return {
+      policyVersion: evidence.policy_version,
+      consentId: evidence.consent_id,
+      preferences: normalizeConsentPreferences({
+        analytics: evidence.analytics_granted,
+        advertising: evidence.advertising_granted,
+      }, evidence.gpc_detected),
+      gpcDetected: evidence.gpc_detected,
+      updatedAt: evidence.occurred_at,
+    } satisfies VerifiedConsent;
   }
 
   async readCurrent(input: {
@@ -137,6 +134,8 @@ export class SupabasePrivacyConsentRepository implements CurrentPrivacyConsentRe
       .is("company_id", null)
       .is("lead_id", null)
       .order("occurred_at", {ascending: false})
+      .order("advertising_granted", {ascending: true})
+      .order("gpc_detected", {ascending: false})
       .order("created_at", {ascending: false})
       .order("evidence_id", {ascending: false})
       .limit(1)

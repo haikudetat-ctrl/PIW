@@ -1,6 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { parseServerEnv } from "@/lib/env/server";
+import { parseServerEnv, resolveMetaTrackingConfiguration } from "@/lib/env/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { inngest } from "@/inngest/client";
 import { SupabaseMetaRepository, type ReservedMetaEvent } from "@/modules/marketing/meta-repository";
@@ -213,13 +213,14 @@ export async function POST(request: NextRequest) {
   const repository = new SupabaseAssessmentIntakeRepository(service);
   const signingKey = environment.ROOF_ASSESSMENT_SIGNING_SECRET;
   const companyId = environment.ALL_SEASON_INTAKE_COMPANY_ID;
+  const tracking = resolveMetaTrackingConfiguration(environment);
   const metaRepository = new SupabaseMetaRepository(service as never);
   const privacyRepository = new SupabasePrivacyConsentRepository(service as never);
 
   return handleAllSeasonCampaignEstimateRequest(request, {
     expectedSecret: environment.ALL_SEASON_INTAKE_SHARED_SECRET,
     companyId,
-    metaTrackingEnabled: environment.META_TRACKING_ENABLED,
+    metaTrackingEnabled: Boolean(tracking),
     findLeadId: async (submissionId) => {
       const {data, error} = await service
         .from("roof_assessment_access_attempts")

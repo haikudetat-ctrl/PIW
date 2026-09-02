@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createEventEnvelope } from "@/domain/events";
 import { inngest } from "@/inngest/client";
-import { parseServerEnv } from "@/lib/env/server";
+import { parseServerEnv, resolveMetaTrackingConfiguration } from "@/lib/env/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { enqueueAndPublishEvent } from "@/modules/events/enqueue-and-publish-event";
 import { SupabaseOutboxRepository } from "@/modules/events/supabase-outbox-repository";
@@ -159,6 +159,7 @@ export async function POST(request: NextRequest) {
   }
 
   const companyId = environment.ALL_SEASON_INTAKE_COMPANY_ID;
+  const tracking = resolveMetaTrackingConfiguration(environment);
   const service = createServiceClient();
   const forwardedFor = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "";
   const userAgent = request.headers.get("user-agent") ?? "";
@@ -168,7 +169,7 @@ export async function POST(request: NextRequest) {
   return handleAllSeasonIntakeRequest(request, {
     expectedSecret: environment.ALL_SEASON_INTAKE_SHARED_SECRET,
     companyId,
-    metaTrackingEnabled: environment.META_TRACKING_ENABLED,
+    metaTrackingEnabled: Boolean(tracking),
     verifyAdvertisingConsent: async (incoming) =>
       resolveCurrentVerifiedConsent({
         consentToken: incoming.headers.get("x-piw-privacy-consent") ?? undefined,

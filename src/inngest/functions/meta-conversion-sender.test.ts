@@ -32,7 +32,7 @@ const sent: MetaDeliveryResult = {
 function repository(overrides: Partial<MetaConversionDeliveryRepository> = {}) {
   return {
     claim: vi.fn(async () => source),
-    complete: vi.fn(async () => undefined),
+    complete: vi.fn(async (_deliveryId, result) => result.outcome),
     ...overrides,
   } satisfies MetaConversionDeliveryRepository;
 }
@@ -105,5 +105,23 @@ describe("Meta conversion sender", () => {
     })).resolves.toEqual({outcome: "permanent_failed", deliveryId: source.deliveryId});
 
     expect(deliveryRepository.complete).toHaveBeenCalledWith(source.deliveryId, permanent);
+  });
+
+  test("does not ask Inngest to retry after the database exhausts the fifth transient attempt", async () => {
+    const retryable: MetaDeliveryResult = {
+      ...sent,
+      outcome: "retryable_failed",
+      httpStatus: 408,
+      traceId: null,
+      errorCategory: "http_408",
+    };
+    const deliveryRepository = repository({
+      complete: vi.fn(async (): Promise<"permanent_failed"> => "permanent_failed"),
+    });
+
+    await expect(sendMetaConversionDelivery({deliveryId: source.deliveryId}, {
+      repository: deliveryRepository,
+      client: client({send: vi.fn(async () => retryable)}),
+    })).resolves.toEqual({outcome: "permanent_failed", deliveryId: source.deliveryId});
   });
 });

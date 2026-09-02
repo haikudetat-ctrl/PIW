@@ -1,5 +1,6 @@
 import {createHash, randomUUID, timingSafeEqual} from "node:crypto";
 import {NextResponse, type NextRequest} from "next/server";
+import {z} from "zod";
 import {parseServerEnv} from "@/lib/env/server";
 import {
   normalizeConsentPreferences,
@@ -8,12 +9,12 @@ import {
 } from "@/modules/privacy/consent";
 import {
   type CurrentPrivacyConsentRepository,
+  PrivacyConsentRateLimitError,
   SupabasePrivacyConsentRepository,
 } from "@/modules/privacy/consent-repository";
 
 const MAX_FUTURE_CONSENT_SKEW_MS = 30 * 1000;
-const CONSENT_WRITE_LIMIT = 12;
-const CONSENT_WRITE_WINDOW_MS = 60 * 60 * 1000;
+const trustedWebsiteIpSchema = z.union([z.ipv4(), z.ipv6()]);
 
 export type CurrentPrivacyConsentSyncDependencies = {
   signingSecret: string | undefined;
@@ -21,6 +22,8 @@ export type CurrentPrivacyConsentSyncDependencies = {
   now: () => Date;
   createId: () => string;
   isAllowedWebsiteOrigin(origin: string): boolean;
+  /** Forwarded only by the authenticated website server boundary. */
+  requestIp: string | null;
   repository: CurrentPrivacyConsentRepository;
 };
 
@@ -93,6 +96,7 @@ export async function handleCurrentPrivacyConsentSyncRequest(
     || !secretsMatch(upstreamSecret, dependencies.expectedSharedSecret)
     || !dependencies.signingSecret
   ) return unavailable(403);
+  if (!dependencies.requestIp) return unavailable();
 
   const verified = verifyConsentCookie(token, dependencies.signingSecret);
   if (!verified) return unavailable(403);
@@ -121,19 +125,6 @@ export async function handleCurrentPrivacyConsentSyncRequest(
       return NextResponse.json({consent: current}, {headers: {"cache-control": "no-store"}});
     }
 
-    const writeAllowed = dependencies.repository.isWriteAllowed
-      ? await dependencies.repository.isWriteAllowed({
-          consentId: candidate.consentId,
-          since: new Date(now.getTime() - CONSENT_WRITE_WINDOW_MS).toISOString(),
-          limit: CONSENT_WRITE_LIMIT,
-        })
-      : true;
-    if (!writeAllowed) {
-      const isCurrentGrantRevocation = !candidate.preferences.advertising
-        && current?.preferences.advertising === true;
-      if (!isCurrentGrantRevocation) return rateLimited();
-    }
-
     await dependencies.repository.record({
       evidenceId: dependencies.createId(),
       consentId: candidate.consentId,
@@ -141,7 +132,7 @@ export async function handleCurrentPrivacyConsentSyncRequest(
       preferences: candidate.preferences,
       gpcDetected: candidate.gpcDetected,
       source: candidate.gpcDetected ? "gpc" : "preferences",
-      requestIp: null,
+      requestIp: dependencies.requestIp,
       userAgent: "",
       occurredAt: candidate.updatedAt,
     });
@@ -151,7 +142,8 @@ export async function handleCurrentPrivacyConsentSyncRequest(
     });
     if (!synchronized) return unavailable();
     return NextResponse.json({consent: synchronized}, {headers: {"cache-control": "no-store"}});
-  } catch {
+  } catch (error) {
+    if (error instanceof PrivacyConsentRateLimitError) return rateLimited();
     return unavailable();
   }
 }
@@ -170,12 +162,16 @@ function allowedAllSeasonWebsiteOrigin(origin: string, environment: "development
 export async function POST(request: NextRequest) {
   try {
     const environment = parseServerEnv(process.env);
+    const forwardedIp = trustedWebsiteIpSchema.safeParse(
+      request.headers.get("x-all-season-privacy-request-ip")?.trim(),
+    );
     return await handleCurrentPrivacyConsentSyncRequest(request, {
       signingSecret: environment.PRIVACY_CONSENT_SIGNING_SECRET,
       expectedSharedSecret: environment.ALL_SEASON_INTAKE_SHARED_SECRET,
       now: () => new Date(),
       createId: randomUUID,
       isAllowedWebsiteOrigin: (origin) => allowedAllSeasonWebsiteOrigin(origin, environment.DEPLOYMENT_ENV),
+      requestIp: forwardedIp.success ? forwardedIp.data : null,
       repository: new SupabasePrivacyConsentRepository(),
     });
   } catch {

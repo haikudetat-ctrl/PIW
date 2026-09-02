@@ -1,13 +1,16 @@
 import "server-only";
 import {inngest, metaDeliveryRequested} from "@/inngest/client";
-import {parseServerEnv} from "@/lib/env/server";
+import {parseServerEnv, resolveMetaTrackingConfiguration} from "@/lib/env/server";
 import {MetaConversionClient, type MetaDeliveryResult} from "@/modules/marketing/meta-conversions";
 import {SupabaseMetaRepository} from "@/modules/marketing/meta-repository";
 import type {MetaDeliverySource} from "@/modules/marketing/meta-events";
 
 export interface MetaConversionDeliveryRepository {
   claim(deliveryId: string): Promise<MetaDeliverySource | null>;
-  complete(deliveryId: string, result: MetaDeliveryResult): Promise<void>;
+  complete(
+    deliveryId: string,
+    result: MetaDeliveryResult,
+  ): Promise<"sent" | "retryable_failed" | "permanent_failed">;
 }
 
 export interface MetaConversionDeliveryClient {
@@ -34,13 +37,13 @@ export async function sendMetaConversionDelivery(
   if (!source) return {outcome: "noop" as const, deliveryId: input.deliveryId};
 
   const result = await dependencies.client.send(source);
-  await dependencies.repository.complete(source.deliveryId, result);
+  const completedOutcome = await dependencies.repository.complete(source.deliveryId, result);
 
-  if (result.outcome === "retryable_failed") {
+  if (result.outcome === "retryable_failed" && completedOutcome === "retryable_failed") {
     throw new MetaConversionRetryableError(source.deliveryId);
   }
 
-  return {outcome: result.outcome, deliveryId: source.deliveryId};
+  return {outcome: completedOutcome, deliveryId: source.deliveryId};
 }
 
 type InngestLike = Pick<typeof inngest, "createFunction">;
@@ -48,15 +51,16 @@ type RuntimeFactory = () => MetaConversionDeliveryDependencies | null;
 
 function productionRuntime(): MetaConversionDeliveryDependencies | null {
   const environment = parseServerEnv(process.env);
-  if (!environment.META_TRACKING_ENABLED) return null;
+  const tracking = resolveMetaTrackingConfiguration(environment);
+  if (!tracking) return null;
 
   return {
     repository: new SupabaseMetaRepository(),
     client: new MetaConversionClient({
-      pixelId: environment.META_PIXEL_ID ?? "",
-      accessToken: environment.META_CAPI_ACCESS_TOKEN ?? "",
-      graphApiVersion: environment.META_GRAPH_API_VERSION ?? "",
-      testEventCode: environment.META_TEST_EVENT_CODE,
+      pixelId: tracking.pixelId,
+      accessToken: tracking.accessToken,
+      graphApiVersion: tracking.graphApiVersion,
+      testEventCode: tracking.testEventCode,
     }),
   };
 }

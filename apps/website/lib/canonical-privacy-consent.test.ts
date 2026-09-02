@@ -19,9 +19,11 @@ describe("canonical website consent synchronization", () => {
       gpcDetected: false,
       updatedAt: "2026-09-01T16:01:00.000Z",
     };
-    const fetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => (
-      Response.json({consent: laterGrant})
-    ));
+    const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      void input;
+      void init;
+      return Response.json({consent: laterGrant});
+    });
     vi.stubGlobal("fetch", fetch);
 
     await synchronizeCanonicalWebsiteConsent({
@@ -32,8 +34,14 @@ describe("canonical website consent synchronization", () => {
       publicPiwUrl: "https://piw.example",
       websiteOrigin: "https://allseasonsolar.net",
       nodeEnv: "production",
+      requestIp: "203.0.113.7",
     });
 
+    expect(fetch).toHaveBeenCalledWith(expect.any(URL), expect.objectContaining({
+      headers: expect.objectContaining({
+        "x-all-season-privacy-request-ip": "203.0.113.7",
+      }),
+    }));
     expect(fetch).toHaveBeenCalledWith(expect.any(URL), expect.objectContaining({
       headers: expect.not.objectContaining({"sec-gpc": "1"}),
     }));

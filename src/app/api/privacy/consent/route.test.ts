@@ -1,6 +1,7 @@
 import {describe, expect, test, vi} from "vitest";
 import type {NextRequest} from "next/server";
 import {signConsentCookie, type VerifiedConsent} from "@/modules/privacy/consent";
+import {PrivacyConsentRateLimitError} from "@/modules/privacy/consent-repository";
 import {handlePrivacyConsentRequest, handlePrivacyConsentStatusRequest} from "./route";
 
 const signingSecret = "0123456789abcdef0123456789abcdef";
@@ -128,35 +129,14 @@ describe("privacy consent route", () => {
     },
   );
 
-  test("durably throttles repeated grants while preserving an existing grant revocation", async () => {
-    const currentGrant: VerifiedConsent = {
-      policyVersion: "piw-privacy-v1",
-      consentId: "22222222-2222-4222-8222-222222222222",
-      preferences: {necessary: true, analytics: true, advertising: true},
-      gpcDetected: false,
-      updatedAt: "2026-08-28T11:59:00.000Z",
-    };
-    const token = signConsentCookie(currentGrant, signingSecret);
-    const repository = {
-      record: vi.fn(async () => undefined),
-      readCurrent: vi.fn(async () => currentGrant),
-      isWriteAllowed: vi.fn(async () => false),
-    };
-    const limitedDependencies = {...dependencies(), repository};
-
-    const grant = await handlePrivacyConsentRequest(request({
+  test("returns the atomic database rate limit without setting a new consent cookie", async () => {
+    const response = await handlePrivacyConsentRequest(request({
       analytics: true, advertising: true, gpcDetected: false, source: "preferences",
-    }, {cookie: `piw_privacy=${token}`}), limitedDependencies);
-    const revoke = await handlePrivacyConsentRequest(request({
-      analytics: false, advertising: false, gpcDetected: false, source: "preferences",
-    }, {cookie: `piw_privacy=${token}`}), limitedDependencies);
+    }), dependencies(vi.fn(async () => { throw new PrivacyConsentRateLimitError(); })));
 
-    expect(grant.status).toBe(429);
-    expect(revoke.status).toBe(200);
-    expect(repository.record).toHaveBeenCalledOnce();
-    expect(repository.record).toHaveBeenCalledWith(expect.objectContaining({
-      preferences: expect.objectContaining({advertising: false}),
-    }));
+    expect(response.status).toBe(429);
+    expect(response.headers.get("set-cookie")).toBeNull();
+    expect(response.headers.get("retry-after")).toBe("3600");
   });
 
   test("does not write a cookie when persistence fails", async () => {

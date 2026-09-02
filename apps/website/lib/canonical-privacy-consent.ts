@@ -84,6 +84,7 @@ export async function synchronizeCanonicalWebsiteConsent({
   publicPiwUrl,
   websiteOrigin,
   nodeEnv,
+  requestIp,
   liveGpcDetected = false,
 }: {
   consent: VerifiedWebsiteConsent;
@@ -92,9 +93,11 @@ export async function synchronizeCanonicalWebsiteConsent({
   publicPiwUrl: string | undefined;
   websiteOrigin: string;
   nodeEnv: string | undefined;
+  /** Trusted by the website runtime and forwarded only over this S2S boundary. */
+  requestIp: string | null;
   liveGpcDetected?: boolean;
 }): Promise<VerifiedWebsiteConsent | null> {
-  if (!signingSecret || !sharedSecret) return null;
+  if (!signingSecret || !sharedSecret || !requestIp) return null;
   const origin = piwOrigin(publicPiwUrl, nodeEnv);
   if (!origin) return null;
   const requestConsent = liveGpcDetected
@@ -107,6 +110,7 @@ export async function synchronizeCanonicalWebsiteConsent({
       headers: {
         origin: websiteOrigin,
         "x-all-season-intake-secret": sharedSecret,
+        "x-all-season-privacy-request-ip": requestIp,
         "x-piw-privacy-consent": signWebsiteConsent(requestConsent, signingSecret),
         ...(liveGpcDetected ? {"sec-gpc": "1"} : {}),
       },
@@ -134,6 +138,7 @@ export async function resolveCanonicalWebsiteConsent(input: {
   publicPiwUrl: string | undefined;
   websiteOrigin: string;
   nodeEnv: string | undefined;
+  requestIp: string | null;
   liveGpcDetected?: boolean;
 }): Promise<VerifiedWebsiteConsent | null> {
   const canonical = await synchronizeCanonicalWebsiteConsent(input);

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { parseClientEnv } from "./client";
-import { parseServerEnv } from "./server";
+import { parseServerEnv, resolveMetaTrackingConfiguration } from "./server";
 
 const base = {
   NODE_ENV: "test",
@@ -28,9 +28,9 @@ describe("parseServerEnv", () => {
     expect(environment.META_TRACKING_ENABLED).toBe(false);
   });
 
-  test("Meta tracking fails closed until matching server and public configuration is complete", () => {
-    expect(() => parseServerEnv({ ...base, META_TRACKING_ENABLED: "true" }))
-      .toThrow("Meta Pixel ID is required when Meta tracking is enabled");
+  test("Meta tracking resolves disabled until matching server and public configuration is complete", () => {
+    expect(resolveMetaTrackingConfiguration(parseServerEnv({ ...base, META_TRACKING_ENABLED: "true" })))
+      .toBeNull();
 
     const configured = {
       ...base,
@@ -40,23 +40,26 @@ describe("parseServerEnv", () => {
       META_CAPI_ACCESS_TOKEN: "private-token",
       META_GRAPH_API_VERSION: "v26.0",
     };
-    expect(parseServerEnv(configured)).toMatchObject({
-      META_TRACKING_ENABLED: true,
-      META_PIXEL_ID: "3142520615938086",
-      NEXT_PUBLIC_META_PIXEL_ID: "3142520615938086",
-      META_GRAPH_API_VERSION: "v26.0",
+    expect(resolveMetaTrackingConfiguration(parseServerEnv({
+      ...configured,
+      PRIVACY_CONSENT_SIGNING_SECRET: "a".repeat(32),
+    }))).toMatchObject({
+      pixelId: "3142520615938086",
+      graphApiVersion: "v26.0",
     });
-    expect(() => parseServerEnv({
+    expect(resolveMetaTrackingConfiguration(parseServerEnv({
       ...configured,
       NEXT_PUBLIC_META_PIXEL_ID: "9999999999999999",
-    })).toThrow("Meta Pixel IDs must match");
-    expect(() => parseServerEnv({
+      PRIVACY_CONSENT_SIGNING_SECRET: "a".repeat(32),
+    }))).toBeNull();
+    expect(resolveMetaTrackingConfiguration(parseServerEnv({
       ...configured,
       META_GRAPH_API_VERSION: "latest",
-    })).toThrow();
+      PRIVACY_CONSENT_SIGNING_SECRET: "a".repeat(32),
+    }))).toBeNull();
   });
 
-  test("permits a Meta Test Events code in Vercel preview and rejects it in the production deployment", () => {
+  test("permits a Meta Test Events code in Vercel preview and disables it in production", () => {
     const configured = {
       ...base,
       META_TRACKING_ENABLED: "true",
@@ -67,18 +70,22 @@ describe("parseServerEnv", () => {
       META_TEST_EVENT_CODE: "TEST123",
     };
 
-    expect(parseServerEnv(configured).META_TEST_EVENT_CODE).toBe("TEST123");
-    expect(parseServerEnv({
+    expect(resolveMetaTrackingConfiguration(parseServerEnv({
+      ...configured,
+      PRIVACY_CONSENT_SIGNING_SECRET: "a".repeat(32),
+    }))?.testEventCode).toBe("TEST123");
+    expect(resolveMetaTrackingConfiguration(parseServerEnv({
       ...configured,
       NODE_ENV: "production",
       DEPLOYMENT_ENV: "preview",
-    }).META_TEST_EVENT_CODE).toBe("TEST123");
-    expect(() => parseServerEnv({
+      PRIVACY_CONSENT_SIGNING_SECRET: "a".repeat(32),
+    }))?.testEventCode).toBe("TEST123");
+    expect(resolveMetaTrackingConfiguration(parseServerEnv({
       ...configured,
       NODE_ENV: "production",
       DEPLOYMENT_ENV: "production",
       PRIVACY_CONSENT_SIGNING_SECRET: "a".repeat(32),
-    })).toThrow("Meta Test Events code is not permitted in production");
+    }))).toBeNull();
   });
 
   test("treats a blank optional Meta Graph API version as unset while disabled", () => {
@@ -275,12 +282,12 @@ describe("parseServerEnv", () => {
     expect(parseServerEnv(base).ROOF_ASSESSMENT_SIGNING_SECRET).toBeUndefined();
   });
 
-  test("requires the privacy consent signing secret in production", () => {
-    expect(() => parseServerEnv({
+  test("does not let missing production privacy tracking config reject core parsing", () => {
+    expect(parseServerEnv({
       ...base,
       NODE_ENV: "production",
       DEPLOYMENT_ENV: "production",
-    })).toThrow("Privacy consent signing secret is required in production");
+    })).toMatchObject({DEPLOYMENT_ENV: "production"});
   });
 
   test("allows test and development environments to omit the privacy consent signing secret", () => {
@@ -289,11 +296,17 @@ describe("parseServerEnv", () => {
       .PRIVACY_CONSENT_SIGNING_SECRET).toBeUndefined();
   });
 
-  test("requires a privacy consent signing secret of at least 32 bytes", () => {
-    expect(() => parseServerEnv({
+  test("treats short privacy configuration as tracking-disabled rather than a core startup error", () => {
+    const environment = parseServerEnv({
       ...base,
+      META_TRACKING_ENABLED: "true",
+      META_PIXEL_ID: "3142520615938086",
+      NEXT_PUBLIC_META_PIXEL_ID: "3142520615938086",
+      META_CAPI_ACCESS_TOKEN: "private-token",
+      META_GRAPH_API_VERSION: "v26.0",
       PRIVACY_CONSENT_SIGNING_SECRET: "short-secret",
-    })).toThrow("Privacy consent signing secret must be at least 32 bytes");
+    });
+    expect(resolveMetaTrackingConfiguration(environment)).toBeNull();
   });
 
   test("requires complete Twilio Verify and assessment session configuration when enabled", () => {

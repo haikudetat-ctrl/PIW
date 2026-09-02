@@ -1,6 +1,7 @@
 import {NextRequest} from "next/server";
 import {describe, expect, test, vi} from "vitest";
 import {signConsentCookie, type VerifiedConsent} from "@/modules/privacy/consent";
+import {PrivacyConsentRateLimitError} from "@/modules/privacy/consent-repository";
 import {handleCurrentPrivacyConsentSyncRequest} from "./route";
 
 const signingSecret = "0123456789abcdef0123456789abcdef";
@@ -36,6 +37,7 @@ function dependencies(overrides: Record<string, unknown> = {}) {
     now: () => now,
     createId: () => "22222222-2222-4222-8222-222222222222",
     isAllowedWebsiteOrigin: (origin: string) => origin === "https://allseasonsolar.net",
+    requestIp: "203.0.113.7",
     repository: {
       record: vi.fn(async () => undefined),
       readCurrent: vi.fn(async () => canonical),
@@ -73,7 +75,7 @@ describe("current privacy consent sync endpoint", () => {
       preferences: {necessary: true, analytics: true, advertising: true},
       gpcDetected: false,
       source: "preferences",
-      requestIp: null,
+      requestIp: "203.0.113.7",
       userAgent: "",
       occurredAt: grantedConsent.updatedAt,
     });
@@ -180,26 +182,31 @@ describe("current privacy consent sync endpoint", () => {
     }));
   });
 
-  test("durably throttles repeated canonical grants but permits one current-grant revocation", async () => {
-    const currentGrant = {...grantedConsent, updatedAt: "2026-09-01T15:59:00.000Z"};
+  test("returns the atomic database rate limit for an authenticated website sync", async () => {
+    const repository = {
+      record: vi.fn(async () => { throw new PrivacyConsentRateLimitError(); }),
+      readCurrent: vi.fn(async () => null),
+    };
+    const response = await handleCurrentPrivacyConsentSyncRequest(
+      request(signConsentCookie(grantedConsent, signingSecret)), dependencies({repository}),
+    );
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("retry-after")).toBe("3600");
+  });
+
+  test("requires the website runtime to forward a validated visitor IP", async () => {
     const repository = {
       record: vi.fn(async () => undefined),
-      readCurrent: vi.fn(async () => currentGrant),
-      isWriteAllowed: vi.fn(async () => false),
+      readCurrent: vi.fn(async () => grantedConsent),
     };
-    const newerGrant = {...grantedConsent, updatedAt: now.toISOString()};
-    const denial = {...newerGrant, preferences: {...newerGrant.preferences, advertising: false}};
-
-    const grantResponse = await handleCurrentPrivacyConsentSyncRequest(
-      request(signConsentCookie(newerGrant, signingSecret)), dependencies({repository}),
-    );
-    const denialResponse = await handleCurrentPrivacyConsentSyncRequest(
-      request(signConsentCookie(denial, signingSecret)), dependencies({repository}),
+    const response = await handleCurrentPrivacyConsentSyncRequest(
+      request(signConsentCookie(grantedConsent, signingSecret)),
+      dependencies({repository, requestIp: null}),
     );
 
-    expect(grantResponse.status).toBe(429);
-    expect(denialResponse.status).toBe(200);
-    expect(repository.record).toHaveBeenCalledOnce();
+    expect(response.status).toBe(503);
+    expect(repository.readCurrent).not.toHaveBeenCalled();
   });
 
   test.each([

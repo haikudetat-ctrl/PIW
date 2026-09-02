@@ -1,5 +1,6 @@
 import {readFile} from "node:fs/promises";
 import path from "node:path";
+import {websiteMetaTrackingEnabled} from "./meta-tracking";
 
 const PUBLIC_ROOT = path.resolve(process.cwd(), "public");
 const SAFE_PATH_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
@@ -11,7 +12,7 @@ type StaticRuntimeConfig = {
 
 function staticRuntimeConfig(): StaticRuntimeConfig {
   const pixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID?.trim() ?? "";
-  const enabled = process.env.NEXT_PUBLIC_META_TRACKING_ENABLED === "true"
+  const enabled = websiteMetaTrackingEnabled(process.env)
     && /^\d{6,32}$/.test(pixelId);
 
   return {enabled, pixelId: enabled ? pixelId : null};

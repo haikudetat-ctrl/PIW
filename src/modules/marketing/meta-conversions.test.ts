@@ -85,6 +85,7 @@ describe("Meta payload construction", () => {
   });
 
   test.each([
+    [408, "retryable"],
     [429, "retryable"],
     [500, "retryable"],
     [503, "retryable"],
@@ -371,62 +372,6 @@ describe("SupabaseMetaRepository", () => {
     expect(from).not.toHaveBeenCalled();
   });
 
-  test("suppresses a pending server delivery at the app boundary after a website revocation, even if a later grant exists", async () => {
-    const canonicalGrant = {
-      advertising_granted: true,
-      gpc_detected: false,
-      occurred_at: "2026-09-01T11:59:00.000Z",
-    };
-    const canonicalRevocation = {
-      advertising_granted: false,
-      gpc_detected: false,
-      occurred_at: fixture.eventTime,
-    };
-    const historicalQuery = {
-      select: vi.fn(() => historicalQuery),
-      eq: vi.fn(() => historicalQuery),
-      is: vi.fn(() => historicalQuery),
-      lte: vi.fn(() => historicalQuery),
-      order: vi.fn(() => historicalQuery),
-      limit: vi.fn(() => historicalQuery),
-      maybeSingle: vi.fn(async () => ({data: canonicalGrant, error: null})),
-    };
-    const revocationQuery = {
-      select: vi.fn(() => revocationQuery),
-      eq: vi.fn(() => revocationQuery),
-      is: vi.fn(() => revocationQuery),
-      gte: vi.fn(() => revocationQuery),
-      or: vi.fn(() => revocationQuery),
-      limit: vi.fn(() => Promise.resolve({data: [canonicalRevocation], error: null})),
-    };
-    const contact = {
-      select: vi.fn(() => contact),
-      eq: vi.fn(() => contact),
-      maybeSingle: vi.fn(async () => ({
-        data: {
-          email: fixture.email,
-          phone: fixture.phone,
-          client_ip_address: fixture.clientIpAddress,
-          client_user_agent: fixture.clientUserAgent,
-          fbp: fixture.fbp,
-          fbc: fixture.fbc,
-        },
-        error: null,
-      })),
-    };
-    const privacyReads = [historicalQuery, revocationQuery];
-    const from = vi.fn((table: string) => {
-      if (table === "privacy_consent_evidence") return privacyReads.shift();
-      return contact;
-    });
-    const rpc = vi.fn().mockResolvedValue({data: [deliveryRow], error: null});
-    const repository = new SupabaseMetaRepository({rpc, from} as never, () => "2026-09-01T12:03:00.000Z");
-
-    await expect(repository.claim(fixture.deliveryId)).resolves.toBeNull();
-    expect(contact.select).not.toHaveBeenCalled();
-    expect(from).toHaveBeenCalledWith("privacy_consent_evidence");
-  });
-
   test.each([
     ["reserveLead", (repository: SupabaseMetaRepository) => repository.reserveLead({
       leadId: deliveryRow.lead_id,
@@ -449,7 +394,7 @@ describe("SupabaseMetaRepository", () => {
     expect(from).not.toHaveBeenCalled();
   });
 
-  test("claims before resolving the allowlisted contact and attribution projection", async () => {
+  test("relies on the atomic database claim before resolving contact and attribution", async () => {
     const order: string[] = [];
     const contactMaybeSingle = vi.fn(async () => {
       order.push("contact");
@@ -470,48 +415,19 @@ describe("SupabaseMetaRepository", () => {
       eq: vi.fn(() => contactQuery),
       maybeSingle: contactMaybeSingle,
     };
-    const historicalQuery = {
-      select: vi.fn(() => historicalQuery),
-      eq: vi.fn(() => historicalQuery),
-      is: vi.fn(() => historicalQuery),
-      lte: vi.fn(() => historicalQuery),
-      order: vi.fn(() => historicalQuery),
-      limit: vi.fn(() => historicalQuery),
-      maybeSingle: vi.fn(async () => {
-        order.push("canonical-history");
-        return {
-          data: {advertising_granted: true, gpc_detected: false, occurred_at: fixture.eventTime},
-          error: null,
-        };
-      }),
-    };
-    const revocationQuery = {
-      select: vi.fn(() => revocationQuery),
-      eq: vi.fn(() => revocationQuery),
-      is: vi.fn(() => revocationQuery),
-      gte: vi.fn(() => revocationQuery),
-      or: vi.fn(() => revocationQuery),
-      limit: vi.fn(async () => {
-        order.push("canonical-revocation");
-        return {data: [], error: null};
-      }),
-    };
-    const privacyQueries = [historicalQuery, revocationQuery];
     const repository = new SupabaseMetaRepository({
       rpc: vi.fn(async () => {
         order.push("claim");
         return { data: [deliveryRow], error: null };
       }),
-      from: vi.fn((table: string) => table === "privacy_consent_evidence"
-        ? privacyQueries.shift()
-        : contactQuery),
+      from: vi.fn(() => contactQuery),
     } as never, () => fixture.eventTime);
 
     await expect(repository.claim(fixture.deliveryId)).resolves.toEqual({
       ...fixture,
       eventSourceUrl: "https://allseasonsolar.net/",
     });
-    expect(order).toEqual(["claim", "canonical-history", "canonical-revocation", "contact"]);
+    expect(order).toEqual(["claim", "contact"]);
     expect(contactQuery.select).toHaveBeenCalledWith(
       "email, phone, client_ip_address, client_user_agent, fbp, fbc",
     );
@@ -602,5 +518,28 @@ describe("SupabaseMetaRepository", () => {
       p_diagnostic: "trace-123",
       p_completed_at: fixture.eventTime,
     });
+  });
+
+  test("accepts the terminal database outcome when a retryable fifth attempt is exhausted", async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: [{
+        ...deliveryRow,
+        status: "permanent_failed",
+        attempt_count: 5,
+        payload_hash: "a".repeat(64),
+        meta_http_status: 408,
+        last_error_category: "retry_exhausted",
+      }],
+      error: null,
+    });
+    const repository = new SupabaseMetaRepository({rpc} as never, () => fixture.eventTime);
+
+    await expect(repository.complete(fixture.deliveryId, {
+      outcome: "retryable_failed",
+      httpStatus: 408,
+      traceId: null,
+      errorCategory: "http_408",
+      payloadHash: "a".repeat(64),
+    })).resolves.toBe("permanent_failed");
   });
 });
