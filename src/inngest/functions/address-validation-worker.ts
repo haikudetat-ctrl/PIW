@@ -10,6 +10,7 @@ import { addressValidationRequested, inngest } from "@/inngest/client";
 import { parseServerEnv } from "@/lib/env/server";
 import type { Database, Json } from "@/lib/database.types";
 import { createServiceClient } from "@/lib/supabase/service";
+import { supabaseError } from "@/lib/supabase/errors";
 import { enqueueAndPublishEvent } from "@/modules/events/enqueue-and-publish-event";
 import { SupabaseOutboxRepository } from "@/modules/events/supabase-outbox-repository";
 import type {
@@ -507,7 +508,7 @@ export class SupabaseAddressValidationWorkerRepository
       .update({ status: "completed", finished_at: new Date().toISOString() })
       .eq("id", workerRunId)
       .neq("status", "completed");
-    if (error) throw new Error("Failed to complete address-validation worker");
+    if (error) throw supabaseError("Failed to complete address-validation worker", error);
   }
 
   async findExactAssessmentPrefetch(input: {
@@ -589,7 +590,7 @@ export class SupabaseAddressValidationWorkerRepository
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (error) throw new Error("Failed to check exact assessment prefetch");
+    if (error) throw supabaseError("Failed to check exact assessment prefetch", error);
     if (!data) return null;
 
     const parsed = exactAssessmentPrefetchSchema.safeParse(data);
@@ -608,7 +609,7 @@ export class SupabaseAddressValidationWorkerRepository
       .eq("id", input.pipelineRunId)
       .eq("company_id", input.companyId)
       .eq("status", "received");
-    if (error) throw new Error("Failed to start address validation");
+    if (error) throw supabaseError("Failed to start address validation", error);
   }
 
   async validateAddress(input: {
@@ -642,7 +643,7 @@ export class SupabaseAddressValidationWorkerRepository
       .eq("id", workerRunId)
       .single();
     if (error || !data) {
-      throw new Error("Failed to load address-validation attempt");
+      throw supabaseError("Failed to load address-validation attempt", error);
     }
     if (data.output === null) return null;
 
@@ -666,7 +667,7 @@ export class SupabaseAddressValidationWorkerRepository
       .select("output")
       .maybeSingle();
     if (error) {
-      throw new Error("Failed to persist address-validation attempt");
+      throw supabaseError("Failed to persist address-validation attempt", error);
     }
 
     if (updated?.output) {
@@ -702,7 +703,7 @@ export class SupabaseAddressValidationWorkerRepository
       .select("output")
       .maybeSingle();
     if (error) {
-      throw new Error("Failed to persist address-validation decision");
+      throw supabaseError("Failed to persist address-validation decision", error);
     }
     if (updated?.output) {
       return addressValidationAttemptSchema.parse(updated.output);
@@ -879,7 +880,7 @@ export class SupabaseAddressValidationWorkerRepository
       p_attempt: input.attempt,
     });
     if (error || !data?.[0]) {
-      throw new Error("Failed to claim canonical address");
+      throw supabaseError("Failed to claim canonical address", error);
     }
 
     if (input.result.googlePlaceId) {
@@ -1035,7 +1036,7 @@ export class SupabaseAddressValidationWorkerRepository
       })
       .eq("id", input.propertyId)
       .eq("company_id", input.companyId);
-    if (error) throw new Error("Failed to update canonical property address");
+    if (error) throw supabaseError("Failed to update canonical property address", error);
   }
 
   async findDuplicateCandidates(input: {

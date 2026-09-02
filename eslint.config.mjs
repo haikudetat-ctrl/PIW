@@ -18,6 +18,21 @@ const eslintConfig = defineConfig([
     "supabase/.branches/**",
     ".worktrees/**",
   ]),
+  {
+    rules: {
+      // Underscore-prefixed bindings are deliberate: parameters kept to satisfy
+      // an interface signature, and keys destructured only to omit them.
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+          ignoreRestSiblings: true,
+        },
+      ],
+    },
+  },
 ]);
 
 export default eslintConfig;

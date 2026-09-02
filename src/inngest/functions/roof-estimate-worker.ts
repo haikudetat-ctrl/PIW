@@ -16,6 +16,7 @@ import { inngest, propertyDiscoveryRequested } from "@/inngest/client";
 import type { Database, Json } from "@/lib/database.types";
 import { parseServerEnv } from "@/lib/env/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { supabaseError } from "@/lib/supabase/errors";
 import { normalizeAddressForMatching } from "@/modules/property-identity/normalize-address";
 import { createGoogleSolarProvider } from "@/modules/providers/adapters/google-solar";
 
@@ -476,7 +477,7 @@ export class SupabaseRoofEstimateWorkerRepository
       .eq("id", input.pipelineRunId)
       .eq("company_id", input.companyId)
       .in("status", ["validating", "enriching", "estimating"]);
-    if (error) throw new Error("Failed to start roof estimation");
+    if (error) throw supabaseError("Failed to start roof estimation", error);
   }
 
   async findReusableEstimate(input: {
@@ -494,7 +495,7 @@ export class SupabaseRoofEstimateWorkerRepository
       .order("updated_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (error) throw new Error("Failed to find reusable roof estimate");
+    if (error) throw supabaseError("Failed to find reusable roof estimate", error);
     if (
       !data ||
       data.total_roof_sqft === null ||
@@ -528,7 +529,7 @@ export class SupabaseRoofEstimateWorkerRepository
       p_target_estimate_id: input.estimateId,
       p_source_estimate_id: input.reusable.sourceEstimateId,
     });
-    if (error) throw new Error("Failed to reuse stored roof estimate packages");
+    if (error) throw supabaseError("Failed to reuse stored roof estimate packages", error);
     return this.loadFinalizedEstimate(input.companyId, input.estimateId);
   }
 
@@ -541,7 +542,7 @@ export class SupabaseRoofEstimateWorkerRepository
       .eq("normalized_address", input.normalizedAddress)
       .gt("cache_expires_at", new Date().toISOString())
       .maybeSingle();
-    if (error) throw new Error("Failed to read roof-insight cache");
+    if (error) throw supabaseError("Failed to read roof-insight cache", error);
     if (!data) return null;
     const insight = googleSolarInsightSchema.parse(
       data.lookup_status === "success"
@@ -598,7 +599,7 @@ export class SupabaseRoofEstimateWorkerRepository
       .update({ status: "cache_hit", completed_at: new Date().toISOString() })
       .eq("id", input.providerRequestId)
       .eq("company_id", input.companyId);
-    if (error) throw new Error("Failed to record Solar cache hit");
+    if (error) throw supabaseError("Failed to record Solar cache hit", error);
   }
 
   async reserveSolarCall() {
@@ -609,7 +610,7 @@ export class SupabaseRoofEstimateWorkerRepository
       p_period_start: periodStart,
       p_limit: SOLAR_MONTHLY_CALL_LIMIT,
     });
-    if (error || !data?.[0]) throw new Error("Failed to reserve Google Solar usage");
+    if (error || !data?.[0]) throw supabaseError("Failed to reserve Google Solar usage", error);
     return { allowed: data[0].allowed, reservedCount: data[0].reserved_count };
   }
 
@@ -679,7 +680,7 @@ export class SupabaseRoofEstimateWorkerRepository
       )
       .select("id")
       .single();
-    if (error || !data) throw new Error("Failed to persist Google roof insight");
+    if (error || !data) throw supabaseError("Failed to persist Google roof insight", error);
     return { id: data.id, insight: input.insight, retrievedAt: input.retrievedAt };
   }
 
@@ -695,7 +696,7 @@ export class SupabaseRoofEstimateWorkerRepository
       .update({ status: "succeeded", completed_at: input.retrievedAt })
       .eq("id", input.providerRequestId)
       .eq("company_id", input.companyId);
-    if (error) throw new Error("Failed to complete Solar provider request");
+    if (error) throw supabaseError("Failed to complete Solar provider request", error);
     const { error: costError } = await this.client.from("provider_cost_entries").upsert(
       {
         provider_request_id: input.providerRequestId,
@@ -724,7 +725,7 @@ export class SupabaseRoofEstimateWorkerRepository
       .update({ status: "blocked_budget", completed_at: new Date().toISOString() })
       .eq("id", input.providerRequestId)
       .eq("company_id", input.companyId);
-    if (error) throw new Error("Failed to record blocked Solar request");
+    if (error) throw supabaseError("Failed to record blocked Solar request", error);
   }
 
   async failProviderRequest(input: { providerRequestId: string; companyId: string }) {
@@ -733,7 +734,7 @@ export class SupabaseRoofEstimateWorkerRepository
       .update({ status: "failed", completed_at: new Date().toISOString() })
       .eq("id", input.providerRequestId)
       .eq("company_id", input.companyId);
-    if (error) throw new Error("Failed to record failed Solar request");
+    if (error) throw supabaseError("Failed to record failed Solar request", error);
   }
 
   async finalizeEstimate(input: {
@@ -752,7 +753,7 @@ export class SupabaseRoofEstimateWorkerRepository
         p_estimate_id: input.estimateId,
         p_roof_insight_id: input.insightRecord.id,
       });
-      if (error) throw new Error(`Failed to finalize roof pricing packages: ${error.message}`);
+      if (error) throw supabaseError("Failed to finalize roof pricing packages", error);
       return this.loadFinalizedEstimate(input.companyId, input.estimateId);
     }
     const { error } = await this.client
@@ -772,7 +773,7 @@ export class SupabaseRoofEstimateWorkerRepository
       })
       .eq("id", input.estimateId)
       .eq("company_id", input.companyId);
-    if (error) throw new Error("Failed to finalize roof estimate");
+    if (error) throw supabaseError("Failed to finalize roof estimate", error);
     return null;
   }
 
@@ -783,7 +784,7 @@ export class SupabaseRoofEstimateWorkerRepository
       .eq("company_id", companyId)
       .eq("id", estimateId)
       .single();
-    if (error || !data || data.roof_squares === null) throw new Error("Failed to load finalized roof pricing packages");
+    if (error || !data || data.roof_squares === null) throw supabaseError("Failed to load finalized roof pricing packages", error);
     return finalizedEstimateFromRows({
       roofSquares: Number(data.roof_squares),
       pricingVersion: data.pricing_version,
@@ -842,7 +843,7 @@ export class SupabaseRoofEstimateWorkerRepository
     const { error } = await this.client
       .from("estimate_deliveries")
       .upsert(rows, { onConflict: "estimate_id,channel", ignoreDuplicates: true });
-    if (error) throw new Error("Failed to queue estimate deliveries");
+    if (error) throw supabaseError("Failed to queue estimate deliveries", error);
   }
 
   async queueContextDialer(input: {
@@ -862,7 +863,7 @@ export class SupabaseRoofEstimateWorkerRepository
         },
         { onConflict: "pipeline_run_id", ignoreDuplicates: true },
       );
-    if (error) throw new Error("Failed to queue Context Dialer handoff");
+    if (error) throw supabaseError("Failed to queue Context Dialer handoff", error);
   }
 
   async completePipeline(input: {
@@ -893,7 +894,7 @@ export class SupabaseRoofEstimateWorkerRepository
       .update({ status: "completed", finished_at: new Date().toISOString() })
       .eq("id", workerRunId)
       .neq("status", "completed");
-    if (error) throw new Error("Failed to complete roof-estimate worker");
+    if (error) throw supabaseError("Failed to complete roof-estimate worker", error);
   }
 }
 
@@ -988,7 +989,7 @@ async function resolveRoofEstimateEvent(
     .limit(1)
     .single();
   if (error || !run?.property_id) {
-    throw new Error("Unable to reconstruct roof-estimate pipeline scope");
+    throw supabaseError("Unable to reconstruct roof-estimate pipeline scope", error);
   }
   return {
     id: inngestEventId,
