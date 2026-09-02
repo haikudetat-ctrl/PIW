@@ -1,5 +1,11 @@
 # All Season Meta conversions
 
+Current release operators should begin with
+[`all-season-meta-rollout-handoff.md`](./all-season-meta-rollout-handoff.md).
+That document records the deployed commit, migration/deployment state, current
+activation blocker, QA links, and the remaining checklist. This file is the
+steady-state privacy, configuration, monitoring, and incident-response guide.
+
 This runbook operates the consent-gated Meta Pixel and Conversions API release
 for the existing **All Season Roofing** dataset / Pixel **`3142520615938086`**.
 It sends `PageView` in the browser, then one browser/server-deduplicated `Lead`
