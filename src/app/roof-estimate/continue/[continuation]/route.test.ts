@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { describe, expect, test, vi } from "vitest";
 import { setAssessmentSession } from "@/modules/roof-assessment/assessment-session";
+import { createConsentHandoff } from "@/modules/privacy/consent-handoff";
+import { verifyConsentCookie } from "@/modules/privacy/consent";
 import { signContinuation } from "@/modules/roof-assessment/continuation-token";
 import { handleAssessmentContinuation, type ContinuationRouteDependencies } from "./route";
 
@@ -14,9 +16,13 @@ const estimateId = "44444444-4444-4444-8444-444444444444";
 const publicToken = "55555555-5555-4555-8555-555555555555";
 const secret = "a".repeat(64);
 const secretHash = createHash("sha256").update(secret).digest("hex");
+const privacySigningSecret = "0123456789abcdef0123456789abcdef";
+const privacyConsentId = "77777777-7777-4777-8777-777777777777";
 
-function request(cookie?: string) {
-  return new NextRequest("https://roof.example/roof-estimate/continue/signed-token", {
+function request(cookie?: string, privacyHandoff?: string) {
+  const url = new URL("https://roof.example/roof-estimate/continue/signed-token");
+  if (privacyHandoff) url.searchParams.set("privacy_handoff", privacyHandoff);
+  return new NextRequest(url, {
     headers: cookie ? {cookie: `as_roof_assessment=${cookie}`} : undefined,
   });
 }
@@ -48,6 +54,8 @@ function dependencies(
     signingKey,
     now: () => now,
     nodeEnv: "production",
+    privacySigningSecret,
+    createConsentId: () => privacyConsentId,
     findAttempt: vi.fn(async () => attempt()),
     consumeNewAttempt: vi.fn(async () => ({assessmentId, publicToken})),
     resumeWithSession: vi.fn(async () => ({assessmentId, publicToken})),
@@ -66,6 +74,52 @@ async function responseBody(response: Response) {
 }
 
 describe("assessment continuation route", () => {
+  test("sets transferred PIW consent only after successfully consuming a new attempt", async () => {
+    const signedContinuation = await continuation();
+    const handoff = await createConsentHandoff({
+      consentId: privacyConsentId,
+      policyVersion: "piw-privacy-v1",
+      analytics: true,
+      advertising: true,
+      issuedAt: now.toISOString(),
+    }, signedContinuation, privacySigningSecret);
+
+    const response = await handleAssessmentContinuation(
+      request(undefined, handoff),
+      {continuation: signedContinuation},
+      dependencies(),
+    );
+
+    const transferred = verifyConsentCookie(
+      response.cookies.get("piw_privacy")?.value,
+      privacySigningSecret,
+    );
+    expect(transferred).toMatchObject({
+      consentId: privacyConsentId,
+      preferences: {necessary: true, analytics: true, advertising: true},
+    });
+    expect(response.headers.get("location")).toBe(
+      `https://roof.example/roof-estimate/${publicToken}`,
+    );
+  });
+
+  test.each([
+    ["missing", undefined],
+    ["invalid", "not-a-valid-handoff"],
+  ])("fails closed to Advertising denied for a %s handoff without blocking start", async (_case, handoff) => {
+    const response = await handleAssessmentContinuation(
+      request(undefined, handoff),
+      {continuation: await continuation()},
+      dependencies(),
+    );
+
+    expect(response.status).toBe(307);
+    expect(verifyConsentCookie(
+      response.cookies.get("piw_privacy")?.value,
+      privacySigningSecret,
+    )?.preferences).toEqual({necessary: true, analytics: false, advertising: false});
+  });
+
   test("atomically consumes a new attempt, binds the browser, and redirects", async () => {
     const deps = dependencies();
 
@@ -106,6 +160,7 @@ describe("assessment continuation route", () => {
     );
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(deps.resumeWithSession).not.toHaveBeenCalled();
+    expect(response.cookies.get("piw_privacy")).toBeUndefined();
   });
 
   test("rotates a resume candidate only when the signed session matches its assessment", async () => {
@@ -128,6 +183,7 @@ describe("assessment continuation route", () => {
       assessmentId,
       expectedSecretHash: secretHash,
     });
+    expect(response.cookies.get("piw_privacy")).toBeUndefined();
   });
 
   test.each([
@@ -159,6 +215,7 @@ describe("assessment continuation route", () => {
       status: 404,
       body: "This assessment link is invalid or has expired.",
     });
+    expect(response.cookies.get("piw_privacy")).toBeUndefined();
   });
 
   test("maps repository failures to the same generic invalid-link response", async () => {

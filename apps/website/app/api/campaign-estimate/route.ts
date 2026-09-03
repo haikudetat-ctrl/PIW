@@ -1,5 +1,19 @@
 import {NextRequest, NextResponse} from "next/server";
 import {z} from "zod";
+import {
+  createConsentHandoff,
+  PRIVACY_COOKIE_NAME,
+  readWebsiteConsent,
+  signWebsiteConsent,
+  type VerifiedWebsiteConsent,
+} from "../../../lib/privacy-consent";
+import {
+  applyWebsiteGlobalPrivacyControl,
+  currentCanonicalWebsiteConsent,
+  resolveCanonicalWebsiteConsent,
+} from "../../../lib/canonical-privacy-consent";
+import {trustedWebsiteRequestIp} from "../../../lib/trusted-request-ip";
+import {trustedPiwOidcHeaders} from "../../../lib/vercel-protection";
 import {campaignSlugs} from "../../campaigns/campaigns";
 
 const optionalAttribution = z.string().trim().max(500).nullish();
@@ -69,12 +83,51 @@ const campaignEstimateSchema = z.object({
 const acceptedResponseSchema = z.strictObject({
   accepted: z.literal(true),
   continuationPath: z.string().regex(/^\/roof-estimate\/continue\/[A-Za-z0-9_-]+$/),
+  metaEvent: z.strictObject({
+    name: z.literal("Lead"),
+    eventId: z.uuid(),
+    issuedAt: z.iso.datetime({offset: true}),
+  }).nullable().optional(),
 });
 
-type ForwardEstimate = (payload: Record<string, unknown>) => Promise<Response>;
+type ForwardEstimate = (
+  payload: Record<string, unknown>,
+  options?: {consentToken: string},
+) => Promise<Response>;
+
+type ResolveCanonicalConsent = (input: {
+  request: NextRequest;
+  localConsent: VerifiedWebsiteConsent;
+}) => Promise<VerifiedWebsiteConsent | null>;
 
 function nullable(value: string | null | undefined) {
   return value || null;
+}
+
+function requestHasGpc(request: NextRequest) {
+  return request.headers.get("sec-gpc") === "1" || request.headers.get("x-all-season-gpc") === "1";
+}
+
+async function currentConsentForTracking({
+  request,
+  localConsent,
+  resolveCanonical,
+}: {
+  request: NextRequest;
+  localConsent: VerifiedWebsiteConsent | null;
+  resolveCanonical: ResolveCanonicalConsent | undefined;
+}) {
+  if (!localConsent || !resolveCanonical) return null;
+  const candidate = applyWebsiteGlobalPrivacyControl(
+    localConsent,
+    requestHasGpc(request),
+    requestHasGpc(request) ? new Date().toISOString() : localConsent.updatedAt,
+  );
+  try {
+    return currentCanonicalWebsiteConsent(candidate, await resolveCanonical({request, localConsent: candidate}));
+  } catch {
+    return null;
+  }
 }
 
 function manualAddress(input: z.infer<typeof campaignEstimateSchema>) {
@@ -124,6 +177,9 @@ export async function handleCampaignEstimateRequest(
   forward: ForwardEstimate,
   publicAppUrl: string,
   nodeEnv: "development" | "test" | "production" = "development",
+  privacySigningSecret = process.env.PRIVACY_CONSENT_SIGNING_SECRET,
+  now: () => Date = () => new Date(),
+  resolveCanonical?: ResolveCanonicalConsent,
 ) {
   const parsed = campaignEstimateSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
@@ -131,12 +187,25 @@ export async function handleCampaignEstimateRequest(
   }
 
   const input = parsed.data;
+  const consentToken = request.cookies.get(PRIVACY_COOKIE_NAME)?.value;
+  const verifiedConsent = privacySigningSecret
+    ? readWebsiteConsent(consentToken, privacySigningSecret)
+    : null;
+  const canonicalConsent = await currentConsentForTracking({
+    request,
+    localConsent: verifiedConsent,
+    resolveCanonical,
+  });
+  const advertisingAllowed = canonicalConsent?.preferences.advertising === true;
+  const canonicalConsentToken = canonicalConsent && privacySigningSecret
+    ? signWebsiteConsent(canonicalConsent, privacySigningSecret)
+    : null;
   const evidence = browserEvidenceSchema.safeParse({
     clientIpAddress: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim(),
     clientUserAgent: request.headers.get("user-agent")?.trim(),
     referrer: request.headers.get("referer"),
-    fbp: request.cookies.get("_fbp")?.value,
-    fbc: request.cookies.get("_fbc")?.value,
+    fbp: advertisingAllowed ? request.cookies.get("_fbp")?.value : null,
+    fbc: advertisingAllowed ? request.cookies.get("_fbc")?.value : null,
   });
   if (!evidence.success) {
     return noStoreJson({error: "Invalid estimate submission"}, 400);
@@ -180,7 +249,9 @@ export async function handleCampaignEstimateRequest(
     submittedAt: new Date().toISOString(),
   };
 
-  const upstream = await forward(payload).catch(() => null);
+  const upstream = await (canonicalConsentToken
+    ? forward(payload, {consentToken: canonicalConsentToken})
+    : forward(payload)).catch(() => null);
   if (!upstream) {
     return noStoreJson({error: "Estimate intake is temporarily unavailable"}, 502);
   }
@@ -201,14 +272,32 @@ export async function handleCampaignEstimateRequest(
   }
 
   const accepted = acceptedResponseSchema.safeParse(await jsonObject(upstream));
-  const estimateUrl = accepted.success
-    ? new URL(accepted.data.continuationPath, `${origin}/`).toString()
-    : null;
-  if (!estimateUrl) {
+  if (!accepted.success) {
     return noStoreJson({error: "Estimate intake is temporarily unavailable"}, 502);
   }
+  const continuationPath = accepted.data.continuationPath;
+  const estimateUrl = new URL(continuationPath, `${origin}/`);
 
-  return noStoreJson({accepted: true, estimateUrl}, 202);
+  if (canonicalConsent && privacySigningSecret) {
+    const continuation = continuationPath.slice(
+      "/roof-estimate/continue/".length,
+    );
+    const privacyHandoff = await createConsentHandoff({
+      consentId: canonicalConsent.consentId,
+      policyVersion: canonicalConsent.policyVersion,
+      analytics: canonicalConsent.preferences.analytics,
+      advertising: canonicalConsent.preferences.advertising,
+      gpc: canonicalConsent.gpcDetected,
+      issuedAt: now().toISOString(),
+    }, continuation, privacySigningSecret);
+    estimateUrl.searchParams.set("privacy_handoff", privacyHandoff);
+  }
+
+  return noStoreJson({
+    accepted: true,
+    estimateUrl: estimateUrl.toString(),
+    metaEvent: accepted.data.metaEvent ?? null,
+  }, 202);
 }
 
 export async function POST(request: NextRequest) {
@@ -221,11 +310,15 @@ export async function POST(request: NextRequest) {
 
   return handleCampaignEstimateRequest(
     request,
-    (payload) => fetch(webhookUrl, {
+    (payload, options) => fetch(webhookUrl, {
       method: "POST",
       headers: {
         "content-type": "application/json",
         "x-all-season-intake-secret": sharedSecret,
+        ...(options?.consentToken
+          ? {"x-piw-privacy-consent": options.consentToken}
+          : {}),
+        ...trustedPiwOidcHeaders(request.headers),
       },
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(8000),
@@ -233,5 +326,18 @@ export async function POST(request: NextRequest) {
     }),
     publicAppUrl,
     process.env.NODE_ENV,
+    process.env.PRIVACY_CONSENT_SIGNING_SECRET,
+    () => new Date(),
+    ({localConsent}) => resolveCanonicalWebsiteConsent({
+      consent: localConsent,
+      signingSecret: process.env.PRIVACY_CONSENT_SIGNING_SECRET,
+      sharedSecret,
+      publicPiwUrl: publicAppUrl,
+      websiteOrigin: request.nextUrl.origin,
+      nodeEnv: process.env.NODE_ENV,
+      requestIp: trustedWebsiteRequestIp(request.headers, process.env.NODE_ENV),
+      liveGpcDetected: requestHasGpc(request),
+      vercelOidcToken: request.headers.get("x-vercel-oidc-token"),
+    }),
   );
 }

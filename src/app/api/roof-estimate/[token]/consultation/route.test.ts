@@ -7,7 +7,8 @@ function repo(): AssessmentResultRepository {
   return {
     findCompletedByToken: vi.fn(async () => ({companyId: "22222222-2222-4222-8222-222222222222", assessmentId: "33333333-3333-4333-8333-333333333333", estimateId: "44444444-4444-4444-8444-444444444444"})),
     requestConsultation: vi.fn(async (_context, preference) => ({status: "requested", ...preference, timezone: "America/New_York"})),
-    markResultViewed: vi.fn(async () => ({resultViewedAt: "2026-08-26T12:00:00.000Z"})),
+    consumeResultViewLimit: vi.fn(async () => true),
+    markResultViewed: vi.fn(async () => ({resultViewedAt: "2026-08-26T12:00:00.000Z", metaDeliveryId: null, metaEvent: null})),
   };
 }
 

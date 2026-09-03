@@ -4,6 +4,10 @@ import { LEADCONDUIT_RECEIPT_FLOW_IDS } from "@/modules/access-route/leadconduit
 import { booleanString, deploymentEnvironmentSchema } from "./shared";
 
 const optionalString = z.preprocess((value) => value === "" ? undefined : value, z.string().min(1).optional());
+const optionalTrackingFlag = z.preprocess(
+  (value) => value === "true" || value === true ? "true" : "false",
+  booleanString,
+);
 const optionalUrl = z.preprocess((value) => value === "" ? undefined : value, z.url().optional());
 const optionalUuid = z.preprocess((value) => value === "" ? undefined : value, z.uuid().optional());
 const optionalIsoDatetime = z.preprocess((value) => value === "" ? undefined : value, z.iso.datetime().optional());
@@ -19,15 +23,30 @@ const serverEnvSchema = z
   .object({
     NODE_ENV: z.enum(["development", "test", "production"]),
     DEPLOYMENT_ENV: deploymentEnvironmentSchema,
+    VERCEL_ENV: z.enum(["development", "preview", "production"]).optional(),
     NEXT_PUBLIC_SUPABASE_URL: z.url(),
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: z.string().min(1),
     SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
     INNGEST_EVENT_KEY: z.string().min(1),
     INNGEST_SIGNING_KEY: z.string().min(1),
+    META_TRACKING_ENABLED: optionalTrackingFlag,
+    META_PIXEL_ID: optionalString,
+    META_CAPI_ACCESS_TOKEN: optionalString,
+    META_GRAPH_API_VERSION: optionalString,
+    META_TEST_EVENT_CODE: optionalString,
+    NEXT_PUBLIC_META_PIXEL_ID: optionalString,
+    INTEGRATIONS_LEADCONDUIT_SUBMISSION_ENABLED: optionalTrackingFlag,
+    INTERNAL_LEAD_EMAIL_ENABLED: optionalTrackingFlag,
+    RESEND_API_KEY: optionalString,
+    LEAD_NOTIFICATION_FROM_EMAIL: z.preprocess(
+      (value) => value === "" ? undefined : value,
+      z.email().optional(),
+    ),
     PAID_PROVIDERS_ENABLED: booleanString,
     ROOF_ASSESSMENT_ENABLED: booleanString,
     ROOF_ASSESSMENT_PROPERTY_PREFETCH_ENABLED: booleanString,
     ROOF_ASSESSMENT_SIGNING_SECRET: optionalSigningSecret,
+    PRIVACY_CONSENT_SIGNING_SECRET: optionalString,
     TWILIO_VERIFY_ENABLED: booleanString,
     TWILIO_API_KEY_SID: optionalString,
     TWILIO_API_KEY_SECRET: optionalString,
@@ -252,9 +271,127 @@ const serverEnvSchema = z
         message: "All Season intake requires both its company ID and shared secret",
       });
     }
+    if (value.INTERNAL_LEAD_EMAIL_ENABLED && !value.RESEND_API_KEY) {
+      context.addIssue({
+        code: "custom",
+        path: ["RESEND_API_KEY"],
+        message: "RESEND_API_KEY is required when internal lead email is enabled",
+      });
+    }
+    if (value.INTERNAL_LEAD_EMAIL_ENABLED && !value.LEAD_NOTIFICATION_FROM_EMAIL) {
+      context.addIssue({
+        code: "custom",
+        path: ["LEAD_NOTIFICATION_FROM_EMAIL"],
+        message: "LEAD_NOTIFICATION_FROM_EMAIL is required when internal lead email is enabled",
+      });
+    }
+    if (value.INTERNAL_LEAD_EMAIL_ENABLED && !value.VERCEL_PROJECT_PRODUCTION_URL) {
+      context.addIssue({
+        code: "custom",
+        path: ["VERCEL_PROJECT_PRODUCTION_URL"],
+        message: "VERCEL_PROJECT_PRODUCTION_URL is required when internal lead email is enabled",
+      });
+    }
+    if (
+      (value.INTEGRATIONS_LEADCONDUIT_SUBMISSION_ENABLED || value.INTERNAL_LEAD_EMAIL_ENABLED)
+      && !value.ACCESS_ROUTE_COMPANY_ID
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["ACCESS_ROUTE_COMPANY_ID"],
+        message: "ACCESS_ROUTE_COMPANY_ID is required when lead distribution is enabled",
+      });
+    }
   });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;
+
+export type MetaTrackingConfiguration = {
+  pixelId: string;
+  accessToken: string;
+  graphApiVersion: string;
+  testEventCode: string | undefined;
+};
+
+export type LeadDistributionConfiguration = {
+  companyId: string | null;
+  activeProspect: {enabled: true} | null;
+  internalEmail: {
+    apiKey: string;
+    fromEmail: string;
+    appBaseUrl: string;
+  } | null;
+};
+
+export function resolveLeadDistributionConfiguration(
+  environment: Pick<ServerEnv,
+    | "INTEGRATIONS_LEADCONDUIT_SUBMISSION_ENABLED"
+    | "INTERNAL_LEAD_EMAIL_ENABLED"
+    | "RESEND_API_KEY"
+    | "LEAD_NOTIFICATION_FROM_EMAIL"
+    | "VERCEL_PROJECT_PRODUCTION_URL"
+    | "ACCESS_ROUTE_COMPANY_ID"
+  >,
+): LeadDistributionConfiguration {
+  const productionUrl = environment.VERCEL_PROJECT_PRODUCTION_URL?.trim();
+  return {
+    companyId: environment.ACCESS_ROUTE_COMPANY_ID ?? null,
+    activeProspect: environment.INTEGRATIONS_LEADCONDUIT_SUBMISSION_ENABLED
+      ? {enabled: true}
+      : null,
+    internalEmail: environment.INTERNAL_LEAD_EMAIL_ENABLED
+      ? {
+          apiKey: environment.RESEND_API_KEY!,
+          fromEmail: environment.LEAD_NOTIFICATION_FROM_EMAIL!,
+          appBaseUrl: productionUrl!.startsWith("http") ? productionUrl! : `https://${productionUrl}`,
+        }
+      : null,
+  };
+}
+
+/**
+ * Meta and privacy settings are deliberately fail-open for canonical business
+ * operations: an incomplete or malformed tracking configuration disables the
+ * optional integration instead of preventing lead/quote persistence.
+ */
+export function resolveMetaTrackingConfiguration(
+  environment: Pick<ServerEnv,
+    | "META_TRACKING_ENABLED"
+    | "META_PIXEL_ID"
+    | "NEXT_PUBLIC_META_PIXEL_ID"
+    | "META_CAPI_ACCESS_TOKEN"
+    | "META_GRAPH_API_VERSION"
+    | "META_TEST_EVENT_CODE"
+    | "PRIVACY_CONSENT_SIGNING_SECRET"
+    | "DEPLOYMENT_ENV"
+    | "VERCEL_ENV"
+  >,
+): MetaTrackingConfiguration | null {
+  const pixelId = environment.META_PIXEL_ID?.trim() ?? "";
+  const publicPixelId = environment.NEXT_PUBLIC_META_PIXEL_ID?.trim() ?? "";
+  const accessToken = environment.META_CAPI_ACCESS_TOKEN?.trim() ?? "";
+  const graphApiVersion = environment.META_GRAPH_API_VERSION?.trim() ?? "";
+  const privacySigningSecret = environment.PRIVACY_CONSENT_SIGNING_SECRET;
+  const productionDeployment = environment.VERCEL_ENV
+    ? environment.VERCEL_ENV === "production"
+    : environment.DEPLOYMENT_ENV === "production";
+  if (
+    !environment.META_TRACKING_ENABLED
+    || !/^\d{6,32}$/.test(pixelId)
+    || pixelId !== publicPixelId
+    || !accessToken
+    || !/^v\d+\.\d+$/.test(graphApiVersion)
+    || !privacySigningSecret
+    || Buffer.byteLength(privacySigningSecret, "utf8") < 32
+    || (productionDeployment && environment.META_TEST_EVENT_CODE)
+  ) return null;
+  return {
+    pixelId,
+    accessToken,
+    graphApiVersion,
+    testEventCode: environment.META_TEST_EVENT_CODE,
+  };
+}
 
 export function parseServerEnv(values: Record<string, string | undefined>) {
   return serverEnvSchema.parse(values);

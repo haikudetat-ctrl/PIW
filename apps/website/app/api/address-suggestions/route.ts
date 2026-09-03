@@ -1,5 +1,6 @@
 import {NextRequest, NextResponse} from "next/server";
 import {z} from "zod";
+import {trustedPiwOidcHeaders} from "../../../lib/vercel-protection";
 
 const requestSchema = z.object({
   q: z.string().trim().min(3).max(200),
@@ -53,9 +54,12 @@ export async function GET(request: NextRequest) {
     url.searchParams.set("q", query);
     url.searchParams.set("session_token", sessionToken);
     return fetch(url.toString(), {
-      headers: process.env.INTAKE_WEBHOOK_SHARED_SECRET
-        ? {"x-all-season-intake-secret": process.env.INTAKE_WEBHOOK_SHARED_SECRET}
-        : {},
+      headers: {
+        ...(process.env.INTAKE_WEBHOOK_SHARED_SECRET
+          ? {"x-all-season-intake-secret": process.env.INTAKE_WEBHOOK_SHARED_SECRET}
+          : {}),
+        ...trustedPiwOidcHeaders(request.headers),
+      },
       signal: AbortSignal.timeout(5000),
       cache: "no-store",
     });

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   parseServerEnv: vi.fn(),
+  resolveMetaTrackingConfiguration: vi.fn(),
   createServiceClient: vi.fn(),
   acceptAllSeasonCampaignEstimate: vi.fn(),
   startOrResumeRoofAssessment: vi.fn(),
@@ -11,7 +12,10 @@ const mocks = vi.hoisted(() => ({
   fetchGooglePlaceDetails: vi.fn(),
 }));
 
-vi.mock("@/lib/env/server", () => ({parseServerEnv: mocks.parseServerEnv}));
+vi.mock("@/lib/env/server", () => ({
+  parseServerEnv: mocks.parseServerEnv,
+  resolveMetaTrackingConfiguration: mocks.resolveMetaTrackingConfiguration,
+}));
 vi.mock("@/lib/supabase/service", () => ({createServiceClient: mocks.createServiceClient}));
 vi.mock("@/modules/leads/accept-all-season-campaign-estimate", async (importOriginal) => ({
   ...await importOriginal<typeof import("@/modules/leads/accept-all-season-campaign-estimate")>(),
@@ -100,6 +104,7 @@ const serverEnvironment = {
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.parseServerEnv.mockReturnValue(serverEnvironment);
+  mocks.resolveMetaTrackingConfiguration.mockReturnValue(null);
   mocks.createServiceClient.mockReturnValue({service: true});
   mocks.SupabasePropertyPrefetchRepository.mockImplementation(
     (class {
@@ -130,6 +135,14 @@ afterEach(() => {
 });
 
 describe("All Season campaign estimate intake", () => {
+  const deniedAdvertisingConsent = {
+    policyVersion: "piw-privacy-v1" as const,
+    consentId: "33333333-3333-4333-8333-333333333333",
+    preferences: {necessary: true as const, analytics: false, advertising: false},
+    gpcDetected: false,
+    updatedAt: "2026-09-01T16:00:00.000Z",
+  };
+
   test("maps every external evidence field to the canonical campaign adapter", () => {
     const parsed = validPayload satisfies AllSeasonCampaignEstimateInput;
 
@@ -180,12 +193,45 @@ describe("All Season campaign estimate intake", () => {
     await expect(response.json()).resolves.toEqual({
       accepted: true,
       continuationPath: "/roof-estimate/continue/signed_token-123",
+      metaEvent: null,
     });
     expect(accept).toHaveBeenCalledWith(expect.objectContaining({
       campaign: "weather-report",
       presentation_key: "weather-report",
       entry_point: "campaign:weather-report",
     }));
+  });
+
+  test("denied advertising consent saves the lead but returns no Meta event", async () => {
+    const accept = vi.fn(async () => ({
+      kind: "continue" as const,
+      continuationPath: "/roof-estimate/continue/signed_token-123" as const,
+      leadId: "22222222-2222-4222-8222-222222222222",
+    }));
+    const reserveLead = vi.fn();
+
+    const response = await handleAllSeasonCampaignEstimateRequest(
+      request(validPayload),
+      {
+        expectedSecret: "shared-secret",
+        accept,
+        companyId: "22222222-2222-4222-8222-222222222222",
+        verifyAdvertisingConsent: async () => deniedAdvertisingConsent,
+        recordConsent: async () => undefined,
+        reserveLead,
+        requestDelivery: async () => undefined,
+        metaTrackingEnabled: true,
+      } as never,
+    );
+
+    expect(response.status).toBe(202);
+    await expect(response.json()).resolves.toEqual({
+      accepted: true,
+      continuationPath: "/roof-estimate/continue/signed_token-123",
+      metaEvent: null,
+    });
+    expect(accept).toHaveBeenCalledOnce();
+    expect(reserveLead).not.toHaveBeenCalled();
   });
 
   test("accepts the canonical main-site framing without campaign attribution", async () => {
@@ -288,6 +334,7 @@ describe("All Season campaign estimate intake", () => {
     await expect(response.json()).resolves.toEqual({
       accepted: true,
       continuationPath: "/roof-estimate/continue/signed_token-123",
+      metaEvent: null,
     });
     expect(mocks.SupabasePropertyPrefetchRepository).not.toHaveBeenCalled();
     expect(mocks.startOrResumeRoofAssessment).toHaveBeenCalledWith(
@@ -530,6 +577,7 @@ describe("All Season campaign estimate intake", () => {
     await expect(response.json()).resolves.toEqual({
       accepted: true,
       continuationPath: "/roof-estimate/continue/signed_token-123",
+      metaEvent: null,
     });
   });
 });

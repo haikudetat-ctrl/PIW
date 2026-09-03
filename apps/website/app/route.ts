@@ -1,8 +1,10 @@
-import {readFile} from "node:fs/promises";
-import path from "node:path";
+import {renderPublicHtml} from "../lib/static-html";
+
+export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const html = await readFile(path.join(process.cwd(), "public", "index.html"), "utf8");
+  const html = await renderPublicHtml(["index.html"]);
+  if (!html) return new Response("Not found", {status: 404});
 
   return new Response(html, {
     headers: {

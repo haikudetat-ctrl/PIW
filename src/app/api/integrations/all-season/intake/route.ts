@@ -2,13 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createEventEnvelope } from "@/domain/events";
 import { inngest } from "@/inngest/client";
-import { parseServerEnv } from "@/lib/env/server";
+import { parseServerEnv, resolveMetaTrackingConfiguration } from "@/lib/env/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { enqueueAndPublishEvent } from "@/modules/events/enqueue-and-publish-event";
 import { SupabaseOutboxRepository } from "@/modules/events/supabase-outbox-repository";
 import { acceptAllSeasonIntake } from "@/modules/leads/accept-all-season-intake";
 import { allSeasonSecretsMatch } from "@/modules/leads/all-season-intake-secret";
 import { fetchGooglePlaceDetails } from "@/modules/providers/adapters/google-places";
+import {type VerifiedConsent} from "@/modules/privacy/consent";
+import {
+  requestHasGlobalPrivacyControl,
+  resolveCurrentVerifiedConsent,
+} from "@/modules/privacy/current-consent";
+import {SupabasePrivacyConsentRepository} from "@/modules/privacy/consent-repository";
+import { SupabaseMetaRepository, type ReservedMetaEvent } from "@/modules/marketing/meta-repository";
 
 const nullableAttribution = z.string().trim().max(500).nullable();
 
@@ -35,13 +42,79 @@ export type AllSeasonIntake = z.infer<typeof allSeasonIntakeSchema>;
 
 type IntakeDependencies = {
   expectedSecret: string;
+  companyId?: string;
+  metaTrackingEnabled?: boolean;
   accept: (payload: AllSeasonIntake) => Promise<{ leadId: string; duplicate: boolean }>;
   normalizeAddress?: (input: {
     submittedAddress: string;
     googlePlaceId: string;
   }) => Promise<string>;
+  verifyAdvertisingConsent?: (request: NextRequest) => Promise<VerifiedConsent | null>;
+  recordConsent?: (input: {
+    leadId: string;
+    companyId: string;
+    consent: VerifiedConsent;
+    occurredAt: string;
+  }) => Promise<void>;
+  reserveLead?: (input: {
+    leadId: string;
+    companyId: string;
+    consentId: string;
+    occurredAt: string;
+  }) => Promise<ReservedMetaEvent | null>;
+  requestDelivery?: (deliveryId: string) => Promise<void>;
   reportError?: (error: unknown) => void;
 };
+
+async function reserveMetaLeadAfterAcceptance({
+  request,
+  accepted,
+  dependencies,
+}: {
+  request: NextRequest;
+  accepted: {leadId: string; duplicate: boolean};
+  dependencies: IntakeDependencies;
+}) {
+  if (
+    !dependencies.metaTrackingEnabled
+    || !dependencies.companyId
+    || !dependencies.verifyAdvertisingConsent
+    || !dependencies.recordConsent
+    || !dependencies.reserveLead
+  ) return null;
+
+  try {
+    const consent = await dependencies.verifyAdvertisingConsent(request);
+    if (!consent) return null;
+
+    const occurredAt = new Date().toISOString();
+    await dependencies.recordConsent({
+      leadId: accepted.leadId,
+      companyId: dependencies.companyId,
+      consent,
+      occurredAt,
+    });
+    if (!consent.preferences.advertising) return null;
+
+    const reserved = await dependencies.reserveLead({
+      leadId: accepted.leadId,
+      companyId: dependencies.companyId,
+      consentId: consent.consentId,
+      occurredAt,
+    });
+    if (!reserved) return null;
+
+    try {
+      await dependencies.requestDelivery?.(reserved.deliveryId);
+    } catch (error) {
+      (dependencies.reportError ?? console.error)(error);
+    }
+    return reserved.envelope;
+  } catch (error) {
+    (dependencies.reportError ?? console.error)(error);
+    return null;
+  }
+}
 
 export async function handleAllSeasonIntakeRequest(
   request: NextRequest,
@@ -67,7 +140,12 @@ export async function handleAllSeasonIntakeRequest(
       payload = { ...payload, address: canonicalAddress };
     }
     const accepted = await dependencies.accept(payload);
-    return NextResponse.json({ accepted: true, ...accepted }, { status: 202 });
+    const metaEvent = await reserveMetaLeadAfterAcceptance({
+      request,
+      accepted,
+      dependencies,
+    });
+    return NextResponse.json({ accepted: true, ...accepted, metaEvent }, { status: 202 });
   } catch (error) {
     (dependencies.reportError ?? console.error)(error);
     return NextResponse.json({ error: "Lead intake is temporarily unavailable" }, { status: 503 });
@@ -81,12 +159,49 @@ export async function POST(request: NextRequest) {
   }
 
   const companyId = environment.ALL_SEASON_INTAKE_COMPANY_ID;
+  const tracking = resolveMetaTrackingConfiguration(environment);
   const service = createServiceClient();
   const forwardedFor = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "";
   const userAgent = request.headers.get("user-agent") ?? "";
+  const metaRepository = new SupabaseMetaRepository(service as never);
+  const privacyRepository = new SupabasePrivacyConsentRepository(service as never);
 
   return handleAllSeasonIntakeRequest(request, {
     expectedSecret: environment.ALL_SEASON_INTAKE_SHARED_SECRET,
+    companyId,
+    metaTrackingEnabled: Boolean(tracking),
+    verifyAdvertisingConsent: async (incoming) =>
+      resolveCurrentVerifiedConsent({
+        consentToken: incoming.headers.get("x-piw-privacy-consent") ?? undefined,
+        signingSecret: environment.PRIVACY_CONSENT_SIGNING_SECRET ?? "",
+        gpcDetected: requestHasGlobalPrivacyControl(incoming.headers),
+        now: () => new Date(),
+        repository: privacyRepository,
+      }),
+    recordConsent: async ({leadId, companyId: consentCompanyId, consent, occurredAt}) => {
+      const {error} = await service.rpc("record_privacy_consent", {
+        p_evidence_id: crypto.randomUUID(),
+        p_consent_id: consent.consentId,
+        p_company_id: consentCompanyId,
+        p_lead_id: leadId,
+        p_policy_version: consent.policyVersion,
+        p_analytics_granted: consent.preferences.analytics,
+        p_advertising_granted: consent.preferences.advertising,
+        p_gpc_detected: consent.gpcDetected,
+        p_source: consent.gpcDetected ? "gpc" : "preferences",
+        p_request_ip: forwardedFor,
+        p_user_agent: userAgent,
+        p_occurred_at: occurredAt,
+      });
+      if (error) throw new Error("Failed to record privacy consent evidence");
+    },
+    reserveLead: (input) => metaRepository.reserveLead(input),
+    requestDelivery: async (deliveryId) => {
+      await inngest.send({
+        name: "marketing/meta.delivery.requested",
+        data: {deliveryId},
+      });
+    },
     normalizeAddress: async ({ submittedAddress, googlePlaceId }) => {
       const normalized = await fetchGooglePlaceDetails({
         submittedAddress,

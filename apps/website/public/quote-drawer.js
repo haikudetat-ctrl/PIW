@@ -48,6 +48,27 @@
     if (Array.isArray(window.dataLayer)) window.dataLayer.push(payload);
   }
 
+  function parseCanonicalEstimateResponse(payload) {
+    var parser = window.AllSeasonCanonicalEstimate;
+    if (!parser || typeof parser.parse !== 'function') return null;
+    return parser.parse(payload);
+  }
+
+  async function trackCanonicalMetaEvent(metaEvent) {
+    if (!metaEvent) return;
+    var tracker = window.AllSeasonMeta;
+    if (!tracker) return;
+    try {
+      if (typeof tracker.trackConversionBeforeNavigation === 'function') {
+        await tracker.trackConversionBeforeNavigation(metaEvent);
+      } else if (typeof tracker.trackConversion === 'function') {
+        tracker.trackConversion(metaEvent);
+      }
+    } catch {
+      // Meta is intentionally nonblocking for customer intake.
+    }
+  }
+
   function autoOpenAllowed() {
     try {
       var dismissedAt = Number(window.localStorage.getItem(DISMISSED_KEY));
@@ -270,10 +291,12 @@
           credentials: 'same-origin'
         });
         var payload = await response.json().catch(function () { return {}; });
-        if (!response.ok || !payload.estimateUrl) throw new Error(String(response.status));
+        var estimate = parseCanonicalEstimateResponse(payload);
+        if (!response.ok || !estimate) throw new Error(String(response.status));
         try { window.localStorage.setItem(DISMISSED_KEY, String(Date.now())); } catch {}
         track('quote_form_success', {trigger: root.dataset.trigger});
-        window.location.assign(payload.estimateUrl);
+        await trackCanonicalMetaEvent(estimate.metaEvent);
+        window.location.assign(estimate.estimateUrl);
       } catch {
         status.textContent = 'We could not send this request. Call (888) 832-5050 or try again.';
         track('quote_form_error', {trigger: root.dataset.trigger});

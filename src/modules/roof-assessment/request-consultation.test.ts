@@ -1,6 +1,7 @@
 import {describe, expect, test, vi} from "vitest";
 import {
   AssessmentResultAccessError,
+  isTrustedCompletedQuote,
   markRoofAssessmentResultViewed,
   parseConsultationRpcResult,
   parseResultViewedRpcResult,
@@ -11,8 +12,12 @@ import {
 const token = "11111111-1111-4111-8111-111111111111";
 const context = {
   companyId: "22222222-2222-4222-8222-222222222222",
+  leadId: "55555555-5555-4555-8555-555555555555",
   assessmentId: "33333333-3333-4333-8333-333333333333",
   estimateId: "44444444-4444-4444-8444-444444444444",
+  calculationStatus: "ready" as const,
+  hasTrustedMeasurement: true,
+  hasTrustedPricingPackages: true,
 };
 
 function repository(overrides: Partial<AssessmentResultRepository> = {}): AssessmentResultRepository {
@@ -21,7 +26,12 @@ function repository(overrides: Partial<AssessmentResultRepository> = {}): Assess
     requestConsultation: vi.fn(async (_context, preference) => ({
       status: "requested" as const, ...preference, timezone: "America/New_York" as const,
     })),
-    markResultViewed: vi.fn(async () => ({resultViewedAt: "2026-08-26T12:00:00.000Z"})),
+    consumeResultViewLimit: vi.fn(async () => true),
+    markResultViewed: vi.fn(async () => ({
+      resultViewedAt: "2026-08-26T12:00:00.000Z",
+      metaDeliveryId: null,
+      metaEvent: null,
+    })),
     ...overrides,
   };
 }
@@ -54,8 +64,25 @@ describe("assessment result actions", () => {
 
   test("marks only the completed assessment bound to the public token", async () => {
     const repo = repository();
-    await expect(markRoofAssessmentResultViewed(token, repo)).resolves.toEqual({resultViewed: true});
-    expect(repo.markResultViewed).toHaveBeenCalledWith(context);
+    await expect(markRoofAssessmentResultViewed(token, {
+      consent: null,
+      requestIp: "203.0.113.7",
+      userAgent: "test-agent",
+    }, repo)).resolves.toMatchObject({resultViewed: true, context});
+    expect(repo.markResultViewed).toHaveBeenCalledWith(expect.objectContaining({
+      context,
+      consent: null,
+      requestIp: "203.0.113.7",
+    }));
+  });
+
+  test.each([
+    [{...context}, true],
+    [{...context, calculationStatus: "pending" as const}, false],
+    [{...context, calculationStatus: "failed" as const}, false],
+    [{...context, hasTrustedPricingPackages: false}, false],
+  ])("requires ready measurement and complete package pricing before Meta eligibility", (candidate, expected) => {
+    expect(isTrustedCompletedQuote(candidate)).toBe(expected);
   });
 
   test.each([
@@ -71,6 +98,13 @@ describe("assessment result actions", () => {
     [[]],
     [[{result_viewed_at:"not-a-time"}]],
     [[{result_viewed_at:"2026-08-26T12:00:00.000Z",assessment_id:token}]],
+    [[{
+      result_viewed_at:"2026-08-26T12:00:00.000Z",
+      meta_delivery_id: token,
+      meta_event_id: null,
+      meta_event_name: null,
+      meta_event_time: null,
+    }]],
   ])("rejects malformed raw result-view RPC output %#", (data) => {
     expect(() => parseResultViewedRpcResult(data)).toThrow("Result view persistence failed");
   });

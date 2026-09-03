@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { parseClientEnv } from "./client";
-import { parseServerEnv } from "./server";
+import { parseServerEnv, resolveLeadDistributionConfiguration, resolveMetaTrackingConfiguration } from "./server";
 
 const base = {
   NODE_ENV: "test",
@@ -25,6 +25,122 @@ describe("parseServerEnv", () => {
     expect(environment.JOBNIMBUS_PAGE_LIMIT).toBe(50);
     expect(environment.JOBNIMBUS_MAX_PAGES).toBe(1);
     expect(environment.COST_MONTHLY_BUDGET_USD).toBe(1500);
+    expect(environment.META_TRACKING_ENABLED).toBe(false);
+    expect(environment.INTEGRATIONS_LEADCONDUIT_SUBMISSION_ENABLED).toBe(false);
+    expect(environment.INTERNAL_LEAD_EMAIL_ENABLED).toBe(false);
+  });
+
+  test("enables lead distribution only with complete destination configuration", () => {
+    expect(resolveLeadDistributionConfiguration(parseServerEnv(base))).toEqual({
+      companyId: null,
+      activeProspect: null,
+      internalEmail: null,
+    });
+    const configured = parseServerEnv({
+      ...base,
+      INTEGRATIONS_LEADCONDUIT_SUBMISSION_ENABLED: "true",
+      INTERNAL_LEAD_EMAIL_ENABLED: "true",
+      RESEND_API_KEY: "re_test_key",
+      LEAD_NOTIFICATION_FROM_EMAIL: "leads@allseason.solar",
+      VERCEL_PROJECT_PRODUCTION_URL: "piw-sepia.vercel.app",
+      ACCESS_ROUTE_COMPANY_ID: "00000000-0000-4000-8000-000000000001",
+    });
+    expect(resolveLeadDistributionConfiguration(configured)).toEqual({
+      companyId: "00000000-0000-4000-8000-000000000001",
+      activeProspect: {enabled: true},
+      internalEmail: {
+        apiKey: "re_test_key",
+        fromEmail: "leads@allseason.solar",
+        appBaseUrl: "https://piw-sepia.vercel.app",
+      },
+    });
+  });
+
+  test("rejects incomplete enabled internal lead email configuration", () => {
+    expect(() => parseServerEnv({...base, INTERNAL_LEAD_EMAIL_ENABLED: "true"}))
+      .toThrow("RESEND_API_KEY is required");
+  });
+
+  test("Meta tracking resolves disabled until matching server and public configuration is complete", () => {
+    expect(resolveMetaTrackingConfiguration(parseServerEnv({ ...base, META_TRACKING_ENABLED: "true" })))
+      .toBeNull();
+
+    const configured = {
+      ...base,
+      META_TRACKING_ENABLED: "true",
+      META_PIXEL_ID: "3142520615938086",
+      NEXT_PUBLIC_META_PIXEL_ID: "3142520615938086",
+      META_CAPI_ACCESS_TOKEN: "private-token",
+      META_GRAPH_API_VERSION: "v26.0",
+    };
+    expect(resolveMetaTrackingConfiguration(parseServerEnv({
+      ...configured,
+      PRIVACY_CONSENT_SIGNING_SECRET: "a".repeat(32),
+    }))).toMatchObject({
+      pixelId: "3142520615938086",
+      graphApiVersion: "v26.0",
+    });
+    expect(resolveMetaTrackingConfiguration(parseServerEnv({
+      ...configured,
+      NEXT_PUBLIC_META_PIXEL_ID: "9999999999999999",
+      PRIVACY_CONSENT_SIGNING_SECRET: "a".repeat(32),
+    }))).toBeNull();
+    expect(resolveMetaTrackingConfiguration(parseServerEnv({
+      ...configured,
+      META_GRAPH_API_VERSION: "latest",
+      PRIVACY_CONSENT_SIGNING_SECRET: "a".repeat(32),
+    }))).toBeNull();
+  });
+
+  test("permits a Meta Test Events code in Vercel preview and disables it in production", () => {
+    const configured = {
+      ...base,
+      META_TRACKING_ENABLED: "true",
+      META_PIXEL_ID: "3142520615938086",
+      NEXT_PUBLIC_META_PIXEL_ID: "3142520615938086",
+      META_CAPI_ACCESS_TOKEN: "private-token",
+      META_GRAPH_API_VERSION: "v26.0",
+      META_TEST_EVENT_CODE: "TEST123",
+    };
+
+    expect(resolveMetaTrackingConfiguration(parseServerEnv({
+      ...configured,
+      PRIVACY_CONSENT_SIGNING_SECRET: "a".repeat(32),
+    }))?.testEventCode).toBe("TEST123");
+    expect(resolveMetaTrackingConfiguration(parseServerEnv({
+      ...configured,
+      NODE_ENV: "production",
+      DEPLOYMENT_ENV: "production",
+      VERCEL_ENV: "preview",
+      PRIVACY_CONSENT_SIGNING_SECRET: "a".repeat(32),
+    }))?.testEventCode).toBe("TEST123");
+    expect(resolveMetaTrackingConfiguration(parseServerEnv({
+      ...configured,
+      NODE_ENV: "production",
+      DEPLOYMENT_ENV: "production",
+      VERCEL_ENV: "production",
+      PRIVACY_CONSENT_SIGNING_SECRET: "a".repeat(32),
+    }))).toBeNull();
+    expect(resolveMetaTrackingConfiguration(parseServerEnv({
+      ...configured,
+      NODE_ENV: "production",
+      DEPLOYMENT_ENV: "preview",
+      VERCEL_ENV: "production",
+      PRIVACY_CONSENT_SIGNING_SECRET: "a".repeat(32),
+    }))).toBeNull();
+    expect(resolveMetaTrackingConfiguration(parseServerEnv({
+      ...configured,
+      NODE_ENV: "production",
+      DEPLOYMENT_ENV: "production",
+      PRIVACY_CONSENT_SIGNING_SECRET: "a".repeat(32),
+    }))).toBeNull();
+  });
+
+  test("treats a blank optional Meta Graph API version as unset while disabled", () => {
+    expect(parseServerEnv({
+      ...base,
+      META_GRAPH_API_VERSION: "",
+    }).META_GRAPH_API_VERSION).toBeUndefined();
   });
 
   test("defaults both LeadConduit receivers to disabled", () => {
@@ -144,6 +260,7 @@ describe("parseServerEnv", () => {
         ...base,
         NODE_ENV: "production",
         DEPLOYMENT_ENV: "production",
+        PRIVACY_CONSENT_SIGNING_SECRET: "a".repeat(32),
         PAID_PROVIDERS_ENABLED: "true",
       }),
     ).toThrow("Google Maps API key is required");
@@ -213,6 +330,33 @@ describe("parseServerEnv", () => {
     expect(parseServerEnv(base).ROOF_ASSESSMENT_SIGNING_SECRET).toBeUndefined();
   });
 
+  test("does not let missing production privacy tracking config reject core parsing", () => {
+    expect(parseServerEnv({
+      ...base,
+      NODE_ENV: "production",
+      DEPLOYMENT_ENV: "production",
+    })).toMatchObject({DEPLOYMENT_ENV: "production"});
+  });
+
+  test("allows test and development environments to omit the privacy consent signing secret", () => {
+    expect(parseServerEnv(base).PRIVACY_CONSENT_SIGNING_SECRET).toBeUndefined();
+    expect(parseServerEnv({ ...base, NODE_ENV: "development", DEPLOYMENT_ENV: "development" })
+      .PRIVACY_CONSENT_SIGNING_SECRET).toBeUndefined();
+  });
+
+  test("treats short privacy configuration as tracking-disabled rather than a core startup error", () => {
+    const environment = parseServerEnv({
+      ...base,
+      META_TRACKING_ENABLED: "true",
+      META_PIXEL_ID: "3142520615938086",
+      NEXT_PUBLIC_META_PIXEL_ID: "3142520615938086",
+      META_CAPI_ACCESS_TOKEN: "private-token",
+      META_GRAPH_API_VERSION: "v26.0",
+      PRIVACY_CONSENT_SIGNING_SECRET: "short-secret",
+    });
+    expect(resolveMetaTrackingConfiguration(environment)).toBeNull();
+  });
+
   test("requires complete Twilio Verify and assessment session configuration when enabled", () => {
     expect(() => parseServerEnv({...base, TWILIO_VERIFY_ENABLED: "true"}))
       .toThrow("Twilio Verify requires API credentials, a service SID, and assessment signing");
@@ -234,12 +378,17 @@ describe("parseClientEnv", () => {
     expect(
       parseClientEnv({
         ...base,
+        META_TRACKING_ENABLED: "true",
+        NEXT_PUBLIC_META_PIXEL_ID: "3142520615938086",
+        META_CAPI_ACCESS_TOKEN: "must-not-reach-client-code",
         SUPABASE_SERVICE_ROLE_KEY: "must-not-reach-client-code",
       }),
     ).toEqual({
       DEPLOYMENT_ENV: "test",
       NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321",
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "local-publishable-key",
+      META_TRACKING_ENABLED: true,
+      NEXT_PUBLIC_META_PIXEL_ID: "3142520615938086",
     });
   });
 });

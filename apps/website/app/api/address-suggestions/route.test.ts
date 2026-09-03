@@ -8,9 +8,10 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function request(query = "354 Stock") {
+function request(query = "354 Stock", headers: Record<string, string> = {}) {
   return new NextRequest(
     `https://rake.example/api/address-suggestions?q=${encodeURIComponent(query)}&session_token=11111111-1111-4111-8111-111111111111`,
+    {headers},
   );
 }
 
@@ -39,13 +40,18 @@ describe("address suggestions proxy", () => {
     const fetch = vi.fn(async () => Response.json({ suggestions: [] }));
     vi.stubGlobal("fetch", fetch);
 
-    const response = await GET(request());
+    const response = await GET(request("354 Stock", {
+      "x-vercel-oidc-token": "signed-preview-token",
+    }));
 
     expect(response.status).toBe(200);
     expect(fetch).toHaveBeenCalledWith(
       "https://piw.example/api/integrations/all-season/address-suggestions?q=354+Stock&session_token=11111111-1111-4111-8111-111111111111",
       expect.objectContaining({
-        headers: { "x-all-season-intake-secret": "shared-secret" },
+        headers: {
+          "x-all-season-intake-secret": "shared-secret",
+          "x-vercel-trusted-oidc-idp-token": "signed-preview-token",
+        },
       }),
     );
   });

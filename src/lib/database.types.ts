@@ -1542,6 +1542,85 @@ export type Database = {
           },
         ]
       }
+      lead_distribution_deliveries: {
+        Row: {
+          attempt_count: number
+          available_at: string
+          claimed_at: string | null
+          company_id: string
+          created_at: string
+          destination: string
+          external_id: string | null
+          id: string
+          last_error: string | null
+          lead_id: string
+          outcome: string | null
+          pipeline_run_id: string
+          sent_at: string | null
+          source_label: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempt_count?: number
+          available_at?: string
+          claimed_at?: string | null
+          company_id: string
+          created_at?: string
+          destination: string
+          external_id?: string | null
+          id?: string
+          last_error?: string | null
+          lead_id: string
+          outcome?: string | null
+          pipeline_run_id: string
+          sent_at?: string | null
+          source_label: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempt_count?: number
+          available_at?: string
+          claimed_at?: string | null
+          company_id?: string
+          created_at?: string
+          destination?: string
+          external_id?: string | null
+          id?: string
+          last_error?: string | null
+          lead_id?: string
+          outcome?: string | null
+          pipeline_run_id?: string
+          sent_at?: string | null
+          source_label?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_distribution_deliveries_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_distribution_deliveries_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_distribution_deliveries_pipeline_run_id_fkey"
+            columns: ["pipeline_run_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lead_stage_history: {
         Row: {
           changed_at: string
@@ -2271,6 +2350,94 @@ export type Database = {
           },
         ]
       }
+      meta_event_deliveries: {
+        Row: {
+          assessment_id: string | null
+          attempt_count: number
+          company_id: string
+          consent_id: string
+          created_at: string
+          event_id: string
+          event_name: string
+          event_time: string
+          id: string
+          last_attempted_at: string | null
+          last_error_category: string | null
+          lead_id: string
+          meta_http_status: number | null
+          meta_trace_id: string | null
+          payload_hash: string | null
+          policy_version: string
+          sent_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          assessment_id?: string | null
+          attempt_count?: number
+          company_id: string
+          consent_id: string
+          created_at?: string
+          event_id?: string
+          event_name: string
+          event_time: string
+          id?: string
+          last_attempted_at?: string | null
+          last_error_category?: string | null
+          lead_id: string
+          meta_http_status?: number | null
+          meta_trace_id?: string | null
+          payload_hash?: string | null
+          policy_version: string
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          assessment_id?: string | null
+          attempt_count?: number
+          company_id?: string
+          consent_id?: string
+          created_at?: string
+          event_id?: string
+          event_name?: string
+          event_time?: string
+          id?: string
+          last_attempted_at?: string | null
+          last_error_category?: string | null
+          lead_id?: string
+          meta_http_status?: number | null
+          meta_trace_id?: string | null
+          payload_hash?: string | null
+          policy_version?: string
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_event_deliveries_company_id_assessment_id_fkey"
+            columns: ["company_id", "assessment_id"]
+            isOneToOne: false
+            referencedRelation: "roof_assessments"
+            referencedColumns: ["company_id", "id"]
+          },
+          {
+            foreignKeyName: "meta_event_deliveries_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meta_event_deliveries_company_id_lead_id_fkey"
+            columns: ["company_id", "lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["company_id", "id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           body: string | null
@@ -2551,6 +2718,72 @@ export type Database = {
             columns: ["property_id"]
             isOneToOne: false
             referencedRelation: "properties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      privacy_consent_evidence: {
+        Row: {
+          advertising_granted: boolean
+          analytics_granted: boolean
+          company_id: string | null
+          consent_id: string
+          created_at: string
+          evidence_id: string
+          gpc_detected: boolean
+          lead_id: string | null
+          necessary_granted: boolean
+          occurred_at: string
+          policy_version: string
+          request_ip: unknown
+          source: string
+          user_agent: string | null
+        }
+        Insert: {
+          advertising_granted?: boolean
+          analytics_granted?: boolean
+          company_id?: string | null
+          consent_id: string
+          created_at?: string
+          evidence_id: string
+          gpc_detected: boolean
+          lead_id?: string | null
+          necessary_granted?: boolean
+          occurred_at: string
+          policy_version: string
+          request_ip?: unknown
+          source: string
+          user_agent?: string | null
+        }
+        Update: {
+          advertising_granted?: boolean
+          analytics_granted?: boolean
+          company_id?: string | null
+          consent_id?: string
+          created_at?: string
+          evidence_id?: string
+          gpc_detected?: boolean
+          lead_id?: string | null
+          necessary_granted?: boolean
+          occurred_at?: string
+          policy_version?: string
+          request_ip?: unknown
+          source?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "privacy_consent_evidence_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "privacy_consent_evidence_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
             referencedColumns: ["id"]
           },
         ]
@@ -3180,6 +3413,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      roof_assessment_result_view_attempts: {
+        Row: {
+          id: string
+          request_ip: unknown
+          reserved_at: string
+          token_hash: string
+        }
+        Insert: {
+          id?: string
+          request_ip: unknown
+          reserved_at?: string
+          token_hash: string
+        }
+        Update: {
+          id?: string
+          request_ip?: unknown
+          reserved_at?: string
+          token_hash?: string
+        }
+        Relationships: []
       }
       roof_assessment_verification_sends: {
         Row: {
@@ -4173,6 +4427,28 @@ export type Database = {
           assessment_id: string
         }[]
       }
+      acknowledge_roof_assessment_result_view: {
+        Args: {
+          p_advertising_granted: boolean
+          p_analytics_granted: boolean
+          p_assessment_id: string
+          p_company_id: string
+          p_consent_id: string
+          p_estimate_id: string
+          p_gpc_detected: boolean
+          p_policy_version: string
+          p_request_ip: unknown
+          p_source: string
+          p_user_agent: string
+        }
+        Returns: {
+          meta_delivery_id: string
+          meta_event_id: string
+          meta_event_name: string
+          meta_event_time: string
+          result_viewed_at: string
+        }[]
+      }
       activate_roof_pricing_rate_card: {
         Args: { p_company_id: string; p_rate_card_id: string }
         Returns: undefined
@@ -4241,6 +4517,59 @@ export type Database = {
           from_stage: Database["public"]["Enums"]["lead_stage"]
         }[]
       }
+      claim_lead_distribution_delivery: {
+        Args: { p_company_id: string; p_delivery_id: string; p_now: string }
+        Returns: {
+          attempt_count: number
+          company_id: string
+          delivery_id: string
+          destination: string
+          email: string
+          lead_id: string
+          name: string
+          notes: string
+          phone: string
+          source_ip_address: unknown
+          source_label: string
+          source_submitted_at: string
+          source_system: string
+          source_user_agent: string
+          submitted_address: string
+          trustedform_url: string
+          utm_campaign: string
+          utm_source: string
+        }[]
+      }
+      claim_meta_delivery: {
+        Args: { p_claimed_at: string; p_delivery_id: string }
+        Returns: {
+          assessment_id: string | null
+          attempt_count: number
+          company_id: string
+          consent_id: string
+          created_at: string
+          event_id: string
+          event_name: string
+          event_time: string
+          id: string
+          last_attempted_at: string | null
+          last_error_category: string | null
+          lead_id: string
+          meta_http_status: number | null
+          meta_trace_id: string | null
+          payload_hash: string | null
+          policy_version: string
+          sent_at: string | null
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "meta_event_deliveries"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       claim_outbox_events: {
         Args: { p_claimed_by: string; p_limit: number }
         Returns: {
@@ -4277,6 +4606,77 @@ export type Database = {
           side_effects_applied: boolean
         }[]
       }
+      complete_lead_distribution_delivery: {
+        Args: {
+          p_available_at: string
+          p_delivery_id: string
+          p_external_id: string
+          p_last_error: string
+          p_outcome: string
+          p_status: string
+        }
+        Returns: {
+          attempt_count: number
+          available_at: string
+          claimed_at: string | null
+          company_id: string
+          created_at: string
+          destination: string
+          external_id: string | null
+          id: string
+          last_error: string | null
+          lead_id: string
+          outcome: string | null
+          pipeline_run_id: string
+          sent_at: string | null
+          source_label: string
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "lead_distribution_deliveries"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      complete_meta_delivery: {
+        Args: {
+          p_completed_at: string
+          p_delivery_id: string
+          p_diagnostic: string
+          p_meta_http_status: number
+          p_payload_hash: string
+          p_status: string
+        }
+        Returns: {
+          assessment_id: string | null
+          attempt_count: number
+          company_id: string
+          consent_id: string
+          created_at: string
+          event_id: string
+          event_name: string
+          event_time: string
+          id: string
+          last_attempted_at: string | null
+          last_error_category: string | null
+          lead_id: string
+          meta_http_status: number | null
+          meta_trace_id: string | null
+          payload_hash: string | null
+          policy_version: string
+          sent_at: string | null
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "meta_event_deliveries"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       complete_outbox_event: {
         Args: { p_event_id: string }
         Returns: undefined
@@ -4302,6 +4702,12 @@ export type Database = {
           responses: Json
           revision: number
           status: string
+        }[]
+      }
+      consume_roof_assessment_result_view_limit: {
+        Args: { p_public_token: string; p_request_ip: unknown }
+        Returns: {
+          allowed: boolean
         }[]
       }
       current_company_id: { Args: never; Returns: string }
@@ -4377,6 +4783,21 @@ export type Database = {
         }
         Returns: boolean
       }
+      list_pending_lead_distribution_deliveries: {
+        Args: { p_company_id: string; p_limit: number; p_now: string }
+        Returns: {
+          delivery_id: string
+          destination: string
+          lead_id: string
+          source_label: string
+        }[]
+      }
+      list_pending_meta_deliveries: {
+        Args: { p_limit: number; p_observed_at: string }
+        Returns: {
+          id: string
+        }[]
+      }
       lookup_ai_content_cache: {
         Args: {
           p_content_type: string
@@ -4427,6 +4848,48 @@ export type Database = {
           is_duplicate: boolean
         }[]
       }
+      record_privacy_consent: {
+        Args: {
+          p_advertising_granted: boolean
+          p_analytics_granted: boolean
+          p_company_id: string
+          p_consent_id: string
+          p_evidence_id: string
+          p_gpc_detected: boolean
+          p_lead_id: string
+          p_occurred_at: string
+          p_policy_version: string
+          p_request_ip: unknown
+          p_source: string
+          p_user_agent: string
+        }
+        Returns: {
+          evidence_id: string
+        }[]
+      }
+      record_public_privacy_consent: {
+        Args: {
+          p_advertising_granted: boolean
+          p_analytics_granted: boolean
+          p_consent_id: string
+          p_evidence_id: string
+          p_gpc_detected: boolean
+          p_occurred_at: string
+          p_policy_version: string
+          p_request_ip: unknown
+          p_source: string
+          p_user_agent: string
+        }
+        Returns: {
+          advertising_granted: boolean
+          analytics_granted: boolean
+          consent_id: string
+          evidence_id: string
+          gpc_detected: boolean
+          occurred_at: string
+          policy_version: string
+        }[]
+      }
       record_roof_assessment_verification_start: {
         Args: {
           p_attempt_id: string
@@ -4454,6 +4917,78 @@ export type Database = {
           status: string
           timezone: string
         }[]
+      }
+      reserve_meta_assessment_delivery: {
+        Args: {
+          p_assessment_id: string
+          p_company_id: string
+          p_consent_id: string
+          p_event_time: string
+          p_policy_version: string
+        }
+        Returns: {
+          assessment_id: string | null
+          attempt_count: number
+          company_id: string
+          consent_id: string
+          created_at: string
+          event_id: string
+          event_name: string
+          event_time: string
+          id: string
+          last_attempted_at: string | null
+          last_error_category: string | null
+          lead_id: string
+          meta_http_status: number | null
+          meta_trace_id: string | null
+          payload_hash: string | null
+          policy_version: string
+          sent_at: string | null
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "meta_event_deliveries"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      reserve_meta_lead_delivery: {
+        Args: {
+          p_company_id: string
+          p_consent_id: string
+          p_event_time: string
+          p_lead_id: string
+          p_policy_version: string
+        }
+        Returns: {
+          assessment_id: string | null
+          attempt_count: number
+          company_id: string
+          consent_id: string
+          created_at: string
+          event_id: string
+          event_name: string
+          event_time: string
+          id: string
+          last_attempted_at: string | null
+          last_error_category: string | null
+          lead_id: string
+          meta_http_status: number | null
+          meta_trace_id: string | null
+          payload_hash: string | null
+          policy_version: string
+          sent_at: string | null
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "meta_event_deliveries"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       reserve_provider_usage: {
         Args: { p_api_name: string; p_limit: number; p_period_start: string }

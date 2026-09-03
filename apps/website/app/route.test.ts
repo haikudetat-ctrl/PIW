@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { GET } from "./route";
+import {GET as getStaticPage} from "./public-pages/[...path]/route";
 
 describe("canonical All Season homepage", () => {
   test("serves the approved roofing-first homepage", async () => {
@@ -16,5 +17,35 @@ describe("canonical All Season homepage", () => {
     expect(html).toContain('alt="Google Maps"');
     expect(html).toContain('href="/privacy.html"');
     expect(html).toContain('href="/terms.html"');
+  });
+
+  test("mounts the consent-gated public runtime exactly once", async () => {
+    const response = await GET();
+    const html = await response.text();
+
+    expect(html.match(/data-all-season-privacy-runtime="styles"/g)).toHaveLength(1);
+    expect(html.match(/data-all-season-privacy-runtime="script"/g)).toHaveLength(1);
+    expect(html).toContain('src="/privacy-runtime.js"');
+    expect(html).toContain('id="all-season-meta-config"');
+  });
+
+  test("mounts the same runtime on a served static subpage", async () => {
+    const response = await getStaticPage(new Request("https://allseason.example/privacy.html"), {
+      params: Promise.resolve({path: ["privacy.html"]}),
+    });
+    const html = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(html).toContain("Privacy Policy");
+    expect(html.match(/data-all-season-privacy-runtime="script"/g)).toHaveLength(1);
+    expect(html).toContain('src="/privacy-runtime.js"');
+  });
+
+  test("does not resolve traversal-shaped static page paths", async () => {
+    const response = await getStaticPage(new Request("https://allseason.example/private.html"), {
+      params: Promise.resolve({path: ["..", "privacy.html"]}),
+    });
+
+    expect(response.status).toBe(404);
   });
 });

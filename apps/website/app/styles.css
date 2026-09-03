@@ -444,3 +444,109 @@ button:disabled { opacity: .55; cursor: wait; }
   .campaign-field small { display: none; }
   .campaign-primary-action { min-height: 44px; }
 }
+
+/* Shared App Router privacy surface. Static pages use privacy-runtime.css. */
+.privacy-consent-banner {
+  position: fixed;
+  z-index: 100;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: max(18px, env(safe-area-inset-bottom));
+  left: max(18px, env(safe-area-inset-left));
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 22px;
+  width: min(780px, calc(100% - 36px));
+  margin-left: auto;
+  padding: 22px;
+  border: 1px solid rgba(226, 242, 247, .3);
+  border-radius: 14px;
+  background: #092536;
+  box-shadow: 0 20px 55px rgba(2, 16, 25, .35);
+  color: #f5fbfd;
+}
+
+.privacy-consent-copy { min-width: 0; }
+.privacy-consent-kicker {
+  margin: 0 0 7px;
+  color: #8ee0cb;
+  font: 800 .68rem/1.2 "Montserrat Campaign", sans-serif;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+.privacy-consent-banner h2 { margin: 0; color: #fff; font-size: 1.05rem; line-height: 1.25; }
+.privacy-consent-banner p:not(.privacy-consent-kicker) { max-width: 60ch; margin: 8px 0; color: #c9d8df; font-size: .8rem; line-height: 1.55; }
+.privacy-consent-banner a { color: #f4d568; font-size: .78rem; font-weight: 800; }
+.privacy-consent-actions { display: flex; flex-wrap: wrap; align-content: center; gap: 8px; max-width: 278px; }
+.privacy-consent-banner button,
+.privacy-consent-dialog button,
+.privacy-consent-reopen {
+  min-height: 40px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  padding: 10px 13px;
+  font: 800 .73rem/1.2 "Montserrat Campaign", sans-serif;
+}
+.privacy-consent-primary { background: #f4d568; color: #092536; }
+.privacy-consent-secondary { border-color: rgba(235, 247, 251, .5) !important; background: transparent !important; color: #fff !important; }
+.privacy-consent-quiet { background: transparent !important; color: #d7e5ea !important; text-decoration: underline; }
+.privacy-consent-banner button:focus-visible,
+.privacy-consent-dialog button:focus-visible,
+.privacy-consent-dialog input:focus-visible,
+.privacy-consent-reopen:focus-visible { outline: 3px solid #f4d568; outline-offset: 3px; }
+.privacy-consent-reopen {
+  position: fixed;
+  z-index: 99;
+  bottom: max(14px, env(safe-area-inset-bottom));
+  left: max(14px, env(safe-area-inset-left));
+  border-color: rgba(9, 37, 54, .2);
+  background: rgba(255, 255, 255, .95);
+  box-shadow: 0 8px 25px rgba(4, 22, 31, .18);
+  color: #092536;
+}
+
+.privacy-consent-backdrop {
+  position: fixed;
+  z-index: 101;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+  background: rgba(2, 15, 24, .7);
+  backdrop-filter: blur(5px);
+}
+.privacy-consent-modal-open { overflow: hidden; }
+.privacy-consent-dialog {
+  width: min(100%, 520px);
+  max-height: min(700px, calc(100dvh - 40px));
+  overflow: auto;
+  padding: clamp(24px, 5vw, 36px);
+  border: 1px solid rgba(215, 229, 234, .38);
+  border-radius: 14px;
+  background: #fffdf8;
+  box-shadow: 0 28px 88px rgba(1, 13, 21, .45);
+  color: #102838;
+}
+.privacy-consent-dialog-kicker { margin: 0 0 7px; color: #157562; font-size: .68rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+.privacy-consent-dialog h2 { margin: 0; font-size: clamp(1.45rem, 4vw, 2rem); line-height: 1; }
+.privacy-consent-dialog > p:not(.privacy-consent-dialog-kicker) { margin: 12px 0 20px; color: #55707b; font-size: .88rem; line-height: 1.55; }
+.privacy-consent-choice {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-height: 48px;
+  padding: 11px 0;
+  border-top: 1px solid #dce7ea;
+  color: #163244;
+  font-size: .86rem;
+  font-weight: 800;
+}
+.privacy-consent-choice input { width: 18px; height: 18px; accent-color: #157562; }
+.privacy-consent-dialog-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
+.privacy-consent-dialog .privacy-consent-secondary { border-color: #8ea7b1 !important; color: #173347 !important; }
+
+@media (max-width: 640px) {
+  .privacy-consent-banner { grid-template-columns: 1fr; gap: 17px; padding: 19px; }
+  .privacy-consent-actions { max-width: none; }
+  .privacy-consent-actions button { flex: 1 1 132px; }
+  .privacy-consent-dialog { max-height: calc(100dvh - 28px); }
+}

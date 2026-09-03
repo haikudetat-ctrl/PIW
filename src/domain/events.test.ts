@@ -35,6 +35,30 @@ describe("domain event envelope", () => {
   });
 });
 
+describe("lead/distribution.requested event", () => {
+  test("accepts the sparse routing envelope without contact PII", () => {
+    const event = eventEnvelopeSchema.parse({
+      id: "44444444-4444-4444-8444-444444444444",
+      name: "lead/distribution.requested",
+      schemaVersion: 1,
+      correlationId: "11111111-1111-4111-8111-111111111111",
+      pipelineRunId: "22222222-2222-4222-8222-222222222222",
+      leadId: "55555555-5555-4555-8555-555555555555",
+      occurredAt: "2026-09-03T12:00:00.000Z",
+      idempotencyKey: "lead-distribution:55555555-5555-4555-8555-555555555555",
+      data: {
+        leadId: "55555555-5555-4555-8555-555555555555",
+        sourceLabel: "Meta70",
+        activeProspectDeliveryId: "66666666-6666-4666-8666-666666666666",
+        internalEmailDeliveryId: "77777777-7777-4777-8777-777777777777",
+      },
+    });
+
+    expect(event.data).not.toHaveProperty("email");
+    expect(event.data).not.toHaveProperty("phone");
+  });
+});
+
 describe("roof assessment lifecycle events", () => {
   const assessmentId = "77777777-7777-4777-8777-777777777777";
 

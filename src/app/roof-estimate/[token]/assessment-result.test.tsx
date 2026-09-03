@@ -5,6 +5,11 @@ import {getRoofAssessmentContext} from "@/config/roof-assessment";
 import type {CalculationState, RoofAssessmentResponses} from "@/domain/roof-assessment";
 import {AssessmentResult} from "./assessment-result";
 
+const {trackConversion} = vi.hoisted(() => ({trackConversion: vi.fn()}));
+vi.mock("@/components/marketing/meta-pixel-provider", () => ({
+  useMetaPixel: () => ({trackConversion}),
+}));
+
 const token="11111111-1111-4111-8111-111111111111";
 const context=getRoofAssessmentContext("weather-report");
 const responses: RoofAssessmentResponses={reason:"active_leak",roofAge:"15_20",conditionSignals:["active_leak","water_stains"],roofVisible:"yes",visibleCondition:"moderate_wear",stories:"two",complexityFeatures:["garage","multiple_levels"],priority:"reasonable_cost",timeline:"asap",ownership:"owner"};
@@ -15,7 +20,10 @@ function renderResult(calculation: CalculationState, fetch: typeof globalThis.fe
 }
 
 describe("assessment result payoff",()=>{
-  afterEach(()=>vi.unstubAllGlobals());
+  afterEach(()=>{
+    vi.unstubAllGlobals();
+    trackConversion.mockReset();
+  });
 
   test.each([
     [{status:"pending"} as const,"Finalizing your property calculation"],
@@ -60,12 +68,31 @@ describe("assessment result payoff",()=>{
     expect(container.textContent).not.toMatch(/CertainTeed|Landmark|NorthGate|Presidential|Grand Manor|ShingleMaster/i);
   });
 
-  test("records one result view under React StrictMode",async()=>{
-    const fetch=vi.fn(async()=>Response.json({resultViewed:true}));
+  test("records one ready package result view under React StrictMode",async()=>{
+    const fetch=vi.fn(async()=>Response.json({resultViewed:true,metaEvent:null}));
     vi.stubGlobal("fetch",fetch);
-    render(<StrictMode><AssessmentResult token={token} address="18 Harbor View Drive, Red Bank, NJ 07701" imageUrl="/campaigns/every-season.jpg" recommendation="professional_inspection" responses={responses} calculation={{status:"pending"}} context={context}/></StrictMode>);
+    render(<StrictMode><AssessmentResult token={token} address="18 Harbor View Drive, Red Bank, NJ 07701" imageUrl="/campaigns/every-season.jpg" recommendation="professional_inspection" responses={responses} calculation={{status:"ready",source:"google",lowCents:2_375_000,highCents:3_000_000,roofSquares:25,generatedAt:"2026-08-31T12:00:00.000Z",pricingVersion:"all-season-nj-2026-v1",packages:[{tierKey:"good",displayOrder:1,customerName:"Complete System",customerDescription:"Dependable complete roofing system.",warrantySummary:"Enhanced manufacturer protection.",differentiators:["Architectural finish"],lowCentsPerSquare:80000,highCentsPerSquare:97500,recommended:false,measuredRoofSquares:25,rangeLowCents:2000000,rangeHighCents:2437500,pricingVersion:"all-season-nj-2026-v1",generatedAt:"2026-08-31T12:00:00.000Z"},{tierKey:"better",displayOrder:2,customerName:"Recommended",customerDescription:"Upgraded protection and appearance.",warrantySummary:"Extended material and workmanship coverage.",differentiators:["Upgraded material weight"],lowCentsPerSquare:95000,highCentsPerSquare:120000,recommended:true,measuredRoofSquares:25,rangeLowCents:2375000,rangeHighCents:3000000,pricingVersion:"all-season-nj-2026-v1",generatedAt:"2026-08-31T12:00:00.000Z"},{tierKey:"best",displayOrder:3,customerName:"Signature System",customerDescription:"Premium finish and protection.",warrantySummary:"Extended workmanship coverage.",differentiators:["Impact protection"],lowCentsPerSquare:125000,highCentsPerSquare:165000,recommended:false,measuredRoofSquares:25,rangeLowCents:3125000,rangeHighCents:4125000,pricingVersion:"all-season-nj-2026-v1",generatedAt:"2026-08-31T12:00:00.000Z"}],adjustments:[]}} context={context}/></StrictMode>);
     await waitFor(()=>expect(fetch).toHaveBeenCalledTimes(1));
-    expect(fetch).toHaveBeenCalledWith(`/api/roof-estimate/${token}/result-view`,{method:"POST"});
+    expect(fetch).toHaveBeenCalledWith(`/api/roof-estimate/${token}/result-view`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({renderedReadyPackageQuote:true})});
+  });
+
+  test("emits the server-issued AssessmentCompleted envelope only after the result acknowledgement",async()=>{
+    const envelope={name:"AssessmentCompleted" as const,eventId:"99999999-9999-4999-8999-999999999999",issuedAt:"2026-09-01T16:05:00.000Z"};
+    renderResult({status:"ready",source:"google",lowCents:2_375_000,highCents:3_000_000,roofSquares:25,generatedAt:"2026-08-31T12:00:00.000Z",pricingVersion:"all-season-nj-2026-v1",packages:[{tierKey:"good",displayOrder:1,customerName:"Complete System",customerDescription:"Dependable complete roofing system.",warrantySummary:"Enhanced manufacturer protection.",differentiators:["Architectural finish"],lowCentsPerSquare:80000,highCentsPerSquare:97500,recommended:false,measuredRoofSquares:25,rangeLowCents:2000000,rangeHighCents:2437500,pricingVersion:"all-season-nj-2026-v1",generatedAt:"2026-08-31T12:00:00.000Z"},{tierKey:"better",displayOrder:2,customerName:"Recommended",customerDescription:"Upgraded protection and appearance.",warrantySummary:"Extended material and workmanship coverage.",differentiators:["Upgraded material weight"],lowCentsPerSquare:95000,highCentsPerSquare:120000,recommended:true,measuredRoofSquares:25,rangeLowCents:2375000,rangeHighCents:3000000,pricingVersion:"all-season-nj-2026-v1",generatedAt:"2026-08-31T12:00:00.000Z"},{tierKey:"best",displayOrder:3,customerName:"Signature System",customerDescription:"Premium finish and protection.",warrantySummary:"Extended workmanship coverage.",differentiators:["Impact protection"],lowCentsPerSquare:125000,highCentsPerSquare:165000,recommended:false,measuredRoofSquares:25,rangeLowCents:3125000,rangeHighCents:4125000,pricingVersion:"all-season-nj-2026-v1",generatedAt:"2026-08-31T12:00:00.000Z"}],adjustments:[]},vi.fn(async()=>Response.json({resultViewed:true,metaEvent:envelope})));
+    await waitFor(()=>expect(trackConversion).toHaveBeenCalledWith(envelope));
+  });
+
+  test("does not acknowledge or emit from pending result UI even if the server would offer an envelope",async()=>{
+    const fetch=vi.fn(async()=>Response.json({resultViewed:true,metaEvent:{name:"AssessmentCompleted",eventId:"99999999-9999-4999-8999-999999999999",issuedAt:"2026-09-01T16:05:00.000Z"}}));
+    renderResult({status:"pending"},fetch);
+    await waitFor(()=>expect(fetch).not.toHaveBeenCalled());
+    expect(trackConversion).not.toHaveBeenCalled();
+  });
+
+  test("keeps the quote visible when acknowledgement or Meta delivery is unavailable",async()=>{
+    renderResult({status:"pending"},vi.fn(async()=>Response.json({error:"unavailable"},{status:503})));
+    expect(screen.getByText("Finalizing your property calculation")).toBeVisible();
+    await waitFor(()=>expect(trackConversion).not.toHaveBeenCalled());
   });
 
   test("opens inline preferences, validates call window, and confirms success",async()=>{

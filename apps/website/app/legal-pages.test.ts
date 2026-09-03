@@ -18,4 +18,17 @@ describe("public legal pages", () => {
     expect(html).toContain('href="https://policies.google.com/privacy"');
     expect(html).toContain('href="/index.html"');
   });
+
+  test("explains the consent-gated Meta measurement boundary in plain language", async () => {
+    const html = await publicPage("privacy.html");
+
+    expect(html).toContain("Meta Pixel and Conversions API");
+    expect(html).toContain("PageView");
+    expect(html).toContain("Lead");
+    expect(html).toContain("AssessmentCompleted");
+    expect(html).toContain("hashed email address and phone number");
+    expect(html).toContain("We do not send your property address, property imagery, assessment answers, roof measurements, quote amounts, or package selections");
+    expect(html).toContain("withdraw or change your advertising choice");
+    expect(html).toContain("(888) 832-5050");
+  });
 });
