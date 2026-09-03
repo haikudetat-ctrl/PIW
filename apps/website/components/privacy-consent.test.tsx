@@ -100,13 +100,14 @@ describe("website privacy consent", () => {
   });
 
   test("customizes analytics and advertising independently", async () => {
-    vi.stubGlobal("fetch", vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       const choices = JSON.parse(String(init?.body)) as {analytics: boolean; advertising: boolean};
       return Response.json({consent: {
         ...rejectedConsent,
         preferences: {necessary: true, ...choices},
       }});
-    }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
     const container = await renderConsent(null, <Probe />);
 
     await click(button(container, "Customize"));
@@ -117,6 +118,13 @@ describe("website privacy consent", () => {
     await click(analytics);
     await click(button(container, "Save preferences"));
 
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/api/privacy/consent",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({analytics: true, advertising: false}),
+      }),
+    ));
     await vi.waitFor(() => expect(container.querySelector("output")?.textContent)
       .toContain('"analytics":true'));
     expect(container.querySelector("output")?.textContent).toContain('"advertising":false');
