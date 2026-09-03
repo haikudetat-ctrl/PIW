@@ -74,7 +74,9 @@ const currentConsentEvidenceSchema = z.object({
   gpc_detected: z.boolean(),
   occurred_at: z.iso.datetime({offset: true}),
 }).strict();
-const publicConsentWriteSchema = z.array(currentConsentEvidenceSchema).length(1);
+const publicConsentWriteSchema = z.array(currentConsentEvidenceSchema.extend({
+  evidence_id: z.uuid(),
+})).length(1);
 
 /** Durable public-consent limits are enforced atomically by Postgres. */
 export class PrivacyConsentRateLimitError extends Error {

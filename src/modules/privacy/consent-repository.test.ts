@@ -66,7 +66,13 @@ describe("SupabasePrivacyConsentRepository current consent", () => {
   });
 
   test("uses the atomic public-consent RPC and returns its canonical snapshot", async () => {
-    const rpc = vi.fn(async () => ({data: [currentEvidence()], error: null}));
+    const rpc = vi.fn(async () => ({
+      data: [{
+        evidence_id: "22222222-2222-4222-8222-222222222222",
+        ...currentEvidence(),
+      }],
+      error: null,
+    }));
     const repository = new SupabasePrivacyConsentRepository({rpc} as never);
 
     await expect(repository.record({
