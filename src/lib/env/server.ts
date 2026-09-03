@@ -23,6 +23,7 @@ const serverEnvSchema = z
   .object({
     NODE_ENV: z.enum(["development", "test", "production"]),
     DEPLOYMENT_ENV: deploymentEnvironmentSchema,
+    VERCEL_ENV: z.enum(["development", "preview", "production"]).optional(),
     NEXT_PUBLIC_SUPABASE_URL: z.url(),
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: z.string().min(1),
     SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
@@ -289,6 +290,7 @@ export function resolveMetaTrackingConfiguration(
     | "META_TEST_EVENT_CODE"
     | "PRIVACY_CONSENT_SIGNING_SECRET"
     | "DEPLOYMENT_ENV"
+    | "VERCEL_ENV"
   >,
 ): MetaTrackingConfiguration | null {
   const pixelId = environment.META_PIXEL_ID?.trim() ?? "";
@@ -296,6 +298,9 @@ export function resolveMetaTrackingConfiguration(
   const accessToken = environment.META_CAPI_ACCESS_TOKEN?.trim() ?? "";
   const graphApiVersion = environment.META_GRAPH_API_VERSION?.trim() ?? "";
   const privacySigningSecret = environment.PRIVACY_CONSENT_SIGNING_SECRET;
+  const productionDeployment = environment.VERCEL_ENV
+    ? environment.VERCEL_ENV === "production"
+    : environment.DEPLOYMENT_ENV === "production";
   if (
     !environment.META_TRACKING_ENABLED
     || !/^\d{6,32}$/.test(pixelId)
@@ -304,7 +309,7 @@ export function resolveMetaTrackingConfiguration(
     || !/^v\d+\.\d+$/.test(graphApiVersion)
     || !privacySigningSecret
     || Buffer.byteLength(privacySigningSecret, "utf8") < 32
-    || (environment.DEPLOYMENT_ENV === "production" && environment.META_TEST_EVENT_CODE)
+    || (productionDeployment && environment.META_TEST_EVENT_CODE)
   ) return null;
   return {
     pixelId,

@@ -77,9 +77,24 @@ describe("parseServerEnv", () => {
     expect(resolveMetaTrackingConfiguration(parseServerEnv({
       ...configured,
       NODE_ENV: "production",
-      DEPLOYMENT_ENV: "preview",
+      DEPLOYMENT_ENV: "production",
+      VERCEL_ENV: "preview",
       PRIVACY_CONSENT_SIGNING_SECRET: "a".repeat(32),
     }))?.testEventCode).toBe("TEST123");
+    expect(resolveMetaTrackingConfiguration(parseServerEnv({
+      ...configured,
+      NODE_ENV: "production",
+      DEPLOYMENT_ENV: "production",
+      VERCEL_ENV: "production",
+      PRIVACY_CONSENT_SIGNING_SECRET: "a".repeat(32),
+    }))).toBeNull();
+    expect(resolveMetaTrackingConfiguration(parseServerEnv({
+      ...configured,
+      NODE_ENV: "production",
+      DEPLOYMENT_ENV: "preview",
+      VERCEL_ENV: "production",
+      PRIVACY_CONSENT_SIGNING_SECRET: "a".repeat(32),
+    }))).toBeNull();
     expect(resolveMetaTrackingConfiguration(parseServerEnv({
       ...configured,
       NODE_ENV: "production",
