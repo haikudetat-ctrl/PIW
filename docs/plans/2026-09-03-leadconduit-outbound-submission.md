@@ -37,9 +37,13 @@ convention, and the flag-off-by-default posture.
   is that abandoned assessments still consume the flow's paid filter steps; the
   concurrency cap and kill switch below are what bound that, and the ledger makes
   the spend measurable before it is accepted permanently.
-- **The field mapping is unresolved.** The Submission Docs page is behind
-  authentication and could not be read while writing this plan. The mapping table
-  below is deliberately unfilled and is a hard gate on implementation.
+- **The endpoint is confirmed; the field contract is not.** The submit endpoint
+  is `https://app.leadconduit.com/flows/{flowId}/sources/{sourceId}/submit`,
+  supplied directly by the flow owner. The Submission Docs page itself sits
+  behind authentication and is unreachable from the build environment, so the
+  field list, authentication scheme, request content type, and response body
+  shape remain unread. The mapping table below is deliberately unfilled and is a
+  hard gate on implementation.
 
 ## The problem this has to solve first
 
@@ -115,9 +119,22 @@ New `src/modules/access-route/leadconduit-submission-config.ts`, mirroring
 `leadconduit-config.ts`:
 
 ```ts
+export const LEADCONDUIT_SUBMISSION_BASE_URL = "https://app.leadconduit.com";
 export const LEADCONDUIT_SUBMISSION_FLOW_ID = "6377949a81800d03d54119b5";
 export const LEADCONDUIT_SUBMISSION_SOURCE_ID = "6a999da372afc3570dc712a1";
+
+export function leadConduitSubmitUrl(binding: LeadConduitSubmissionBinding) {
+  return `${LEADCONDUIT_SUBMISSION_BASE_URL}/flows/${binding.flowId}`
+    + `/sources/${binding.sourceId}/submit`;
+}
 ```
+
+The endpoint is derived from the pinned IDs rather than configured. There is no
+`LEADCONDUIT_SUBMISSION_BASE_URL` environment variable: a settable destination
+for a credential-bearing outbound POST is a misconfiguration and redirection
+risk with no operational upside, and tests inject a stub `fetch` the way
+`dispatchEstimateDelivery` already does in
+`src/inngest/functions/estimate-delivery-sender.ts:30-33`.
 
 `getLeadConduitSubmissionBinding(env, now)` returns `null` unless
 `ACCESS_ROUTE_COMPANY_ID` is set and the configured IDs equal the pinned
@@ -131,7 +148,6 @@ or blank:
 INTEGRATIONS_LEADCONDUIT_SUBMISSION_ENABLED=false
 LEADCONDUIT_SUBMISSION_FLOW_ID=
 LEADCONDUIT_SUBMISSION_SOURCE_ID=
-LEADCONDUIT_SUBMISSION_BASE_URL=
 LEADCONDUIT_SUBMISSION_API_KEY=
 LEADCONDUIT_SUBMISSION_API_KEY_NEXT=
 LEADCONDUIT_SUBMISSION_API_KEY_NEXT_EXPIRES_AT=
@@ -139,8 +155,8 @@ LEADCONDUIT_SUBMISSION_MAX_CONCURRENCY=2
 ```
 
 Add a `serverEnvSchema` cross-field refinement: enabling the submitter requires
-the company ID, both pinned IDs, a base URL, and an active key; a next key
-requires an ISO 8601 UTC expiry. Extend `integrationFlagsSnapshot` and the
+the company ID, both pinned IDs, and an active key; a next key requires an
+ISO 8601 UTC expiry. Extend `integrationFlagsSnapshot` and the
 `/api/integrations/health` route so the submitter's state is observable without
 reading environment variables off a running box.
 
@@ -175,10 +191,19 @@ before writing the mapper.**
 | Submitted at | `leads.created_at` | | | |
 | Test flag | `leads.is_test` or non-production `DEPLOYMENT_ENV` | | | Must be a real boolean, not `"true"` |
 
-Also record from the docs page: the exact submit URL shape, the authentication
-scheme, the request content type, and the response body shape. The plan below
-assumes only that the response carries an outcome, a reason, and a LeadConduit
-lead id; if it does not, the classifier changes.
+The endpoint is settled:
+
+```
+POST https://app.leadconduit.com/flows/6377949a81800d03d54119b5/sources/6a999da372afc3570dc712a1/submit
+```
+
+Still to record from the docs page: the authentication scheme, the request
+content type, and the response body shape. LeadConduit's documented convention
+is HTTP Basic with the API key as the username and a blank password, a
+form-encoded or JSON body, and a response carrying an outcome, a reason, and the
+new lead id — but none of that has been verified against this source and must
+not be assumed. The classifier in section 4 depends on the response shape; if
+the outcome is not carried in the body, that module changes.
 
 ### 4. Outcome classifier (pure)
 
@@ -248,8 +273,8 @@ not in this plan's scope.
 
 ## Action items
 
-[ ] Read the Submission Docs page and fill the mapping table, the submit URL
-    shape, the authentication scheme, the response body shape, and whether
+[ ] Read the Submission Docs page and fill the mapping table, the authentication
+    scheme, the request content type, the response body shape, and whether
     TrustedForm is required. Do not start implementation before this is done.
 [ ] Write `leadconduit_outbound_submission.sql`: the ledger table, RLS and
     grants, `request_leadconduit_submission`, `claim_leadconduit_submission`,
