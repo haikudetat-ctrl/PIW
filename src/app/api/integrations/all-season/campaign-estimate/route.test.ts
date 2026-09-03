@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   parseServerEnv: vi.fn(),
+  resolveLeadDistributionConfiguration: vi.fn(),
   resolveMetaTrackingConfiguration: vi.fn(),
   createServiceClient: vi.fn(),
   acceptAllSeasonCampaignEstimate: vi.fn(),
@@ -14,6 +15,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/lib/env/server", () => ({
   parseServerEnv: mocks.parseServerEnv,
+  resolveLeadDistributionConfiguration: mocks.resolveLeadDistributionConfiguration,
   resolveMetaTrackingConfiguration: mocks.resolveMetaTrackingConfiguration,
 }));
 vi.mock("@/lib/supabase/service", () => ({createServiceClient: mocks.createServiceClient}));
@@ -104,6 +106,11 @@ const serverEnvironment = {
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.parseServerEnv.mockReturnValue(serverEnvironment);
+  mocks.resolveLeadDistributionConfiguration.mockReturnValue({
+    companyId: null,
+    activeProspect: null,
+    internalEmail: null,
+  });
   mocks.resolveMetaTrackingConfiguration.mockReturnValue(null);
   mocks.createServiceClient.mockReturnValue({service: true});
   mocks.SupabasePropertyPrefetchRepository.mockImplementation(
@@ -200,6 +207,63 @@ describe("All Season campaign estimate intake", () => {
       presentation_key: "weather-report",
       entry_point: "campaign:weather-report",
     }));
+  });
+
+  test("delivers a newly accepted lead before returning the accepted response", async () => {
+    const leadId = "22222222-2222-4222-8222-222222222222";
+    const order: string[] = [];
+    const accept = vi.fn(async () => {
+      order.push("accepted");
+      return {
+        kind: "continue" as const,
+        continuationPath: "/roof-estimate/continue/signed_token-123" as const,
+      };
+    });
+    const findLeadId = vi.fn(async () => leadId);
+    const deliverImmediately = vi.fn(async () => {
+      await Promise.resolve();
+      order.push("delivered");
+    });
+
+    const response = await handleAllSeasonCampaignEstimateRequest(
+      request(validPayload),
+      {
+        expectedSecret: "shared-secret",
+        accept,
+        findLeadId,
+        deliverImmediately,
+      },
+    );
+
+    order.push("response");
+    expect(response.status).toBe(202);
+    expect(findLeadId).toHaveBeenCalledWith(validPayload.submission_id);
+    expect(deliverImmediately).toHaveBeenCalledWith(leadId);
+    expect(order).toEqual(["accepted", "delivered", "response"]);
+  });
+
+  test("keeps an accepted response when immediate lead delivery fails", async () => {
+    const failure = new Error("destination unavailable");
+    const reportError = vi.fn();
+
+    const response = await handleAllSeasonCampaignEstimateRequest(
+      request(validPayload),
+      {
+        expectedSecret: "shared-secret",
+        accept: async () => ({
+          kind: "continue" as const,
+          continuationPath: "/roof-estimate/continue/signed_token-123" as const,
+          leadId: "22222222-2222-4222-8222-222222222222",
+        }),
+        deliverImmediately: async () => {
+          throw failure;
+        },
+        reportError,
+      },
+    );
+
+    expect(response.status).toBe(202);
+    expect(reportError).toHaveBeenCalledWith(failure);
   });
 
   test("denied advertising consent saves the lead but returns no Meta event", async () => {
