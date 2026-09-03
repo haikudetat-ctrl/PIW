@@ -162,6 +162,7 @@ function allowedAllSeasonWebsiteOrigin(origin: string, environment: "development
 export async function POST(request: NextRequest) {
   try {
     const environment = parseServerEnv(process.env);
+    const deploymentEnvironment = environment.VERCEL_ENV ?? environment.DEPLOYMENT_ENV;
     const forwardedIp = trustedWebsiteIpSchema.safeParse(
       request.headers.get("x-all-season-privacy-request-ip")?.trim(),
     );
@@ -170,7 +171,7 @@ export async function POST(request: NextRequest) {
       expectedSharedSecret: environment.ALL_SEASON_INTAKE_SHARED_SECRET,
       now: () => new Date(),
       createId: randomUUID,
-      isAllowedWebsiteOrigin: (origin) => allowedAllSeasonWebsiteOrigin(origin, environment.DEPLOYMENT_ENV),
+      isAllowedWebsiteOrigin: (origin) => allowedAllSeasonWebsiteOrigin(origin, deploymentEnvironment),
       requestIp: forwardedIp.success ? forwardedIp.data : null,
       repository: new SupabasePrivacyConsentRepository(),
     });
