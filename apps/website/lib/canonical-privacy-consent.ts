@@ -4,6 +4,7 @@ import {
   signWebsiteConsent,
   type VerifiedWebsiteConsent,
 } from "./privacy-consent";
+import {trustedPiwOidcHeaders} from "./vercel-protection";
 
 const canonicalConsentSchema = z.object({
   policyVersion: z.literal("piw-privacy-v1"),
@@ -86,6 +87,7 @@ export async function synchronizeCanonicalWebsiteConsent({
   nodeEnv,
   requestIp,
   liveGpcDetected = false,
+  vercelOidcToken,
 }: {
   consent: VerifiedWebsiteConsent;
   signingSecret: string | undefined;
@@ -96,6 +98,7 @@ export async function synchronizeCanonicalWebsiteConsent({
   /** Trusted by the website runtime and forwarded only over this S2S boundary. */
   requestIp: string | null;
   liveGpcDetected?: boolean;
+  vercelOidcToken?: string | null;
 }): Promise<VerifiedWebsiteConsent | null> {
   if (!signingSecret || !sharedSecret || !requestIp) return null;
   const origin = piwOrigin(publicPiwUrl, nodeEnv);
@@ -113,6 +116,9 @@ export async function synchronizeCanonicalWebsiteConsent({
         "x-all-season-privacy-request-ip": requestIp,
         "x-piw-privacy-consent": signWebsiteConsent(requestConsent, signingSecret),
         ...(liveGpcDetected ? {"sec-gpc": "1"} : {}),
+        ...trustedPiwOidcHeaders(new Headers(
+          vercelOidcToken ? {"x-vercel-oidc-token": vercelOidcToken} : {},
+        )),
       },
       cache: "no-store",
       redirect: "error",
@@ -140,6 +146,7 @@ export async function resolveCanonicalWebsiteConsent(input: {
   nodeEnv: string | undefined;
   requestIp: string | null;
   liveGpcDetected?: boolean;
+  vercelOidcToken?: string | null;
 }): Promise<VerifiedWebsiteConsent | null> {
   const canonical = await synchronizeCanonicalWebsiteConsent(input);
   return currentCanonicalWebsiteConsent(input.consent, canonical);

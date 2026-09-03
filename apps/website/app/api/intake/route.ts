@@ -12,6 +12,7 @@ import {
   resolveCanonicalWebsiteConsent,
 } from "../../../lib/canonical-privacy-consent";
 import {trustedWebsiteRequestIp} from "../../../lib/trusted-request-ip";
+import {trustedPiwOidcHeaders} from "../../../lib/vercel-protection";
 
 const leadSchema = z.object({
   submission_id: z.uuid(),
@@ -147,6 +148,7 @@ export async function POST(request: NextRequest) {
         ...(options?.consentToken
           ? {"x-piw-privacy-consent": options.consentToken}
           : {}),
+        ...trustedPiwOidcHeaders(request.headers),
       },
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(8000),
@@ -162,6 +164,7 @@ export async function POST(request: NextRequest) {
       nodeEnv: process.env.NODE_ENV,
       requestIp: trustedWebsiteRequestIp(request.headers, process.env.NODE_ENV),
       liveGpcDetected: requestHasGpc(request),
+      vercelOidcToken: request.headers.get("x-vercel-oidc-token"),
     }),
   );
 }

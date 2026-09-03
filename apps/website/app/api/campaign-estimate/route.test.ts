@@ -23,7 +23,11 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function request(body: unknown, cookie = "_fbp=fb.1.100.200; _fbc=fb.1.100.click") {
+function request(
+  body: unknown,
+  cookie = "_fbp=fb.1.100.200; _fbc=fb.1.100.click",
+  headers: Record<string, string> = {},
+) {
   return new NextRequest("https://allseason.example/api/campaign-estimate", {
     method: "POST",
     headers: {
@@ -32,6 +36,7 @@ function request(body: unknown, cookie = "_fbp=fb.1.100.200; _fbc=fb.1.100.click
       referer: "https://allseason.example/campaigns/weather-report?utm_source=facebook",
       "user-agent": "homeowner-browser",
       "x-forwarded-for": "203.0.113.10",
+      ...headers,
     },
     body: JSON.stringify(body),
   });
@@ -494,7 +499,11 @@ describe("campaign estimate proxy", () => {
     });
     vi.stubGlobal("fetch", fetch);
 
-    const response = await POST(request(googleSubmission(), `piw_privacy=${consentToken}`));
+    const response = await POST(request(
+      googleSubmission(),
+      `piw_privacy=${consentToken}`,
+      {"x-vercel-oidc-token": "signed-preview-token"},
+    ));
 
     expect(response.status).toBe(202);
     expect(String(fetch.mock.calls[0]?.[0])).toBe("https://piw.example/api/privacy/consent/current");
@@ -503,6 +512,7 @@ describe("campaign estimate proxy", () => {
         origin: "https://allseason.example",
         "x-all-season-intake-secret": "shared-secret",
         "x-piw-privacy-consent": consentToken,
+        "x-vercel-trusted-oidc-idp-token": "signed-preview-token",
       }),
     }));
     expect(fetch).toHaveBeenNthCalledWith(
@@ -514,6 +524,7 @@ describe("campaign estimate proxy", () => {
           "content-type": "application/json",
           "x-all-season-intake-secret": "shared-secret",
           "x-piw-privacy-consent": consentToken,
+          "x-vercel-trusted-oidc-idp-token": "signed-preview-token",
         },
         cache: "no-store",
       }),

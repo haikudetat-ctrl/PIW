@@ -181,6 +181,7 @@ export async function POST(request: NextRequest) {
         nodeEnv: process.env.NODE_ENV,
         requestIp: trustedWebsiteRequestIp(request.headers, process.env.NODE_ENV),
         liveGpcDetected: requestHasGpc(request),
+        vercelOidcToken: request.headers.get("x-vercel-oidc-token"),
       }),
     });
   } catch {
@@ -203,6 +204,7 @@ export async function GET(request: NextRequest) {
         nodeEnv: process.env.NODE_ENV,
         requestIp: trustedWebsiteRequestIp(request.headers, process.env.NODE_ENV),
         liveGpcDetected: requestHasGpc(request),
+        vercelOidcToken: request.headers.get("x-vercel-oidc-token"),
       }),
     });
   } catch {

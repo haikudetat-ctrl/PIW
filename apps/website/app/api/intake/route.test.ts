@@ -20,13 +20,18 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function request(body: unknown, cookie = "_fbp=fb.1.100.200; _fbc=fb.1.100.click") {
+function request(
+  body: unknown,
+  cookie = "_fbp=fb.1.100.200; _fbc=fb.1.100.click",
+  headers: Record<string, string> = {},
+) {
   return new NextRequest("https://rake.example/api/intake", {
     method: "POST",
     headers: {
       "content-type": "application/json",
       cookie,
       "x-forwarded-for": "203.0.113.10",
+      ...headers,
     },
     body: JSON.stringify(body),
   });
@@ -357,7 +362,9 @@ describe("lead intake proxy", () => {
       project_interest: "both",
       consent_to_contact: true,
       consent_to_process_property: true,
-    }, `piw_privacy=${consentToken}`));
+    }, `piw_privacy=${consentToken}`, {
+      "x-vercel-oidc-token": "signed-preview-token",
+    }));
 
     expect(response.status).toBe(202);
     expect(String(fetch.mock.calls[0]?.[0])).toBe("https://piw.example/api/privacy/consent/current");
@@ -366,6 +373,7 @@ describe("lead intake proxy", () => {
         origin: "https://rake.example",
         "x-all-season-intake-secret": "shared-secret",
         "x-piw-privacy-consent": consentToken,
+        "x-vercel-trusted-oidc-idp-token": "signed-preview-token",
       }),
     }));
     expect(fetch).toHaveBeenNthCalledWith(
@@ -375,6 +383,7 @@ describe("lead intake proxy", () => {
         headers: expect.objectContaining({
           "x-all-season-intake-secret": "shared-secret",
           "x-piw-privacy-consent": consentToken,
+          "x-vercel-trusted-oidc-idp-token": "signed-preview-token",
         }),
       }),
     );

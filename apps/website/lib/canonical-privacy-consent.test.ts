@@ -35,11 +35,13 @@ describe("canonical website consent synchronization", () => {
       websiteOrigin: "https://allseasonsolar.net",
       nodeEnv: "production",
       requestIp: "203.0.113.7",
+      vercelOidcToken: "signed-preview-token",
     });
 
     expect(fetch).toHaveBeenCalledWith(expect.any(URL), expect.objectContaining({
       headers: expect.objectContaining({
         "x-all-season-privacy-request-ip": "203.0.113.7",
+        "x-vercel-trusted-oidc-idp-token": "signed-preview-token",
       }),
     }));
     expect(fetch).toHaveBeenCalledWith(expect.any(URL), expect.objectContaining({
