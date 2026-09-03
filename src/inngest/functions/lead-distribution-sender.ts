@@ -16,6 +16,7 @@ import {
   type LeadDistributionDestination,
 } from "@/modules/leads/lead-distribution-repository";
 import type {LeadConduitResult, MetaDistributionLead, MetaLeadSource} from "@/modules/leads/meta-lead-distribution";
+import type {DomainEvent} from "@/domain/events";
 
 export interface LeadDistributionRepository {
   claim(deliveryId: string, companyId: string): Promise<ClaimedLeadDistribution | null>;
@@ -64,11 +65,20 @@ function runtimeConfiguration() {
   return resolveLeadDistributionConfiguration(parseServerEnv(process.env));
 }
 
+export function deliveryIdFromLeadDistributionEvent(
+  event: Extract<DomainEvent, {name: "lead/distribution.requested"}>,
+  destination: LeadDistributionDestination,
+) {
+  return destination === "activeprospect"
+    ? event.data.activeProspectDeliveryId
+    : event.data.internalEmailDeliveryId;
+}
+
 export const activeProspectLeadSender = inngest.createFunction(
   {id: "activeprospect-lead-sender", name: "ActiveProspect lead sender", retries: 3, triggers: {event: leadDistributionRequested}},
   async ({event, step}) => step.run("submit-lead-to-activeprospect", async () => {
     const configuration = runtimeConfiguration();
-    const deliveryId = event.data.activeProspectDeliveryId;
+    const deliveryId = deliveryIdFromLeadDistributionEvent(event.data, "activeprospect");
     if (!configuration.activeProspect) return {outcome: "disabled" as const, deliveryId};
     return sendLeadDistributionDelivery({
       deliveryId,
@@ -84,7 +94,7 @@ export const internalLeadEmailSender = inngest.createFunction(
   {id: "internal-lead-email-sender", name: "Internal lead email sender", retries: 3, triggers: {event: leadDistributionRequested}},
   async ({event, step}) => step.run("email-lead-to-all-season", async () => {
     const configuration = runtimeConfiguration();
-    const deliveryId = event.data.internalEmailDeliveryId;
+    const deliveryId = deliveryIdFromLeadDistributionEvent(event.data, "internal_email");
     if (!configuration.internalEmail) return {outcome: "disabled" as const, deliveryId};
     return sendLeadDistributionDelivery({
       deliveryId,

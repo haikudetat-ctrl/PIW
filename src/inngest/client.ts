@@ -22,6 +22,10 @@ type AppointmentRepAssignedData = Extract<
   DomainEvent,
   { name: "appointments/rep.assigned" }
 >;
+type LeadDistributionRequestedData = Extract<
+  DomainEvent,
+  { name: "lead/distribution.requested" }
+>;
 
 export const diagnosticRequested = eventType("system/diagnostic.requested", {
   schema: staticSchema<DiagnosticRequestedData>(),
@@ -55,12 +59,7 @@ export const metaDeliveryRequested = eventType("marketing/meta.delivery.requeste
 });
 
 export const leadDistributionRequested = eventType("lead/distribution.requested", {
-  schema: staticSchema<{
-    leadId: string;
-    sourceLabel: "Meta70" | "Meta30";
-    activeProspectDeliveryId: string;
-    internalEmailDeliveryId: string;
-  }>(),
+  schema: staticSchema<LeadDistributionRequestedData>(),
 });
 
 export const leadDistributionDeliveryRequested = eventType("lead/distribution.delivery.requested", {
