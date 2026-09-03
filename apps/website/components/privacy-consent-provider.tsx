@@ -176,7 +176,8 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
         method: "POST",
         headers: {"content-type": "application/json"},
         body: JSON.stringify({
-          ...requestedPreferences,
+          analytics: requestedPreferences.analytics,
+          advertising: requestedPreferences.advertising,
           ...(requestedGpc ? {gpcDetected: true} : {}),
         }),
       });
