@@ -7,31 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       admin_profiles: {
@@ -1564,6 +1539,85 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "leads"
             referencedColumns: ["company_id", "id"]
+          },
+        ]
+      }
+      lead_distribution_deliveries: {
+        Row: {
+          attempt_count: number
+          available_at: string
+          claimed_at: string | null
+          company_id: string
+          created_at: string
+          destination: string
+          external_id: string | null
+          id: string
+          last_error: string | null
+          lead_id: string
+          outcome: string | null
+          pipeline_run_id: string
+          sent_at: string | null
+          source_label: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempt_count?: number
+          available_at?: string
+          claimed_at?: string | null
+          company_id: string
+          created_at?: string
+          destination: string
+          external_id?: string | null
+          id?: string
+          last_error?: string | null
+          lead_id: string
+          outcome?: string | null
+          pipeline_run_id: string
+          sent_at?: string | null
+          source_label: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempt_count?: number
+          available_at?: string
+          claimed_at?: string | null
+          company_id?: string
+          created_at?: string
+          destination?: string
+          external_id?: string | null
+          id?: string
+          last_error?: string | null
+          lead_id?: string
+          outcome?: string | null
+          pipeline_run_id?: string
+          sent_at?: string | null
+          source_label?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_distribution_deliveries_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_distribution_deliveries_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_distribution_deliveries_pipeline_run_id_fkey"
+            columns: ["pipeline_run_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_runs"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -4463,6 +4517,29 @@ export type Database = {
           from_stage: Database["public"]["Enums"]["lead_stage"]
         }[]
       }
+      claim_lead_distribution_delivery: {
+        Args: { p_company_id: string; p_delivery_id: string; p_now: string }
+        Returns: {
+          attempt_count: number
+          company_id: string
+          delivery_id: string
+          destination: string
+          email: string
+          lead_id: string
+          name: string
+          notes: string
+          phone: string
+          source_ip_address: unknown
+          source_label: string
+          source_submitted_at: string
+          source_system: string
+          source_user_agent: string
+          submitted_address: string
+          trustedform_url: string
+          utm_campaign: string
+          utm_source: string
+        }[]
+      }
       claim_meta_delivery: {
         Args: { p_claimed_at: string; p_delivery_id: string }
         Returns: {
@@ -4528,6 +4605,40 @@ export type Database = {
           outcome: string
           side_effects_applied: boolean
         }[]
+      }
+      complete_lead_distribution_delivery: {
+        Args: {
+          p_available_at: string
+          p_delivery_id: string
+          p_external_id: string
+          p_last_error: string
+          p_outcome: string
+          p_status: string
+        }
+        Returns: {
+          attempt_count: number
+          available_at: string
+          claimed_at: string | null
+          company_id: string
+          created_at: string
+          destination: string
+          external_id: string | null
+          id: string
+          last_error: string | null
+          lead_id: string
+          outcome: string | null
+          pipeline_run_id: string
+          sent_at: string | null
+          source_label: string
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "lead_distribution_deliveries"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       complete_meta_delivery: {
         Args: {
@@ -4671,6 +4782,15 @@ export type Database = {
           p_phone_e164: string
         }
         Returns: boolean
+      }
+      list_pending_lead_distribution_deliveries: {
+        Args: { p_company_id: string; p_limit: number; p_now: string }
+        Returns: {
+          delivery_id: string
+          destination: string
+          lead_id: string
+          source_label: string
+        }[]
       }
       list_pending_meta_deliveries: {
         Args: { p_limit: number; p_observed_at: string }
@@ -5220,7 +5340,6 @@ export type Database = {
     }
   }
 }
-
 type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
 
 type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
@@ -5339,9 +5458,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       address_match_method: [

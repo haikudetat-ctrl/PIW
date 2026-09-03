@@ -54,6 +54,22 @@ export const metaDeliveryRequested = eventType("marketing/meta.delivery.requeste
   schema: staticSchema<{deliveryId: string}>(),
 });
 
+export const leadDistributionRequested = eventType("lead/distribution.requested", {
+  schema: staticSchema<{
+    leadId: string;
+    sourceLabel: "Meta70" | "Meta30";
+    activeProspectDeliveryId: string;
+    internalEmailDeliveryId: string;
+  }>(),
+});
+
+export const leadDistributionDeliveryRequested = eventType("lead/distribution.delivery.requested", {
+  schema: staticSchema<{
+    deliveryId: string;
+    destination: "activeprospect" | "internal_email";
+  }>(),
+});
+
 export const inngest = new Inngest({
   id: "property-intelligence-worker",
 });

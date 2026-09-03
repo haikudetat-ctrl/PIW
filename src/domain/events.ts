@@ -67,6 +67,13 @@ export const appointmentRepAssignedDataSchema = z.object({
   repId: uuidSchema,
 });
 
+export const leadDistributionRequestedDataSchema = z.object({
+  leadId: uuidSchema,
+  sourceLabel: z.enum(["Meta70", "Meta30"]),
+  activeProspectDeliveryId: uuidSchema,
+  internalEmailDeliveryId: uuidSchema,
+}).strict();
+
 const assessmentIdDataSchema = z.object({assessmentId: uuidSchema}).strict();
 export const roofAssessmentStartedDataSchema = assessmentIdDataSchema.extend({
   entryPoint: z.enum(roofAssessmentEntryPoints as [string, ...string[]]),
@@ -203,6 +210,19 @@ const appointmentRepAssignedSchema = z.object({
   data: appointmentRepAssignedDataSchema,
 });
 
+const leadDistributionRequestedSchema = z.object({
+  id: uuidSchema,
+  name: z.literal("lead/distribution.requested"),
+  schemaVersion: z.literal(1),
+  correlationId: uuidSchema,
+  causationEventId: uuidSchema.optional(),
+  leadId: uuidSchema,
+  pipelineRunId: uuidSchema,
+  occurredAt: z.iso.datetime(),
+  idempotencyKey: z.string().min(1),
+  data: leadDistributionRequestedDataSchema,
+});
+
 export const eventEnvelopeSchema = z.discriminatedUnion("name", [
   diagnosticRequestedSchema,
   leadSubmittedSchema,
@@ -210,6 +230,7 @@ export const eventEnvelopeSchema = z.discriminatedUnion("name", [
   propertyDiscoveryRequestedSchema,
   integrationEventReceivedSchema,
   appointmentRepAssignedSchema,
+  leadDistributionRequestedSchema,
   roofAssessmentStartedSchema,
   roofAssessmentHighIntentSchema,
   roofAssessmentAbandonedSchema,

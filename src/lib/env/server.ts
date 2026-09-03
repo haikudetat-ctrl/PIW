@@ -35,6 +35,13 @@ const serverEnvSchema = z
     META_GRAPH_API_VERSION: optionalString,
     META_TEST_EVENT_CODE: optionalString,
     NEXT_PUBLIC_META_PIXEL_ID: optionalString,
+    INTEGRATIONS_LEADCONDUIT_SUBMISSION_ENABLED: optionalTrackingFlag,
+    INTERNAL_LEAD_EMAIL_ENABLED: optionalTrackingFlag,
+    RESEND_API_KEY: optionalString,
+    LEAD_NOTIFICATION_FROM_EMAIL: z.preprocess(
+      (value) => value === "" ? undefined : value,
+      z.email().optional(),
+    ),
     PAID_PROVIDERS_ENABLED: booleanString,
     ROOF_ASSESSMENT_ENABLED: booleanString,
     ROOF_ASSESSMENT_PROPERTY_PREFETCH_ENABLED: booleanString,
@@ -264,6 +271,37 @@ const serverEnvSchema = z
         message: "All Season intake requires both its company ID and shared secret",
       });
     }
+    if (value.INTERNAL_LEAD_EMAIL_ENABLED && !value.RESEND_API_KEY) {
+      context.addIssue({
+        code: "custom",
+        path: ["RESEND_API_KEY"],
+        message: "RESEND_API_KEY is required when internal lead email is enabled",
+      });
+    }
+    if (value.INTERNAL_LEAD_EMAIL_ENABLED && !value.LEAD_NOTIFICATION_FROM_EMAIL) {
+      context.addIssue({
+        code: "custom",
+        path: ["LEAD_NOTIFICATION_FROM_EMAIL"],
+        message: "LEAD_NOTIFICATION_FROM_EMAIL is required when internal lead email is enabled",
+      });
+    }
+    if (value.INTERNAL_LEAD_EMAIL_ENABLED && !value.VERCEL_PROJECT_PRODUCTION_URL) {
+      context.addIssue({
+        code: "custom",
+        path: ["VERCEL_PROJECT_PRODUCTION_URL"],
+        message: "VERCEL_PROJECT_PRODUCTION_URL is required when internal lead email is enabled",
+      });
+    }
+    if (
+      (value.INTEGRATIONS_LEADCONDUIT_SUBMISSION_ENABLED || value.INTERNAL_LEAD_EMAIL_ENABLED)
+      && !value.ACCESS_ROUTE_COMPANY_ID
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["ACCESS_ROUTE_COMPANY_ID"],
+        message: "ACCESS_ROUTE_COMPANY_ID is required when lead distribution is enabled",
+      });
+    }
   });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;
@@ -274,6 +312,42 @@ export type MetaTrackingConfiguration = {
   graphApiVersion: string;
   testEventCode: string | undefined;
 };
+
+export type LeadDistributionConfiguration = {
+  companyId: string | null;
+  activeProspect: {enabled: true} | null;
+  internalEmail: {
+    apiKey: string;
+    fromEmail: string;
+    appBaseUrl: string;
+  } | null;
+};
+
+export function resolveLeadDistributionConfiguration(
+  environment: Pick<ServerEnv,
+    | "INTEGRATIONS_LEADCONDUIT_SUBMISSION_ENABLED"
+    | "INTERNAL_LEAD_EMAIL_ENABLED"
+    | "RESEND_API_KEY"
+    | "LEAD_NOTIFICATION_FROM_EMAIL"
+    | "VERCEL_PROJECT_PRODUCTION_URL"
+    | "ACCESS_ROUTE_COMPANY_ID"
+  >,
+): LeadDistributionConfiguration {
+  const productionUrl = environment.VERCEL_PROJECT_PRODUCTION_URL?.trim();
+  return {
+    companyId: environment.ACCESS_ROUTE_COMPANY_ID ?? null,
+    activeProspect: environment.INTEGRATIONS_LEADCONDUIT_SUBMISSION_ENABLED
+      ? {enabled: true}
+      : null,
+    internalEmail: environment.INTERNAL_LEAD_EMAIL_ENABLED
+      ? {
+          apiKey: environment.RESEND_API_KEY!,
+          fromEmail: environment.LEAD_NOTIFICATION_FROM_EMAIL!,
+          appBaseUrl: productionUrl!.startsWith("http") ? productionUrl! : `https://${productionUrl}`,
+        }
+      : null,
+  };
+}
 
 /**
  * Meta and privacy settings are deliberately fail-open for canonical business

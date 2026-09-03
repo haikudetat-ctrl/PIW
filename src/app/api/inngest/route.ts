@@ -14,6 +14,12 @@ import { accessRouteReadSync } from "@/inngest/functions/access-route-read-sync"
 import { assessmentAbandonmentWorker } from "@/inngest/functions/assessment-abandonment-worker";
 import { metaConversionSender } from "@/inngest/functions/meta-conversion-sender";
 import { metaConversionSweeper } from "@/inngest/functions/meta-conversion-sweeper";
+import {
+  activeProspectLeadSender,
+  internalLeadEmailSender,
+  recoveredLeadDistributionSender,
+} from "@/inngest/functions/lead-distribution-sender";
+import {leadDistributionSweeper} from "@/inngest/functions/lead-distribution-sweeper";
 
 export const maxDuration = 300;
 
@@ -34,5 +40,9 @@ export const { GET, POST, PUT } = serve({
     assessmentAbandonmentWorker,
     metaConversionSender,
     metaConversionSweeper,
+    activeProspectLeadSender,
+    internalLeadEmailSender,
+    recoveredLeadDistributionSender,
+    leadDistributionSweeper,
   ],
 });

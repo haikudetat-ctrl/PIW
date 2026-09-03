@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { parseClientEnv } from "./client";
-import { parseServerEnv, resolveMetaTrackingConfiguration } from "./server";
+import { parseServerEnv, resolveLeadDistributionConfiguration, resolveMetaTrackingConfiguration } from "./server";
 
 const base = {
   NODE_ENV: "test",
@@ -26,6 +26,39 @@ describe("parseServerEnv", () => {
     expect(environment.JOBNIMBUS_MAX_PAGES).toBe(1);
     expect(environment.COST_MONTHLY_BUDGET_USD).toBe(1500);
     expect(environment.META_TRACKING_ENABLED).toBe(false);
+    expect(environment.INTEGRATIONS_LEADCONDUIT_SUBMISSION_ENABLED).toBe(false);
+    expect(environment.INTERNAL_LEAD_EMAIL_ENABLED).toBe(false);
+  });
+
+  test("enables lead distribution only with complete destination configuration", () => {
+    expect(resolveLeadDistributionConfiguration(parseServerEnv(base))).toEqual({
+      companyId: null,
+      activeProspect: null,
+      internalEmail: null,
+    });
+    const configured = parseServerEnv({
+      ...base,
+      INTEGRATIONS_LEADCONDUIT_SUBMISSION_ENABLED: "true",
+      INTERNAL_LEAD_EMAIL_ENABLED: "true",
+      RESEND_API_KEY: "re_test_key",
+      LEAD_NOTIFICATION_FROM_EMAIL: "leads@allseason.solar",
+      VERCEL_PROJECT_PRODUCTION_URL: "piw-sepia.vercel.app",
+      ACCESS_ROUTE_COMPANY_ID: "00000000-0000-4000-8000-000000000001",
+    });
+    expect(resolveLeadDistributionConfiguration(configured)).toEqual({
+      companyId: "00000000-0000-4000-8000-000000000001",
+      activeProspect: {enabled: true},
+      internalEmail: {
+        apiKey: "re_test_key",
+        fromEmail: "leads@allseason.solar",
+        appBaseUrl: "https://piw-sepia.vercel.app",
+      },
+    });
+  });
+
+  test("rejects incomplete enabled internal lead email configuration", () => {
+    expect(() => parseServerEnv({...base, INTERNAL_LEAD_EMAIL_ENABLED: "true"}))
+      .toThrow("RESEND_API_KEY is required");
   });
 
   test("Meta tracking resolves disabled until matching server and public configuration is complete", () => {
