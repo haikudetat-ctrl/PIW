@@ -35,6 +35,10 @@ schema and records remain available for audit and older lead workspaces.
 ## Documentation
 
 - [All Season campaign landing pages](docs/campaigns/README.md)
+- [All Season growth marketing plan](docs/marketing/2026-08-29-all-season-growth-marketing-plan.md)
+- [Rake (PIW) multi-tenant go-to-market plan](docs/marketing/2026-08-29-piw-multi-tenant-go-to-market-plan.md)
+- [RAKE deck audit and positioning reconciliation](docs/marketing/2026-08-29-rake-deck-positioning-audit.md)
+- [Marketing landing page drafts](docs/marketing/pages/README.md)
 - [Architecture design](docs/superpowers/specs/2026-07-29-property-intelligence-worker-architecture-design.md)
 - [Foundation implementation plan](docs/superpowers/plans/2026-07-29-piw-foundation-implementation.md)
 - [CRM implementation plan](docs/superpowers/plans/2026-07-29-piw-crm-implementation.md)
