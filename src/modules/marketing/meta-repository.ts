@@ -8,7 +8,7 @@ const POLICY_VERSION = "piw-privacy-v1";
 const ALL_SEASON_SOURCE_URL = "https://allseasonsolar.net/";
 const PIW_ASSESSMENT_SOURCE_URL = "https://piw-sepia.vercel.app/roof-estimate";
 
-const metaEventNameSchema = z.enum(["Lead", "AssessmentCompleted"]);
+const metaEventNameSchema = z.enum(["Lead", "QualifiedLead", "AssessmentCompleted"]);
 const deliveryStatusSchema = z.enum([
   "pending",
   "sending",
@@ -111,30 +111,30 @@ export class SupabaseMetaRepository {
     private readonly now: () => string = () => new Date().toISOString(),
   ) {}
 
-  async reserveLead(input: {
+  async reserveQualifiedLead(input: {
     leadId: string;
     companyId: string;
     consentId: string;
     occurredAt: string;
   }): Promise<ReservedMetaEvent | null> {
-    const { data, error } = await this.client.rpc("reserve_meta_lead_delivery", {
+    const { data, error } = await this.client.rpc("reserve_meta_qualified_lead_delivery", {
       p_lead_id: input.leadId,
       p_company_id: input.companyId,
       p_consent_id: input.consentId,
       p_policy_version: POLICY_VERSION,
       p_event_time: input.occurredAt,
     });
-    if (error) throw new MetaRepositoryError("reserveLead");
-    const row = oneDelivery(data, "reserveLead");
+    if (error) throw new MetaRepositoryError("reserveQualifiedLead");
+    const row = oneDelivery(data, "reserveQualifiedLead");
     if (!row) return null;
     if (
-      row.event_name !== "Lead"
+      row.event_name !== "QualifiedLead"
       || row.assessment_id !== null
       || row.lead_id !== input.leadId
       || row.company_id !== input.companyId
       || row.consent_id !== input.consentId
     ) {
-      throw new MetaRepositoryError("reserveLead");
+      throw new MetaRepositoryError("reserveQualifiedLead");
     }
     return reservedEvent(row);
   }
@@ -192,7 +192,7 @@ export class SupabaseMetaRepository {
       eventName: row.event_name,
       eventId: row.event_id,
       eventTime: row.event_time,
-      eventSourceUrl: row.event_name === "Lead"
+      eventSourceUrl: row.event_name === "QualifiedLead" || row.event_name === "Lead"
         ? ALL_SEASON_SOURCE_URL
         : PIW_ASSESSMENT_SOURCE_URL,
       email: contact.data.email,

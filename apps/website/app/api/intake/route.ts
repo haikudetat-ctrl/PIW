@@ -28,7 +28,7 @@ const leadSchema = z.object({
 });
 
 const leadMetaEventSchema = z.strictObject({
-  name: z.literal("Lead"),
+  name: z.literal("QualifiedLead"),
   eventId: z.uuid(),
   issuedAt: z.iso.datetime({offset: true}),
 });

@@ -149,6 +149,10 @@ describe("All Season campaign estimate intake", () => {
     gpcDetected: false,
     updatedAt: "2026-09-01T16:00:00.000Z",
   };
+  const advertisingConsent = {
+    ...deniedAdvertisingConsent,
+    preferences: {necessary: true as const, analytics: false, advertising: true},
+  };
 
   test("maps every external evidence field to the canonical campaign adapter", () => {
     const parsed = validPayload satisfies AllSeasonCampaignEstimateInput;
@@ -272,7 +276,7 @@ describe("All Season campaign estimate intake", () => {
       continuationPath: "/roof-estimate/continue/signed_token-123" as const,
       leadId: "22222222-2222-4222-8222-222222222222",
     }));
-    const reserveLead = vi.fn();
+    const reserveQualifiedLead = vi.fn();
 
     const response = await handleAllSeasonCampaignEstimateRequest(
       request(validPayload),
@@ -282,7 +286,7 @@ describe("All Season campaign estimate intake", () => {
         companyId: "22222222-2222-4222-8222-222222222222",
         verifyAdvertisingConsent: async () => deniedAdvertisingConsent,
         recordConsent: async () => undefined,
-        reserveLead,
+        reserveQualifiedLead,
         requestDelivery: async () => undefined,
         metaTrackingEnabled: true,
       } as never,
@@ -295,7 +299,44 @@ describe("All Season campaign estimate intake", () => {
       metaEvent: null,
     });
     expect(accept).toHaveBeenCalledOnce();
-    expect(reserveLead).not.toHaveBeenCalled();
+    expect(reserveQualifiedLead).not.toHaveBeenCalled();
+  });
+
+  test("returns QualifiedLead only after the estimate request is durably accepted", async () => {
+    const accept = vi.fn(async () => ({
+      kind: "continue" as const,
+      continuationPath: "/roof-estimate/continue/signed_token-123" as const,
+      leadId: "22222222-2222-4222-8222-222222222222",
+    }));
+    const reserveQualifiedLead = vi.fn(async () => ({
+      deliveryId: "44444444-4444-4444-8444-444444444444",
+      envelope: {
+        name: "QualifiedLead" as const,
+        eventId: "55555555-5555-4555-8555-555555555555",
+        issuedAt: "2026-09-04T13:00:00.000Z",
+      },
+    }));
+    const requestDelivery = vi.fn(async () => undefined);
+
+    const response = await handleAllSeasonCampaignEstimateRequest(request(validPayload), {
+      expectedSecret: "shared-secret",
+      accept,
+      companyId: "22222222-2222-4222-8222-222222222222",
+      verifyAdvertisingConsent: async () => advertisingConsent,
+      recordConsent: async () => undefined,
+      reserveQualifiedLead,
+      requestDelivery,
+      metaTrackingEnabled: true,
+    });
+
+    await expect(response.json()).resolves.toMatchObject({
+      accepted: true,
+      metaEvent: {name: "QualifiedLead", eventId: "55555555-5555-4555-8555-555555555555"},
+    });
+    expect(accept.mock.invocationCallOrder[0]).toBeLessThan(
+      reserveQualifiedLead.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
+    );
+    expect(requestDelivery).toHaveBeenCalledWith("44444444-4444-4444-8444-444444444444");
   });
 
   test("accepts the canonical main-site framing without campaign attribution", async () => {

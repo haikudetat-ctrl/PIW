@@ -10,7 +10,7 @@ import type { MetaDeliverySource } from "./meta-events";
 
 const fixture: MetaDeliverySource = {
   deliveryId: "90000000-0000-4000-8000-000000000001",
-  eventName: "Lead",
+  eventName: "QualifiedLead",
   eventId: "90000000-0000-4000-8000-000000000002",
   eventTime: "2026-09-01T12:00:00.000Z",
   eventSourceUrl: "https://allseasonsolar.net/form/thank-you?lead=private",
@@ -29,7 +29,7 @@ const deliveryRow = {
   assessment_id: null,
   consent_id: "90000000-0000-4000-8000-000000000005",
   policy_version: "piw-privacy-v1",
-  event_name: "Lead",
+  event_name: "QualifiedLead",
   event_id: fixture.eventId,
   event_time: fixture.eventTime,
   status: "sending",
@@ -48,7 +48,7 @@ describe("Meta payload construction", () => {
   test("payload contains no property or pricing data", () => {
     const payload = buildMetaCapiPayload(fixture);
     expect(payload.data[0]).toMatchObject({
-      event_name: "Lead",
+      event_name: "QualifiedLead",
       event_id: fixture.eventId,
       event_time: 1788264000,
       action_source: "website",
@@ -302,7 +302,7 @@ describe("SupabaseMetaRepository", () => {
     });
     const repository = new SupabaseMetaRepository({ rpc } as never, () => fixture.eventTime);
 
-    await expect(repository.reserveLead({
+    await expect(repository.reserveQualifiedLead({
       leadId: deliveryRow.lead_id,
       companyId: deliveryRow.company_id,
       consentId: deliveryRow.consent_id,
@@ -310,12 +310,12 @@ describe("SupabaseMetaRepository", () => {
     })).resolves.toEqual({
       deliveryId: fixture.deliveryId,
       envelope: {
-        name: "Lead",
+        name: "QualifiedLead",
         eventId: fixture.eventId,
         issuedAt: fixture.eventTime,
       },
     });
-    expect(rpc).toHaveBeenCalledWith("reserve_meta_lead_delivery", {
+    expect(rpc).toHaveBeenCalledWith("reserve_meta_qualified_lead_delivery", {
       p_lead_id: deliveryRow.lead_id,
       p_company_id: deliveryRow.company_id,
       p_consent_id: deliveryRow.consent_id,
@@ -373,7 +373,7 @@ describe("SupabaseMetaRepository", () => {
   });
 
   test.each([
-    ["reserveLead", (repository: SupabaseMetaRepository) => repository.reserveLead({
+    ["reserveQualifiedLead", (repository: SupabaseMetaRepository) => repository.reserveQualifiedLead({
       leadId: deliveryRow.lead_id,
       companyId: deliveryRow.company_id,
       consentId: deliveryRow.consent_id,
@@ -441,7 +441,7 @@ describe("SupabaseMetaRepository", () => {
       }),
     } as never, () => fixture.eventTime);
 
-    await expect(repository.reserveLead({
+    await expect(repository.reserveQualifiedLead({
       leadId: deliveryRow.lead_id,
       companyId: deliveryRow.company_id,
       consentId: deliveryRow.consent_id,
@@ -461,12 +461,12 @@ describe("SupabaseMetaRepository", () => {
       }),
     } as never, () => fixture.eventTime);
 
-    await expect(repository.reserveLead({
+    await expect(repository.reserveQualifiedLead({
       leadId: deliveryRow.lead_id,
       companyId: deliveryRow.company_id,
       consentId: deliveryRow.consent_id,
       occurredAt: fixture.eventTime,
-    })).rejects.toThrow(/reserveLead/);
+    })).rejects.toThrow(/reserveQualifiedLead/);
   });
 
   test("lists only strict pending-delivery identifiers", async () => {

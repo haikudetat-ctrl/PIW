@@ -43,8 +43,9 @@ Production HTTP checks after deployment:
 - The website and PIW use environment-specific signing secrets. Production and
   Preview secrets are distinct; the two applications match only within the
   same environment.
-- Browser `Lead` and `AssessmentCompleted` events use the same IDs as their
-  server CAPI counterparts for Meta deduplication.
+- Browser `QualifiedLead` and `AssessmentCompleted` events use the same IDs as
+  their server CAPI counterparts for Meta deduplication. Browser-only `Lead`
+  marks the point where both estimate permissions are checked.
 - First result view is durable and cannot be backfilled into a conversion after
   a denied or missing-consent view.
 - Public consent and result-view boundaries are atomic and rate-limited in
@@ -129,10 +130,11 @@ Consent-granted journey:
 5. Confirm the customer-facing quote link works.
 6. Confirm the lead and estimate exist in PIW CRM.
 7. Confirm the Slack alert uses the PIW Context Dialer format.
-8. In Meta Test Events, confirm `PageView`, `Lead`, and
-   `AssessmentCompleted`.
-9. Confirm browser and server copies share one event ID and Meta displays one
-   deduplicated logical event.
+8. In Meta Test Events, confirm `PageView`, browser `Lead`, `QualifiedLead`,
+   and `AssessmentCompleted` in that order.
+9. Confirm browser and server copies of `QualifiedLead` and
+   `AssessmentCompleted` share one event ID and Meta displays one deduplicated
+   logical event for each.
 
 Consent-denied journey:
 

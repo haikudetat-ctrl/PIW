@@ -92,7 +92,7 @@ describe("embedded lead form", () => {
     });
     installBrowserGlobals(dom);
     const metaEvent = {
-      name: "Lead",
+      name: "QualifiedLead",
       eventId: "33333333-3333-4333-8333-333333333333",
       issuedAt: "2026-09-01T16:01:00.000Z",
     } as const;
@@ -131,7 +131,7 @@ describe("embedded lead form", () => {
       accepted: true,
       estimateUrl,
       metaEvent: {
-        name: "Lead",
+        name: "QualifiedLead",
         eventId: "not-a-uuid",
         issuedAt: "2026-09-01T16:01:00.000Z",
       },
@@ -375,7 +375,7 @@ describe("quote drawer", () => {
     });
     installBrowserGlobals(dom);
     const metaEvent = {
-      name: "Lead",
+      name: "QualifiedLead",
       eventId: "55555555-5555-4555-8555-555555555555",
       issuedAt: "2026-09-01T16:01:00.000Z",
     } as const;

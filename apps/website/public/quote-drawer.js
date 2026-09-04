@@ -163,6 +163,18 @@
     consentLabel.appendChild(element('span', '', 'I agree to be contacted by All Season Solar by call, text, or email about my request, including by automated means. Consent is not required to make a purchase. Message and data rates may apply.'));
     form.appendChild(consentLabel);
 
+    var intentSignaled = false;
+    function signalLeadIntent() {
+      if (intentSignaled || !processingConsent.checked || !consent.checked) return;
+      intentSignaled = true;
+      var tracker = window.AllSeasonMeta;
+      if (tracker && typeof tracker.trackConversion === 'function') {
+        tracker.trackConversion({name: 'Lead', eventId: submissionId, issuedAt: new Date().toISOString()});
+      }
+    }
+    processingConsent.addEventListener('change', signalLeadIntent);
+    consent.addEventListener('change', signalLeadIntent);
+
     var status = element('p', 'as-quote-status');
     status.setAttribute('role', 'status');
     status.setAttribute('aria-live', 'polite');

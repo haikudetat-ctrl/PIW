@@ -33,7 +33,7 @@ import {MetaPixelProvider} from "../../components/meta-pixel-provider";
 
 const mountedRoots: Root[] = [];
 const eventEnvelope = {
-  name: "Lead" as const,
+  name: "QualifiedLead" as const,
   eventId: "11111111-1111-4111-8111-111111111111",
   issuedAt: new Date().toISOString(),
 };
@@ -78,8 +78,7 @@ async function submitValidCampaignForm(container: HTMLElement) {
   fill(container, "email", "jane@example.com");
   fill(container, "phone", "856-555-0100");
   for (const checkbox of Array.from(container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'))) {
-    checkbox.checked = true;
-    checkbox.dispatchEvent(new Event("change", {bubbles: true}));
+    await click(checkbox);
   }
   await act(async () => container.querySelector("form")?.dispatchEvent(
     new Event("submit", {bubbles: true, cancelable: true}),
@@ -109,17 +108,23 @@ function leadCalls() {
   return fbq?.mock.calls.filter((call) => call[1] === "Lead") ?? [];
 }
 
-describe("CampaignEstimateForm Meta Lead", () => {
-  test("emits the server-issued Lead envelope before redirecting after success", async () => {
+function qualifiedLeadCalls() {
+  const fbq = (window as Window & {fbq?: BrowserFbq}).fbq;
+  return fbq?.mock.calls.filter((call) => call[1] === "QualifiedLead") ?? [];
+}
+
+describe("CampaignEstimateForm Meta funnel", () => {
+  test("emits Lead at the permission gate and server-issued QualifiedLead after success", async () => {
     vi.mocked(fetch).mockResolvedValue(Response.json({estimateUrl: "/roof-estimate/continue/token", metaEvent: eventEnvelope}));
     const {container} = await renderForm();
     expect((window as Window & {fbq?: BrowserFbq}).fbq).toHaveBeenCalledWith("track", "PageView");
 
     await submitValidCampaignForm(container);
 
-    await vi.waitFor(() => expect(leadCalls()).toContainEqual(
-      ["track", "Lead", {}, {eventID: eventEnvelope.eventId}],
-    ));
+    await vi.waitFor(() => expect(leadCalls()).toHaveLength(1));
+    expect(qualifiedLeadCalls()).toContainEqual(
+      ["track", "QualifiedLead", {}, {eventID: eventEnvelope.eventId}],
+    );
   });
 
   test("does not emit a Lead after advertising consent is revoked during intake", async () => {
@@ -138,8 +143,7 @@ describe("CampaignEstimateForm Meta Lead", () => {
     fill(container, "email", "jane@example.com");
     fill(container, "phone", "856-555-0100");
     for (const checkbox of Array.from(container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'))) {
-      checkbox.checked = true;
-      checkbox.dispatchEvent(new Event("change", {bubbles: true}));
+      await click(checkbox);
     }
     await act(async () => container.querySelector("form")?.dispatchEvent(
       new Event("submit", {bubbles: true, cancelable: true}),
@@ -157,7 +161,8 @@ describe("CampaignEstimateForm Meta Lead", () => {
     })));
     await completed;
 
-    expect(leadCalls()).toHaveLength(0);
+    expect(leadCalls()).toHaveLength(1);
+    expect(qualifiedLeadCalls()).toHaveLength(0);
   });
 
   test("does not emit a Lead when the accepted response omits its envelope", async () => {
@@ -166,7 +171,8 @@ describe("CampaignEstimateForm Meta Lead", () => {
 
     await submitValidCampaignForm(container);
 
-    expect(leadCalls()).toHaveLength(0);
+    expect(leadCalls()).toHaveLength(1);
+    expect(qualifiedLeadCalls()).toHaveLength(0);
   });
 
   test("does not emit a Lead after a failed submission", async () => {
@@ -175,6 +181,19 @@ describe("CampaignEstimateForm Meta Lead", () => {
 
     await submitValidCampaignForm(container);
 
+    expect(leadCalls()).toHaveLength(1);
+    expect(qualifiedLeadCalls()).toHaveLength(0);
+  });
+
+  test("keeps both Meta intent signals suppressed when advertising is denied", async () => {
+    state.advertising = false;
+    vi.mocked(fetch).mockResolvedValue(Response.json({estimateUrl: "/roof-estimate/continue/token", metaEvent: null}));
+    const {container} = await renderForm();
+
+    await submitValidCampaignForm(container);
+
     expect(leadCalls()).toHaveLength(0);
+    expect(qualifiedLeadCalls()).toHaveLength(0);
+    expect(fetch).toHaveBeenCalledOnce();
   });
 });

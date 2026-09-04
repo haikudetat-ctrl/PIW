@@ -4990,6 +4990,42 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      reserve_meta_qualified_lead_delivery: {
+        Args: {
+          p_company_id: string
+          p_consent_id: string
+          p_event_time: string
+          p_lead_id: string
+          p_policy_version: string
+        }
+        Returns: {
+          assessment_id: string | null
+          attempt_count: number
+          company_id: string
+          consent_id: string
+          created_at: string
+          event_id: string
+          event_name: string
+          event_time: string
+          id: string
+          last_attempted_at: string | null
+          last_error_category: string | null
+          lead_id: string
+          meta_http_status: number | null
+          meta_trace_id: string | null
+          payload_hash: string | null
+          policy_version: string
+          sent_at: string | null
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "meta_event_deliveries"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       reserve_provider_usage: {
         Args: { p_api_name: string; p_limit: number; p_period_start: string }
         Returns: {
