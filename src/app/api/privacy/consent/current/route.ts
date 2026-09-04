@@ -156,6 +156,7 @@ function allowedAllSeasonWebsiteOrigin(origin: string, environment: "development
       && ["localhost", "127.0.0.1", "::1"].includes(parsed.hostname);
   }
   if (["allseasonsolar.net", "www.allseasonsolar.net"].includes(parsed.hostname)) return true;
+  if (parsed.hostname === "rake-website.vercel.app") return true;
   return environment !== "production" && parsed.hostname.endsWith(".vercel.app");
 }
 

@@ -5,15 +5,16 @@ import {signConsentCookie, type VerifiedConsent} from "@/modules/privacy/consent
 const mocks = vi.hoisted(() => ({
   readCurrent: vi.fn(),
   record: vi.fn(),
-}));
-
-vi.mock("@/lib/env/server", () => ({
-  parseServerEnv: () => ({
+  environment: {
     DEPLOYMENT_ENV: "production",
     VERCEL_ENV: "preview",
     PRIVACY_CONSENT_SIGNING_SECRET: "0123456789abcdef0123456789abcdef",
     ALL_SEASON_INTAKE_SHARED_SECRET: "all-season-server-secret",
-  }),
+  },
+}));
+
+vi.mock("@/lib/env/server", () => ({
+  parseServerEnv: () => mocks.environment,
 }));
 
 vi.mock("@/modules/privacy/consent-repository", async (importOriginal) => {
@@ -41,6 +42,7 @@ describe("current privacy consent runtime boundary", () => {
   beforeEach(() => {
     mocks.record.mockReset().mockResolvedValue(undefined);
     mocks.readCurrent.mockReset().mockResolvedValue(consent);
+    mocks.environment.VERCEL_ENV = "preview";
   });
 
   test("allows the Vercel Preview website origin when provider parity uses production deployment settings", async () => {
@@ -65,5 +67,56 @@ describe("current privacy consent runtime boundary", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({consent});
+  });
+
+  test("allows the exact production Vercel origin used by the active ads", async () => {
+    mocks.environment.VERCEL_ENV = "production";
+    const token = signConsentCookie(
+      consent,
+      "0123456789abcdef0123456789abcdef",
+    );
+    const request = new NextRequest(
+      "https://piw-sepia.vercel.app/api/privacy/consent/current",
+      {
+        method: "POST",
+        headers: {
+          origin: "https://rake-website.vercel.app",
+          "x-all-season-intake-secret": "all-season-server-secret",
+          "x-all-season-privacy-request-ip": "203.0.113.7",
+          "x-piw-privacy-consent": token,
+        },
+      },
+    );
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({consent});
+  });
+
+  test("rejects other Vercel origins in production", async () => {
+    mocks.environment.VERCEL_ENV = "production";
+    const token = signConsentCookie(
+      consent,
+      "0123456789abcdef0123456789abcdef",
+    );
+    const request = new NextRequest(
+      "https://piw-sepia.vercel.app/api/privacy/consent/current",
+      {
+        method: "POST",
+        headers: {
+          origin: "https://untrusted-project.vercel.app",
+          "x-all-season-intake-secret": "all-season-server-secret",
+          "x-all-season-privacy-request-ip": "203.0.113.7",
+          "x-piw-privacy-consent": token,
+        },
+      },
+    );
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(403);
+    expect(mocks.readCurrent).not.toHaveBeenCalled();
+    expect(mocks.record).not.toHaveBeenCalled();
   });
 });
