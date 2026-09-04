@@ -1,6 +1,10 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { parseServerEnv, resolveMetaTrackingConfiguration } from "@/lib/env/server";
+import {
+  parseServerEnv,
+  resolveLeadDistributionConfiguration,
+  resolveMetaTrackingConfiguration,
+} from "@/lib/env/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { inngest } from "@/inngest/client";
 import { SupabaseMetaRepository, type ReservedMetaEvent } from "@/modules/marketing/meta-repository";
@@ -14,6 +18,15 @@ import {
   acceptAllSeasonCampaignEstimate,
   type AllSeasonCampaignEstimateLeadInput,
 } from "@/modules/leads/accept-all-season-campaign-estimate";
+import {
+  LeadConduitSubmissionClient,
+  ResendLeadNotificationClient,
+} from "@/modules/leads/lead-distribution-clients";
+import {
+  SupabaseLeadDistributionRepository,
+  type LeadDistributionDestination,
+} from "@/modules/leads/lead-distribution-repository";
+import {sendLeadDistributionDelivery} from "@/modules/leads/send-lead-distribution-delivery";
 import { signContinuation } from "@/modules/roof-assessment/continuation-token";
 import {createPostConsentPrefetchComposition} from "@/modules/roof-assessment/post-consent-prefetch-composition";
 import { startOrResumeRoofAssessment } from "@/modules/roof-assessment/start-or-resume";
@@ -56,6 +69,7 @@ type CampaignEstimateDependencies = {
     payload: AllSeasonCampaignEstimateInput,
   ) => Promise<CampaignEstimateAcceptance>;
   findLeadId?: (submissionId: string) => Promise<string | null>;
+  deliverImmediately?: (leadId: string) => Promise<void>;
   verifyAdvertisingConsent?: (request: NextRequest) => Promise<VerifiedConsent | null>;
   recordConsent?: (input: {
     leadId: string;
@@ -145,6 +159,26 @@ async function reserveMetaLeadAfterAcceptance({
   }
 }
 
+async function deliverLeadAfterAcceptance({
+  result,
+  submissionId,
+  dependencies,
+}: {
+  result: CampaignEstimateAcceptance;
+  submissionId: string;
+  dependencies: CampaignEstimateDependencies;
+}) {
+  if (result.kind !== "continue" || !dependencies.deliverImmediately) return;
+
+  try {
+    const leadId = result.leadId ?? await dependencies.findLeadId?.(submissionId);
+    if (!leadId) return;
+    await dependencies.deliverImmediately(leadId);
+  } catch (error) {
+    (dependencies.reportError ?? console.error)(error);
+  }
+}
+
 export async function handleAllSeasonCampaignEstimateRequest(
   request: NextRequest,
   dependencies: CampaignEstimateDependencies,
@@ -169,12 +203,19 @@ export async function handleAllSeasonCampaignEstimateRequest(
         409,
       );
     }
-    const metaEvent = await reserveMetaLeadAfterAcceptance({
-      request,
-      result,
-      submissionId: parsed.data.submission_id,
-      dependencies,
-    });
+    const [metaEvent] = await Promise.all([
+      reserveMetaLeadAfterAcceptance({
+        request,
+        result,
+        submissionId: parsed.data.submission_id,
+        dependencies,
+      }),
+      deliverLeadAfterAcceptance({
+        result,
+        submissionId: parsed.data.submission_id,
+        dependencies,
+      }),
+    ]);
     return noStoreJson(
       {accepted: true, continuationPath: result.continuationPath, metaEvent},
       202,
@@ -214,13 +255,59 @@ export async function POST(request: NextRequest) {
   const signingKey = environment.ROOF_ASSESSMENT_SIGNING_SECRET;
   const companyId = environment.ALL_SEASON_INTAKE_COMPANY_ID;
   const tracking = resolveMetaTrackingConfiguration(environment);
+  const distribution = resolveLeadDistributionConfiguration(environment);
   const metaRepository = new SupabaseMetaRepository(service as never);
   const privacyRepository = new SupabasePrivacyConsentRepository(service as never);
+  const distributionRepository = new SupabaseLeadDistributionRepository(service as never);
+
+  const deliverImmediately = distribution.companyId === companyId
+    && (distribution.activeProspect || distribution.internalEmail)
+    ? async (leadId: string) => {
+        const enabledDestinations: LeadDistributionDestination[] = [
+          ...(distribution.activeProspect ? ["activeprospect" as const] : []),
+          ...(distribution.internalEmail ? ["internal_email" as const] : []),
+        ];
+        const {data, error} = await service
+          .from("lead_distribution_deliveries")
+          .select("id,destination")
+          .eq("company_id", companyId)
+          .eq("lead_id", leadId)
+          .in("destination", enabledDestinations)
+          .in("status", ["pending", "retryable_failed"]);
+        if (error) throw new Error("Failed to load immediate lead deliveries");
+
+        const results = await Promise.allSettled((data ?? []).map(async (delivery) => {
+          if (delivery.destination === "activeprospect") {
+            await sendLeadDistributionDelivery({
+              deliveryId: delivery.id,
+              repository: distributionRepository,
+              client: new LeadConduitSubmissionClient(),
+              expectedDestination: "activeprospect",
+              companyId,
+            });
+            return;
+          }
+          if (delivery.destination === "internal_email" && distribution.internalEmail) {
+            await sendLeadDistributionDelivery({
+              deliveryId: delivery.id,
+              repository: distributionRepository,
+              client: new ResendLeadNotificationClient(distribution.internalEmail),
+              expectedDestination: "internal_email",
+              companyId,
+            });
+          }
+        }));
+        if (results.some((result) => result.status === "rejected")) {
+          throw new Error("One or more immediate lead deliveries require recovery");
+        }
+      }
+    : undefined;
 
   return handleAllSeasonCampaignEstimateRequest(request, {
     expectedSecret: environment.ALL_SEASON_INTAKE_SHARED_SECRET,
     companyId,
     metaTrackingEnabled: Boolean(tracking),
+    deliverImmediately,
     findLeadId: async (submissionId) => {
       const {data, error} = await service
         .from("roof_assessment_access_attempts")
