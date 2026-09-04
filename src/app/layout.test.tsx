@@ -14,6 +14,9 @@ vi.mock("next/font/google", () => ({
   Geist_Mono: () => ({variable: "font-geist-mono"}),
   Montserrat: () => ({variable: "font-montserrat"}),
 }));
+vi.mock("@/components/analytics/consent-aware-vercel-analytics", () => ({
+  ConsentAwareVercelAnalytics: () => <output data-testid="vercel-analytics" />,
+}));
 
 const {default: RootLayout} = await import("./layout");
 const signingSecret = "0123456789abcdef0123456789abcdef";
@@ -38,6 +41,14 @@ afterEach(() => {
 });
 
 describe("RootLayout privacy consent", () => {
+  test("mounts Vercel Analytics for every PIW page", async () => {
+    mocks.cookies.mockResolvedValue({get: () => undefined});
+
+    render(await RootLayout({children: <Probe />}));
+
+    expect(screen.getByTestId("vercel-analytics")).toBeInTheDocument();
+  });
+
   test("supplies the verified signed-cookie state to the consent provider", async () => {
     const signedCookie = signConsentCookie({
       consentId: "11111111-1111-4111-8111-111111111111",

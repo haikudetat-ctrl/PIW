@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Bebas_Neue, Geist, Geist_Mono, Montserrat } from "next/font/google";
 import { cookies } from "next/headers";
+import {ConsentAwareVercelAnalytics} from "@/components/analytics/consent-aware-vercel-analytics";
 import { PrivacyConsentProvider } from "@/components/privacy/privacy-consent-provider";
 import { MetaPixelProvider } from "@/components/marketing/meta-pixel-provider";
 import {parseServerEnv, resolveMetaTrackingConfiguration} from "@/lib/env/server";
@@ -62,6 +63,7 @@ export default async function RootLayout({
       <body className="min-h-full flex flex-col">
         <PrivacyConsentProvider initialConsent={initialConsent}>
           <MetaPixelProvider enabled={metaTrackingEnabled}>{children}</MetaPixelProvider>
+          <ConsentAwareVercelAnalytics />
         </PrivacyConsentProvider>
       </body>
     </html>
