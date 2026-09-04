@@ -26,7 +26,7 @@ import {MetaPixelProvider} from "./meta-pixel-provider";
 
 const mountedRoots: Root[] = [];
 const eventEnvelope = {
-  name: "Lead" as const,
+  name: "QualifiedLead" as const,
   eventId: "11111111-1111-4111-8111-111111111111",
   issuedAt: new Date().toISOString(),
 };
@@ -75,25 +75,25 @@ afterEach(async () => {
   vi.unstubAllEnvs();
 });
 
-function leadCalls() {
+function qualifiedLeadCalls() {
   const fbq = (window as Window & {fbq?: BrowserFbq}).fbq;
-  return fbq?.mock.calls.filter((call) => call[1] === "Lead") ?? [];
+  return fbq?.mock.calls.filter((call) => call[1] === "QualifiedLead") ?? [];
 }
 
-describe("LeadWebhookForm Meta Lead", () => {
-  test("emits the server-issued Lead envelope after successful intake", async () => {
+describe("LeadWebhookForm Meta QualifiedLead", () => {
+  test("emits the server-issued QualifiedLead envelope after successful intake", async () => {
     vi.mocked(fetch).mockResolvedValue(Response.json({accepted: true, metaEvent: eventEnvelope}));
     const {container} = await renderForm();
     expect((window as Window & {fbq?: BrowserFbq}).fbq).toHaveBeenCalledWith("track", "PageView");
 
     await submitValidForm(container);
 
-    await vi.waitFor(() => expect(leadCalls()).toContainEqual(
-      ["track", "Lead", {}, {eventID: eventEnvelope.eventId}],
+    await vi.waitFor(() => expect(qualifiedLeadCalls()).toContainEqual(
+      ["track", "QualifiedLead", {}, {eventID: eventEnvelope.eventId}],
     ));
   });
 
-  test("does not emit a Lead after advertising consent is revoked during intake", async () => {
+  test("does not emit a QualifiedLead after advertising consent is revoked during intake", async () => {
     let resolveResponse: ((response: Response) => void) | undefined;
     vi.mocked(fetch).mockImplementation(() => new Promise<Response>((resolve) => {
       resolveResponse = resolve;
@@ -116,24 +116,24 @@ describe("LeadWebhookForm Meta Lead", () => {
     await vi.waitFor(() => expect(container.querySelector(".status")?.textContent)
       .toContain("Thanks — your request is in."));
 
-    expect(leadCalls()).toHaveLength(0);
+    expect(qualifiedLeadCalls()).toHaveLength(0);
   });
 
-  test("does not emit a Lead when the accepted response omits its envelope", async () => {
+  test("does not emit a QualifiedLead when the accepted response omits its envelope", async () => {
     vi.mocked(fetch).mockResolvedValue(Response.json({accepted: true}));
     const {container} = await renderForm();
 
     await submitValidForm(container);
 
-    expect(leadCalls()).toHaveLength(0);
+    expect(qualifiedLeadCalls()).toHaveLength(0);
   });
 
-  test("does not emit a Lead after a failed submission", async () => {
+  test("does not emit a QualifiedLead after a failed submission", async () => {
     vi.mocked(fetch).mockResolvedValue(new Response(null, {status: 502}));
     const {container} = await renderForm();
 
     await submitValidForm(container);
 
-    expect(leadCalls()).toHaveLength(0);
+    expect(qualifiedLeadCalls()).toHaveLength(0);
   });
 });

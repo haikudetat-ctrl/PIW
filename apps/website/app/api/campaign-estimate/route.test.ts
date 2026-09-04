@@ -266,7 +266,7 @@ describe("campaign estimate proxy", () => {
         accepted: true,
         continuationPath: "/roof-estimate/continue/signed_token-123",
         metaEvent: {
-          name: "Lead",
+          name: "QualifiedLead",
           eventId: "33333333-3333-4333-8333-333333333333",
           issuedAt: "2026-09-01T16:01:00.000Z",
         },
@@ -279,7 +279,7 @@ describe("campaign estimate proxy", () => {
       accepted: true,
       estimateUrl: "https://piw.example/roof-estimate/continue/signed_token-123",
       metaEvent: {
-        name: "Lead",
+        name: "QualifiedLead",
         eventId: "33333333-3333-4333-8333-333333333333",
         issuedAt: "2026-09-01T16:01:00.000Z",
       },

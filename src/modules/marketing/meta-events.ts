@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-export type MetaEventName = "Lead" | "AssessmentCompleted";
+export type MetaEventName = "Lead" | "QualifiedLead" | "AssessmentCompleted";
 
 export type MetaBrowserEventEnvelope = {
   name: MetaEventName;

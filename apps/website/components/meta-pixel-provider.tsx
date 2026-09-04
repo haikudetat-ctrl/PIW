@@ -5,7 +5,7 @@ import {usePathname} from "next/navigation";
 import {usePrivacyConsent} from "./privacy-consent-provider";
 
 export type MetaBrowserEventEnvelope = {
-  name: "Lead" | "AssessmentCompleted";
+  name: "Lead" | "QualifiedLead" | "AssessmentCompleted";
   eventId: string;
   issuedAt: string;
 };
@@ -52,7 +52,7 @@ function isCurrentEnvelope(
   envelope: MetaBrowserEventEnvelope | null | undefined,
 ): envelope is MetaBrowserEventEnvelope {
   if (!envelope || !isUuid(envelope.eventId)) return false;
-  if (envelope.name !== "Lead" && envelope.name !== "AssessmentCompleted") return false;
+  if (envelope.name !== "Lead" && envelope.name !== "QualifiedLead" && envelope.name !== "AssessmentCompleted") return false;
   const issuedAt = Date.parse(envelope.issuedAt);
   return !Number.isNaN(issuedAt) && Date.now() - issuedAt <= MAX_EVENT_AGE_MS;
 }
@@ -158,8 +158,11 @@ export function MetaPixelProvider({children, enabled}: {children: ReactNode; ena
       if (!allowed || epoch !== authorityEpoch.current || !advertisingRef.current || browserGpcIsEnabled()) return;
       if (conversions.current.has(envelope.eventId)) return;
       const fbq = ensurePixel();
-      if (envelope.name === "Lead") fbq("track", "Lead", {}, {eventID: envelope.eventId});
-      else fbq("trackCustom", "AssessmentCompleted", {}, {eventID: envelope.eventId});
+      if (envelope.name === "Lead" || envelope.name === "QualifiedLead") {
+        fbq("track", envelope.name, {}, {eventID: envelope.eventId});
+      } else {
+        fbq("trackCustom", "AssessmentCompleted", {}, {eventID: envelope.eventId});
+      }
       conversions.current.add(envelope.eventId);
     });
   }, [authorizeAdvertising]);

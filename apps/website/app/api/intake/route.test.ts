@@ -240,7 +240,7 @@ describe("lead intake proxy", () => {
         leadId: "22222222-2222-4222-8222-222222222222",
         duplicate: false,
         metaEvent: {
-          name: "Lead",
+          name: "QualifiedLead",
           eventId: "33333333-3333-4333-8333-333333333333",
           issuedAt: "2026-09-01T16:01:00.000Z",
         },
@@ -251,7 +251,7 @@ describe("lead intake proxy", () => {
     await expect(response.json()).resolves.toEqual({
       accepted: true,
       metaEvent: {
-        name: "Lead",
+        name: "QualifiedLead",
         eventId: "33333333-3333-4333-8333-333333333333",
         issuedAt: "2026-09-01T16:01:00.000Z",
       },

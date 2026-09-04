@@ -137,17 +137,17 @@ describe("All Season lead intake", () => {
     expect(reportError).toHaveBeenCalledWith(persistenceError);
   });
 
-  test("returns Lead only after canonical persistence under advertising consent", async () => {
+  test("returns QualifiedLead only after canonical persistence under advertising consent", async () => {
     const accept = vi.fn(async () => ({
       leadId: "22222222-2222-4222-8222-222222222222",
       duplicate: false,
     }));
     const verifyAdvertisingConsent = vi.fn(async () => advertisingConsent);
     const recordConsent = vi.fn(async () => undefined);
-    const reserveLead = vi.fn(async () => ({
+    const reserveQualifiedLead = vi.fn(async () => ({
       deliveryId: "44444444-4444-4444-8444-444444444444",
       envelope: {
-        name: "Lead" as const,
+        name: "QualifiedLead" as const,
         eventId: "55555555-5555-4555-8555-555555555555",
         issuedAt: "2026-09-01T16:01:00.000Z",
       },
@@ -161,7 +161,7 @@ describe("All Season lead intake", () => {
         accept,
         verifyAdvertisingConsent,
         recordConsent,
-        reserveLead,
+        reserveQualifiedLead,
         requestDelivery,
         companyId: "66666666-6666-4666-8666-666666666666",
         metaTrackingEnabled: true,
@@ -172,12 +172,12 @@ describe("All Season lead intake", () => {
     await expect(response.json()).resolves.toMatchObject({
       accepted: true,
       metaEvent: {
-        name: "Lead",
+        name: "QualifiedLead",
         eventId: "55555555-5555-4555-8555-555555555555",
       },
     });
     expect(accept.mock.invocationCallOrder[0]).toBeLessThan(
-      reserveLead.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
+      reserveQualifiedLead.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
     );
     expect(recordConsent).toHaveBeenCalledWith(expect.objectContaining({
       leadId: "22222222-2222-4222-8222-222222222222",
@@ -188,7 +188,7 @@ describe("All Season lead intake", () => {
   });
 
   test("persistence failure emits no Meta delivery", async () => {
-    const reserveLead = vi.fn();
+    const reserveQualifiedLead = vi.fn();
 
     const response = await handleAllSeasonIntakeRequest(
       request(validPayload),
@@ -197,15 +197,15 @@ describe("All Season lead intake", () => {
         accept: async () => {
           throw new Error("database unavailable");
         },
-        reserveLead,
+        reserveQualifiedLead,
       } as never,
     );
 
     expect(response.status).toBe(503);
-    expect(reserveLead).not.toHaveBeenCalled();
+    expect(reserveQualifiedLead).not.toHaveBeenCalled();
   });
 
-  test("keeps the browser Lead envelope when immediate Meta publication fails", async () => {
+  test("keeps the browser QualifiedLead envelope when immediate Meta publication fails", async () => {
     const reportError = vi.fn();
     const response = await handleAllSeasonIntakeRequest(
       request(validPayload),
@@ -219,10 +219,10 @@ describe("All Season lead intake", () => {
         }),
         verifyAdvertisingConsent: async () => advertisingConsent,
         recordConsent: async () => undefined,
-        reserveLead: async () => ({
+        reserveQualifiedLead: async () => ({
           deliveryId: "44444444-4444-4444-8444-444444444444",
           envelope: {
-            name: "Lead",
+            name: "QualifiedLead",
             eventId: "55555555-5555-4555-8555-555555555555",
             issuedAt: "2026-09-01T16:01:00.000Z",
           },

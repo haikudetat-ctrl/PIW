@@ -68,7 +68,7 @@
 
   function isCurrentEnvelope(value) {
     if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-    if (value.name !== "Lead" || !isUuid(value.eventId) || !isIsoTimestamp(value.issuedAt)) return false;
+    if (["Lead", "QualifiedLead"].indexOf(value.name) === -1 || !isUuid(value.eventId) || !isIsoTimestamp(value.issuedAt)) return false;
     var issuedAt = Date.parse(value.issuedAt);
     var age = Date.now() - issuedAt;
     return age >= -MAX_FUTURE_SKEW_MS && age <= MAX_EVENT_AGE_MS;
@@ -129,7 +129,7 @@
     if (!metaConfig.enabled || !metaConfig.pixelId || !advertisingAllowed() || !isCurrentEnvelope(envelope)) return;
     if (consentState.conversionIds.has(envelope.eventId)) return;
     var fbq = ensurePixel();
-    fbq("track", "Lead", {}, {eventID: envelope.eventId});
+    fbq("track", envelope.name, {}, {eventID: envelope.eventId});
     consentState.conversionIds.add(envelope.eventId);
   }
 

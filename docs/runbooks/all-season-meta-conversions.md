@@ -8,8 +8,9 @@ steady-state privacy, configuration, monitoring, and incident-response guide.
 
 This runbook operates the consent-gated Meta Pixel and Conversions API release
 for the existing **All Season Roofing** dataset / Pixel **`3142520615938086`**.
-It sends `PageView` in the browser, then one browser/server-deduplicated `Lead`
-after canonical intake and one browser/server-deduplicated
+It sends `PageView` in the browser, a browser-only `Lead` after both estimate
+permissions are checked, one browser/server-deduplicated `QualifiedLead` after
+canonical intake, and one browser/server-deduplicated
 `AssessmentCompleted` after a trusted personalized assessment is rendered.
 
 Do not create another dataset or Pixel for this release. The saved
@@ -120,11 +121,13 @@ is configured. This is the normal browser-side kill switch.
    Advertising consent, submit one unique test lead, complete the assessment
    only after a real trusted Good/Better/Best quote renders, and retain the
    test email/lead ID only in the approved QA record.
-4. In **Test events**, confirm `PageView`, `Lead`, and custom
-   `AssessmentCompleted`. For each conversion, confirm the browser and server
-   records use the same event ID and Meta displays one deduplicated logical
-   event. A delayed server record is expected while the sender/retry worker
-   runs; duplicated logical events are not.
+4. In **Test events**, confirm `PageView`, browser `Lead`, standard
+   `QualifiedLead`, and custom `AssessmentCompleted`. Confirm `Lead` appears
+   only after both estimate permissions are checked. For `QualifiedLead` and
+   `AssessmentCompleted`, confirm the browser and server records use the same
+   event ID and Meta displays one deduplicated logical event. A delayed server
+   record is expected while the sender/retry worker runs; duplicated logical
+   events are not.
 5. Repeat from a new private window while denying Advertising consent. The
    customer journey must still save the lead, produce the eligible quote, and
    deliver normal CRM/Slack behavior, but DevTools must show no request to

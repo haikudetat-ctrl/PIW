@@ -28,7 +28,7 @@
     if (!value || typeof value !== "object" || Array.isArray(value)) return null;
     var keys = Object.keys(value).sort();
     if (keys.length !== 3 || keys.join(",") !== "eventId,issuedAt,name") return null;
-    if (value.name !== "Lead" || !isUuid(value.eventId) || !isIsoTimestamp(value.issuedAt)) return null;
+    if (value.name !== "QualifiedLead" || !isUuid(value.eventId) || !isIsoTimestamp(value.issuedAt)) return null;
     return value;
   }
 
@@ -106,6 +106,17 @@
     var form = document.getElementById("leadForm");
     if (form) {
       var submissionId = window.crypto.randomUUID();
+      var intentSignaled = false;
+      form.addEventListener("change", function () {
+        var propertyConsent = form.elements.namedItem("consent_to_process_property");
+        var contactConsent = form.elements.namedItem("consent_to_contact");
+        if (intentSignaled || !propertyConsent || !contactConsent || !propertyConsent.checked || !contactConsent.checked) return;
+        intentSignaled = true;
+        var tracker = window.AllSeasonMeta;
+        if (tracker && typeof tracker.trackConversion === "function") {
+          tracker.trackConversion({name: "Lead", eventId: submissionId, issuedAt: new Date().toISOString()});
+        }
+      });
       form.addEventListener("submit", async function (event) {
         event.preventDefault();
         if (!form.checkValidity()) {

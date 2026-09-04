@@ -1,6 +1,6 @@
 "use client";
 
-import {FormEvent, useCallback, useState} from "react";
+import {FormEvent, useCallback, useRef, useState} from "react";
 import {AddressAutocomplete} from "./address-autocomplete";
 import {buildCampaignSubmission, type CampaignDefinition} from "./campaigns";
 import {useMetaPixel, type MetaBrowserEventEnvelope} from "../../components/meta-pixel-provider";
@@ -22,6 +22,16 @@ export function CampaignEstimateForm({campaign}: {campaign: CampaignDefinition})
   const [status, setStatus] = useState("");
   const [pending, setPending] = useState(false);
   const [submissionId] = useState(() => globalThis.crypto.randomUUID());
+  const intentSignaled = useRef(false);
+
+  function signalLeadIntent(form: HTMLFormElement) {
+    const propertyConsent = form.elements.namedItem("consent_to_process_property") as HTMLInputElement | null;
+    const contactConsent = form.elements.namedItem("consent_to_contact") as HTMLInputElement | null;
+    if (intentSignaled.current || !propertyConsent?.checked || !contactConsent?.checked) return;
+    intentSignaled.current = true;
+    trackConversion({name: "Lead", eventId: submissionId, issuedAt: new Date().toISOString()});
+    track("campaign_form_lead_intent", campaign.slug);
+  }
   const useManual = useCallback(() => {
     setManual(true);
     setAddressError("");
@@ -134,8 +144,8 @@ export function CampaignEstimateForm({campaign}: {campaign: CampaignDefinition})
         <label className="campaign-field"><span>Email</span><input name="email" type="email" inputMode="email" autoComplete="email" required /></label>
         <label className="campaign-field"><span>Mobile phone</span><input name="phone" type="tel" inputMode="tel" autoComplete="tel" required /></label>
         <div className="campaign-consents">
-          <label><input name="consent_to_process_property" type="checkbox" required /><span>I authorize All Season to review this address using property records, maps, and imagery to prepare my estimate.</span></label>
-          <label><input name="consent_to_contact" type="checkbox" required /><span>I agree to be contacted by All Season by call, text, or email about this request, including by automated means. Consent is not required to purchase.</span></label>
+          <label><input name="consent_to_process_property" type="checkbox" required onChange={(event) => signalLeadIntent(event.currentTarget.form!)} /><span>I authorize All Season to review this address using property records, maps, and imagery to prepare my estimate.</span></label>
+          <label><input name="consent_to_contact" type="checkbox" required onChange={(event) => signalLeadIntent(event.currentTarget.form!)} /><span>I agree to be contacted by All Season by call, text, or email about this request, including by automated means. Consent is not required to purchase.</span></label>
         </div>
         <div className="campaign-form-actions">
           <button className="campaign-text-action" type="button" onClick={() => setStep(1)}>← Back</button>

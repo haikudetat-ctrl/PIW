@@ -25,6 +25,7 @@ describe("public legal pages", () => {
     expect(html).toContain("Meta Pixel and Conversions API");
     expect(html).toContain("PageView");
     expect(html).toContain("Lead");
+    expect(html).toContain("QualifiedLead");
     expect(html).toContain("AssessmentCompleted");
     expect(html).toContain("hashed email address and phone number");
     expect(html).toContain("We do not send your property address, property imagery, assessment answers, roof measurements, quote amounts, or package selections");

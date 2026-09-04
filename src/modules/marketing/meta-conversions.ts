@@ -64,7 +64,7 @@ function canonicalEventSourceUrl(source: MetaDeliverySource): string {
   }
 
   if (
-    source.eventName === "Lead"
+    (source.eventName === "Lead" || source.eventName === "QualifiedLead")
     && (url.hostname === "allseasonsolar.net" || url.hostname === "www.allseasonsolar.net")
   ) {
     return "https://allseasonsolar.net/";

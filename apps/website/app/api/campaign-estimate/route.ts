@@ -84,7 +84,7 @@ const acceptedResponseSchema = z.strictObject({
   accepted: z.literal(true),
   continuationPath: z.string().regex(/^\/roof-estimate\/continue\/[A-Za-z0-9_-]+$/),
   metaEvent: z.strictObject({
-    name: z.literal("Lead"),
+    name: z.literal("QualifiedLead"),
     eventId: z.uuid(),
     issuedAt: z.iso.datetime({offset: true}),
   }).nullable().optional(),

@@ -56,7 +56,7 @@ type IntakeDependencies = {
     consent: VerifiedConsent;
     occurredAt: string;
   }) => Promise<void>;
-  reserveLead?: (input: {
+  reserveQualifiedLead?: (input: {
     leadId: string;
     companyId: string;
     consentId: string;
@@ -80,7 +80,7 @@ async function reserveMetaLeadAfterAcceptance({
     || !dependencies.companyId
     || !dependencies.verifyAdvertisingConsent
     || !dependencies.recordConsent
-    || !dependencies.reserveLead
+    || !dependencies.reserveQualifiedLead
   ) return null;
 
   try {
@@ -96,7 +96,7 @@ async function reserveMetaLeadAfterAcceptance({
     });
     if (!consent.preferences.advertising) return null;
 
-    const reserved = await dependencies.reserveLead({
+    const reserved = await dependencies.reserveQualifiedLead({
       leadId: accepted.leadId,
       companyId: dependencies.companyId,
       consentId: consent.consentId,
@@ -195,7 +195,7 @@ export async function POST(request: NextRequest) {
       });
       if (error) throw new Error("Failed to record privacy consent evidence");
     },
-    reserveLead: (input) => metaRepository.reserveLead(input),
+    reserveQualifiedLead: (input) => metaRepository.reserveQualifiedLead(input),
     requestDelivery: async (deliveryId) => {
       await inngest.send({
         name: "marketing/meta.delivery.requested",
