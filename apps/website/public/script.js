@@ -105,6 +105,11 @@
 
     var form = document.getElementById("leadForm");
     if (form) {
+      function trackEmbeddedForm(name, detail) {
+        window.dispatchEvent(new CustomEvent("allseason:" + name, {
+          detail: Object.assign({form_type: "lead"}, detail || {}),
+        }));
+      }
       var submissionId = window.crypto.randomUUID();
       var intentSignaled = false;
       form.addEventListener("change", function () {
@@ -166,8 +171,10 @@
           var estimate = parseCanonicalEstimateResponse(payload);
           if (!response.ok || !estimate) throw new Error(String(response.status));
           await trackCanonicalMetaEvent(estimate.metaEvent);
+          trackEmbeddedForm("embedded_form_success");
           window.location.assign(estimate.estimateUrl);
         } catch {
+          trackEmbeddedForm("embedded_form_error", {error_type: "submission_failed"});
           var message = form.querySelector("[data-submit-error]");
           if (!message) {
             message = document.createElement("p");

@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import {cookies} from "next/headers";
+import Script from "next/script";
+import {ConsentAwarePostHog} from "../components/consent-aware-posthog";
 import {ConsentAwareVercelAnalytics} from "../components/consent-aware-vercel-analytics";
 import {PrivacyConsentProvider} from "../components/privacy-consent-provider";
 import {MetaPixelProvider} from "../components/meta-pixel-provider";
@@ -22,10 +24,14 @@ export default async function RootLayout({children}: Readonly<{children: React.R
 
   return (
     <html lang="en">
+      <head>
+        <Script src="/posthog-runtime.js" strategy="beforeInteractive" />
+      </head>
       <body>
         <PrivacyConsentProvider initialConsent={initialConsent}>
           <MetaPixelProvider enabled={metaTrackingEnabled}>{children}</MetaPixelProvider>
           <ConsentAwareVercelAnalytics />
+          <ConsentAwarePostHog />
         </PrivacyConsentProvider>
       </body>
     </html>

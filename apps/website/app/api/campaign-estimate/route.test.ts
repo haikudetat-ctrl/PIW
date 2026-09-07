@@ -79,6 +79,47 @@ function googleSubmission(overrides: Record<string, unknown> = {}) {
 }
 
 describe("campaign estimate proxy", () => {
+  test("records value-free intake health without homeowner details", async () => {
+    const health = vi.fn();
+    const response = await handleCampaignEstimateRequest(
+      request(googleSubmission({
+        name: "Private Homeowner",
+        email: "private@example.com",
+        address: "123 Private Street, Newark, NJ 07102",
+      })),
+      async () => Response.json({
+        accepted: true,
+        continuationPath: "/roof-estimate/continue/safe-token",
+        metaEvent: null,
+      }, {status: 202}),
+      publicAppUrl,
+      "production",
+      undefined,
+      () => new Date("2026-09-07T12:00:00.000Z"),
+      undefined,
+      health,
+    );
+
+    expect(response.status).toBe(202);
+    expect(health).toHaveBeenCalledWith({
+      phase: "received",
+      campaign: "weather-report",
+      entryPoint: "campaign:weather-report",
+      addressMode: "google_place",
+    });
+    expect(health).toHaveBeenCalledWith({
+      phase: "result",
+      outcome: "accepted",
+      status: 202,
+      campaign: "weather-report",
+      entryPoint: "campaign:weather-report",
+      addressMode: "google_place",
+    });
+    expect(JSON.stringify(health.mock.calls)).not.toContain("Private Homeowner");
+    expect(JSON.stringify(health.mock.calls)).not.toContain("private@example.com");
+    expect(JSON.stringify(health.mock.calls)).not.toContain("123 Private Street");
+  });
+
   test("forwards consent and places only the signed handoff on the redirect", async () => {
     const consentToken = signWebsiteConsent(privacyConsent, privacySigningSecret);
     const forward = vi.fn(async () => Response.json({

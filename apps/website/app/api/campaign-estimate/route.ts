@@ -100,6 +100,17 @@ type ResolveCanonicalConsent = (input: {
   localConsent: VerifiedWebsiteConsent;
 }) => Promise<VerifiedWebsiteConsent | null>;
 
+type CampaignEstimateHealthEvent = {
+  phase: "received" | "result";
+  outcome?: "invalid_payload" | "invalid_evidence" | "misconfigured" | "upstream_unavailable" | "upstream_rejected" | "restart_required" | "invalid_upstream_response" | "accepted";
+  status?: number;
+  campaign?: string | null;
+  entryPoint?: string;
+  addressMode?: "google_place" | "manual";
+};
+
+type RecordCampaignEstimateHealth = (event: CampaignEstimateHealthEvent) => void;
+
 function nullable(value: string | null | undefined) {
   return value || null;
 }
@@ -180,13 +191,25 @@ export async function handleCampaignEstimateRequest(
   privacySigningSecret = process.env.PRIVACY_CONSENT_SIGNING_SECRET,
   now: () => Date = () => new Date(),
   resolveCanonical?: ResolveCanonicalConsent,
+  recordHealth: RecordCampaignEstimateHealth = () => undefined,
 ) {
   const parsed = campaignEstimateSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
+    recordHealth({phase: "result", outcome: "invalid_payload", status: 400});
     return noStoreJson({error: "Invalid estimate submission"}, 400);
   }
 
   const input = parsed.data;
+  const safeContext = {
+    campaign: input.campaign,
+    entryPoint: input.entry_point,
+    addressMode: input.google_place_id ? "google_place" as const : "manual" as const,
+  };
+  recordHealth({phase: "received", ...safeContext});
+  function healthResponse(body: unknown, status: number, outcome: NonNullable<CampaignEstimateHealthEvent["outcome"]>) {
+    recordHealth({phase: "result", outcome, status, ...safeContext});
+    return noStoreJson(body, status);
+  }
   const consentToken = request.cookies.get(PRIVACY_COOKIE_NAME)?.value;
   const verifiedConsent = privacySigningSecret
     ? readWebsiteConsent(consentToken, privacySigningSecret)
@@ -208,11 +231,11 @@ export async function handleCampaignEstimateRequest(
     fbc: advertisingAllowed ? request.cookies.get("_fbc")?.value : null,
   });
   if (!evidence.success) {
-    return noStoreJson({error: "Invalid estimate submission"}, 400);
+    return healthResponse({error: "Invalid estimate submission"}, 400, "invalid_evidence");
   }
   const origin = configuredPiwOrigin(publicAppUrl, nodeEnv);
   if (!origin) {
-    return noStoreJson({error: "Estimate intake is temporarily unavailable"}, 502);
+    return healthResponse({error: "Estimate intake is temporarily unavailable"}, 502, "misconfigured");
   }
   const payload = {
     submission_id: input.submission_id,
@@ -253,27 +276,28 @@ export async function handleCampaignEstimateRequest(
     ? forward(payload, {consentToken: canonicalConsentToken})
     : forward(payload)).catch(() => null);
   if (!upstream) {
-    return noStoreJson({error: "Estimate intake is temporarily unavailable"}, 502);
+    return healthResponse({error: "Estimate intake is temporarily unavailable"}, 502, "upstream_unavailable");
   }
 
   if (upstream.status === 400) {
-    return noStoreJson({error: "Invalid estimate submission"}, 400);
+    return healthResponse({error: "Invalid estimate submission"}, 400, "upstream_rejected");
   }
 
   if (upstream.status === 409) {
-    return noStoreJson(
+    return healthResponse(
       {error: "Please restart this estimate request.", retryable: true},
       409,
+      "restart_required",
     );
   }
 
   if (!upstream.ok) {
-    return noStoreJson({error: "Estimate intake is temporarily unavailable"}, 502);
+    return healthResponse({error: "Estimate intake is temporarily unavailable"}, 502, "upstream_unavailable");
   }
 
   const accepted = acceptedResponseSchema.safeParse(await jsonObject(upstream));
   if (!accepted.success) {
-    return noStoreJson({error: "Estimate intake is temporarily unavailable"}, 502);
+    return healthResponse({error: "Estimate intake is temporarily unavailable"}, 502, "invalid_upstream_response");
   }
   const continuationPath = accepted.data.continuationPath;
   const estimateUrl = new URL(continuationPath, `${origin}/`);
@@ -293,11 +317,11 @@ export async function handleCampaignEstimateRequest(
     estimateUrl.searchParams.set("privacy_handoff", privacyHandoff);
   }
 
-  return noStoreJson({
+  return healthResponse({
     accepted: true,
     estimateUrl: estimateUrl.toString(),
     metaEvent: accepted.data.metaEvent ?? null,
-  }, 202);
+  }, 202, "accepted");
 }
 
 export async function POST(request: NextRequest) {
@@ -339,5 +363,6 @@ export async function POST(request: NextRequest) {
       liveGpcDetected: requestHasGpc(request),
       vercelOidcToken: request.headers.get("x-vercel-oidc-token"),
     }),
+    (event) => console.info("campaign_estimate_health", event),
   );
 }

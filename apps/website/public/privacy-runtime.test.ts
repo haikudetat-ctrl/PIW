@@ -93,6 +93,21 @@ describe("static privacy runtime", () => {
     expect(fbq).toHaveBeenCalledWith("track", "PageView");
   });
 
+  test("publishes verified Analytics consent for the PostHog runtime", async () => {
+    const dom = runtimeDom();
+    const values: boolean[] = [];
+    dom.window.addEventListener("allseason:privacy-consent", ((event: CustomEvent) => {
+      values.push(event.detail.analytics);
+    }) as EventListener);
+    const granted = verifiedConsent(false);
+    granted.preferences.analytics = true;
+    dom.window.fetch = vi.fn(async () => Response.json({consent: granted})) as typeof dom.window.fetch;
+
+    await boot(dom);
+
+    expect(values).toEqual([true]);
+  });
+
   test("active browser GPC suppresses a returned grant before Pixel initialization", async () => {
     const dom = runtimeDom();
     Object.defineProperty(dom.window.navigator, "globalPrivacyControl", {

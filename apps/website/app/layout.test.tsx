@@ -2,6 +2,7 @@ import {isValidElement, type ReactNode} from "react";
 import {describe, expect, test, vi} from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  ConsentAwarePostHog: () => null,
   ConsentAwareVercelAnalytics: () => null,
   cookies: vi.fn(async () => ({get: () => undefined})),
 }));
@@ -16,21 +17,25 @@ vi.mock("../components/meta-pixel-provider", () => ({
 vi.mock("../components/consent-aware-vercel-analytics", () => ({
   ConsentAwareVercelAnalytics: mocks.ConsentAwareVercelAnalytics,
 }));
+vi.mock("../components/consent-aware-posthog", () => ({
+  ConsentAwarePostHog: mocks.ConsentAwarePostHog,
+}));
 
 const {default: RootLayout} = await import("./layout");
 
 describe("RootLayout", () => {
-  test("mounts Vercel Analytics for every Rake website page", async () => {
+  test("mounts consent-aware analytics for every Rake website page", async () => {
     const layout = await RootLayout({children: <main>Rake</main>});
 
-    function containsAnalytics(node: ReactNode): boolean {
+    function contains(node: ReactNode, type: unknown): boolean {
       if (!isValidElement(node)) return false;
-      if (node.type === mocks.ConsentAwareVercelAnalytics) return true;
+      if (node.type === type) return true;
       const props = node.props as {children?: ReactNode};
       const children = Array.isArray(props.children) ? props.children : [props.children];
-      return children.some(containsAnalytics);
+      return children.some((child) => contains(child, type));
     }
 
-    expect(containsAnalytics(layout)).toBe(true);
+    expect(contains(layout, mocks.ConsentAwareVercelAnalytics)).toBe(true);
+    expect(contains(layout, mocks.ConsentAwarePostHog)).toBe(true);
   });
 });

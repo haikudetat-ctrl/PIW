@@ -88,6 +88,18 @@
       && consentState.consent.preferences.advertising === true;
   }
 
+  function publishAnalyticsConsent() {
+    window.dispatchEvent(new CustomEvent("allseason:privacy-consent", {
+      detail: {
+        analytics: Boolean(
+          consentState.resolved
+          && consentState.consent
+          && consentState.consent.preferences.analytics === true
+        ),
+      },
+    }));
+  }
+
   function ensurePixel() {
     var existing = window.fbq;
     var fbq = existing || function () {
@@ -406,6 +418,7 @@
       closeDialog({restoreFocus: false});
       renderConsentSurface();
       focusPrivacyChoices();
+      publishAnalyticsConsent();
       trackPageView();
     } catch {
       setSaving(false);
@@ -443,6 +456,7 @@
       consentState.consent = null;
     }
     consentState.resolved = true;
+    publishAnalyticsConsent();
     return advertisingAllowed();
   }
 

@@ -28,6 +28,7 @@ export function injectPublicRuntime(html: string, config = staticRuntimeConfig()
   const runtime = [
     '<link rel="stylesheet" href="/privacy-runtime.css" data-all-season-privacy-runtime="styles">',
     `<script id="all-season-meta-config" type="application/json">${inlineJson(config)}</script>`,
+    '<script defer src="/posthog-runtime.js" data-all-season-posthog-runtime="script"></script>',
     '<script defer src="/privacy-runtime.js" data-all-season-privacy-runtime="script"></script>',
   ].join("");
 
