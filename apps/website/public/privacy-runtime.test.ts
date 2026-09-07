@@ -55,6 +55,22 @@ describe("static privacy runtime", () => {
     expect(existsSync(path.join(__dirname, "privacy-runtime.css"))).toBe(true);
   });
 
+  test("places undecided choices in a fixed viewport interaction gate", async () => {
+    const dom = runtimeDom();
+    dom.window.fetch = vi.fn(async () => Response.json({consent: null})) as typeof dom.window.fetch;
+
+    await boot(dom);
+
+    const banner = dom.window.document.querySelector('[data-all-season-privacy-banner]');
+    const gate = banner?.parentElement;
+    const styles = readFileSync(path.join(__dirname, "privacy-runtime.css"), "utf8");
+    expect(gate?.dataset.allSeasonPrivacyGate).toBe("true");
+    expect(styles).toMatch(/\.all-season-privacy-gate\s*\{[\s\S]*?position:\s*fixed/);
+    expect(styles).toMatch(/\.all-season-privacy-gate\s*\{[\s\S]*?inset:\s*0/);
+    expect(styles).toMatch(/\.all-season-privacy-gate\s*\{[\s\S]*?background:\s*rgba\(/);
+    expect(styles).toMatch(/\.all-season-privacy-gate\s*\{[\s\S]*?padding-bottom:\s*max\(clamp\(/);
+  });
+
   test("keeps Meta and residual attribution cookies untouched until verified advertising consent", async () => {
     const dom = runtimeDom();
     dom.window.document.cookie = "_fbp=fb.1.residual";

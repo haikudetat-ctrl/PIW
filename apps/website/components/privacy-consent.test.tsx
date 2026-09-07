@@ -70,6 +70,19 @@ afterEach(async () => {
 });
 
 describe("website privacy consent", () => {
+  test("places the first-visit choices in a viewport-level interaction gate", async () => {
+    const container = await renderConsent(null);
+    const choices = container.querySelector('section[aria-label="Privacy choices"]');
+    const gate = choices?.parentElement;
+    const styles = readFileSync(path.join(process.cwd(), "app", "styles.css"), "utf8");
+
+    expect(gate?.classList.contains("privacy-consent-gate")).toBe(true);
+    expect(styles).toMatch(/\.privacy-consent-gate\s*\{[\s\S]*?position:\s*fixed/);
+    expect(styles).toMatch(/\.privacy-consent-gate\s*\{[\s\S]*?inset:\s*0/);
+    expect(styles).toMatch(/\.privacy-consent-gate\s*\{[\s\S]*?background:\s*rgba\(/);
+    expect(styles).toMatch(/\.privacy-consent-gate\s*\{[\s\S]*?padding-bottom:\s*max\(clamp\(/);
+  });
+
   test("offers equally prominent Accept, Reject, and Customize controls", async () => {
     const container = await renderConsent(null);
     const choices = container.querySelector('[aria-label="Privacy choices"]');
