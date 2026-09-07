@@ -39,6 +39,31 @@ function installBrowserGlobals(dom: { window: { crypto: Crypto } }) {
 }
 
 describe("embedded lead form", () => {
+  test("emits value-free success diagnostics for consent-aware analytics", async () => {
+    const dom = new JSDOM(`<!doctype html><body>${leadFormMarkup()}</body>`, {
+      url: "https://allseason.example/",
+      runScripts: "outside-only",
+    });
+    installBrowserGlobals(dom);
+    const events: unknown[] = [];
+    dom.window.addEventListener("allseason:embedded_form_success", ((event: CustomEvent) => {
+      events.push(event.detail);
+    }) as EventListener);
+    dom.window.fetch = vi.fn(async () => Response.json({
+      accepted: true,
+      estimateUrl,
+      metaEvent: null,
+    }, {status: 202})) as typeof dom.window.fetch;
+
+    dom.window.eval(script);
+    await new Promise((resolve) => dom.window.setTimeout(resolve, 0));
+    dom.window.document.querySelector("form")?.dispatchEvent(
+      new dom.window.Event("submit", {bubbles: true, cancelable: true}),
+    );
+
+    await vi.waitFor(() => expect(events).toEqual([{form_type: "lead"}]));
+  });
+
   test("posts the campaign estimate contract and captures paid attribution", async () => {
     const dom = new JSDOM(`<!doctype html><body>${leadFormMarkup()}</body>`, {
       url: "https://allseason.example/?utm_source=google&utm_medium=cpc&utm_campaign=roof-search&utm_term=roofing&utm_content=hero&fbclid=click-123",

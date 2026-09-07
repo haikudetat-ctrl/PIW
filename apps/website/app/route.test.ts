@@ -26,6 +26,8 @@ describe("canonical All Season homepage", () => {
     expect(html.match(/data-all-season-privacy-runtime="styles"/g)).toHaveLength(1);
     expect(html.match(/data-all-season-privacy-runtime="script"/g)).toHaveLength(1);
     expect(html).toContain('src="/privacy-runtime.js"');
+    expect(html.match(/data-all-season-posthog-runtime="script"/g)).toHaveLength(1);
+    expect(html).toContain('src="/posthog-runtime.js"');
     expect(html).toContain('id="all-season-meta-config"');
   });
 
@@ -39,6 +41,8 @@ describe("canonical All Season homepage", () => {
     expect(html).toContain("Privacy Policy");
     expect(html.match(/data-all-season-privacy-runtime="script"/g)).toHaveLength(1);
     expect(html).toContain('src="/privacy-runtime.js"');
+    expect(html.match(/data-all-season-posthog-runtime="script"/g)).toHaveLength(1);
+    expect(html).toContain('src="/posthog-runtime.js"');
   });
 
   test("does not resolve traversal-shaped static page paths", async () => {
