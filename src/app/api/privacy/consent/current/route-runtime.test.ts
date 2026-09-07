@@ -94,6 +94,32 @@ describe("current privacy consent runtime boundary", () => {
     await expect(response.json()).resolves.toEqual({consent});
   });
 
+  test("allows the canonical production quote origin to persist Advertising consent", async () => {
+    mocks.environment.VERCEL_ENV = "production";
+    const token = signConsentCookie(
+      consent,
+      "0123456789abcdef0123456789abcdef",
+    );
+    const request = new NextRequest(
+      "https://piw-sepia.vercel.app/api/privacy/consent/current",
+      {
+        method: "POST",
+        headers: {
+          origin: "https://allseasonroofingquote.com",
+          "x-all-season-intake-secret": "all-season-server-secret",
+          "x-all-season-privacy-request-ip": "203.0.113.7",
+          "x-piw-privacy-consent": token,
+        },
+      },
+    );
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({consent});
+    expect(mocks.readCurrent).toHaveBeenCalled();
+  });
+
   test("rejects other Vercel origins in production", async () => {
     mocks.environment.VERCEL_ENV = "production";
     const token = signConsentCookie(
