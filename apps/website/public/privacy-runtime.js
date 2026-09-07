@@ -200,7 +200,7 @@
   }
 
   function clearConsentSurface() {
-    document.querySelectorAll("[data-all-season-privacy-banner], [data-all-season-privacy-reopen]")
+    document.querySelectorAll("[data-all-season-privacy-gate], [data-all-season-privacy-banner], [data-all-season-privacy-reopen]")
       .forEach(function (node) { node.remove(); });
   }
 
@@ -212,6 +212,8 @@
   }
 
   function showBanner() {
+    var gate = element("div", "all-season-privacy-gate");
+    gate.dataset.allSeasonPrivacyGate = "true";
     var banner = element("section", "all-season-privacy-banner");
     banner.dataset.allSeasonPrivacyBanner = "true";
     banner.setAttribute("aria-label", "Privacy choices");
@@ -232,11 +234,16 @@
     if (message) copy.appendChild(message);
 
     var actions = element("div", "all-season-privacy-actions");
-    actions.appendChild(button("Accept all", function () { savePreferences({analytics: true, advertising: true}); }, "all-season-privacy-button all-season-privacy-primary"));
+    var acceptAll = button("Accept all", function () { savePreferences({analytics: true, advertising: true}); }, "all-season-privacy-button all-season-privacy-primary");
+    actions.appendChild(acceptAll);
     actions.appendChild(button("Reject nonessential", function () { savePreferences({analytics: false, advertising: false}); }, "all-season-privacy-button all-season-privacy-secondary"));
     actions.appendChild(button("Customize", openDialog, "all-season-privacy-button all-season-privacy-quiet"));
     banner.append(copy, actions);
-    document.body.appendChild(banner);
+    gate.appendChild(banner);
+    document.body.appendChild(gate);
+    if (typeof window.requestAnimationFrame === "function") {
+      window.requestAnimationFrame(function () { acceptAll.focus(); });
+    }
     return banner;
   }
 
