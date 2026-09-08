@@ -45,7 +45,6 @@
   function track(name, detail) {
     var payload = Object.assign({event: name, page_path: window.location.pathname}, detail || {});
     window.dispatchEvent(new CustomEvent('allseason:' + name, {detail: payload}));
-    if (Array.isArray(window.dataLayer)) window.dataLayer.push(payload);
   }
 
   function parseCanonicalEstimateResponse(payload) {

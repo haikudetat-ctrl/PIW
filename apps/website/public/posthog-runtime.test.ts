@@ -21,6 +21,29 @@ function consent(dom: JSDOM, analytics: boolean) {
 }
 
 describe("PostHog browser runtime", () => {
+  test("captures canonical funnel and phone events only after opt-in", () => {
+    const dom = runtimeDom();
+    dom.window.eval(runtime);
+    const emit = (name: string) => dom.window.dispatchEvent(new dom.window.CustomEvent(`allseason:${name}`, {detail: {campaign: "roofing", email: "private@example.com"}}));
+    emit("campaign_form_success");
+    expect((dom.window as Window & {posthog?: unknown}).posthog).toBeUndefined();
+    consent(dom, true);
+    emit("address_selected"); emit("campaign_form_contact_step"); emit("campaign_form_success");
+    const link = dom.window.document.createElement("a"); link.href = "tel:+18888325050";
+    link.addEventListener("click", (event: Event) => event.preventDefault());
+    dom.window.document.body.appendChild(link); link.click();
+    const queue = (dom.window as Window & {posthog: unknown[][]}).posthog;
+    expect(queue).toContainEqual(["capture", "address_selected", {campaign: "roofing"}]);
+    expect(queue).toContainEqual(["capture", "step2_reached", {campaign: "roofing"}]);
+    expect(queue).toContainEqual(["capture", "lead_submitted", {campaign: "roofing"}]);
+    expect(queue).toContainEqual(["capture", "phone_clicked", {page_path: "/", location: "page"}]);
+    expect(JSON.stringify(queue)).not.toContain("private@example.com");
+    const count = queue.filter((entry) => entry[0] === "capture").length;
+    consent(dom, false); emit("campaign_form_success"); link.click();
+    expect(queue.filter((entry) => entry[0] === "capture")).toHaveLength(count);
+    consent(dom, true);
+    expect(queue.some((entry) => entry[0] === "startSessionRecording")).toBe(false);
+  });
   test("ships as a first-party website asset", () => {
     expect(existsSync(runtimePath)).toBe(true);
   });
@@ -33,7 +56,7 @@ describe("PostHog browser runtime", () => {
     expect((dom.window as Window & {posthog?: unknown}).posthog).toBeUndefined();
   });
 
-  test("loads a privacy-hardened session replay configuration after consent", () => {
+  test("loads analytics after consent with replay and autocapture disabled", () => {
     const dom = runtimeDom();
     dom.window.eval(runtime);
     consent(dom, true);
@@ -50,6 +73,7 @@ describe("PostHog browser runtime", () => {
       capture_pageview: true,
       capture_pageleave: true,
       autocapture: false,
+      disable_session_recording: true,
       mask_all_text: false,
       mask_all_element_attributes: false,
       session_recording: {

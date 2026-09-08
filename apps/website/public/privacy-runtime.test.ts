@@ -50,12 +50,45 @@ async function boot(dom: JSDOM) {
 }
 
 describe("static privacy runtime", () => {
+  test("rejects analytics immediately during a failed save and remembers it across reloads", async () => {
+    const dom = runtimeDom();
+    const granted = verifiedConsent(true); granted.preferences.analytics = true;
+    dom.window.fetch = vi.fn().mockResolvedValueOnce(Response.json({consent: granted})).mockResolvedValue(new Response(null, {status: 503}));
+    const values: boolean[] = [];
+    dom.window.addEventListener("allseason:privacy-consent", ((event: CustomEvent) => { values.push(event.detail.analytics); }) as EventListener);
+    await boot(dom);
+    expect(values.at(-1)).toBe(true);
+    dom.window.document.querySelector<HTMLButtonElement>('[data-all-season-privacy-reopen]')!.click();
+    dom.window.document.querySelector<HTMLInputElement>('input[name="analytics"]')!.click();
+    (Array.from(dom.window.document.querySelectorAll("button")) as HTMLButtonElement[]).find((button) => button.textContent === "Save preferences")!.click();
+    expect(values.at(-1)).toBe(false);
+    await vi.waitFor(() => expect(dom.window.document.querySelector('[role="alert"]')).not.toBeNull());
+    const next = runtimeDom();
+    next.window.localStorage.setItem("allseason-privacy-denials", dom.window.localStorage.getItem("allseason-privacy-denials")!);
+    next.window.fetch = vi.fn(async () => Response.json({consent: granted}));
+    const restored: boolean[] = [];
+    next.window.addEventListener("allseason:privacy-consent", ((event: CustomEvent) => { restored.push(event.detail.analytics); }) as EventListener);
+    await boot(next);
+    expect(restored.at(-1)).toBe(false);
+  });
+
+  test("allows analytics without granting advertising", async () => {
+    const dom = runtimeDom();
+    const granted = verifiedConsent(false); granted.preferences.analytics = true;
+    const fetch = vi.fn().mockResolvedValueOnce(Response.json({consent: null})).mockResolvedValue(Response.json({consent: granted}));
+    dom.window.fetch = fetch;
+    await boot(dom);
+    (Array.from(dom.window.document.querySelectorAll("button")) as HTMLButtonElement[]).find((button) => button.textContent === "Allow analytics")!.click();
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+    expect(JSON.parse(fetch.mock.calls[1][1].body)).toEqual({analytics: true, advertising: false});
+    expect(dom.window.document.querySelector('script[src*="facebook"]')).toBeNull();
+  });
   test("is available to every injected public page", () => {
     expect(existsSync(path.join(__dirname, "privacy-runtime.js"))).toBe(true);
     expect(existsSync(path.join(__dirname, "privacy-runtime.css"))).toBe(true);
   });
 
-  test("places undecided choices in a fixed viewport interaction gate", async () => {
+  test("places undecided choices in normal page flow", async () => {
     const dom = runtimeDom();
     dom.window.fetch = vi.fn(async () => Response.json({consent: null})) as typeof dom.window.fetch;
 
@@ -65,10 +98,8 @@ describe("static privacy runtime", () => {
     const gate = banner?.parentElement;
     const styles = readFileSync(path.join(__dirname, "privacy-runtime.css"), "utf8");
     expect(gate?.dataset.allSeasonPrivacyGate).toBe("true");
-    expect(styles).toMatch(/\.all-season-privacy-gate\s*\{[\s\S]*?position:\s*fixed/);
-    expect(styles).toMatch(/\.all-season-privacy-gate\s*\{[\s\S]*?inset:\s*0/);
-    expect(styles).toMatch(/\.all-season-privacy-gate\s*\{[\s\S]*?background:\s*rgba\(/);
-    expect(styles).toMatch(/\.all-season-privacy-gate\s*\{[\s\S]*?padding-bottom:\s*max\(clamp\(/);
+    expect(styles.match(/\.all-season-privacy-gate\s*\{[^}]*\}/)?.[0]).toContain("position: relative");
+    expect(styles.match(/\.all-season-privacy-gate\s*\{[^}]*\}/)?.[0]).not.toContain("inset: 0");
   });
 
   test("keeps Meta and residual attribution cookies untouched until verified advertising consent", async () => {
@@ -293,9 +324,11 @@ describe("static privacy runtime", () => {
     dom.window.fetch = fetch as typeof dom.window.fetch;
 
     await boot(dom);
-    const accept = (Array.from(dom.window.document.querySelectorAll("button")) as unknown as HTMLButtonElement[])
-      .find((button) => button.textContent === "Accept all");
-    accept?.dispatchEvent(new dom.window.MouseEvent("click", {bubbles: true}));
+    const customize = Array.from(dom.window.document.querySelectorAll("button")) as HTMLButtonElement[];
+    customize.find((button) => button.textContent === "Customize")?.click();
+    dom.window.document.querySelector<HTMLInputElement>('input[name="advertising"]')?.click();
+    const buttons = Array.from(dom.window.document.querySelectorAll("button")) as HTMLButtonElement[];
+    buttons.find((button) => button.textContent === "Save preferences")?.click();
 
     await vi.waitFor(() => expect(fbq).toHaveBeenCalledWith("track", "PageView"));
     const reopen = dom.window.document.querySelector<HTMLButtonElement>(

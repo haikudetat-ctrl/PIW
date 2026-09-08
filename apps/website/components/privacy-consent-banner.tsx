@@ -18,19 +18,19 @@ export function PrivacyConsentBanner({
       <section className="privacy-consent-banner" aria-label="Privacy choices" role="region">
         <div className="privacy-consent-copy">
           <p className="privacy-consent-kicker">Privacy choices</p>
-          <h2>You control optional advertising technology.</h2>
+          <h2>Analytics is your choice.</h2>
           <p>
-            Necessary technology keeps this site working. With your permission, we may
-            also use analytics and advertising technology. Your choice will not prevent
-            you from requesting a roof assessment.
+            With your permission, we use analytics to understand how our service is used
+            and improve its performance. You can reject analytics now or change your
+            choice anytime in Privacy Choices. Advertising has a separate control.
           </p>
           <a href="/privacy.html">Privacy policy</a>
           {error ? <p role="alert">{error}</p> : null}
         </div>
         <div className="privacy-consent-actions">
-          <button autoFocus type="button" className="privacy-consent-primary" disabled={saving} onClick={onAcceptAll}>Accept all</button>
+          <button type="button" className="privacy-consent-secondary" disabled={saving} onClick={onAcceptAll}>Allow analytics</button>
           <button type="button" className="privacy-consent-secondary" disabled={saving} onClick={onRejectNonessential}>
-            Reject nonessential
+            Reject analytics
           </button>
           <button type="button" className="privacy-consent-quiet" disabled={saving} onClick={onCustomize}>Customize</button>
         </div>

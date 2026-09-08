@@ -20,12 +20,25 @@
     previousFocus: null,
   };
   var authorityEpoch = 0;
+  var analyticsDefaultOn = false;
+  var DENIAL_KEY = "allseason-privacy-denials";
+  function denials() {
+    try { return JSON.parse(window.localStorage.getItem(DENIAL_KEY)) || {}; } catch { return {}; }
+  }
+  function rememberDenials(preferences, confirmed) {
+    var previous = denials();
+    try { window.localStorage.setItem(DENIAL_KEY, JSON.stringify({
+      analytics: !preferences.analytics || (!confirmed && previous.analytics === true),
+      advertising: !preferences.advertising || (!confirmed && previous.advertising === true),
+    })); } catch { /* In-memory state still suppresses tracking. */ }
+  }
 
   function config() {
     var node = document.getElementById("all-season-meta-config");
     if (!node) return {enabled: false, pixelId: null};
     try {
       var parsed = JSON.parse(node.textContent || "");
+      analyticsDefaultOn = Boolean(parsed && parsed.analyticsDefaultOn === true);
       if (
         !parsed
         || typeof parsed !== "object"
@@ -82,19 +95,19 @@
   }
 
   function advertisingAllowed() {
-    return consentState.resolved
+    return !consentState.saving && denials().advertising !== true && consentState.resolved
       && consentState.consent
       && !browserGpcIsEnabled()
       && consentState.consent.preferences.advertising === true;
   }
 
   function publishAnalyticsConsent() {
+    if (window.fbq && !advertisingAllowed()) window.fbq("consent", "revoke");
     window.dispatchEvent(new CustomEvent("allseason:privacy-consent", {
       detail: {
         analytics: Boolean(
-          consentState.resolved
-          && consentState.consent
-          && consentState.consent.preferences.analytics === true
+          denials().analytics !== true && consentState.resolved
+          && (consentState.consent ? consentState.consent.preferences.analytics === true : analyticsDefaultOn)
         ),
       },
     }));
@@ -126,6 +139,7 @@
       script.dataset.allSeasonMetaPixel = "true";
       document.head.appendChild(script);
     }
+    fbq("consent", "grant");
     return fbq;
   }
 
@@ -221,11 +235,11 @@
 
     var copy = element("div", "all-season-privacy-copy");
     copy.appendChild(element("p", "all-season-privacy-kicker", "Privacy choices"));
-    copy.appendChild(element("h2", "all-season-privacy-title", "You control optional advertising technology."));
+    copy.appendChild(element("h2", "all-season-privacy-title", "Analytics is your choice."));
     copy.appendChild(element(
       "p",
       "all-season-privacy-body",
-      "Necessary technology keeps this site working. Advertising is optional and never affects your ability to request a roof assessment.",
+      "With your permission, we use analytics to understand how our service is used and improve its performance. You can reject analytics now or change your choice anytime in Privacy Choices. Advertising has a separate control.",
     ));
     var policy = element("a", "all-season-privacy-link", "Read our privacy policy");
     policy.href = "/privacy.html";
@@ -234,16 +248,13 @@
     if (message) copy.appendChild(message);
 
     var actions = element("div", "all-season-privacy-actions");
-    var acceptAll = button("Accept all", function () { savePreferences({analytics: true, advertising: true}); }, "all-season-privacy-button all-season-privacy-primary");
+    var acceptAll = button("Allow analytics", function () { savePreferences({analytics: true, advertising: false}); }, "all-season-privacy-button all-season-privacy-secondary");
     actions.appendChild(acceptAll);
-    actions.appendChild(button("Reject nonessential", function () { savePreferences({analytics: false, advertising: false}); }, "all-season-privacy-button all-season-privacy-secondary"));
+    actions.appendChild(button("Reject analytics", function () { savePreferences({analytics: false, advertising: false}); }, "all-season-privacy-button all-season-privacy-secondary"));
     actions.appendChild(button("Customize", openDialog, "all-season-privacy-button all-season-privacy-quiet"));
     banner.append(copy, actions);
     gate.appendChild(banner);
-    document.body.appendChild(gate);
-    if (typeof window.requestAnimationFrame === "function") {
-      window.requestAnimationFrame(function () { acceptAll.focus(); });
-    }
+    document.body.prepend(gate);
     return banner;
   }
 
@@ -408,6 +419,12 @@
     var requested = gpcDetected
       ? {analytics: preferences.analytics, advertising: false, gpcDetected: true}
       : preferences;
+    rememberDenials(requested, false);
+    if (consentState.consent) {
+      consentState.consent.preferences.analytics = consentState.consent.preferences.analytics && requested.analytics;
+      consentState.consent.preferences.advertising = consentState.consent.preferences.advertising && requested.advertising;
+    }
+    publishAnalyticsConsent();
     try {
       var response = await window.fetch("/api/privacy/consent", {
         method: "POST",
@@ -419,6 +436,7 @@
       var payload = await response.json().catch(function () { return null; });
       if (!response.ok || !payload || !isVerifiedConsent(payload.consent)) throw new Error("Unable to save");
       if (saveEpoch !== authorityEpoch) return;
+      rememberDenials(payload.consent.preferences, true);
       consentState.consent = payload.consent;
       consentState.resolved = true;
       setSaving(false);
@@ -468,6 +486,7 @@
   }
 
   function authorizeAdvertising() {
+    if (consentState.saving || denials().advertising === true) return Promise.resolve(false);
     var requestEpoch = authorityEpoch + 1;
     return Promise.race([
       revalidateConsent(),

@@ -6,6 +6,7 @@
   var ASSET_URL = "https://us-assets.i.posthog.com/static/array.js";
   var SCRIPT_SELECTOR = 'script[data-all-season-posthog="true"]';
   var ALLOWED_EVENTS = [
+    "form_view", "address_selected", "step2_reached", "lead_submitted", "phone_clicked",
     "campaign_form_contact_step",
     "campaign_form_lead_intent",
     "campaign_form_submit",
@@ -23,7 +24,7 @@
     "embedded_form_success",
     "embedded_form_error",
   ];
-  var ALLOWED_PROPERTIES = ["campaign", "page_path", "trigger", "reason", "form_type", "error_type"];
+  var ALLOWED_PROPERTIES = ["campaign", "page_path", "trigger", "reason", "form_type", "error_type", "location", "address_mode"];
   var analyticsAllowed = false;
   var initialized = false;
   var embeddedFormStarted = false;
@@ -69,7 +70,6 @@
   function initialize() {
     if (initialized) {
       if (typeof window.posthog.opt_in_capturing === "function") window.posthog.opt_in_capturing();
-      if (typeof window.posthog.startSessionRecording === "function") window.posthog.startSessionRecording();
       return;
     }
     var posthog = installStub();
@@ -80,7 +80,7 @@
       capture_pageview: true,
       capture_pageleave: true,
       autocapture: false,
-      disable_session_recording: false,
+      disable_session_recording: true,
       session_recording: {
         maskAllInputs: true,
         maskTextSelector: "form",
@@ -110,15 +110,49 @@
   }
 
   window.addEventListener("allseason:privacy-consent", function (event) {
+    var previouslyAllowed = analyticsAllowed;
     analyticsAllowed = Boolean(event.detail && event.detail.analytics === true);
-    if (analyticsAllowed) initialize();
+    if (analyticsAllowed) { if (!previouslyAllowed) { initialize(); observeForms(); } }
     else revoke();
   });
 
   ALLOWED_EVENTS.forEach(function (name) {
     window.addEventListener("allseason:" + name, function (event) {
       capture(name, event.detail);
+      var canonical = {campaign_form_contact_step: "step2_reached", campaign_form_success: "lead_submitted", quote_form_view: "form_view", quote_form_success: "lead_submitted", embedded_form_success: "lead_submitted"}[name];
+      if (canonical) capture(canonical, event.detail);
     });
+  });
+
+  var observedForms = new WeakSet();
+  var viewedForms = new WeakSet();
+  var visibleForms = new Set();
+  var formObserver = typeof window.IntersectionObserver === "function" ? new IntersectionObserver(function (entries) {
+    entries.forEach(function (entry) {
+      if (entry.isIntersecting) visibleForms.add(entry.target);
+      else visibleForms.delete(entry.target);
+    });
+    captureVisibleForms();
+  }) : null;
+  function captureVisibleForms() {
+    if (!analyticsAllowed) return;
+    visibleForms.forEach(function (form) {
+      if (viewedForms.has(form)) return;
+      viewedForms.add(form);
+      capture("form_view", {form_type: form.id === "leadForm" ? "embedded" : "campaign", page_path: window.location.pathname});
+    });
+  }
+  function observeForms() {
+    document.querySelectorAll("form.campaign-form, form#leadForm").forEach(function (form) {
+      if (!formObserver || observedForms.has(form)) return;
+      observedForms.add(form); formObserver.observe(form);
+    });
+    captureVisibleForms();
+  }
+  new MutationObserver(observeForms).observe(document.documentElement, {childList: true, subtree: true});
+  document.addEventListener("click", function (event) {
+    var link = event.target && event.target.closest && event.target.closest('a[href^="tel:"]');
+    if (link) capture("phone_clicked", {page_path: window.location.pathname, location: link.closest("footer") ? "footer" : "page"});
   });
 
   document.addEventListener("input", function (event) {
