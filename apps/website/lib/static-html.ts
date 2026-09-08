@@ -8,6 +8,7 @@ const SAFE_PATH_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 type StaticRuntimeConfig = {
   enabled: boolean;
   pixelId: string | null;
+  analyticsDefaultOn?: boolean;
 };
 
 function staticRuntimeConfig(): StaticRuntimeConfig {
@@ -15,7 +16,7 @@ function staticRuntimeConfig(): StaticRuntimeConfig {
   const enabled = websiteMetaTrackingEnabled(process.env)
     && /^\d{6,32}$/.test(pixelId);
 
-  return {enabled, pixelId: enabled ? pixelId : null};
+  return {enabled, pixelId: enabled ? pixelId : null, analyticsDefaultOn: process.env.NEXT_PUBLIC_ANALYTICS_DEFAULT_ON === "true"};
 }
 
 function inlineJson(value: unknown) {

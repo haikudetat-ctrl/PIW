@@ -6,16 +6,11 @@
 }
 
 .all-season-privacy-gate {
-  position: fixed;
-  z-index: 2147483000;
-  inset: 0;
+  position: relative;
   display: grid;
   align-items: end;
   justify-items: center;
   padding: 24px max(18px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
-  padding-bottom: max(clamp(48px, 9vh, 88px), env(safe-area-inset-bottom));
-  background: rgba(2, 15, 24, .38);
-  backdrop-filter: blur(2px);
 }
 
 .all-season-privacy-banner {

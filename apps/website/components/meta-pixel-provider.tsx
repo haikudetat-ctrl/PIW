@@ -75,6 +75,7 @@ function ensurePixel(): BrowserFbq {
     window._fbq = fbq;
   }
   window.fbq = fbq;
+  fbq("consent", "grant");
 
   if (!document.querySelector(META_SCRIPT_SELECTOR)) {
     const script = document.createElement("script");
@@ -116,6 +117,7 @@ export function MetaPixelProvider({children, enabled}: {children: ReactNode; ena
     pixelIdRef.current = pixelId;
     pathnameRef.current = pathname;
     authorityEpoch.current += 1;
+    if ((!advertising || !enabled) && window.fbq) window.fbq("consent", "revoke");
   }, [advertising, enabled, pathname, pixelId]);
 
   useEffect(() => {

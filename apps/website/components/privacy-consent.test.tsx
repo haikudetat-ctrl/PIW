@@ -4,7 +4,7 @@ import {readFileSync} from "node:fs";
 import path from "node:path";
 import {act} from "react";
 import {createRoot, type Root} from "react-dom/client";
-import {afterEach, describe, expect, test, vi} from "vitest";
+import {afterEach, beforeEach, describe, expect, test, vi} from "vitest";
 import type {VerifiedWebsiteConsent} from "../lib/privacy-consent";
 import {
   PrivacyConsentProvider,
@@ -59,6 +59,20 @@ async function click(element: HTMLElement) {
   await act(async () => element.click());
 }
 
+beforeEach(() => {
+  // Each test is a new visitor; do not inherit persisted denials from prior tests.
+  // Explicit storage also avoids Node-version-specific Web Storage behavior.
+  const entries = new Map<string, string>();
+  vi.stubGlobal("localStorage", {
+    getItem: (key: string) => entries.get(key) ?? null,
+    setItem: (key: string, value: string) => { entries.set(key, value); },
+    removeItem: (key: string) => { entries.delete(key); },
+    clear: () => entries.clear(),
+    key: (index: number) => Array.from(entries.keys())[index] ?? null,
+    get length() { return entries.size; },
+  });
+});
+
 afterEach(async () => {
   for (const root of mountedRoots.splice(0)) await act(async () => root.unmount());
   document.body.replaceChildren();
@@ -70,17 +84,28 @@ afterEach(async () => {
 });
 
 describe("website privacy consent", () => {
-  test("places the first-visit choices in a viewport-level interaction gate", async () => {
+  test("analytics stays off until its explicit choice is saved, without granting advertising", async () => {
+    let finish: (response: Response) => void = () => undefined;
+    const fetchMock = vi.fn(() => new Promise<Response>((resolve) => { finish = resolve; }));
+    vi.stubGlobal("fetch", fetchMock);
+    const container = await renderConsent(null, <Probe />);
+    expect(container.querySelector("output")?.textContent).toContain('"analytics":false');
+    await click(button(container, "Allow analytics"));
+    expect(container.querySelector("output")?.textContent).toContain('"analytics":false');
+    expect(fetchMock).toHaveBeenCalledWith("/api/privacy/consent", expect.objectContaining({body: JSON.stringify({analytics: true, advertising: false})}));
+    await act(async () => finish(Response.json({consent: {...rejectedConsent, preferences: {necessary: true, analytics: true, advertising: false}}})));
+    expect(container.querySelector("output")?.textContent).toContain('"analytics":true');
+    expect(container.querySelector("output")?.textContent).toContain('"advertising":false');
+  });
+  test("places first-visit choices in the normal page flow", async () => {
     const container = await renderConsent(null);
     const choices = container.querySelector('section[aria-label="Privacy choices"]');
     const gate = choices?.parentElement;
     const styles = readFileSync(path.join(process.cwd(), "app", "styles.css"), "utf8");
 
     expect(gate?.classList.contains("privacy-consent-gate")).toBe(true);
-    expect(styles).toMatch(/\.privacy-consent-gate\s*\{[\s\S]*?position:\s*fixed/);
-    expect(styles).toMatch(/\.privacy-consent-gate\s*\{[\s\S]*?inset:\s*0/);
-    expect(styles).toMatch(/\.privacy-consent-gate\s*\{[\s\S]*?background:\s*rgba\(/);
-    expect(styles).toMatch(/\.privacy-consent-gate\s*\{[\s\S]*?padding-bottom:\s*max\(clamp\(/);
+    expect(styles.match(/\.privacy-consent-gate\s*\{[^}]*\}/)?.[0]).toContain("position: relative");
+    expect(styles.match(/\.privacy-consent-gate\s*\{[^}]*\}/)?.[0]).not.toContain("inset: 0");
   });
 
   test("offers equally prominent Accept, Reject, and Customize controls", async () => {
@@ -88,8 +113,8 @@ describe("website privacy consent", () => {
     const choices = container.querySelector('[aria-label="Privacy choices"]');
 
     expect(choices).not.toBeNull();
-    expect(choices?.contains(button(container, "Accept all"))).toBe(true);
-    expect(choices?.contains(button(container, "Reject nonessential"))).toBe(true);
+    expect(choices?.contains(button(container, "Allow analytics"))).toBe(true);
+    expect(choices?.contains(button(container, "Reject analytics"))).toBe(true);
     expect(choices?.contains(button(container, "Customize"))).toBe(true);
   });
 
@@ -98,7 +123,7 @@ describe("website privacy consent", () => {
     vi.stubGlobal("fetch", fetchMock);
     const container = await renderConsent(null, <Probe />);
 
-    await click(button(container, "Reject nonessential"));
+    await click(button(container, "Reject analytics"));
 
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
       "/api/privacy/consent",
@@ -281,7 +306,7 @@ describe("website privacy consent", () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(null, {status: 503})));
     const container = await renderConsent(null, <Probe />);
 
-    await click(button(container, "Accept all"));
+    await click(button(container, "Allow analytics"));
 
     await vi.waitFor(() => expect(container.querySelector('[role="alert"]')?.textContent)
       .toBe("We could not save your privacy choices. Please try again."));
@@ -298,7 +323,7 @@ describe("website privacy consent", () => {
     }})));
     const container = await renderConsent(null, <Probe />);
 
-    await click(button(container, "Accept all"));
+    await click(button(container, "Allow analytics"));
 
     await vi.waitFor(() => expect(container.querySelector('[role="alert"]')).not.toBeNull());
     expect(container.querySelector("output")?.textContent).toContain('"decided":false');

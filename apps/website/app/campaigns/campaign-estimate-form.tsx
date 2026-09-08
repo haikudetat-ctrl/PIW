@@ -8,8 +8,6 @@ import {useMetaPixel, type MetaBrowserEventEnvelope} from "../../components/meta
 function track(event: string, campaign: string) {
   const detail = {event, campaign, page_path: window.location.pathname};
   window.dispatchEvent(new CustomEvent(`allseason:${event}`, {detail}));
-  const dataLayer = (window as Window & {dataLayer?: unknown[]}).dataLayer;
-  if (Array.isArray(dataLayer)) dataLayer.push(detail);
 }
 
 export function CampaignEstimateForm({campaign}: {campaign: CampaignDefinition}) {
@@ -52,6 +50,7 @@ export function CampaignEstimateForm({campaign}: {campaign: CampaignDefinition})
     }
     setAddressError("");
     setStep(2);
+    if (manual) track("address_selected", campaign.slug);
     track("campaign_form_contact_step", campaign.slug);
   }
 
@@ -113,6 +112,7 @@ export function CampaignEstimateForm({campaign}: {campaign: CampaignDefinition})
               setGooglePlaceId(placeId);
               setSelectedAddress(address);
               if (placeId) setAddressError("");
+              if (placeId) track("address_selected", campaign.slug);
             }}
           />
         ) : (

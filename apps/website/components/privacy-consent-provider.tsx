@@ -16,6 +16,7 @@ import type {
   VerifiedWebsiteConsent,
 } from "../lib/privacy-consent";
 import {PrivacyConsentBanner} from "./privacy-consent-banner";
+import {privacyDenialSnapshot, rememberPrivacyDenials, subscribePrivacyDenials} from "../lib/browser-privacy-denials";
 
 export type PrivacyConsentContextValue = {
   preferences: ConsentPreferences;
@@ -33,7 +34,7 @@ type PrivacyConsentProviderProps = {
 
 const DEFAULT_PREFERENCES: ConsentPreferences = {
   necessary: true,
-  analytics: false,
+  analytics: process.env.NEXT_PUBLIC_ANALYTICS_DEFAULT_ON === "true",
   advertising: false,
 };
 const FAIL_MESSAGE = "We could not save your privacy choices. Please try again.";
@@ -118,18 +119,17 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
     browserGpcIsEnabled,
     serverGpcIsDisabled,
   );
+  const denials = useSyncExternalStore(subscribePrivacyDenials, privacyDenialSnapshot, () => "11");
   const effectivePreferences = useMemo<ConsentPreferences>(
-    () => browserGpcDetected || !canonicalReady
-      ? {...preferences, advertising: false}
-      : preferences,
-    [browserGpcDetected, canonicalReady, preferences],
+    () => ({necessary: true, analytics: preferences.analytics && denials[0] !== "1", advertising: preferences.advertising && denials[1] !== "1" && !browserGpcDetected && canonicalReady}),
+    [browserGpcDetected, canonicalReady, preferences, denials],
   );
 
   const authorizeAdvertising = useCallback(async () => {
     const authorization = ++authorizationResolutionRef.current;
     const choiceResolution = canonicalResolutionRef.current;
     const identity = consentIdentityRef.current;
-    if (!identity || browserGpcIsEnabled()) return false;
+    if (!identity || browserGpcIsEnabled() || privacyDenialSnapshot()[1] === "1") return false;
     try {
       const response = await fetch("/api/privacy/consent", {
         method: "GET",
@@ -167,9 +167,11 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
     const requestedPreferences = requestedGpc
       ? {...value, advertising: false}
       : value;
+    rememberPrivacyDenials(requestedPreferences);
     // A save starts a new consent epoch. Suppress Advertising immediately,
     // including while a revocation request is in flight or if it fails.
-    setPreferences({necessary: true, ...requestedPreferences});
+    setPreferences((current) => ({necessary: true, analytics: current.analytics && requestedPreferences.analytics, advertising: false}));
+    if (!requestedPreferences.analytics) window.dispatchEvent(new CustomEvent("allseason:privacy-consent", {detail: {analytics: false}}));
     setCanonicalReady(false);
     try {
       const response = await fetch("/api/privacy/consent", {
@@ -188,6 +190,7 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
         !payload.consent.gpcDetected || payload.consent.preferences.advertising
       )) throw new Error("GPC consent response was invalid");
       if (resolution !== canonicalResolutionRef.current) return;
+      rememberPrivacyDenials(payload.consent.preferences, true);
       restoreFocusAfterDialogCloseRef.current = false;
       focusPrivacyControlAfterSaveRef.current = true;
       setPreferences(payload.consent.preferences);
@@ -344,7 +347,7 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
         <PrivacyConsentBanner
           saving={saving}
           error={error}
-          onAcceptAll={() => void acceptAll()}
+          onAcceptAll={() => void savePreferences({analytics: true, advertising: effectivePreferences.advertising})}
           onRejectNonessential={() => void rejectNonessential()}
           onCustomize={openPreferences}
         />
