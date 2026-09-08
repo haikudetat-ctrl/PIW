@@ -4,7 +4,7 @@ import {readFileSync} from "node:fs";
 import path from "node:path";
 import {act} from "react";
 import {createRoot, type Root} from "react-dom/client";
-import {afterEach, describe, expect, test, vi} from "vitest";
+import {afterEach, beforeEach, describe, expect, test, vi} from "vitest";
 import type {VerifiedWebsiteConsent} from "../lib/privacy-consent";
 import {
   PrivacyConsentProvider,
@@ -58,6 +58,20 @@ function button(container: HTMLElement, name: string) {
 async function click(element: HTMLElement) {
   await act(async () => element.click());
 }
+
+beforeEach(() => {
+  // Each test is a new visitor; do not inherit persisted denials from prior tests.
+  // Explicit storage also avoids Node-version-specific Web Storage behavior.
+  const entries = new Map<string, string>();
+  vi.stubGlobal("localStorage", {
+    getItem: (key: string) => entries.get(key) ?? null,
+    setItem: (key: string, value: string) => { entries.set(key, value); },
+    removeItem: (key: string) => { entries.delete(key); },
+    clear: () => entries.clear(),
+    key: (index: number) => Array.from(entries.keys())[index] ?? null,
+    get length() { return entries.size; },
+  });
+});
 
 afterEach(async () => {
   for (const root of mountedRoots.splice(0)) await act(async () => root.unmount());
