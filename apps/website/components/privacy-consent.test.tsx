@@ -84,18 +84,28 @@ afterEach(async () => {
 });
 
 describe("website privacy consent", () => {
-  test("analytics stays off until its explicit choice is saved, without granting advertising", async () => {
+  test("combined Allow keeps advertising off when GPC is active", async () => {
+    Object.defineProperty(navigator, "globalPrivacyControl", {value: true, configurable: true});
+    const fetchMock = vi.fn().mockResolvedValueOnce(Response.json({consent: null})).mockImplementation(async () => Response.json({consent: {...rejectedConsent, gpcDetected: true, preferences: {necessary: true, analytics: true, advertising: false}}}));
+    vi.stubGlobal("fetch", fetchMock);
+    const container = await renderConsent(null, <Probe />);
+    await click(button(container, "Allow analytics & advertising"));
+    expect(fetchMock).toHaveBeenCalledWith("/api/privacy/consent", expect.objectContaining({body: JSON.stringify({analytics: true, advertising: false, gpcDetected: true})}));
+    expect(container.querySelector("output")?.textContent).toContain('"advertising":false');
+  });
+  test("combined consent stays off until its explicit choice is saved", async () => {
     let finish: (response: Response) => void = () => undefined;
     const fetchMock = vi.fn(() => new Promise<Response>((resolve) => { finish = resolve; }));
     vi.stubGlobal("fetch", fetchMock);
     const container = await renderConsent(null, <Probe />);
     expect(container.querySelector("output")?.textContent).toContain('"analytics":false');
-    await click(button(container, "Allow analytics"));
+    await click(button(container, "Allow analytics & advertising"));
     expect(container.querySelector("output")?.textContent).toContain('"analytics":false');
-    expect(fetchMock).toHaveBeenCalledWith("/api/privacy/consent", expect.objectContaining({body: JSON.stringify({analytics: true, advertising: false})}));
-    await act(async () => finish(Response.json({consent: {...rejectedConsent, preferences: {necessary: true, analytics: true, advertising: false}}})));
-    expect(container.querySelector("output")?.textContent).toContain('"analytics":true');
     expect(container.querySelector("output")?.textContent).toContain('"advertising":false');
+    expect(fetchMock).toHaveBeenCalledWith("/api/privacy/consent", expect.objectContaining({body: JSON.stringify({analytics: true, advertising: true})}));
+    await act(async () => finish(Response.json({consent: {...rejectedConsent, preferences: {necessary: true, analytics: true, advertising: true}}})));
+    expect(container.querySelector("output")?.textContent).toContain('"analytics":true');
+    expect(container.querySelector("output")?.textContent).toContain('"advertising":true');
   });
   test("places first-visit choices in the normal page flow", async () => {
     const container = await renderConsent(null);
@@ -113,8 +123,8 @@ describe("website privacy consent", () => {
     const choices = container.querySelector('[aria-label="Privacy choices"]');
 
     expect(choices).not.toBeNull();
-    expect(choices?.contains(button(container, "Allow analytics"))).toBe(true);
-    expect(choices?.contains(button(container, "Reject analytics"))).toBe(true);
+    expect(choices?.contains(button(container, "Allow analytics & advertising"))).toBe(true);
+    expect(choices?.contains(button(container, "Reject all"))).toBe(true);
     expect(choices?.contains(button(container, "Customize"))).toBe(true);
   });
 
@@ -123,7 +133,7 @@ describe("website privacy consent", () => {
     vi.stubGlobal("fetch", fetchMock);
     const container = await renderConsent(null, <Probe />);
 
-    await click(button(container, "Reject analytics"));
+    await click(button(container, "Reject all"));
 
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
       "/api/privacy/consent",
@@ -306,7 +316,7 @@ describe("website privacy consent", () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(null, {status: 503})));
     const container = await renderConsent(null, <Probe />);
 
-    await click(button(container, "Allow analytics"));
+    await click(button(container, "Allow analytics & advertising"));
 
     await vi.waitFor(() => expect(container.querySelector('[role="alert"]')?.textContent)
       .toBe("We could not save your privacy choices. Please try again."));
@@ -323,7 +333,7 @@ describe("website privacy consent", () => {
     }})));
     const container = await renderConsent(null, <Probe />);
 
-    await click(button(container, "Allow analytics"));
+    await click(button(container, "Allow analytics & advertising"));
 
     await vi.waitFor(() => expect(container.querySelector('[role="alert"]')).not.toBeNull());
     expect(container.querySelector("output")?.textContent).toContain('"decided":false');

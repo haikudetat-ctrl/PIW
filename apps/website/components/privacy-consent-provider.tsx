@@ -347,7 +347,7 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
         <PrivacyConsentBanner
           saving={saving}
           error={error}
-          onAcceptAll={() => void savePreferences({analytics: true, advertising: effectivePreferences.advertising})}
+          onAcceptAll={() => void acceptAll()}
           onRejectNonessential={() => void rejectNonessential()}
           onCustomize={openPreferences}
         />

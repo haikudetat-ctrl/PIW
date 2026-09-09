@@ -235,11 +235,11 @@
 
     var copy = element("div", "all-season-privacy-copy");
     copy.appendChild(element("p", "all-season-privacy-kicker", "Privacy choices"));
-    copy.appendChild(element("h2", "all-season-privacy-title", "Analytics is your choice."));
+    copy.appendChild(element("h2", "all-season-privacy-title", "Your privacy choices."));
     copy.appendChild(element(
       "p",
       "all-season-privacy-body",
-      "With your permission, we use analytics to understand how our service is used and improve its performance. You can reject analytics now or change your choice anytime in Privacy Choices. Advertising has a separate control.",
+      "With your permission, we use analytics to understand how our service is used and improve its performance, and advertising tools to measure and personalize ads. Allow both, reject all, or customize each choice. You can change your choices anytime in Privacy Choices.",
     ));
     var policy = element("a", "all-season-privacy-link", "Read our privacy policy");
     policy.href = "/privacy.html";
@@ -248,9 +248,9 @@
     if (message) copy.appendChild(message);
 
     var actions = element("div", "all-season-privacy-actions");
-    var acceptAll = button("Allow analytics", function () { savePreferences({analytics: true, advertising: false}); }, "all-season-privacy-button all-season-privacy-secondary");
+    var acceptAll = button("Allow analytics & advertising", function () { savePreferences({analytics: true, advertising: true}); }, "all-season-privacy-button all-season-privacy-secondary");
     actions.appendChild(acceptAll);
-    actions.appendChild(button("Reject analytics", function () { savePreferences({analytics: false, advertising: false}); }, "all-season-privacy-button all-season-privacy-secondary"));
+    actions.appendChild(button("Reject all", function () { savePreferences({analytics: false, advertising: false}); }, "all-season-privacy-button all-season-privacy-secondary"));
     actions.appendChild(button("Customize", openDialog, "all-season-privacy-button all-season-privacy-quiet"));
     banner.append(copy, actions);
     gate.appendChild(banner);

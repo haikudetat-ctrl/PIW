@@ -50,6 +50,18 @@ async function boot(dom: JSDOM) {
 }
 
 describe("static privacy runtime", () => {
+  test("combined Allow respects active GPC and never loads the pixel", async () => {
+    const dom = runtimeDom();
+    Object.defineProperty(dom.window.navigator, "globalPrivacyControl", {value: true});
+    const granted = {...verifiedConsent(false), gpcDetected: true, preferences: {necessary: true, analytics: true, advertising: false}};
+    const fetch = vi.fn().mockResolvedValueOnce(Response.json({consent: null})).mockResolvedValue(Response.json({consent: granted}));
+    dom.window.fetch = fetch;
+    await boot(dom);
+    (Array.from(dom.window.document.querySelectorAll("button")) as HTMLButtonElement[]).find((button) => button.textContent === "Allow analytics & advertising")!.click();
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+    expect(JSON.parse(fetch.mock.calls[1][1].body)).toEqual({analytics: true, advertising: false, gpcDetected: true});
+    expect(dom.window.document.querySelector('script[src*="facebook"]')).toBeNull();
+  });
   test("rejects analytics immediately during a failed save and remembers it across reloads", async () => {
     const dom = runtimeDom();
     const granted = verifiedConsent(true); granted.preferences.analytics = true;
@@ -72,16 +84,16 @@ describe("static privacy runtime", () => {
     expect(restored.at(-1)).toBe(false);
   });
 
-  test("allows analytics without granting advertising", async () => {
+  test("explicit combined choice grants analytics and advertising", async () => {
     const dom = runtimeDom();
-    const granted = verifiedConsent(false); granted.preferences.analytics = true;
+    const granted = verifiedConsent(true); granted.preferences.analytics = true;
     const fetch = vi.fn().mockResolvedValueOnce(Response.json({consent: null})).mockResolvedValue(Response.json({consent: granted}));
     dom.window.fetch = fetch;
     await boot(dom);
-    (Array.from(dom.window.document.querySelectorAll("button")) as HTMLButtonElement[]).find((button) => button.textContent === "Allow analytics")!.click();
+    (Array.from(dom.window.document.querySelectorAll("button")) as HTMLButtonElement[]).find((button) => button.textContent === "Allow analytics & advertising")!.click();
     await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
-    expect(JSON.parse(fetch.mock.calls[1][1].body)).toEqual({analytics: true, advertising: false});
-    expect(dom.window.document.querySelector('script[src*="facebook"]')).toBeNull();
+    expect(JSON.parse(fetch.mock.calls[1][1].body)).toEqual({analytics: true, advertising: true});
+    await vi.waitFor(() => expect(dom.window.document.querySelector('script[src*="facebook"]')).not.toBeNull());
   });
   test("is available to every injected public page", () => {
     expect(existsSync(path.join(__dirname, "privacy-runtime.js"))).toBe(true);

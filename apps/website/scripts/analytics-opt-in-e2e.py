@@ -27,7 +27,7 @@ with sync_playwright() as runner:
         page.route("**/api/address-autocomplete", lambda route: route.fulfill(json={"suggestions": [{"placeId": "test-place", "address": "1 Main St, Newark, NJ"}]}))
         page.route("**/api/campaign-estimate", lambda route: route.fulfill(json={"accepted": True, "estimateUrl": "#accepted", "metaEvent": None}))
         page.goto(BASE + path)
-        page.get_by_role("button", name="Allow analytics", exact=True).wait_for()
+        page.get_by_role("button", name="Allow analytics & advertising", exact=True).wait_for()
         gate = page.locator(".privacy-consent-gate, .all-season-privacy-gate")
         assert gate.evaluate("e => getComputedStyle(e).position") == "relative"
         assert page.locator("body").evaluate("e => e.scrollWidth <= innerWidth")
@@ -36,10 +36,11 @@ with sync_playwright() as runner:
         if path != "/":
             page.get_by_role("combobox").fill("1 Main")
             page.get_by_role("button", name="1 Main St, Newark, NJ", exact=True).click()
-        page.get_by_role("button", name="Allow analytics", exact=True).click()
+        page.get_by_role("button", name="Allow analytics & advertising", exact=True).click()
         page.wait_for_function("Boolean(window.posthog)")
-        assert state["consent"]["preferences"]["advertising"] is False
-        assert page.evaluate("!window.fbq")
+        assert state["consent"]["preferences"]["advertising"] is True
+        page.wait_for_function("Boolean(window.fbq && window.fbq.callMethod)")
+        assert page.evaluate("window.pixelCalls.some(x=>x[0]==='track' && x[1]==='PageView')")
         page.locator("form.campaign-form, form#leadForm").first.scroll_into_view_if_needed()
         page.wait_for_function("window.posthog.some(x=>x[0]==='capture' && x[1]==='form_view')")
         if path != "/":
