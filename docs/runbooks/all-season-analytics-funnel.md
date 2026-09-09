@@ -2,7 +2,7 @@
 
 Release scope: the public All Season website's static pages, campaign forms, and quote drawer. This release preserves the production canonical consent verification and lead intake contracts. No database migrations or PIW workflow changes are included.
 
-The notice is in normal page flow, with equal Allow analytics and Reject analytics controls. Visitors can use the page without making a choice. Advertising is a separate choice under Customize / Privacy choices. Reject applies immediately, with local denial storage in addition to the signed server preference; failed persistence cannot silently restore tracking on reload. GPC continues to override advertising.
+The notice is in normal page flow, with equal Allow analytics & advertising and Reject all controls. Visitors can use the page without making a choice. The explicit combined Allow choice requests both permissions; Customize / Privacy choices still offers independent analytics and advertising choices. Existing analytics-only choices are not upgraded automatically. Reject applies immediately, with local denial storage in addition to the signed server preference; failed persistence cannot silently restore tracking on reload. GPC continues to override advertising, including when the combined Allow button is used.
 
 `NEXT_PUBLIC_ANALYTICS_DEFAULT_ON` is false when unset and must stay false pending All Season's legal interpretation and analytics-provider sign-off. Both the React campaign provider and injected static runtime use this flag. This release has analytics and advertising off for new visitors. Existing valid saved choices remain effective unless locally rejected. Do not enable this flag as part of deployment.
 
