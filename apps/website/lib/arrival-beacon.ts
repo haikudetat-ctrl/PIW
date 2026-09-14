@@ -21,6 +21,19 @@ export type WebsiteArrival = {
 const BOT_PATTERN =
   /bot|crawler|spider|crawling|facebookexternalhit|slurp|bingpreview|headlesschrome|lighthouse|pingdom|uptime|curl|wget|python-requests|axios|postman/i;
 
+/**
+ * Paths worth a row. The proxy has no matcher config -- narrowing one would also
+ * narrow the static-page rewrite it already performs -- so arrivals are filtered
+ * here instead: build output, the image optimiser, API routes and static assets
+ * would multiply rows without adding signal.
+ */
+const SKIP_PATH =
+  /^\/(?:_next\/|api\/|favicon\.ico$|robots\.txt$|sitemap\.xml$)|\.(?:png|jpg|jpeg|gif|webp|svg|ico|css|js|mjs|map|txt|xml|json|woff2?|ttf|eot)$/i;
+
+export function shouldLogArrival(pathname: string): boolean {
+  return !SKIP_PATH.test(pathname);
+}
+
 /** Advisory only. Rows are still recorded so the raw arrival record stays complete. */
 export function isLikelyBot(userAgent: string | null): boolean {
   return userAgent ? BOT_PATTERN.test(userAgent) : true;

@@ -1,5 +1,5 @@
 import {describe, expect, test} from "vitest";
-import {buildArrival, isLikelyBot, visitorHash} from "./arrival-beacon";
+import {buildArrival, isLikelyBot, shouldLogArrival, visitorHash} from "./arrival-beacon";
 
 const SECRET = "test-salt";
 const NOW = new Date("2026-09-14T15:04:05.000Z");
@@ -92,5 +92,23 @@ describe("buildArrival", () => {
     });
 
     expect(arrival.meta_placement).toBe("instagram_stories");
+  });
+});
+
+describe("shouldLogArrival", () => {
+  test("logs real page requests, including the static public pages", () => {
+    for (const path of ["/", "/campaigns/for-every-season", "/campaigns/weather-report",
+                        "/service-areas/atlantic-county.html", "/privacy"]) {
+      expect(shouldLogArrival(path)).toBe(true);
+    }
+  });
+
+  test("skips build output, api routes and static assets", () => {
+    for (const path of ["/_next/static/chunks/main.js", "/_next/image", "/api/campaign-estimate",
+                        "/favicon.ico", "/robots.txt", "/sitemap.xml",
+                        "/campaigns/weather-report/hero.webp", "/styles.css",
+                        "/privacy-runtime.js", "/fonts/inter.woff2"]) {
+      expect(shouldLogArrival(path)).toBe(false);
+    }
   });
 });
