@@ -23,6 +23,8 @@ export type PrivacyConsentContextValue = {
   decided: boolean;
   acceptAll(): Promise<void>;
   rejectNonessential(): Promise<void>;
+  /** `analytics` is the wire name for session-replay consent; the label reads "Session recording".
+   * Cookieless aggregate measurement is necessary and is not represented here. */
   savePreferences(value: {analytics: boolean; advertising: boolean}): Promise<void>;
   authorizeAdvertising(): Promise<boolean>;
 };
@@ -380,7 +382,7 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
           >
             <p className="privacy-consent-dialog-kicker">Privacy controls</p>
             <h2 id="privacy-dialog-title">Privacy choices</h2>
-            <p id="privacy-dialog-description">Choose which nonessential technologies we may use.</p>
+            <p id="privacy-dialog-description">Choose which nonessential technologies we may use. We always keep an aggregate count of page visits, which sets no identifier and records nothing about you.</p>
             <label className="privacy-consent-choice">
               <input type="checkbox" aria-label="Necessary" checked disabled />
               <span>Necessary</span>
@@ -388,7 +390,7 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
             <label className="privacy-consent-choice">
               <input
                 type="checkbox"
-                aria-label="Analytics"
+                aria-label="Session recording"
                 checked={draft.analytics}
                 disabled={saving}
                 onChange={(event) => setDraft((current) => ({
@@ -396,7 +398,7 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
                   analytics: event.target.checked,
                 }))}
               />
-              <span>Analytics</span>
+              <span>Session recording</span>
             </label>
             <label className="privacy-consent-choice">
               <input

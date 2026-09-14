@@ -147,7 +147,7 @@ describe("website privacy consent", () => {
     expect(container.querySelector("output")?.textContent).toContain('"advertising":false');
   });
 
-  test("customizes analytics and advertising independently", async () => {
+  test("customizes session recording and advertising independently", async () => {
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       const choices = JSON.parse(String(init?.body)) as {analytics: boolean; advertising: boolean};
       return Response.json({consent: {
@@ -160,9 +160,9 @@ describe("website privacy consent", () => {
 
     await click(button(container, "Customize"));
     const necessary = container.querySelector<HTMLInputElement>('input[aria-label="Necessary"]');
-    const analytics = container.querySelector<HTMLInputElement>('input[aria-label="Analytics"]');
+    const analytics = container.querySelector<HTMLInputElement>('input[aria-label="Session recording"]');
     expect(necessary?.disabled).toBe(true);
-    if (!analytics) throw new Error("Missing Analytics control");
+    if (!analytics) throw new Error("Missing Session recording control");
     await click(analytics);
     await click(button(container, "Save preferences"));
 
