@@ -1,21 +1,17 @@
 "use client";
 
-import {useEffect} from "react";
-import {Analytics, type BeforeSend} from "@vercel/analytics/next";
-import {usePrivacyConsent} from "./privacy-consent-provider";
+import {Analytics} from "@vercel/analytics/next";
 
-const allowEvent: BeforeSend = (event) => event;
-const blockEvent: BeforeSend = () => null;
-
-function ActivatedVercelAnalytics() {
-  useEffect(() => {
-    return () => window.va?.("beforeSend", blockEvent);
-  }, []);
-
-  return <Analytics beforeSend={allowEvent} />;
-}
-
+/**
+ * Vercel Web Analytics is cookieless and aggregate: it sets no identifier, and
+ * reports visitor and pageview counts rather than anything about a person. It is
+ * therefore treated as necessary measurement and is not gated on consent.
+ *
+ * Gating it previously meant the site could not distinguish "nobody visited"
+ * from "nobody accepted the banner", which made every traffic number
+ * unreadable. Consent still governs the technologies that genuinely need it --
+ * PostHog session replay and Meta advertising -- via PrivacyConsentProvider.
+ */
 export function ConsentAwareVercelAnalytics() {
-  const {preferences} = usePrivacyConsent();
-  return preferences.analytics ? <ActivatedVercelAnalytics /> : null;
+  return <Analytics />;
 }

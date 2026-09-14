@@ -4299,6 +4299,77 @@ export type Database = {
           },
         ]
       }
+      website_arrivals: {
+        Row: {
+          campaign_slug: string | null
+          company_id: string
+          created_at: string
+          fbclid: string | null
+          id: string
+          is_likely_bot: boolean
+          meta_placement: string | null
+          meta_site_source: string | null
+          occurred_at: string
+          referrer_host: string | null
+          request_path: string
+          user_agent: string | null
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
+          visitor_hash: string
+        }
+        Insert: {
+          campaign_slug?: string | null
+          company_id: string
+          created_at?: string
+          fbclid?: string | null
+          id?: string
+          is_likely_bot?: boolean
+          meta_placement?: string | null
+          meta_site_source?: string | null
+          occurred_at?: string
+          referrer_host?: string | null
+          request_path: string
+          user_agent?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+          visitor_hash: string
+        }
+        Update: {
+          campaign_slug?: string | null
+          company_id?: string
+          created_at?: string
+          fbclid?: string | null
+          id?: string
+          is_likely_bot?: boolean
+          meta_placement?: string | null
+          meta_site_source?: string | null
+          occurred_at?: string
+          referrer_host?: string | null
+          request_path?: string
+          user_agent?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+          visitor_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "website_arrivals_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       worker_runs: {
         Row: {
           attempt_count: number
@@ -4412,6 +4483,28 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "leadconduit_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      website_arrivals_daily: {
+        Row: {
+          ad_name: string | null
+          arrival_date: string | null
+          arrivals: number | null
+          bot_arrivals: number | null
+          campaign_slug: string | null
+          company_id: string | null
+          distinct_visitors: number | null
+          meta_placement: string | null
+          paid_arrivals: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "website_arrivals_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
