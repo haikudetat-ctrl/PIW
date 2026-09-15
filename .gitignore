@@ -44,3 +44,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Manual Meta Ads Manager exports consumed by the meta-signal-review skill.
+# Commercial data that goes stale immediately; never commit it.
+meta-export*.csv
+**/meta-export*.csv
