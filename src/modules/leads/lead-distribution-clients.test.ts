@@ -48,6 +48,20 @@ describe("lead distribution clients", () => {
     });
   });
 
+  test("submits to the secondary ActiveProspect flow when selected", async () => {
+    const fetcher: typeof fetch = vi.fn(async () => new Response(JSON.stringify({
+      outcome: "success", lead: {id: "123456789012345678901234"},
+    }), {status: 201, headers: {"content-type": "application/json"}}));
+    const client = new LeadConduitSubmissionClient(fetcher);
+
+    await client.send(lead, "Meta70", "secondary");
+
+    expect(fetcher).toHaveBeenCalledWith(
+      "https://app.leadconduit.com/flows/68d597a7e5a45ce2a9c822fe/sources/6a999da372afc3570dc712a1/submit",
+      expect.objectContaining({method: "POST"}),
+    );
+  });
+
   test("sends the internal notification with an idempotency key", async () => {
     let capturedInit: RequestInit | undefined;
     const fetcher: typeof fetch = vi.fn(async (_input, init) => {

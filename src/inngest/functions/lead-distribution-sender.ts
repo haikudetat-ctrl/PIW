@@ -29,26 +29,38 @@ export function deliveryIdFromLeadDistributionEvent(
   event: Extract<DomainEvent, {name: "lead/distribution.requested"}>,
   destination: LeadDistributionDestination,
 ) {
-  return destination === "activeprospect"
-    ? event.data.activeProspectDeliveryId
-    : event.data.internalEmailDeliveryId;
+  switch (destination) {
+    case "activeprospect_existing":
+      return event.data.activeProspectExistingDeliveryId;
+    case "activeprospect_secondary":
+      return event.data.activeProspectSecondaryDeliveryId;
+    case "internal_email":
+      return event.data.internalEmailDeliveryId;
+  }
 }
 
-export const activeProspectLeadSender = inngest.createFunction(
-  {id: "activeprospect-lead-sender", name: "ActiveProspect lead sender", retries: 3, triggers: {event: leadDistributionRequested}},
-  async ({event, step}) => step.run("submit-lead-to-activeprospect", async () => {
-    const configuration = runtimeConfiguration();
-    const deliveryId = deliveryIdFromLeadDistributionEvent(event.data, "activeprospect");
-    if (!configuration.activeProspect) return {outcome: "disabled" as const, deliveryId};
-    return sendLeadDistributionDelivery({
-      deliveryId,
-      repository: new SupabaseLeadDistributionRepository(),
-      client: new LeadConduitSubmissionClient(),
-      expectedDestination: "activeprospect",
-      companyId: configuration.companyId!,
-    });
-  }),
-);
+function activeProspectSender(
+  destination: "activeprospect_existing" | "activeprospect_secondary",
+) {
+  return inngest.createFunction(
+    {id: `${destination}-lead-sender`, name: `${destination} lead sender`, retries: 3, triggers: {event: leadDistributionRequested}},
+    async ({event, step}) => step.run(`submit-lead-to-${destination}`, async () => {
+      const configuration = runtimeConfiguration();
+      const deliveryId = deliveryIdFromLeadDistributionEvent(event.data, destination);
+      if (!configuration.activeProspect) return {outcome: "disabled" as const, deliveryId};
+      return sendLeadDistributionDelivery({
+        deliveryId,
+        repository: new SupabaseLeadDistributionRepository(),
+        client: new LeadConduitSubmissionClient(),
+        expectedDestination: destination,
+        companyId: configuration.companyId!,
+      });
+    }),
+  );
+}
+
+export const activeProspectExistingLeadSender = activeProspectSender("activeprospect_existing");
+export const activeProspectSecondaryLeadSender = activeProspectSender("activeprospect_secondary");
 
 export const internalLeadEmailSender = inngest.createFunction(
   {id: "internal-lead-email-sender", name: "Internal lead email sender", retries: 3, triggers: {event: leadDistributionRequested}},
@@ -70,13 +82,13 @@ export const recoveredLeadDistributionSender = inngest.createFunction(
   {id: "recovered-lead-distribution-sender", name: "Recovered lead distribution sender", retries: 3, triggers: {event: leadDistributionDeliveryRequested}},
   async ({event, step}) => step.run("send-recovered-lead-delivery", async () => {
     const configuration = runtimeConfiguration();
-    const deliveryId = event.data.deliveryId;
+    const {deliveryId, destination} = event.data;
     const repository = new SupabaseLeadDistributionRepository();
-    if (event.data.destination === "activeprospect") {
-      if (!configuration.activeProspect) return {outcome: "disabled" as const, deliveryId};
-      return sendLeadDistributionDelivery({deliveryId, repository, client: new LeadConduitSubmissionClient(), expectedDestination: "activeprospect", companyId: configuration.companyId!});
+    if (destination === "internal_email") {
+      if (!configuration.internalEmail) return {outcome: "disabled" as const, deliveryId};
+      return sendLeadDistributionDelivery({deliveryId, repository, client: new ResendLeadNotificationClient(configuration.internalEmail), expectedDestination: destination, companyId: configuration.companyId!});
     }
-    if (!configuration.internalEmail) return {outcome: "disabled" as const, deliveryId};
-    return sendLeadDistributionDelivery({deliveryId, repository, client: new ResendLeadNotificationClient(configuration.internalEmail), expectedDestination: "internal_email", companyId: configuration.companyId!});
+    if (!configuration.activeProspect) return {outcome: "disabled" as const, deliveryId};
+    return sendLeadDistributionDelivery({deliveryId, repository, client: new LeadConduitSubmissionClient(), expectedDestination: destination, companyId: configuration.companyId!});
   }),
 );

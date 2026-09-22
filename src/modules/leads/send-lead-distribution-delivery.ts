@@ -1,5 +1,6 @@
 import "server-only";
 import type {LeadConduitResult, MetaDistributionLead, MetaLeadSource} from "./meta-lead-distribution";
+import type {LeadConduitSubmissionTarget} from "./lead-distribution-clients";
 import type {
   ClaimedLeadDistribution,
   LeadDistributionCompletion,
@@ -15,7 +16,11 @@ export interface LeadDistributionRepository {
 }
 
 export interface LeadDistributionClient {
-  send(lead: MetaDistributionLead, source: MetaLeadSource): Promise<LeadConduitResult>;
+  send(
+    lead: MetaDistributionLead,
+    source: MetaLeadSource,
+    target?: LeadConduitSubmissionTarget,
+  ): Promise<LeadConduitResult>;
 }
 
 export class LeadDistributionRetryableError extends Error {
@@ -44,7 +49,12 @@ export async function sendLeadDistributionDelivery({
     throw new Error(`Lead distribution destination mismatch: ${deliveryId}`);
   }
 
-  const result = await client.send(claimed.lead, claimed.sourceLabel);
+  const target = claimed.destination === "activeprospect_secondary"
+    ? "secondary"
+    : claimed.destination === "activeprospect_existing"
+      ? "primary"
+      : undefined;
+  const result = await client.send(claimed.lead, claimed.sourceLabel, target);
   const outcome = await repository.complete(claimed, result);
   if (result.status === "retryable_failed" && outcome === "retryable_failed") {
     throw new LeadDistributionRetryableError(deliveryId);

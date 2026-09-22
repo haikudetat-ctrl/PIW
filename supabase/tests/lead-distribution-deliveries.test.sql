@@ -81,7 +81,7 @@ values
 
 select is(
   (select count(*) from public.lead_distribution_deliveries where lead_id='93000000-0000-4000-8000-000000000201'),
-  2::bigint, 'Campaign 1 creates two independent deliveries'
+  3::bigint, 'Campaign 1 creates two ActiveProspect deliveries and one email delivery'
 );
 select is(
   (select min(source_label) from public.lead_distribution_deliveries where lead_id='93000000-0000-4000-8000-000000000201'),
@@ -89,7 +89,7 @@ select is(
 );
 select is(
   (select count(*) from public.lead_distribution_deliveries where lead_id='93000000-0000-4000-8000-000000000202'),
-  2::bigint, 'Campaign 2 creates two independent deliveries'
+  3::bigint, 'Campaign 2 creates two ActiveProspect deliveries and one email delivery'
 );
 select is(
   (select min(source_label) from public.lead_distribution_deliveries where lead_id='93000000-0000-4000-8000-000000000202'),
@@ -115,13 +115,13 @@ select is(
 
 create temp table claimed_activeprospect as
 select * from public.claim_lead_distribution_delivery(
-  (select id from public.lead_distribution_deliveries where lead_id='93000000-0000-4000-8000-000000000201' and destination='activeprospect'),
+  (select id from public.lead_distribution_deliveries where lead_id='93000000-0000-4000-8000-000000000201' and destination='activeprospect_existing'),
   '93000000-0000-4000-8000-000000000001',
   '2099-09-03T13:00:00Z'
 );
 select is(
   (select count(*) from public.claim_lead_distribution_delivery(
-    (select id from public.lead_distribution_deliveries where lead_id='93000000-0000-4000-8000-000000000202' and destination='activeprospect'),
+    (select id from public.lead_distribution_deliveries where lead_id='93000000-0000-4000-8000-000000000202' and destination='activeprospect_existing'),
     '93000000-0000-4000-8000-000000000099', '2099-09-03T13:00:00Z'
   )),
   0::bigint, 'claim refuses a delivery outside the configured company boundary'

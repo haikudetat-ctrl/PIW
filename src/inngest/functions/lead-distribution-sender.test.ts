@@ -27,27 +27,34 @@ const requestedEvent: Extract<DomainEvent, {name: "lead/distribution.requested"}
     leadId: lead.id,
     sourceLabel: "Meta70",
     activeProspectDeliveryId: "77777777-7777-4777-8777-777777777777",
-    internalEmailDeliveryId: "88888888-8888-4888-8888-888888888888",
+    activeProspectDeliveryIds: [
+      "77777777-7777-4777-8777-777777777777",
+      "88888888-8888-4888-8888-888888888888",
+    ],
+    activeProspectExistingDeliveryId: "77777777-7777-4777-8777-777777777777",
+    activeProspectSecondaryDeliveryId: "88888888-8888-4888-8888-888888888888",
+    internalEmailDeliveryId: "99999999-9999-4999-8999-999999999999",
   },
 };
 
 describe("lead distribution sender", () => {
   test.each([
-    ["activeprospect", "77777777-7777-4777-8777-777777777777"],
-    ["internal_email", "88888888-8888-4888-8888-888888888888"],
+    ["activeprospect_existing", "77777777-7777-4777-8777-777777777777"],
+    ["activeprospect_secondary", "88888888-8888-4888-8888-888888888888"],
+    ["internal_email", "99999999-9999-4999-8999-999999999999"],
   ] as const)("reads the %s delivery ID from the durable event envelope", (destination, expected) => {
     expect(deliveryIdFromLeadDistributionEvent(requestedEvent, destination)).toBe(expected);
   });
 
   test("claims, sends, and completes one destination", async () => {
     const repository = {
-      claim: vi.fn(async () => ({deliveryId: "22222222-2222-4222-8222-222222222222", companyId: "33333333-3333-4333-8333-333333333333", destination: "activeprospect" as const, sourceLabel: "Meta70" as const, attemptCount: 1, lead})),
+      claim: vi.fn(async () => ({deliveryId: "22222222-2222-4222-8222-222222222222", companyId: "33333333-3333-4333-8333-333333333333", destination: "activeprospect_secondary" as const, sourceLabel: "Meta70" as const, attemptCount: 1, lead})),
       complete: vi.fn(async () => "sent" as const),
     };
     const client = {send: vi.fn(async () => ({status: "sent" as const, externalId: "external-1", reason: null}))};
     await expect(sendLeadDistributionDelivery({deliveryId: "22222222-2222-4222-8222-222222222222", companyId: "33333333-3333-4333-8333-333333333333", repository, client}))
       .resolves.toMatchObject({outcome: "sent"});
-    expect(client.send).toHaveBeenCalledWith(lead, "Meta70");
+    expect(client.send).toHaveBeenCalledWith(lead, "Meta70", "secondary");
     expect(repository.complete).toHaveBeenCalled();
   });
 

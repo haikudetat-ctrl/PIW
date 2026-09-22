@@ -9,8 +9,12 @@ import {
   type MetaLeadSource,
 } from "./meta-lead-distribution";
 
-const LEADCONDUIT_SUBMISSION_URL =
-  "https://app.leadconduit.com/flows/6377949a81800d03d54119b5/sources/6a999da372afc3570dc712a1/submit";
+export type LeadConduitSubmissionTarget = "primary" | "secondary";
+
+const LEADCONDUIT_SUBMISSION_URLS: Record<LeadConduitSubmissionTarget, string> = {
+  primary: "https://app.leadconduit.com/flows/6377949a81800d03d54119b5/sources/6a999da372afc3570dc712a1/submit",
+  secondary: "https://app.leadconduit.com/flows/68d597a7e5a45ce2a9c822fe/sources/6a999da372afc3570dc712a1/submit",
+};
 const RESEND_EMAIL_URL = "https://api.resend.com/emails";
 const INTERNAL_RECIPIENT = "roofingleads@allseason.solar";
 const REQUEST_TIMEOUT_MS = 10_000;
@@ -28,9 +32,13 @@ async function jsonBody(response: Response): Promise<unknown> {
 export class LeadConduitSubmissionClient {
   constructor(private readonly fetcher: Fetcher = fetch) {}
 
-  async send(lead: MetaDistributionLead, source: MetaLeadSource): Promise<LeadConduitResult> {
+  async send(
+    lead: MetaDistributionLead,
+    source: MetaLeadSource,
+    target: LeadConduitSubmissionTarget = "primary",
+  ): Promise<LeadConduitResult> {
     try {
-      const response = await this.fetcher(LEADCONDUIT_SUBMISSION_URL, {
+      const response = await this.fetcher(LEADCONDUIT_SUBMISSION_URLS[target], {
         method: "POST",
         headers: {
           Accept: "application/json",

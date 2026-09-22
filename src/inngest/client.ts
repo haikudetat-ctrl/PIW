@@ -65,7 +65,7 @@ export const leadDistributionRequested = eventType("lead/distribution.requested"
 export const leadDistributionDeliveryRequested = eventType("lead/distribution.delivery.requested", {
   schema: staticSchema<{
     deliveryId: string;
-    destination: "activeprospect" | "internal_email";
+    destination: "activeprospect_existing" | "activeprospect_secondary" | "internal_email";
   }>(),
 });
 

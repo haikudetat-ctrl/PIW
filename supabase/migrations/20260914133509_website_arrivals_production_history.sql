@@ -1,0 +1,7 @@
+-- Production migration-history marker.
+--
+-- The PIW production project applied the website-arrivals schema under this
+-- version before the equivalent canonical migration was merged as
+-- 20260914140000_website_arrivals.sql. Keep this no-op marker so the repository
+-- and production migration histories remain reconcilable without replaying the
+-- already-applied DDL or rewriting production history.

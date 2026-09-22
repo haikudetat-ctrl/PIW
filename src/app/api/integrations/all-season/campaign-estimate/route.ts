@@ -264,7 +264,9 @@ export async function POST(request: NextRequest) {
     && (distribution.activeProspect || distribution.internalEmail)
     ? async (leadId: string) => {
         const enabledDestinations: LeadDistributionDestination[] = [
-          ...(distribution.activeProspect ? ["activeprospect" as const] : []),
+          ...(distribution.activeProspect
+            ? ["activeprospect_existing" as const, "activeprospect_secondary" as const]
+            : []),
           ...(distribution.internalEmail ? ["internal_email" as const] : []),
         ];
         const {data, error} = await service
@@ -277,12 +279,15 @@ export async function POST(request: NextRequest) {
         if (error) throw new Error("Failed to load immediate lead deliveries");
 
         const results = await Promise.allSettled((data ?? []).map(async (delivery) => {
-          if (delivery.destination === "activeprospect") {
+          if (
+            delivery.destination === "activeprospect_existing"
+            || delivery.destination === "activeprospect_secondary"
+          ) {
             await sendLeadDistributionDelivery({
               deliveryId: delivery.id,
               repository: distributionRepository,
               client: new LeadConduitSubmissionClient(),
-              expectedDestination: "activeprospect",
+              expectedDestination: delivery.destination,
               companyId,
             });
             return;

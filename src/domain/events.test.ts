@@ -50,6 +50,12 @@ describe("lead/distribution.requested event", () => {
         leadId: "55555555-5555-4555-8555-555555555555",
         sourceLabel: "Meta70",
         activeProspectDeliveryId: "66666666-6666-4666-8666-666666666666",
+        activeProspectDeliveryIds: [
+          "66666666-6666-4666-8666-666666666666",
+          "88888888-8888-4888-8888-888888888888",
+        ],
+        activeProspectExistingDeliveryId: "66666666-6666-4666-8666-666666666666",
+        activeProspectSecondaryDeliveryId: "88888888-8888-4888-8888-888888888888",
         internalEmailDeliveryId: "77777777-7777-4777-8777-777777777777",
       },
     });

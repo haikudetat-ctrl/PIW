@@ -15,7 +15,8 @@ import { assessmentAbandonmentWorker } from "@/inngest/functions/assessment-aban
 import { metaConversionSender } from "@/inngest/functions/meta-conversion-sender";
 import { metaConversionSweeper } from "@/inngest/functions/meta-conversion-sweeper";
 import {
-  activeProspectLeadSender,
+  activeProspectExistingLeadSender,
+  activeProspectSecondaryLeadSender,
   internalLeadEmailSender,
   recoveredLeadDistributionSender,
 } from "@/inngest/functions/lead-distribution-sender";
@@ -40,7 +41,8 @@ export const { GET, POST, PUT } = serve({
     assessmentAbandonmentWorker,
     metaConversionSender,
     metaConversionSweeper,
-    activeProspectLeadSender,
+    activeProspectExistingLeadSender,
+    activeProspectSecondaryLeadSender,
     internalLeadEmailSender,
     recoveredLeadDistributionSender,
     leadDistributionSweeper,

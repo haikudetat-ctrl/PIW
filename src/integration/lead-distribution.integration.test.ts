@@ -40,13 +40,13 @@ describe.runIf(runIntegration)("Meta lead distribution persistence", () => {
     expect(event).toMatchObject({name: "lead/distribution.requested", leadId, data: {sourceLabel: "Meta70"}});
 
     const deliveryResult = await client.from("lead_distribution_deliveries").select("id,destination")
-      .eq("lead_id", leadId).eq("destination", "activeprospect").single();
+      .eq("lead_id", leadId).eq("destination", "activeprospect_secondary").single();
     expect(deliveryResult.error).toBeNull();
     const repository = new SupabaseLeadDistributionRepository(
       client as unknown as ConstructorParameters<typeof SupabaseLeadDistributionRepository>[0],
       () => new Date("2099-09-03T13:00:00.000Z"),
     );
     const claimed = await repository.claim(deliveryResult.data!.id, companyId);
-    expect(claimed).toMatchObject({destination: "activeprospect", sourceLabel: "Meta70", lead: {id: leadId, email: "jordan@example.com"}});
+    expect(claimed).toMatchObject({destination: "activeprospect_secondary", sourceLabel: "Meta70", lead: {id: leadId, email: "jordan@example.com"}});
   });
 });

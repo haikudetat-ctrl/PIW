@@ -7,7 +7,10 @@ import type {
   MetaLeadSource,
 } from "./meta-lead-distribution";
 
-export type LeadDistributionDestination = "activeprospect" | "internal_email";
+export type LeadDistributionDestination =
+  | "activeprospect_existing"
+  | "activeprospect_secondary"
+  | "internal_email";
 export type LeadDistributionCompletion = LeadConduitResult["status"];
 
 export type ClaimedLeadDistribution = {
@@ -21,7 +24,7 @@ export type ClaimedLeadDistribution = {
 
 const claimedSchema = z.object({
   delivery_id: z.uuid(), company_id: z.uuid(), lead_id: z.uuid(),
-  destination: z.enum(["activeprospect", "internal_email"]),
+  destination: z.enum(["activeprospect_existing", "activeprospect_secondary", "internal_email"]),
   source_label: z.enum(["Meta70", "Meta30"]), attempt_count: z.number().int().positive(),
   name: z.string().min(1), phone: z.string().min(1), email: z.email(),
   submitted_address: z.string().min(1), notes: z.string().nullable(),
@@ -36,7 +39,7 @@ const completionSchema = z.object({
 }).passthrough();
 const pendingSchema = z.array(z.object({
   delivery_id: z.uuid(), lead_id: z.uuid(),
-  destination: z.enum(["activeprospect", "internal_email"]),
+  destination: z.enum(["activeprospect_existing", "activeprospect_secondary", "internal_email"]),
   source_label: z.enum(["Meta70", "Meta30"]),
 }).strict()).max(100);
 

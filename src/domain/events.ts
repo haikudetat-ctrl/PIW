@@ -71,6 +71,9 @@ export const leadDistributionRequestedDataSchema = z.object({
   leadId: uuidSchema,
   sourceLabel: z.enum(["Meta70", "Meta30"]),
   activeProspectDeliveryId: uuidSchema,
+  activeProspectDeliveryIds: z.tuple([uuidSchema, uuidSchema]),
+  activeProspectExistingDeliveryId: uuidSchema,
+  activeProspectSecondaryDeliveryId: uuidSchema,
   internalEmailDeliveryId: uuidSchema,
 }).strict();
 
