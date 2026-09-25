@@ -17,6 +17,12 @@ export type AuthEmailOtpType =
   | "recovery"
   | "signup";
 
+export function safeAuthEmailOtpType(value: string | null) {
+  return value && AUTH_EMAIL_OTP_TYPES.has(value)
+    ? value as AuthEmailOtpType
+    : null;
+}
+
 export function safeAuthNextPath(value: string | null, fallback = "/") {
   if (
     !value
@@ -64,15 +70,45 @@ export async function handleAuthConfirmation(
 
   const tokenHash = searchParams.get("token_hash");
   const type = searchParams.get("type");
-  if (!tokenHash || !type || !AUTH_EMAIL_OTP_TYPES.has(type)) {
+  const otpType = safeAuthEmailOtpType(type);
+  if (!tokenHash || !otpType) {
     return invalidConfirmation(request);
   }
 
-  const fallback = type === "recovery" ? "/reset-password" : "/";
+  const fallback = otpType === "recovery" ? "/reset-password" : "/";
   const next = safeAuthNextPath(searchParams.get("next"), fallback);
   const { error } = await dependencies.verifyOtp({
     token_hash: tokenHash,
-    type: type as AuthEmailOtpType,
+    type: otpType,
+  });
+  if (error) return invalidConfirmation(request);
+  return confirmationRedirect(request, next);
+}
+
+export async function handleAuthConfirmationSubmission(
+  request: NextRequest,
+  dependencies: AuthConfirmationDependencies,
+) {
+  const form = await request.formData();
+  const tokenHash = form.get("token_hash");
+  const type = form.get("type");
+  const otpType = safeAuthEmailOtpType(
+    typeof type === "string" ? type : null,
+  );
+
+  if (typeof tokenHash !== "string" || !tokenHash || !otpType) {
+    return invalidConfirmation(request);
+  }
+
+  const fallback = otpType === "recovery" ? "/reset-password" : "/";
+  const nextValue = form.get("next");
+  const next = safeAuthNextPath(
+    typeof nextValue === "string" ? nextValue : null,
+    fallback,
+  );
+  const { error } = await dependencies.verifyOtp({
+    token_hash: tokenHash,
+    type: otpType,
   });
   if (error) return invalidConfirmation(request);
   return confirmationRedirect(request, next);

@@ -18,6 +18,37 @@ const handleAuthConfirmation = (
   authFlow as unknown as { handleAuthConfirmation: ConfirmationHandler }
 ).handleAuthConfirmation;
 
+const handleAuthConfirmationSubmission = (
+  authFlow as unknown as {
+    handleAuthConfirmationSubmission?: ConfirmationHandler;
+  }
+).handleAuthConfirmationSubmission;
+
+test("requires a deliberate form submission before verifying an email token", async () => {
+  expect(typeof handleAuthConfirmationSubmission).toBe("function");
+
+  const verifyOtp = vi.fn(async () => ({ error: null }));
+  const form = new FormData();
+  form.set("token_hash", "secure-token");
+  form.set("type", "recovery");
+  form.set("next", "/reset-password");
+  const request = new NextRequest(
+    "https://piw-sepia.vercel.app/auth/confirm",
+    { method: "POST", body: form },
+  );
+
+  const response = await handleAuthConfirmationSubmission!(request, { verifyOtp });
+
+  expect(response.status).toBe(303);
+  expect(response.headers.get("location")).toBe(
+    "https://piw-sepia.vercel.app/reset-password",
+  );
+  expect(verifyOtp).toHaveBeenCalledWith({
+    token_hash: "secure-token",
+    type: "recovery",
+  });
+});
+
 test("verifies a recovery token and continues to the reset form", async () => {
   const verifyOtp = vi.fn(async () => ({ error: null }));
   const request = new NextRequest(

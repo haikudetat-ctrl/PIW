@@ -5,6 +5,7 @@ describe("public authentication routes", () => {
   test.each([
     "/forgot-password",
     "/reset-password",
+    "/auth/email-action",
     "/auth/confirm",
     "/auth/callback",
   ])("allows unauthenticated access to %s", (pathname) => {
