@@ -56,6 +56,9 @@ const serverEnvSchema = z
     INTEGRATIONS_LEADMASTER_ENABLED: booleanString,
     INTEGRATIONS_JOBNIMBUS_ENABLED: booleanString,
     INTEGRATIONS_JOBNIMBUS_CANARY_ENABLED: booleanString,
+    // Warehouse sync ported from 2stack-roof-quote. Per-company credentials are
+    // named by company_integrations.env_key_name, so no key is required here.
+    INTEGRATIONS_JOBNIMBUS_SYNC_ENABLED: booleanString,
     INTEGRATIONS_CALLTOOLS_ENABLED: booleanString,
     ALL_SEASON_INTAKE_SHARED_SECRET: optionalString,
     ALL_SEASON_INTAKE_COMPANY_ID: optionalUuid,
