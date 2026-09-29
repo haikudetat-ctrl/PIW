@@ -19,6 +19,10 @@ sale → nurture. 2Stack Roof Quote stays a standalone product and sales wedge.
 | Sold value | Shown. JobNimbus `approved_estimate_total`, falling back to `last_estimate`. |
 | Stage ownership | LeadMaster: intake and scheduling. JobNimbus: sales → production handoff onward. |
 | Filtered ActiveProspect leads | Tracked for possible recovery. |
+| ActiveProspect data path | No API key is available, so flow insertion (Phase C) is the primary path, with checkpoint recipients placed so filtered leads are visible. See below. |
+| Rep identity | Supabase auth UID, with email as the matching key to LeadMaster and JobNimbus users. |
+| Paid | Out of scope for v1. The journey ends at `Pending Payments` / `Job Completed`; QuickBooks is a later source. |
+| Source costs | Both per-lead vendor price and monthly spend per source, in one cost table. |
 | Sync cadence | 30–60 min polling. Real time only where PIW already sends. |
 | Ad spend | Not ingested. Cost per sale uses a manually maintained per-source cost table. |
 | Access tiers | SuperAdmin → CompanyAdmin → Manager → Employee. |
@@ -29,7 +33,7 @@ sale → nurture. 2Stack Roof Quote stays a standalone product and sales wedge.
 |---|---|---|
 | Source / ad | PIW | `leads.source_system`, `utm_*`, `original_lead_source`, website arrivals |
 | Lead received | PIW, ActiveProspect | PIW lead row; LeadConduit source event |
-| AP accepted / rejected / filtered | ActiveProspect | LeadConduit events API (read-only), with outcome and reason |
+| AP accepted / rejected / filtered | ActiveProspect | Checkpoint recipients inserted in each flow (see below) |
 | Contacted | LeadMaster | Record status / last activity |
 | Appointment set | LeadMaster | Opportunity status / appointment date |
 | Appointment ran / no-show | LeadMaster, then JobNimbus | LeadMaster outcome; JobNimbus `Appointment Scheduled`, `No Show` |
@@ -37,13 +41,13 @@ sale → nurture. 2Stack Roof Quote stays a standalone product and sales wedge.
 | Quoted | JobNimbus | `Quoted`, estimates |
 | Sold | JobNimbus | Sold set above, `date_status_change` |
 | In production / complete | JobNimbus | `Job Prep`, `Final Walk Through`, `Job Completed` |
-| Paid | JobNimbus | `Pending Payments` → completion. JobNimbus invoicing is unused on this account, so "paid" is inferred until a payment source is named. |
+| Paid | Not tracked in v1 | Likely QuickBooks. The v1 journey ends at `Pending Payments` / `Job Completed`. |
 
 ## Architecture
 
 ```
 Meta / website ─┐
-Other sources ──┼─▶ ActiveProspect flows ──(events API, read)──┐
+Other sources ──┼─▶ ActiveProspect flows ──(checkpoint recipients)─┐
 PIW intake ─────┘         ▲                                     │
       │                   └──(submit, existing)── PIW           │
       ▼                                                         ▼
@@ -63,6 +67,36 @@ PIW intake ─────┘         ▲                                     �
   — derives from this one table. It is rebuildable from the raw vendor tables.
 - **PIW lead ID round-trip.** Add the PIW lead ID to outbound LeadConduit
   submissions so PIW's own leads are recognized when they come back.
+
+## ActiveProspect without an API key: checkpoint recipients
+
+A LeadConduit recipient only sees leads that reach its position in the flow,
+so one recipient at the end cannot see filtered leads. Instead, insert
+fail-open Custom JSON recipients at checkpoints in both the Roofing and
+Roofing Virtual Quote flows:
+
+| Checkpoint | Position | Tells us |
+|---|---|---|
+| `intake` | Immediately after source acceptance, before any filter | Every lead that entered the flow |
+| `after_corelogic` | Already designed (after step 26 / 15) | Lead survived the early filters; CoreLogic outcome |
+| `delivered` | After the last client destination | Lead was accepted and delivered |
+
+A lead seen at `intake` but not at a later checkpoint within a time window
+was filtered between those two points. Where a filter step exposes its
+outcome and reason as step output, pass it in the next checkpoint's body.
+Add a checkpoint before a specific filter only when a stage needs a precise
+reason.
+
+This extends the existing receiver (`/api/integrations/leadconduit/[flow]`,
+`src/modules/access-route/leadconduit-shadow-receipt.ts`), which today accepts
+only `after_corelogic`. It keeps the Phase C safety rules from
+`docs/runbooks/leadconduit-shadow-recipient.md`: synthetic Test Flow first,
+fail-open on timeout / non-2xx / network error, no reordering or editing of
+existing steps, and rollback by disabling only the PIW recipients. Flow
+editing needs a LeadConduit user with flow-edit rights; confirm who has them
+before day 3.
+
+The events API reader stays a later option if an API key turns up.
 
 ## Porting the JobNimbus sync from 2Stack Roof Quote
 
@@ -97,20 +131,26 @@ tiers.
 |---|---|
 | SuperAdmin | All companies, integrations, configuration |
 | CompanyAdmin | Everything in one company, including users and cost table |
-| Manager | Their team's customers and aggregate company metrics — **to confirm** |
-| Employee | Customers assigned to them — **to confirm** |
+| Manager | Every customer in their company, revenue and cost per sale; can reassign customers. Cannot manage users, integrations, or the cost table. |
+| Employee | Only customers assigned to them, and their own KPIs. No company revenue or source costs. |
 
-Implementation: a `company_memberships` table (`user_id`, `company_id`,
-`role`, `manager_id`) replacing single-company `admin_profiles`, enforced in
-RLS, not only in the UI. "Assigned to" needs a rep identity that maps across
-PIW, LeadMaster and JobNimbus users.
+Implementation:
+
+- `company_memberships` (`user_id`, `company_id`, `role`), replacing
+  single-company `admin_profiles`. Existing `admin_profiles` rows migrate to
+  `company_admin`; the owner account becomes `super_admin`.
+- `rep_identities` (`user_id`, `source_system`, `external_user_id`, `email`):
+  matched automatically by email, with a manual override for mismatches.
+- `customer_assignments` derived from the LeadMaster and JobNimbus owner /
+  sales-rep fields through `rep_identities`.
+- Scope enforced in RLS and in the dashboard queries, not only in the UI.
 
 ## 14-day schedule
 
 | Days | Work |
 |---|---|
-| 1–2 | Access: ActiveProspect read-only API key, LeadMaster API token. Roles and memberships migration. Retention policy draft. Fix the stuck lead distribution. |
-| 3–5 | Port the JobNimbus sync and backfill. Revive the LeadConduit events reader for Roofing and Roofing Virtual Quote. Enable the LeadMaster reader if the token has arrived. |
+| 1–2 | Port the JobNimbus sync and backfill. Roles, memberships and rep identities migration. Retention policy draft. Fix the stuck lead distribution. Confirm who can edit the LeadConduit flows and whether LeadMaster has API access. |
+| 3–5 | Extend the LeadConduit receiver for checkpoints; Test Flow with synthetic leads; enable in both flows. LeadMaster reader if access exists, otherwise scheduled export. |
 | 5–8 | `customer_identities`, matching, `customer_journey_events`, status mappings, cost table. |
 | 8–11 | `/journey`: funnel by source, stage-to-stage handoff rates, time in stage, cost per sale, revenue, rejected-lead recovery queue, per-customer timeline. Role-scoped. |
 | 12–14 | Backfill, reconcile against JobNimbus and LeadMaster UI counts, owner acceptance, production. |
@@ -118,23 +158,23 @@ PIW, LeadMaster and JobNimbus users.
 
 ## Risks
 
-- **LeadMaster access.** It owns contacted and appointment-set. PIW already has
-  a reader for LeadMaster's web API, but it needs a token with API entitlement.
-  Fallback: CSV export on a schedule, and JobNimbus appointment statuses for
-  the stages after handoff.
+- **LeadMaster access.** It owns contacted and appointment-set, and API access
+  is unconfirmed. PIW already has a reader for LeadMaster's web API
+  (`GetLastUpdatedLeadWithPaging`, `GetLastUpdatedOpportunitiesWithPaging`),
+  which needs an access token. Fallback: a scheduled report or CSV export, and
+  JobNimbus `Appointment Scheduled` / `No Show` for the stages after handoff.
+- **Flow edits.** Filtered-lead visibility depends on inserting recipients
+  into live client flows. A misconfigured recipient that is not fail-open
+  could block lead delivery; the Test Flow gate exists for this reason.
 - **Rep identity.** Employee-level scoping needs a rep mapping across three
   systems.
 - **Retention.** Filtered-lead evidence needs an approved retention schedule
   before live candidate traffic (see the LeadConduit shadow recipient runbook).
-- **Unversioned production code.** The live PIW deployment contains
-  forgot-password pages that are not in git. Commit them before the next
-  deploy from `main`.
+- **Unversioned production code.** The forgot-password pages in the live
+  deployment are being committed in PR 57; merge it before the next deploy
+  from `main`.
 
 ## Open questions
 
-1. What exactly may a Manager and an Employee see (own records, team, company aggregates, revenue)?
-2. How are reps identified across LeadMaster and JobNimbus (email, name, user ID)?
-3. Who is the LeadMaster admin who can request API access?
-4. Can All Season's ActiveProspect admin issue a read-only API key?
-5. What counts as "paid", given JobNimbus invoicing is unused?
-6. Per-source costs: per-lead vendor price, monthly spend, or both?
+1. Who in All Season's LeadConduit account can edit the Roofing and Roofing Virtual Quote flows?
+2. Does All Season's LeadMaster plan include web API access (an access token), or only reports and exports?
