@@ -4925,6 +4925,36 @@ export type Database = {
           },
         ]
       }
+      leadconduit_filtered_leads: {
+        Row: {
+          company_id: string | null
+          email_normalized: string | null
+          entered_at: string | null
+          flow_id: string | null
+          is_test: boolean | null
+          lead_id: string | null
+          lead_name: string | null
+          likely_filter_category: string | null
+          phone_normalized: string | null
+          piw_reference: string | null
+          source_id: string | null
+          source_name: string | null
+          stopped_at: string | null
+          submitted_address: string | null
+          submitted_email: string | null
+          submitted_phone: string | null
+          trustedform_url: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leadconduit_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reconciled_lead_routes: {
         Row: {
           appointment_at: string | null
@@ -5513,6 +5543,14 @@ export type Database = {
           p_reservation_id: string
         }
         Returns: undefined
+      }
+      redact_leadconduit_checkpoint_contacts: {
+        Args: {
+          p_company_id: string
+          p_delivered_after: string
+          p_filtered_after: string
+        }
+        Returns: number
       }
       request_roof_consultation: {
         Args: {

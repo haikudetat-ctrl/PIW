@@ -261,3 +261,99 @@ describe("LeadConduit shadow receipt event mapping", () => {
     expect(row.raw_payload).toEqual({ schema_version: 1, checkpoint: "after_corelogic", candidate_categories: [] });
   });
 });
+
+describe("LeadConduit journey checkpoints", () => {
+  const withoutCorelogic = Object.fromEntries(
+    Object.entries(syntheticPayload).filter(([key]) => key !== "corelogic"),
+  );
+  const intakePayload = {
+    ...withoutCorelogic,
+    checkpoint: "intake",
+    piw_lead_id: "11111111-1111-4111-8111-111111111111",
+  };
+
+  it("accepts intake and delivered bodies without CoreLogic outputs", () => {
+    expect(parseLeadConduitShadowPayload(intakePayload).ok).toBe(true);
+    expect(parseLeadConduitShadowPayload({ ...withoutCorelogic, checkpoint: "delivered" }).ok).toBe(true);
+  });
+
+  it("rejects CoreLogic outputs outside the after_corelogic checkpoint and requires them there", () => {
+    expect(parseLeadConduitShadowPayload({ ...syntheticPayload, checkpoint: "intake" })).toEqual({
+      ok: false,
+      invalidFields: ["corelogic"],
+    });
+    expect(parseLeadConduitShadowPayload({ ...withoutCorelogic, checkpoint: "after_corelogic" })).toEqual({
+      ok: false,
+      invalidFields: ["corelogic"],
+    });
+  });
+
+  it("rejects a PIW lead reference that is not a UUID", () => {
+    expect(parseLeadConduitShadowPayload({ ...intakePayload, piw_lead_id: "lead-1" }).ok).toBe(false);
+  });
+
+  it("never classifies intake or delivered bodies as filter candidates", () => {
+    expect(classifyLeadConduitShadow({ flowSlug: "roofing", payload: parsed(intakePayload) })).toEqual([]);
+  });
+
+  it("keeps submitted contact details at intake for recovery", () => {
+    const row = toLeadConduitShadowEvent({
+      binding, payload: parsed(intakePayload), categories: [], observedAt: OBSERVED_AT,
+    });
+
+    expect(row).toMatchObject({
+      event_type: "checkpoint_intake",
+      lead_id: "synthetic-lead-101",
+      raw_status: "observed",
+      processing_status: "not_applicable",
+      lead_name: "Synthetic Homeowner",
+      submitted_phone: "(609) 555-0101",
+      phone_normalized: "+16095550101",
+      email_normalized: "synthetic@example.invalid",
+      submitted_address: "101 Synthetic Way, Trenton, NJ",
+      attribution: { checkpoint: "intake", piw_reference: "11111111-1111-4111-8111-111111111111" },
+      raw_payload: { schema_version: 1, checkpoint: "intake" },
+      piw_lead_id: null,
+    });
+  });
+
+  it("keeps only matching keys at delivery", () => {
+    const row = toLeadConduitShadowEvent({
+      binding,
+      payload: parsed({ ...withoutCorelogic, checkpoint: "delivered" }),
+      categories: [],
+      observedAt: OBSERVED_AT,
+    });
+
+    expect(row).toMatchObject({
+      event_type: "checkpoint_delivered",
+      phone_normalized: "+16095550101",
+      email_normalized: "synthetic@example.invalid",
+      lead_name: null,
+      submitted_phone: null,
+      submitted_email: null,
+      submitted_address: null,
+      trustedform_url: null,
+    });
+  });
+
+  it("gives each checkpoint of a lead its own idempotent event", () => {
+    const events = ["intake", "delivered"].map((checkpoint) => toLeadConduitShadowEvent({
+      binding,
+      payload: parsed({ ...withoutCorelogic, checkpoint }),
+      categories: [],
+      observedAt: OBSERVED_AT,
+    }).event_id);
+    const shadow = toLeadConduitShadowEvent({
+      binding, payload: parsed(), categories: [], observedAt: OBSERVED_AT,
+    }).event_id;
+
+    expect(new Set([...events, shadow]).size).toBe(3);
+    expect(toLeadConduitShadowEvent({
+      binding,
+      payload: parsed({ ...withoutCorelogic, checkpoint: "intake" }),
+      categories: [],
+      observedAt: "2026-08-13T00:00:00.000Z",
+    }).event_id).toBe(events[0]);
+  });
+});

@@ -6,6 +6,20 @@ import { normalizeEmail, normalizePhone } from "./normalize";
 
 export const LEADCONDUIT_SHADOW_CHECKPOINT = "after_corelogic" as const;
 
+// Recipients placed at three points in each flow. A lead seen at intake but
+// not at a later checkpoint was filtered between the two.
+//   intake          — immediately after source acceptance, before any filter
+//   after_corelogic — the original shadow checkpoint, with CoreLogic outputs
+//   delivered       — after the last client destination
+export const LEADCONDUIT_CHECKPOINTS = ["intake", LEADCONDUIT_SHADOW_CHECKPOINT, "delivered"] as const;
+export type LeadConduitCheckpoint = (typeof LEADCONDUIT_CHECKPOINTS)[number];
+
+const CHECKPOINT_EVENT_TYPES: Record<LeadConduitCheckpoint, string> = {
+  intake: "checkpoint_intake",
+  after_corelogic: "shadow_checkpoint",
+  delivered: "checkpoint_delivered",
+};
+
 export type LeadConduitShadowCategory =
   | "apartment_classification"
   | "multiple_property_match"
@@ -38,7 +52,11 @@ const leadConduitShadowPayloadSchema = z.object({
   schema_version: z.literal(1),
   lead_id: z.string().trim().min(1),
   flow_id: z.string().trim().min(1),
-  checkpoint: z.literal(LEADCONDUIT_SHADOW_CHECKPOINT),
+  checkpoint: z.enum(LEADCONDUIT_CHECKPOINTS),
+  // PIW's own lead ID when the lead originated in PIW (sent outbound as
+  // lead_id_allss / reference). Recorded as attribution only; it is not
+  // trusted as a link to a PIW lead until matched.
+  piw_lead_id: z.uuid().nullable().optional(),
   source: z.object({
     id: optionalLeaf,
     name: optionalLeaf,
@@ -60,8 +78,15 @@ const leadConduitShadowPayloadSchema = z.object({
     reason: optionalLeaf,
     building_comments: optionalLeaf,
     site_land_use: optionalLeaf,
-  }).strict(),
-}).strict();
+  }).strict().optional(),
+}).strict().superRefine((payload, context) => {
+  // CoreLogic outputs exist only after the CoreLogic step; a body that claims
+  // otherwise is a misconfigured recipient.
+  const expectsCorelogic = payload.checkpoint === LEADCONDUIT_SHADOW_CHECKPOINT;
+  if (expectsCorelogic !== (payload.corelogic !== undefined)) {
+    context.addIssue({ code: "custom", path: ["corelogic"], message: "corelogic does not match checkpoint" });
+  }
+});
 
 export type LeadConduitShadowPayload = z.infer<typeof leadConduitShadowPayloadSchema>;
 
@@ -104,21 +129,27 @@ export function classifyLeadConduitShadow(input: {
   payload: LeadConduitShadowPayload;
 }): LeadConduitShadowCategory[] {
   const { payload } = input;
-  if (isExemptSource(payload) || trimmed(payload.corelogic.outcome)?.toLocaleLowerCase() !== "success") {
+  const corelogic = payload.corelogic;
+  if (
+    payload.checkpoint !== LEADCONDUIT_SHADOW_CHECKPOINT
+    || !corelogic
+    || isExemptSource(payload)
+    || trimmed(corelogic.outcome)?.toLocaleLowerCase() !== "success"
+  ) {
     return [];
   }
 
   const categories: LeadConduitShadowCategory[] = [];
   if (
-    includesIgnoringCase(payload.corelogic.building_comments, "APARTMENT")
-    || includesIgnoringCase(payload.corelogic.site_land_use, "APARTMENT")
+    includesIgnoringCase(corelogic.building_comments, "APARTMENT")
+    || includesIgnoringCase(corelogic.site_land_use, "APARTMENT")
   ) {
     categories.push("apartment_classification");
   }
-  if (input.flowSlug === "roofing" && trimmed(payload.corelogic.reason) === multiplePropertyReason) {
+  if (input.flowSlug === "roofing" && trimmed(corelogic.reason) === multiplePropertyReason) {
     categories.push("multiple_property_match");
   }
-  if (input.flowSlug === "roofing" && includesIgnoringCase(payload.corelogic.site_land_use, "VACANT")) {
+  if (input.flowSlug === "roofing" && includesIgnoringCase(corelogic.site_land_use, "VACANT")) {
     categories.push("vacant_property_classification");
   }
   return categories;
@@ -134,18 +165,24 @@ export function toLeadConduitShadowEvent(input: {
   categories: LeadConduitShadowCategory[];
   observedAt: string;
 }): LeadConduitEventRow {
+  const { binding, payload, observedAt } = input;
+  const eventId = `shadow:${createHash("sha256").update([binding.flowId, payload.lead_id, payload.checkpoint].join("\0")).digest("hex")}`;
+  if (payload.checkpoint !== LEADCONDUIT_SHADOW_CHECKPOINT) {
+    return toJourneyCheckpointEvent({ binding, payload, observedAt, eventId, checkpoint: payload.checkpoint });
+  }
+
   const categories = orderedCategories(input.categories);
   const isCandidate = categories.length > 0;
-  const { binding, payload, observedAt } = input;
+  const corelogic = payload.corelogic ?? {};
   const rawPayload = isCandidate
     ? {
       schema_version: 1,
       checkpoint: LEADCONDUIT_SHADOW_CHECKPOINT,
       corelogic: {
-        outcome: payload.corelogic.outcome ?? null,
-        reason: payload.corelogic.reason ?? null,
-        building_comments: payload.corelogic.building_comments ?? null,
-        site_land_use: payload.corelogic.site_land_use ?? null,
+        outcome: corelogic.outcome ?? null,
+        reason: corelogic.reason ?? null,
+        building_comments: corelogic.building_comments ?? null,
+        site_land_use: corelogic.site_land_use ?? null,
       },
       candidate_categories: categories,
     }
@@ -157,14 +194,14 @@ export function toLeadConduitShadowEvent(input: {
 
   return {
     company_id: binding.companyId,
-    event_id: `shadow:${createHash("sha256").update([binding.flowId, payload.lead_id, payload.checkpoint].join("\0")).digest("hex")}`,
+    event_id: eventId,
     flow_id: binding.flowId,
     source_id: payload.source.id ?? null,
     source_name: payload.source.name ?? null,
     lead_id: payload.lead_id,
-    event_type: "shadow_checkpoint",
+    event_type: CHECKPOINT_EVENT_TYPES.after_corelogic,
     occurred_at: payload.submitted_at,
-    outcome: isCandidate ? payload.corelogic.outcome ?? null : null,
+    outcome: isCandidate ? corelogic.outcome ?? null : null,
     external_lead_id: null,
     phone_normalized: isCandidate ? normalizePhone(payload.lead.phone ?? null) : null,
     email_normalized: isCandidate ? normalizeEmail(payload.lead.email ?? null) : null,
@@ -191,6 +228,66 @@ export function toLeadConduitShadowEvent(input: {
     webhook_received_at: observedAt,
     poll_observed_at: null,
     processing_status: isCandidate ? "observed" : "not_applicable",
+    piw_lead_id: null,
+    processing_error_category: null,
+    processing_attempts: 0,
+    processing_claimed_at: null,
+    processing_claimed_by: null,
+    processing_next_attempt_at: null,
+    ingested_at: observedAt,
+  };
+}
+
+// Journey checkpoints. Intake keeps the submitted contact details because a
+// lead that stops there is a recovery candidate and nothing else holds them in
+// PIW. Delivered keeps only normalized phone and email for matching; the lead
+// itself lives in the client's systems. Retention of intake contact details is
+// governed by redact_leadconduit_checkpoint_contacts.
+function toJourneyCheckpointEvent(input: {
+  binding: LeadConduitFlowBinding;
+  payload: LeadConduitShadowPayload;
+  observedAt: string;
+  eventId: string;
+  checkpoint: Exclude<LeadConduitCheckpoint, "after_corelogic">;
+}): LeadConduitEventRow {
+  const { binding, payload, observedAt, checkpoint } = input;
+  const keepContact = checkpoint === "intake";
+  return {
+    company_id: binding.companyId,
+    event_id: input.eventId,
+    flow_id: binding.flowId,
+    source_id: payload.source.id ?? null,
+    source_name: payload.source.name ?? null,
+    lead_id: payload.lead_id,
+    event_type: CHECKPOINT_EVENT_TYPES[checkpoint],
+    occurred_at: payload.submitted_at,
+    outcome: null,
+    external_lead_id: null,
+    phone_normalized: normalizePhone(payload.lead.phone ?? null),
+    email_normalized: normalizeEmail(payload.lead.email ?? null),
+    raw_status: "observed",
+    step_id: null,
+    step_name: null,
+    rule_id: null,
+    rule_name: null,
+    rule_scope: null,
+    rule_scope_id: null,
+    reason_category: null,
+    lead_name: keepContact ? payload.lead.name ?? null : null,
+    submitted_phone: keepContact ? payload.lead.phone ?? null : null,
+    submitted_email: keepContact ? payload.lead.email ?? null : null,
+    submitted_address: keepContact ? payload.lead.submitted_address ?? null : null,
+    campaign: null,
+    consent_reference: null,
+    trustedform_url: keepContact ? payload.lead.trustedform_url ?? null : null,
+    attribution: { checkpoint, piw_reference: payload.piw_lead_id ?? null },
+    raw_payload: { schema_version: 1, checkpoint },
+    is_test: payload.is_test,
+    ingestion_channels: ["webhook"],
+    first_observed_at: observedAt,
+    webhook_received_at: observedAt,
+    poll_observed_at: null,
+    processing_status: "not_applicable",
     piw_lead_id: null,
     processing_error_category: null,
     processing_attempts: 0,
