@@ -431,3 +431,25 @@ describe("LeadConduit shadow receipt persistence", () => {
     expect(JSON.stringify(result)).not.toContain(secret);
   });
 });
+
+describe("LeadConduit journey checkpoint receipt", () => {
+  it.each(["intake", "delivered"])("accepts a %s checkpoint without CoreLogic outputs", async (checkpoint) => {
+    const { result, persisted } = await handle(payload({ checkpoint, corelogic: undefined }));
+
+    expect(result).toEqual({ status: 200, body: { outcome: "success" } });
+    expect(persisted[0].rows[0]).toMatchObject({
+      event_type: `checkpoint_${checkpoint}`,
+      company_id: COMPANY_ID,
+      flow_id: "synthetic-roofing-flow",
+    });
+  });
+
+  it("records all three checkpoints of one lead as separate events", async () => {
+    const dependencies = makeDependencies();
+    await handle(payload({ checkpoint: "intake", corelogic: undefined }), dependencies);
+    await handle(payload(), dependencies);
+    await handle(payload({ checkpoint: "delivered", corelogic: undefined }), dependencies);
+
+    expect(dependencies.rowsByEventId.size).toBe(3);
+  });
+});

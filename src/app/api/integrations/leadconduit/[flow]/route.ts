@@ -5,7 +5,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import type { LeadConduitEventBatch } from "@/modules/access-route/contracts";
 import { getLeadConduitFlowBinding, type LeadConduitFlowBinding } from "@/modules/access-route/leadconduit-config";
 import {
-  LEADCONDUIT_SHADOW_CHECKPOINT,
+  LEADCONDUIT_CHECKPOINTS,
   classifyLeadConduitShadow,
   parseLeadConduitShadowPayload,
   toLeadConduitShadowEvent,
@@ -96,7 +96,8 @@ function hasTrustedBindingMismatch(value: unknown, binding: LeadConduitFlowBindi
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const record = value as Record<string, unknown>;
   return (typeof record.flow_id === "string" && record.flow_id !== binding.flowId)
-    || (typeof record.checkpoint === "string" && record.checkpoint !== LEADCONDUIT_SHADOW_CHECKPOINT);
+    || (typeof record.checkpoint === "string"
+      && !(LEADCONDUIT_CHECKPOINTS as readonly string[]).includes(record.checkpoint));
 }
 
 export async function handleLeadConduitShadowRequest(
