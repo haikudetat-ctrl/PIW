@@ -77,14 +77,15 @@ admin through Supabase Studio (`npx supabase status` prints its URL, typically
 
 1. In Studio, go to **Authentication → Users → Add user** and create a user
    with a password, with **Auto Confirm** enabled.
-2. Copy the new user's UUID.
-3. Insert an `admin_profiles` row linking that UUID to the seeded local
-   company:
+2. Grant the user a membership in the seeded local company:
 
    ```sql
-   insert into public.admin_profiles (id, company_id, display_name)
-   values ('<user-uuid>', '00000000-0000-4000-8000-000000000001', 'Local Admin');
+   select public.grant_company_membership(
+     '<user email>', '00000000-0000-4000-8000-000000000001', 'company_admin', 'Local Admin'
+   );
    ```
+
+   See the [access roles runbook](access-roles.md) for other roles.
 
 You can now sign in at `/login` with that user's email and password.
 

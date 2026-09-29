@@ -278,6 +278,79 @@ export type Database = {
         }
         Relationships: []
       }
+      company_integrations: {
+        Row: {
+          company_id: string
+          created_at: string
+          enabled: boolean
+          env_key_name: string
+          field_map: Json
+          history_start: string
+          provider: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          enabled?: boolean
+          env_key_name: string
+          field_map?: Json
+          history_start: string
+          provider: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          enabled?: boolean
+          env_key_name?: string
+          field_map?: Json
+          history_start?: string
+          provider?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_integrations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      company_memberships: {
+        Row: {
+          company_id: string
+          created_at: string
+          is_active: boolean
+          role: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          is_active?: boolean
+          role: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          is_active?: boolean
+          role?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_memberships_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       consultation_requests: {
         Row: {
           assessment_id: string
@@ -1034,6 +1107,216 @@ export type Database = {
           },
         ]
       }
+      jn_contacts: {
+        Row: {
+          address_line1: string | null
+          city: string | null
+          company_id: string
+          display_name: string | null
+          email_normalized: string | null
+          first_name: string | null
+          is_archived: boolean | null
+          jn_created_at: string | null
+          jn_updated_at: string | null
+          jnid: string
+          last_name: string | null
+          phone_normalized: string | null
+          projected_at: string
+          record_type_name: string | null
+          sales_rep_jnid: string | null
+          sales_rep_name: string | null
+          source_name: string | null
+          state_text: string | null
+          status_name: string | null
+          zip: string | null
+        }
+        Insert: {
+          address_line1?: string | null
+          city?: string | null
+          company_id: string
+          display_name?: string | null
+          email_normalized?: string | null
+          first_name?: string | null
+          is_archived?: boolean | null
+          jn_created_at?: string | null
+          jn_updated_at?: string | null
+          jnid: string
+          last_name?: string | null
+          phone_normalized?: string | null
+          projected_at?: string
+          record_type_name?: string | null
+          sales_rep_jnid?: string | null
+          sales_rep_name?: string | null
+          source_name?: string | null
+          state_text?: string | null
+          status_name?: string | null
+          zip?: string | null
+        }
+        Update: {
+          address_line1?: string | null
+          city?: string | null
+          company_id?: string
+          display_name?: string | null
+          email_normalized?: string | null
+          first_name?: string | null
+          is_archived?: boolean | null
+          jn_created_at?: string | null
+          jn_updated_at?: string | null
+          jnid?: string
+          last_name?: string | null
+          phone_normalized?: string | null
+          projected_at?: string
+          record_type_name?: string | null
+          sales_rep_jnid?: string | null
+          sales_rep_name?: string | null
+          source_name?: string | null
+          state_text?: string | null
+          status_name?: string | null
+          zip?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jn_contacts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      jn_estimates: {
+        Row: {
+          approved_total: number | null
+          company_id: string
+          estimate_total: number | null
+          jn_created_at: string | null
+          jn_updated_at: string | null
+          jnid: string
+          number: string | null
+          projected_at: string
+          related_job_jnid: string | null
+          source: string | null
+          status_name: string | null
+        }
+        Insert: {
+          approved_total?: number | null
+          company_id: string
+          estimate_total?: number | null
+          jn_created_at?: string | null
+          jn_updated_at?: string | null
+          jnid: string
+          number?: string | null
+          projected_at?: string
+          related_job_jnid?: string | null
+          source?: string | null
+          status_name?: string | null
+        }
+        Update: {
+          approved_total?: number | null
+          company_id?: string
+          estimate_total?: number | null
+          jn_created_at?: string | null
+          jn_updated_at?: string | null
+          jnid?: string
+          number?: string | null
+          projected_at?: string
+          related_job_jnid?: string | null
+          source?: string | null
+          status_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jn_estimates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      jn_jobs: {
+        Row: {
+          address_line1: string | null
+          approved_total: number | null
+          city: string | null
+          company_id: string
+          estimate_total: number | null
+          is_active: boolean | null
+          is_archived: boolean | null
+          jn_created_at: string | null
+          jn_updated_at: string | null
+          jnid: string
+          job_type: string | null
+          number: string | null
+          primary_contact_jnid: string | null
+          projected_at: string
+          record_type_name: string | null
+          sales_rep_jnid: string | null
+          sales_rep_name: string | null
+          shingle_line: string | null
+          state_text: string | null
+          status_changed_at: string | null
+          status_name: string | null
+          zip: string | null
+        }
+        Insert: {
+          address_line1?: string | null
+          approved_total?: number | null
+          city?: string | null
+          company_id: string
+          estimate_total?: number | null
+          is_active?: boolean | null
+          is_archived?: boolean | null
+          jn_created_at?: string | null
+          jn_updated_at?: string | null
+          jnid: string
+          job_type?: string | null
+          number?: string | null
+          primary_contact_jnid?: string | null
+          projected_at?: string
+          record_type_name?: string | null
+          sales_rep_jnid?: string | null
+          sales_rep_name?: string | null
+          shingle_line?: string | null
+          state_text?: string | null
+          status_changed_at?: string | null
+          status_name?: string | null
+          zip?: string | null
+        }
+        Update: {
+          address_line1?: string | null
+          approved_total?: number | null
+          city?: string | null
+          company_id?: string
+          estimate_total?: number | null
+          is_active?: boolean | null
+          is_archived?: boolean | null
+          jn_created_at?: string | null
+          jn_updated_at?: string | null
+          jnid?: string
+          job_type?: string | null
+          number?: string | null
+          primary_contact_jnid?: string | null
+          projected_at?: string
+          record_type_name?: string | null
+          sales_rep_jnid?: string | null
+          sales_rep_name?: string | null
+          shingle_line?: string | null
+          state_text?: string | null
+          status_changed_at?: string | null
+          status_name?: string | null
+          zip?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jn_jobs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       job_inspections: {
         Row: {
           company_id: string
@@ -1285,6 +1568,138 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "jobnimbus_jobs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      jobnimbus_records: {
+        Row: {
+          company_id: string
+          content_hash: string
+          first_seen_at: string
+          jn_updated_at: string | null
+          jnid: string
+          last_seen_at: string
+          payload: Json
+          record_type: string
+        }
+        Insert: {
+          company_id: string
+          content_hash: string
+          first_seen_at?: string
+          jn_updated_at?: string | null
+          jnid: string
+          last_seen_at?: string
+          payload: Json
+          record_type: string
+        }
+        Update: {
+          company_id?: string
+          content_hash?: string
+          first_seen_at?: string
+          jn_updated_at?: string | null
+          jnid?: string
+          last_seen_at?: string
+          payload?: Json
+          record_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jobnimbus_records_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      jobnimbus_sync_runs: {
+        Row: {
+          api_calls: number
+          company_id: string
+          error: string | null
+          finished_at: string | null
+          id: string
+          mode: string
+          rate_limit_error_count: number
+          record_type: string
+          records_changed: number
+          records_seen: number
+          started_at: string
+          status: string
+          transient_error_count: number
+          watermark_from: string | null
+          watermark_to: string | null
+        }
+        Insert: {
+          api_calls?: number
+          company_id: string
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          mode: string
+          rate_limit_error_count?: number
+          record_type: string
+          records_changed?: number
+          records_seen?: number
+          started_at?: string
+          status?: string
+          transient_error_count?: number
+          watermark_from?: string | null
+          watermark_to?: string | null
+        }
+        Update: {
+          api_calls?: number
+          company_id?: string
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          mode?: string
+          rate_limit_error_count?: number
+          record_type?: string
+          records_changed?: number
+          records_seen?: number
+          started_at?: string
+          status?: string
+          transient_error_count?: number
+          watermark_from?: string | null
+          watermark_to?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jobnimbus_sync_runs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      jobnimbus_sync_state: {
+        Row: {
+          company_id: string
+          last_full_at: string | null
+          record_type: string
+          watermark: string
+        }
+        Insert: {
+          company_id: string
+          last_full_at?: string | null
+          record_type: string
+          watermark: string
+        }
+        Update: {
+          company_id?: string
+          last_full_at?: string | null
+          record_type?: string
+          watermark?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jobnimbus_sync_state_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
@@ -2722,6 +3137,21 @@ export type Database = {
           },
         ]
       }
+      platform_admins: {
+        Row: {
+          created_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       privacy_consent_evidence: {
         Row: {
           advertising_granted: boolean
@@ -3113,6 +3543,53 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      rep_identities: {
+        Row: {
+          company_id: string
+          created_at: string
+          external_email: string | null
+          external_name: string | null
+          external_user_id: string
+          id: string
+          match_method: string | null
+          source_system: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          external_email?: string | null
+          external_name?: string | null
+          external_user_id: string
+          id?: string
+          match_method?: string | null
+          source_system: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          external_email?: string | null
+          external_name?: string | null
+          external_user_id?: string
+          id?: string
+          match_method?: string | null
+          source_system?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rep_identities_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       reps: {
         Row: {
@@ -4699,6 +5176,7 @@ export type Database = {
           side_effects_applied: boolean
         }[]
       }
+      company_role_rank: { Args: { p_role: string }; Returns: number }
       complete_lead_distribution_delivery: {
         Args: {
           p_available_at: string
@@ -4804,6 +5282,12 @@ export type Database = {
         }[]
       }
       current_company_id: { Args: never; Returns: string }
+      current_company_role: { Args: never; Returns: string }
+      current_member_company_id: { Args: never; Returns: string }
+      discover_jobnimbus_reps: {
+        Args: { p_company_id: string }
+        Returns: number
+      }
       enqueue_domain_event: {
         Args: { p_company_id: string; p_event: Json }
         Returns: string
@@ -4867,6 +5351,31 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      get_my_access: {
+        Args: never
+        Returns: {
+          company_id: string
+          display_name: string
+          is_platform_admin: boolean
+          role: string
+          user_id: string
+        }[]
+      }
+      grant_company_membership: {
+        Args: {
+          p_company_id: string
+          p_display_name: string
+          p_email: string
+          p_role: string
+        }
+        Returns: string
+      }
+      has_company_role: { Args: { p_minimum: string }; Returns: boolean }
+      is_assigned_jobnimbus_rep: {
+        Args: { p_company_id: string; p_sales_rep_jnid: string }
+        Returns: boolean
+      }
+      is_platform_admin: { Args: never; Returns: boolean }
       is_suppressed: {
         Args: {
           p_channel: string
@@ -4875,6 +5384,19 @@ export type Database = {
           p_phone_e164: string
         }
         Returns: boolean
+      }
+      land_jobnimbus_batch: {
+        Args: {
+          p_company_id: string
+          p_record_type: string
+          p_records: Json
+          p_watermark: string
+        }
+        Returns: number
+      }
+      link_rep_identities_by_email: {
+        Args: { p_company_id: string }
+        Returns: number
       }
       list_pending_lead_distribution_deliveries: {
         Args: { p_company_id: string; p_limit: number; p_now: string }

@@ -21,6 +21,7 @@ import {
   recoveredLeadDistributionSender,
 } from "@/inngest/functions/lead-distribution-sender";
 import {leadDistributionSweeper} from "@/inngest/functions/lead-distribution-sweeper";
+import { jobNimbusWarehouseSync } from "@/inngest/functions/jobnimbus-warehouse-sync";
 
 export const maxDuration = 300;
 
@@ -46,5 +47,6 @@ export const { GET, POST, PUT } = serve({
     internalLeadEmailSender,
     recoveredLeadDistributionSender,
     leadDistributionSweeper,
+    jobNimbusWarehouseSync,
   ],
 });
