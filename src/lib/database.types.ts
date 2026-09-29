@@ -739,6 +739,169 @@ export type Database = {
         }
         Relationships: []
       }
+      customer_identities: {
+        Row: {
+          company_id: string
+          created_at: string
+          customer_id: string
+          email_normalized: string | null
+          external_id: string
+          matched_by: string
+          phone_normalized: string | null
+          source_system: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          customer_id: string
+          email_normalized?: string | null
+          external_id: string
+          matched_by: string
+          phone_normalized?: string | null
+          source_system: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          customer_id?: string
+          email_normalized?: string | null
+          external_id?: string
+          matched_by?: string
+          phone_normalized?: string | null
+          source_system?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_identities_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_identities_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_journey_events: {
+        Row: {
+          company_id: string
+          customer_id: string
+          is_approximate: boolean
+          occurred_at: string
+          recorded_at: string
+          source_ref: string
+          source_system: string
+          stage: string
+        }
+        Insert: {
+          company_id: string
+          customer_id: string
+          is_approximate?: boolean
+          occurred_at: string
+          recorded_at?: string
+          source_ref: string
+          source_system: string
+          stage: string
+        }
+        Update: {
+          company_id?: string
+          customer_id?: string
+          is_approximate?: boolean
+          occurred_at?: string
+          recorded_at?: string
+          source_ref?: string
+          source_system?: string
+          stage?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_journey_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_journey_events_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_match_conflicts: {
+        Row: {
+          candidate_count: number
+          company_id: string
+          external_id: string
+          last_seen_at: string
+          reason: string
+          source_system: string
+        }
+        Insert: {
+          candidate_count?: number
+          company_id: string
+          external_id: string
+          last_seen_at?: string
+          reason: string
+          source_system: string
+        }
+        Update: {
+          candidate_count?: number
+          company_id?: string
+          external_id?: string
+          last_seen_at?: string
+          reason?: string
+          source_system?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_match_conflicts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customers: {
+        Row: {
+          company_id: string
+          created_at: string
+          first_seen_at: string | null
+          id: string
+          source_name: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          first_seen_at?: string | null
+          id?: string
+          source_name?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          first_seen_at?: string | null
+          id?: string
+          source_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customers_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       domain_events: {
         Row: {
           causation_event_id: string | null
@@ -1609,6 +1772,35 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "jobnimbus_records_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      jobnimbus_status_stages: {
+        Row: {
+          company_id: string | null
+          implies: string[]
+          stage: string | null
+          status_name: string
+        }
+        Insert: {
+          company_id?: string | null
+          implies?: string[]
+          stage?: string | null
+          status_name: string
+        }
+        Update: {
+          company_id?: string | null
+          implies?: string[]
+          stage?: string | null
+          status_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jobnimbus_status_stages_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
@@ -4480,6 +4672,47 @@ export type Database = {
           },
         ]
       }
+      source_costs: {
+        Row: {
+          amount: number
+          company_id: string
+          cost_type: string
+          created_at: string
+          effective_from: string
+          effective_to: string | null
+          id: string
+          source_name: string
+        }
+        Insert: {
+          amount: number
+          company_id: string
+          cost_type: string
+          created_at?: string
+          effective_from: string
+          effective_to?: string | null
+          id?: string
+          source_name: string
+        }
+        Update: {
+          amount?: number
+          company_id?: string
+          cost_type?: string
+          created_at?: string
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          source_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "source_costs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       source_records: {
         Row: {
           company_id: string
@@ -5092,6 +5325,19 @@ export type Database = {
           token_rotated_at: string
         }[]
       }
+      attach_customer_identity: {
+        Args: {
+          p_company_id: string
+          p_email: string
+          p_explicit_customer_id: string
+          p_external_id: string
+          p_phone: string
+          p_seen_at: string
+          p_source_name: string
+          p_source_system: string
+        }
+        Returns: string
+      }
       authorize_same_browser_roof_assessment_resume: {
         Args: {
           p_assessment_id: string
@@ -5476,6 +5722,10 @@ export type Database = {
           result_viewed_at: string
         }[]
       }
+      match_customer_by_contact: {
+        Args: { p_company_id: string; p_email: string; p_phone: string }
+        Returns: Record<string, unknown>
+      }
       normalize_property_address: {
         Args: { p_address: string }
         Returns: string
@@ -5551,6 +5801,10 @@ export type Database = {
           p_filtered_after: string
         }
         Returns: number
+      }
+      refresh_customer_journey: {
+        Args: { p_company_id: string }
+        Returns: Json
       }
       request_roof_consultation: {
         Args: {
