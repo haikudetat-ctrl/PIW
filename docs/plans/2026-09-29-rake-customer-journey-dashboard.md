@@ -27,6 +27,7 @@ sale → nurture. 2Stack Roof Quote stays a standalone product and sales wedge.
 | Ad spend | Not ingested. Cost per sale uses a manually maintained per-source cost table. |
 | Access tiers | SuperAdmin → CompanyAdmin → Manager → Employee. |
 | LeadConduit flow edits | The owner has flow-edit rights and performs the Phase C insertion. |
+| Retention of filtered-lead evidence | Approved 2026-09-29: contact details kept 30 days for delivered leads, 90 days for filtered leads, redacted daily. |
 | LeadMaster data path | Owner-run scheduled exports, a few per day, uploaded into Rake. No API dependency in v1. |
 
 ## Journey stages and their source of truth
@@ -193,8 +194,6 @@ Implementation:
   could block lead delivery; the Test Flow gate exists for this reason.
 - **Rep identity.** Employee-level scoping needs a rep mapping across three
   systems.
-- **Retention.** Filtered-lead evidence needs an approved retention schedule
-  before live candidate traffic (see the LeadConduit shadow recipient runbook).
 - **Unversioned production code.** The forgot-password pages in the live
   deployment are being committed in PR 57; merge it before the next deploy
   from `main`.

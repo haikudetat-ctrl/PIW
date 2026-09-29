@@ -107,22 +107,27 @@ every outbound submission. For leads from other sources it is absent; send
 **Rollback:** disable only the PIW recipients in LeadConduit, or set the
 receiver flag to `false` and redeploy. Leave every other step unchanged.
 
-## Retention (owner approval required before live traffic)
+## Retention (approved 2026-09-29)
 
 Intake rows hold homeowner contact details for every lead, including leads
-that never become customers. `redact_leadconduit_checkpoint_contacts` clears
-the submitted name, phone, email, address and TrustedForm URL from intake rows
-after an age that depends on the outcome. Normalized phone and email remain
-for journey matching.
-
-Proposed schedule (to be approved or changed by the business owner):
+that never become customers. The business owner approved this schedule on
+2026-09-29:
 
 | Lead outcome | Contact details kept for | Why |
 |---|---|---|
 | Delivered to the client | 30 days | The client's own systems hold the lead |
 | Filtered (not delivered) | 90 days | Long enough to review and recover |
 
-Once approved, schedule it (for example daily) with:
+The `leadconduit-contact-retention` Inngest function runs daily at 03:07
+America/New_York and calls `redact_leadconduit_checkpoint_contacts` for the
+company bound by `ACCESS_ROUTE_COMPANY_ID`. It clears the submitted name,
+phone, email, address and TrustedForm URL from intake rows past their age;
+normalized phone and email remain for journey matching. The ages live in
+`src/modules/access-route/leadconduit-retention.ts`; change them only with
+owner approval.
+
+To check what the last run did, see the function's run history in Inngest. To
+run it by hand:
 
 ```sql
 select public.redact_leadconduit_checkpoint_contacts(
@@ -130,6 +135,5 @@ select public.redact_leadconduit_checkpoint_contacts(
 );
 ```
 
-Until a schedule is approved, keep the `intake` recipients disabled in
-production flows. `after_corelogic` and `delivered` store no contact details
-for ordinary leads and can run beforehand.
+With the schedule approved and running, all three recipients, including
+`intake`, may be enabled in production flows.

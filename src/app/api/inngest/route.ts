@@ -22,6 +22,7 @@ import {
 } from "@/inngest/functions/lead-distribution-sender";
 import {leadDistributionSweeper} from "@/inngest/functions/lead-distribution-sweeper";
 import { jobNimbusWarehouseSync } from "@/inngest/functions/jobnimbus-warehouse-sync";
+import { leadConduitContactRetention } from "@/inngest/functions/leadconduit-contact-retention";
 
 export const maxDuration = 300;
 
@@ -48,5 +49,6 @@ export const { GET, POST, PUT } = serve({
     recoveredLeadDistributionSender,
     leadDistributionSweeper,
     jobNimbusWarehouseSync,
+    leadConduitContactRetention,
   ],
 });
