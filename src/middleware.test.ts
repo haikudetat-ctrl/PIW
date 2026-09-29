@@ -1,5 +1,21 @@
-import {describe, expect, test} from "vitest";
-import {isPublicPath} from "./middleware";
+import { describe, expect, test } from "vitest";
+import { isPublicPath } from "./middleware";
+
+describe("public authentication routes", () => {
+  test.each([
+    "/forgot-password",
+    "/reset-password",
+    "/auth/email-action",
+    "/auth/confirm",
+    "/auth/callback",
+  ])("allows unauthenticated access to %s", (pathname) => {
+    expect(isPublicPath(pathname)).toBe(true);
+  });
+
+  test("keeps the operational dashboard protected", () => {
+    expect(isPublicPath("/leads")).toBe(false);
+  });
+});
 
 describe("public assessment media boundary", () => {
   test.each([

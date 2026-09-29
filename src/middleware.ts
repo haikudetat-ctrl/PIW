@@ -2,7 +2,16 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { parseClientEnv } from "@/lib/env/client";
 
-const PUBLIC_PATHS = ["/login", "/auth/callback", "/roof-estimate", "/privacy"];
+const PUBLIC_PATHS = [
+  "/login",
+  "/auth/callback",
+  "/auth/confirm",
+  "/auth/email-action",
+  "/forgot-password",
+  "/reset-password",
+  "/roof-estimate",
+  "/privacy",
+];
 const PUBLIC_ASSET_PATHS = new Set([
   "/campaigns/for-every-season/hero.webp",
   "/campaigns/weather-report/hero.webp",
