@@ -316,6 +316,41 @@ export type Database = {
           },
         ]
       }
+      company_memberships: {
+        Row: {
+          company_id: string
+          created_at: string
+          is_active: boolean
+          role: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          is_active?: boolean
+          role: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          is_active?: boolean
+          role?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_memberships_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       consultation_requests: {
         Row: {
           assessment_id: string
@@ -3102,6 +3137,21 @@ export type Database = {
           },
         ]
       }
+      platform_admins: {
+        Row: {
+          created_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       privacy_consent_evidence: {
         Row: {
           advertising_granted: boolean
@@ -3493,6 +3543,53 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      rep_identities: {
+        Row: {
+          company_id: string
+          created_at: string
+          external_email: string | null
+          external_name: string | null
+          external_user_id: string
+          id: string
+          match_method: string | null
+          source_system: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          external_email?: string | null
+          external_name?: string | null
+          external_user_id: string
+          id?: string
+          match_method?: string | null
+          source_system: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          external_email?: string | null
+          external_name?: string | null
+          external_user_id?: string
+          id?: string
+          match_method?: string | null
+          source_system?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rep_identities_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       reps: {
         Row: {
@@ -5079,6 +5176,7 @@ export type Database = {
           side_effects_applied: boolean
         }[]
       }
+      company_role_rank: { Args: { p_role: string }; Returns: number }
       complete_lead_distribution_delivery: {
         Args: {
           p_available_at: string
@@ -5184,6 +5282,12 @@ export type Database = {
         }[]
       }
       current_company_id: { Args: never; Returns: string }
+      current_company_role: { Args: never; Returns: string }
+      current_member_company_id: { Args: never; Returns: string }
+      discover_jobnimbus_reps: {
+        Args: { p_company_id: string }
+        Returns: number
+      }
       enqueue_domain_event: {
         Args: { p_company_id: string; p_event: Json }
         Returns: string
@@ -5247,6 +5351,31 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      get_my_access: {
+        Args: never
+        Returns: {
+          company_id: string
+          display_name: string
+          is_platform_admin: boolean
+          role: string
+          user_id: string
+        }[]
+      }
+      grant_company_membership: {
+        Args: {
+          p_company_id: string
+          p_display_name: string
+          p_email: string
+          p_role: string
+        }
+        Returns: string
+      }
+      has_company_role: { Args: { p_minimum: string }; Returns: boolean }
+      is_assigned_jobnimbus_rep: {
+        Args: { p_company_id: string; p_sales_rep_jnid: string }
+        Returns: boolean
+      }
+      is_platform_admin: { Args: never; Returns: boolean }
       is_suppressed: {
         Args: {
           p_channel: string
@@ -5263,6 +5392,10 @@ export type Database = {
           p_records: Json
           p_watermark: string
         }
+        Returns: number
+      }
+      link_rep_identities_by_email: {
+        Args: { p_company_id: string }
         Returns: number
       }
       list_pending_lead_distribution_deliveries: {

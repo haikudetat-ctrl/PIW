@@ -53,16 +53,19 @@ the remote database.
 ## 3. Create the first admin
 
 For each environment, create the first Supabase Auth user (email + password,
-auto-confirmed) through the Supabase dashboard, then insert a matching row
-into `admin_profiles` for the seeded company (or a company you create for
-that environment) via the SQL editor:
+auto-confirmed) through the Supabase dashboard, then grant a membership for
+the seeded company (or a company you create for that environment) via the SQL
+editor:
 
 ```sql
-insert into public.admin_profiles (id, company_id, display_name)
-values ('<user-uuid>', '<company-uuid>', 'Admin Name');
+select public.grant_company_membership(
+  'admin@example.com', '<company-uuid>', 'company_admin', 'Admin Name'
+);
 ```
 
-There is no self-service sign-up; every admin is provisioned this way.
+There is no self-service sign-up; every user is provisioned this way. Roles,
+deactivation and super admins are covered in the
+[access roles runbook](access-roles.md).
 
 ## 4. Configure Inngest
 
