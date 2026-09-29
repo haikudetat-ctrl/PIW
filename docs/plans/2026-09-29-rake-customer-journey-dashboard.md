@@ -26,6 +26,8 @@ sale → nurture. 2Stack Roof Quote stays a standalone product and sales wedge.
 | Sync cadence | 30–60 min polling. Real time only where PIW already sends. |
 | Ad spend | Not ingested. Cost per sale uses a manually maintained per-source cost table. |
 | Access tiers | SuperAdmin → CompanyAdmin → Manager → Employee. |
+| LeadConduit flow edits | The owner has flow-edit rights and performs the Phase C insertion. |
+| LeadMaster data path | Owner-run scheduled exports, a few per day, uploaded into Rake. No API dependency in v1. |
 
 ## Journey stages and their source of truth
 
@@ -92,11 +94,34 @@ This extends the existing receiver (`/api/integrations/leadconduit/[flow]`,
 only `after_corelogic`. It keeps the Phase C safety rules from
 `docs/runbooks/leadconduit-shadow-recipient.md`: synthetic Test Flow first,
 fail-open on timeout / non-2xx / network error, no reordering or editing of
-existing steps, and rollback by disabling only the PIW recipients. Flow
-editing needs a LeadConduit user with flow-edit rights; confirm who has them
-before day 3.
+existing steps, and rollback by disabling only the PIW recipients. The owner
+has flow-edit rights and performs the insertion from a step-by-step checklist
+that PIW's receiver work produces.
 
 The events API reader stays a later option if an API key turns up.
+
+## LeadMaster through scheduled exports
+
+LeadMaster has no confirmed API path, so v1 uses exports the owner runs a few
+times a day:
+
+- **Upload page** at `/journey/imports` (CompanyAdmin and above): drop a CSV,
+  see a preview of row counts and detected columns, confirm.
+- **Idempotent.** Rows upsert on the LeadMaster record ID, so overlapping or
+  repeated exports never duplicate. Each upload is an `integration_sync_runs`
+  row with counts and outcome, like the API readers.
+- **Validated headers.** The import is refused if a required column is
+  missing or renamed, rather than silently loading nulls.
+- **Stage events.** Status and appointment-date changes between uploads
+  become `customer_journey_events`, so the journey stays accurate even though
+  LeadMaster history arrives in snapshots.
+- **Freshness shown.** The dashboard labels LeadMaster-owned stages with the
+  last upload time.
+
+Needs: one sample export per report type (header row plus a few rows with
+contact details removed) to fix the column mapping. Later, if LeadMaster can
+email scheduled reports, an inbound address can replace the manual upload
+without changing the import logic.
 
 ## Porting the JobNimbus sync from 2Stack Roof Quote
 
@@ -149,20 +174,20 @@ Implementation:
 
 | Days | Work |
 |---|---|
-| 1–2 | Port the JobNimbus sync and backfill. Roles, memberships and rep identities migration. Retention policy draft. Fix the stuck lead distribution. Confirm who can edit the LeadConduit flows and whether LeadMaster has API access. |
-| 3–5 | Extend the LeadConduit receiver for checkpoints; Test Flow with synthetic leads; enable in both flows. LeadMaster reader if access exists, otherwise scheduled export. |
+| 1–2 | Port the JobNimbus sync and backfill. Roles, memberships and rep identities migration. Retention policy draft. Fix the stuck lead distribution. Owner supplies sample LeadMaster exports. |
+| 3–5 | Extend the LeadConduit receiver for checkpoints; owner runs Test Flow with synthetic leads, then enables in both flows. LeadMaster export upload and import. |
 | 5–8 | `customer_identities`, matching, `customer_journey_events`, status mappings, cost table. |
 | 8–11 | `/journey`: funnel by source, stage-to-stage handoff rates, time in stage, cost per sale, revenue, rejected-lead recovery queue, per-customer timeline. Role-scoped. |
 | 12–14 | Backfill, reconcile against JobNimbus and LeadMaster UI counts, owner acceptance, production. |
-| 15–30 | ActiveProspect in-flow recipient (Phase C) if real time is needed; LeadMaster fallback if access slips; hardening. |
+| 15–30 | Automate LeadMaster exports if scheduled report emails exist; LeadConduit events API if a key turns up; hardening. |
 
 ## Risks
 
-- **LeadMaster access.** It owns contacted and appointment-set, and API access
-  is unconfirmed. PIW already has a reader for LeadMaster's web API
-  (`GetLastUpdatedLeadWithPaging`, `GetLastUpdatedOpportunitiesWithPaging`),
-  which needs an access token. Fallback: a scheduled report or CSV export, and
-  JobNimbus `Appointment Scheduled` / `No Show` for the stages after handoff.
+- **LeadMaster freshness.** Contacted and appointment-set are only as fresh
+  as the latest manual export, and a missed export leaves a gap. The
+  dashboard shows the last upload time; a stale-data banner appears after
+  one business day without an upload. JobNimbus `Appointment Scheduled` /
+  `No Show` cover the stages after handoff regardless.
 - **Flow edits.** Filtered-lead visibility depends on inserting recipients
   into live client flows. A misconfigured recipient that is not fail-open
   could block lead delivery; the Test Flow gate exists for this reason.
@@ -176,5 +201,4 @@ Implementation:
 
 ## Open questions
 
-1. Who in All Season's LeadConduit account can edit the Roofing and Roofing Virtual Quote flows?
-2. Does All Season's LeadMaster plan include web API access (an access token), or only reports and exports?
+1. Sample LeadMaster exports: which reports exist (leads, opportunities, appointments), and their columns.
