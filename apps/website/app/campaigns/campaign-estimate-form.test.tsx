@@ -77,9 +77,6 @@ async function submitValidCampaignForm(container: HTMLElement) {
   fill(container, "name", "Jane Doe");
   fill(container, "email", "jane@example.com");
   fill(container, "phone", "856-555-0100");
-  for (const checkbox of Array.from(container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'))) {
-    await click(checkbox);
-  }
   await act(async () => container.querySelector("form")?.dispatchEvent(
     new Event("submit", {bubbles: true, cancelable: true}),
   ));
@@ -113,8 +110,48 @@ function qualifiedLeadCalls() {
   return fbq?.mock.calls.filter((call) => call[1] === "QualifiedLead") ?? [];
 }
 
+describe("CampaignEstimateForm TCPA notice", () => {
+  test("shows a passive notice naming the submit button instead of consent checkboxes", async () => {
+    const {container} = await renderForm();
+
+    expect(container.querySelectorAll('input[type="checkbox"]')).toHaveLength(0);
+    const notice = container.querySelector(".campaign-consent-notice");
+    expect(notice?.textContent).toContain(`By clicking “${campaigns["seasonal-shield"].submitLabel},”`);
+    expect(notice?.textContent).toContain("Consent is not required to purchase.");
+    expect(notice?.querySelector("a")?.getAttribute("href")).toBe("/privacy.html");
+  });
+
+  test("submits with contact and property-processing agreement and no checkbox interaction", async () => {
+    vi.mocked(fetch).mockResolvedValue(Response.json({estimateUrl: "/roof-estimate/continue/token", metaEvent: null}));
+    const {container} = await renderForm();
+
+    await submitValidCampaignForm(container);
+
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledOnce());
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body))).toEqual(expect.objectContaining({
+      consent_to_contact: true,
+      consent_to_process_property: true,
+    }));
+  });
+
+  test("does not emit a Lead before the customer submits", async () => {
+    const {container} = await renderForm();
+
+    await click(button(container, "Can’t find it?"));
+    fill(container, "address_line_1", "1 Main Street");
+    fill(container, "city", "Vineland");
+    fill(container, "postal_code", "08360");
+    await click(button(container, "Continue to your details"));
+    fill(container, "name", "Jane Doe");
+    fill(container, "email", "jane@example.com");
+    fill(container, "phone", "856-555-0100");
+
+    expect(leadCalls()).toHaveLength(0);
+  });
+});
+
 describe("CampaignEstimateForm Meta funnel", () => {
-  test("emits Lead at the permission gate and server-issued QualifiedLead after success", async () => {
+  test("emits Lead on a valid submit and server-issued QualifiedLead after success", async () => {
     vi.mocked(fetch).mockResolvedValue(Response.json({estimateUrl: "/roof-estimate/continue/token", metaEvent: eventEnvelope}));
     const {container} = await renderForm();
     expect((window as Window & {fbq?: BrowserFbq}).fbq).toHaveBeenCalledWith("track", "PageView");
@@ -142,9 +179,6 @@ describe("CampaignEstimateForm Meta funnel", () => {
     fill(container, "name", "Jane Doe");
     fill(container, "email", "jane@example.com");
     fill(container, "phone", "856-555-0100");
-    for (const checkbox of Array.from(container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'))) {
-      await click(checkbox);
-    }
     await act(async () => container.querySelector("form")?.dispatchEvent(
       new Event("submit", {bubbles: true, cancelable: true}),
     ));

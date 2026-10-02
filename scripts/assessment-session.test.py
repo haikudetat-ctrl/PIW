@@ -31,8 +31,6 @@ def submit_estimate(
     page.locator("input[name=name]").fill("Session Browser Test")
     page.locator("input[name=email]").fill(identity["email"])
     page.locator("input[name=phone]").fill(identity["phone"])
-    for consent in ("consentEstimate", "consentEmail", "consentSms"):
-        page.locator(f"input[name={consent}]").check()
     page.evaluate(
         """({googleSelected}) => {
           const form = document.querySelector('form[aria-label="Roof estimate request"]');

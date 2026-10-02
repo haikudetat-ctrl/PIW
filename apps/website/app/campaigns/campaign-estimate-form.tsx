@@ -4,6 +4,7 @@ import {FormEvent, useCallback, useRef, useState} from "react";
 import {AddressAutocomplete} from "./address-autocomplete";
 import {buildCampaignSubmission, type CampaignDefinition} from "./campaigns";
 import {useMetaPixel, type MetaBrowserEventEnvelope} from "../../components/meta-pixel-provider";
+import {PRIVACY_POLICY_HREF, tcpaNoticeText} from "../../lib/tcpa-notice";
 
 function track(event: string, campaign: string) {
   const detail = {event, campaign, page_path: window.location.pathname};
@@ -22,10 +23,8 @@ export function CampaignEstimateForm({campaign}: {campaign: CampaignDefinition})
   const [submissionId] = useState(() => globalThis.crypto.randomUUID());
   const intentSignaled = useRef(false);
 
-  function signalLeadIntent(form: HTMLFormElement) {
-    const propertyConsent = form.elements.namedItem("consent_to_process_property") as HTMLInputElement | null;
-    const contactConsent = form.elements.namedItem("consent_to_contact") as HTMLInputElement | null;
-    if (intentSignaled.current || !propertyConsent?.checked || !contactConsent?.checked) return;
+  function signalLeadIntent() {
+    if (intentSignaled.current) return;
     intentSignaled.current = true;
     trackConversion({name: "Lead", eventId: submissionId, issuedAt: new Date().toISOString()});
     track("campaign_form_lead_intent", campaign.slug);
@@ -57,6 +56,7 @@ export function CampaignEstimateForm({campaign}: {campaign: CampaignDefinition})
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (pending || !event.currentTarget.reportValidity()) return;
+    signalLeadIntent();
     setPending(true);
     setStatus("Securely starting your roof estimate…");
     track("campaign_form_submit", campaign.slug);
@@ -143,10 +143,9 @@ export function CampaignEstimateForm({campaign}: {campaign: CampaignDefinition})
         <label className="campaign-field"><span>Full name</span><input name="name" autoComplete="name" required /></label>
         <label className="campaign-field"><span>Email</span><input name="email" type="email" inputMode="email" autoComplete="email" required /></label>
         <label className="campaign-field"><span>Mobile phone</span><input name="phone" type="tel" inputMode="tel" autoComplete="tel" required /></label>
-        <div className="campaign-consents">
-          <label><input name="consent_to_process_property" type="checkbox" required onChange={(event) => signalLeadIntent(event.currentTarget.form!)} /><span>I authorize All Season to review this address using property records, maps, and imagery to prepare my estimate.</span></label>
-          <label><input name="consent_to_contact" type="checkbox" required onChange={(event) => signalLeadIntent(event.currentTarget.form!)} /><span>I agree to be contacted by All Season by call, text, or email about this request, including by automated means. Consent is not required to purchase.</span></label>
-        </div>
+        <p className="campaign-consent-notice">
+          {tcpaNoticeText(campaign.submitLabel)} <a href={PRIVACY_POLICY_HREF}>Privacy Policy</a>
+        </p>
         <div className="campaign-form-actions">
           <button className="campaign-text-action" type="button" onClick={() => setStep(1)}>← Back</button>
           <button className="campaign-primary-action" type="submit" disabled={pending}>

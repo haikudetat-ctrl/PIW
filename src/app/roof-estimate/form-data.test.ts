@@ -19,18 +19,16 @@ function validFormData() {
     city: "Trenton",
     state: "NJ",
     postalCode: "08608",
-    consentEstimate: "on",
-    consentEmail: "on",
-    consentSms: "on",
   }).forEach(([key, value]) => data.set(key, value));
   return data;
 }
 
 describe("public roof estimate form", () => {
-  test("requires all three consent gates", () => {
-    const data = validFormData();
-    data.delete("consentSms");
-    expect(() => parsePublicRoofEstimateFormData(data)).toThrow();
+  test("does not require consent checkboxes; submitting is the agreement", () => {
+    const parsed = parsePublicRoofEstimateFormData(validFormData());
+    expect(parsed).not.toHaveProperty("consentEstimate");
+    expect(parsed).not.toHaveProperty("consentEmail");
+    expect(parsed).not.toHaveProperty("consentSms");
   });
 
   test("builds a structured address for Google", () => {

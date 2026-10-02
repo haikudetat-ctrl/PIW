@@ -15,9 +15,6 @@ export const publicRoofEstimateInputSchema = z.object({
   city: z.string().trim().optional(),
   state: z.literal("NJ").optional(),
   postalCode: z.string().trim().optional(),
-  consentEstimate: z.literal("on", { error: "Consent is required to create the estimate" }),
-  consentEmail: z.literal("on", { error: "Email consent is required" }),
-  consentSms: z.literal("on", { error: "SMS consent is required" }),
 }).superRefine((input, context) => {
   if (input.addressMode === "google") {
     if (!input.googlePlaceId || !input.selectedAddress) {
@@ -95,9 +92,6 @@ export function parsePublicRoofEstimateFormData(formData: FormData) {
     city: formData.get("city"),
     state: formData.get("state"),
     postalCode: formData.get("postalCode"),
-    consentEstimate: formData.get("consentEstimate"),
-    consentEmail: formData.get("consentEmail"),
-    consentSms: formData.get("consentSms"),
   });
 }
 

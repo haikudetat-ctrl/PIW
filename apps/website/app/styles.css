@@ -300,9 +300,8 @@ button:disabled { opacity: .55; cursor: wait; }
 .campaign-page[data-theme="heritage"] .campaign-primary-action:hover,
 .campaign-page[data-theme="shield"] .campaign-primary-action:hover { background: var(--campaign-signal); color: var(--campaign-accent-ink); }
 
-.campaign-consents { display: grid; gap: 11px; }
-.campaign-consents label { display: grid; grid-template-columns: 17px 1fr; gap: 9px; color: var(--campaign-muted); font-size: .68rem; font-weight: 500; line-height: 1.42; }
-.campaign-consents input { width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--campaign-signal); }
+.campaign-consent-notice { margin: 0; color: var(--campaign-muted); font-size: .68rem; font-weight: 500; line-height: 1.42; }
+.campaign-consent-notice a { color: inherit; text-decoration: underline; }
 .campaign-form-actions { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 16px; }
 .campaign-fine-print { margin: -8px 0 0; color: var(--campaign-muted); font-size: .62rem; line-height: 1.45; }
 .campaign-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }

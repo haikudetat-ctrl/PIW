@@ -43,6 +43,7 @@ import {
   toCampaignEstimateLeadInput,
   type AllSeasonCampaignEstimateInput,
 } from "./route";
+import { allSeasonCampaignEstimateSchema } from "./schema";
 
 const validPayload = {
   submission_id: "11111111-1111-4111-8111-111111111111",
@@ -63,7 +64,7 @@ const validPayload = {
   consent_to_process_property: true as const,
   source: "all-season-campaign" as const,
   submittedAt: "2026-08-24T14:00:00.000Z",
-  disclosure_version: "all-season-campaign-estimate-v1" as const,
+  disclosure_version: "all-season-campaign-estimate-v2" as const,
   client_ip_address: "203.0.113.10",
   client_user_agent: "homeowner-browser",
   referrer: "https://allseason.example/campaigns/weather-report",
@@ -174,6 +175,16 @@ describe("All Season campaign estimate intake", () => {
       referrer: validPayload.referrer,
       attribution: validPayload.attribution,
     });
+  });
+
+  test("accepts the passive-notice disclosure and the prior checkbox disclosure during rollout", () => {
+    for (const disclosure_version of ["all-season-campaign-estimate-v1", "all-season-campaign-estimate-v2"]) {
+      expect(allSeasonCampaignEstimateSchema.safeParse({...validPayload, disclosure_version}).success).toBe(true);
+    }
+    expect(allSeasonCampaignEstimateSchema.safeParse({
+      ...validPayload,
+      disclosure_version: "all-season-campaign-estimate-v3",
+    }).success).toBe(false);
   });
 
   test("rejects a request with the wrong shared secret", async () => {

@@ -38,8 +38,7 @@
 .as-quote-input{width:100%;min-height:48px;padding:11px 12px;border:1px solid var(--as-line);border-radius:8px;background:var(--as-field);color:var(--as-text);font:600 .84rem/1.35 Manrope,system-ui,sans-serif}
 .as-quote-input::placeholder{color:var(--as-muted);opacity:.78}
 .as-quote-error{display:block;min-height:14px;margin-top:3px;color:#b3261e;font-size:.65rem}
-.as-quote-consent{display:grid;grid-column:1/-1;grid-template-columns:18px 1fr;gap:9px;align-items:start;color:var(--as-muted);font-size:.65rem;line-height:1.45;cursor:pointer}
-.as-quote-consent input{width:18px;height:18px;margin:1px 0 0;accent-color:var(--as-blue)}
+.as-quote-consent{grid-column:1/-1;margin:0;color:var(--as-muted);font-size:.65rem;line-height:1.45}.as-quote-consent a{color:inherit}
 .as-quote-status{grid-column:1/-1;min-height:18px;margin:0;color:var(--as-muted);font-size:.7rem}
 .as-quote-submit{grid-column:1/-1;min-height:50px;padding:12px 20px;border:1px solid color-mix(in srgb,var(--as-lime),#183b16 24%);border-radius:999px;background:var(--as-lime);color:#143415;cursor:pointer;font:800 .85rem Manrope,system-ui,sans-serif}
 .as-quote-submit:hover{filter:brightness(.96)}
@@ -51,7 +50,7 @@
 .as-quote-success h3{margin:0;color:var(--as-text);font:700 2rem/1 "Barlow Condensed",Impact,sans-serif;text-transform:uppercase}
 .as-quote-success p{margin:12px 0 24px;color:var(--as-muted);font-size:.85rem}
 .as-quote-scroll-sentinel{position:absolute;top:50%;left:0;width:1px;height:1px;pointer-events:none}
-.as-quote-launcher:focus-visible,.as-quote-close:focus-visible,.as-quote-input:focus-visible,.as-quote-choice input:focus-visible+span,.as-quote-consent input:focus-visible,.as-quote-submit:focus-visible{outline:3px solid var(--as-blue);outline-offset:3px}
+.as-quote-launcher:focus-visible,.as-quote-close:focus-visible,.as-quote-input:focus-visible,.as-quote-choice input:focus-visible+span,.as-quote-submit:focus-visible{outline:3px solid var(--as-blue);outline-offset:3px}
 @media (prefers-color-scheme:dark){
   .as-quote-root{--as-surface:var(--card,#10344c);--as-field:var(--field,#0b293e);--as-text:var(--ink,#edf7fc);--as-muted:var(--muted,#bdccd5);--as-line:var(--line,#3b6077)}
   .as-quote-error{color:#ffb4ab}

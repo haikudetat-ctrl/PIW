@@ -29,9 +29,6 @@ function validFormData() {
     city: "",
     state: "NJ",
     postalCode: "",
-    consentEstimate: "on",
-    consentEmail: "on",
-    consentSms: "on",
   }).forEach(([key, value]) => data.set(key, value));
   return data;
 }
@@ -112,7 +109,7 @@ describe("public roof estimate server action", () => {
       },
       referrer,
       consent: {
-        disclosureVersion: "roof-estimate-v1",
+        disclosureVersion: "roof-estimate-v2",
         ipAddress: "203.0.113.10",
         userAgent: "homeowner-browser",
         grantedAt: "2026-08-26T21:00:00.000Z",

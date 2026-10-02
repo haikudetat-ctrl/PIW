@@ -4,6 +4,7 @@ import path from "node:path";
 // @ts-expect-error -- this test executes the real browser scripts in jsdom.
 import { JSDOM } from "jsdom";
 import { describe, expect, test, vi } from "vitest";
+import { tcpaNoticeText } from "../lib/tcpa-notice";
 
 const script = readFileSync(path.join(__dirname, "script.js"), "utf8");
 const quoteDrawer = readFileSync(path.join(__dirname, "quote-drawer.js"), "utf8");
@@ -22,8 +23,6 @@ function leadFormMarkup(entryPoint = "main-home") {
     <input name="city" value="Newark" required>
     <input name="state" value="NJ" required>
     <input name="postal_code" value="07102" required>
-    <input name="consent_to_contact" type="checkbox" checked required>
-    <input name="consent_to_process_property" type="checkbox" checked required>
     <button type="submit">Request</button>
   </form><div id="successMsg"></div>`;
 }
@@ -194,9 +193,18 @@ describe("embedded lead form", () => {
       "city",
       "postal_code",
       "state",
-      "consent_to_process_property",
-      "consent_to_contact",
     ]);
+  });
+
+  test.each([
+    ["homepage", homepage],
+    ["contact", contactPage],
+  ])("shows the shared passive TCPA notice naming the %s submit button", (_label, html) => {
+    const form = new JSDOM(html).window.document.querySelector("#leadForm")!;
+    const submitLabel = form.querySelector('button[type="submit"]')?.textContent ?? "";
+
+    expect(form.querySelectorAll('input[type="checkbox"]')).toHaveLength(0);
+    expect(form.querySelector(".consent")?.textContent).toBe(`${tcpaNoticeText(submitLabel)} Privacy Policy`);
   });
 
   test.each([
@@ -246,7 +254,7 @@ describe("embedded lead form", () => {
 });
 
 describe("quote drawer", () => {
-  test("requires property-processing consent", () => {
+  test("shows the passive TCPA notice instead of consent checkboxes", () => {
     const dom = new JSDOM("<!doctype html><body></body>", {
       url: "https://allseason.example/",
       runScripts: "outside-only",
@@ -255,10 +263,12 @@ describe("quote drawer", () => {
 
     dom.window.eval(quoteDrawer);
     dom.window.document.dispatchEvent(new dom.window.Event("DOMContentLoaded"));
+    const form = dom.window.document.querySelector(".as-quote-form")!;
 
-    expect(
-      dom.window.document.querySelector('input[name="consent_to_process_property"]'),
-    ).not.toBeNull();
+    expect(form.querySelectorAll('input[type="checkbox"]')).toHaveLength(0);
+    expect(form.querySelector(".as-quote-consent")?.textContent)
+      .toBe(`${tcpaNoticeText("Request my roof plan")} Privacy Policy`);
+    expect(form.querySelector(".as-quote-submit")?.textContent).toBe("Request my roof plan");
   });
 
   test("shows ZIP field validation and never submits an invalid ZIP", async () => {
@@ -284,9 +294,6 @@ describe("quote drawer", () => {
     for (const [name, value] of Object.entries(values)) {
       form.querySelector<HTMLInputElement>(`[name="${name}"]`)!.value = value;
     }
-    form.querySelectorAll<HTMLInputElement>('input[type="checkbox"]').forEach((input: HTMLInputElement) => {
-      input.checked = true;
-    });
 
     form.dispatchEvent(new dom.window.Event("submit", {bubbles: true, cancelable: true}));
     await new Promise((resolve) => dom.window.setTimeout(resolve, 0));
@@ -327,9 +334,6 @@ describe("quote drawer", () => {
       const input = form?.querySelector<HTMLInputElement>(`[name="${name}"]`);
       if (input) input.value = value;
     }
-    form?.querySelectorAll<HTMLInputElement>('input[type="checkbox"]').forEach((input: HTMLInputElement) => {
-      input.checked = true;
-    });
 
     form?.dispatchEvent(new dom.window.Event("submit", { bubbles: true, cancelable: true }));
     await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
@@ -368,9 +372,6 @@ describe("quote drawer", () => {
     for (const [name, value] of Object.entries(values)) {
       form.querySelector<HTMLInputElement>(`[name="${name}"]`)!.value = value;
     }
-    form.querySelectorAll<HTMLInputElement>('input[type="checkbox"]').forEach((input: HTMLInputElement) => {
-      input.checked = true;
-    });
 
     form.dispatchEvent(new dom.window.Event("submit", {bubbles: true, cancelable: true}));
     await vi.waitFor(() => expect(fetch).toHaveBeenCalledOnce());
@@ -435,9 +436,6 @@ describe("quote drawer", () => {
     for (const [name, value] of Object.entries(values)) {
       form.querySelector<HTMLInputElement>(`[name="${name}"]`)!.value = value;
     }
-    (Array.from(form.querySelectorAll('input[type="checkbox"]')) as unknown as HTMLInputElement[]).forEach((input) => {
-      input.checked = true;
-    });
 
     form.dispatchEvent(new dom.window.Event("submit", {bubbles: true, cancelable: true}));
 
