@@ -7,6 +7,7 @@ import {
   readRoofEstimateAttribution,
   resolveRoofEstimateEntryContext,
 } from "./form-data";
+import {ROOF_ESTIMATE_DISCLOSURE_VERSION} from "./tcpa-notice";
 
 export type PublicRoofEstimateState = {error?: string};
 
@@ -78,7 +79,7 @@ export async function handlePublicRoofEstimateSubmission(
       attribution: readRoofEstimateAttribution(referrer),
       referrer,
       consent: {
-        disclosureVersion: "roof-estimate-v1",
+        disclosureVersion: ROOF_ESTIMATE_DISCLOSURE_VERSION,
         ipAddress,
         userAgent,
         grantedAt: dependencies.now().toISOString(),

@@ -12,6 +12,7 @@ import {
   currentCanonicalWebsiteConsent,
   resolveCanonicalWebsiteConsent,
 } from "../../../lib/canonical-privacy-consent";
+import {TCPA_DISCLOSURE_VERSION} from "../../../lib/tcpa-notice";
 import {trustedWebsiteRequestIp} from "../../../lib/trusted-request-ip";
 import {trustedPiwOidcHeaders} from "../../../lib/vercel-protection";
 import {campaignSlugs} from "../../campaigns/campaigns";
@@ -267,7 +268,7 @@ export async function handleCampaignEstimateRequest(
       fbc: nullable(evidence.data.fbc),
     },
     referrer: evidence.data.referrer,
-    disclosure_version: "all-season-campaign-estimate-v1",
+    disclosure_version: TCPA_DISCLOSURE_VERSION,
     source: "all-season-campaign",
     submittedAt: new Date().toISOString(),
   };

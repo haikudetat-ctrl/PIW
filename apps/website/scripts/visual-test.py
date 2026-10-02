@@ -167,8 +167,6 @@ with sync_playwright() as p:
     page.locator("#as-quote-address_line_2").fill("Unit 2")
     page.locator("#as-quote-city").fill("Newark")
     page.locator("#as-quote-postal_code").fill("07102")
-    panel.locator("input[name='consent_to_process_property']").check()
-    panel.locator("input[name='consent_to_contact']").check()
     panel.locator("button[type='submit']").click()
     page.wait_for_url("**/roof-estimate/22222222-2222-4222-8222-222222222222")
     assert len(submitted) == 1
@@ -258,8 +256,6 @@ with sync_playwright() as p:
         form.locator("[name=address_line_1]").fill("18 Harbor View Drive")
         form.locator("[name=city]").fill("Red Bank")
         form.locator("[name=postal_code]").fill("07701")
-        form.locator("[name=consent_to_process_property]").check()
-        form.locator("[name=consent_to_contact]").check()
         form.locator("button[type=submit]").click()
 
     def fill_drawer_form(page):
@@ -276,8 +272,6 @@ with sync_playwright() as p:
         }
         for selector, value in values.items():
             page.locator(selector).fill(value)
-        panel.locator("[name=consent_to_process_property]").check()
-        panel.locator("[name=consent_to_contact]").check()
         panel.locator("button[type=submit]").click()
 
     def fill_campaign_form(page):
@@ -305,8 +299,6 @@ with sync_playwright() as p:
         form.locator("[name=name]").fill("Entry Matrix Homeowner")
         form.locator("[name=email]").fill("entry-matrix@example.com")
         form.locator("[name=phone]").fill("201-555-0110")
-        form.locator("[name=consent_to_process_property]").check()
-        form.locator("[name=consent_to_contact]").check()
         form.locator("button[type=submit]").click()
 
     for label, path, expected_entry, presentation, campaign, form_kind in entry_points:
@@ -346,8 +338,6 @@ with sync_playwright() as p:
             piw_form.locator("[name=name]").fill("Entry Matrix Homeowner")
             piw_form.locator("[name=email]").fill(f"entry-{suffix}@example.com")
             piw_form.locator("[name=phone]").fill(f"201555{int(suffix[:4], 16) % 10000:04d}")
-            for consent in ("consentEstimate", "consentEmail", "consentSms"):
-                piw_form.locator(f"[name={consent}]").check()
             piw_form.evaluate(
                 """form => {
                   form.elements.addressMode.value = 'google';

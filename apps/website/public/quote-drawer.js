@@ -2,6 +2,8 @@
   'use strict';
 
   var API_URL = '/api/campaign-estimate';
+  // Keep in sync with apps/website/lib/tcpa-notice.ts.
+  var TCPA_NOTICE = 'By clicking “{submitLabel},” you authorize All Season Solar to review this address using property records, maps, and imagery to prepare your estimate, and you agree that All Season Solar may contact you about this request by call, text, or email at the number and email you provided, including by autodialed calls, prerecorded or artificial voice messages, and automated texts. Consent is not required to purchase. Message frequency varies. Message and data rates may apply. Reply STOP to opt out.';
   var DISMISSED_KEY = 'all-season-quote-drawer-dismissed-v1';
   var DISMISS_FOR_MS = 7 * 24 * 60 * 60 * 1000;
   var root;
@@ -144,40 +146,27 @@
     fields.forEach(function (item) { form.appendChild(item.wrap); });
     form.appendChild(state);
 
-    var processingConsentLabel = element('label', 'as-quote-consent');
-    var processingConsent = element('input');
-    processingConsent.type = 'checkbox';
-    processingConsent.name = 'consent_to_process_property';
-    processingConsent.required = true;
-    processingConsentLabel.appendChild(processingConsent);
-    processingConsentLabel.appendChild(element('span', '', 'I authorize All Season to process this address through property, mapping, and imagery services to evaluate my project.'));
-    form.appendChild(processingConsentLabel);
-
-    var consentLabel = element('label', 'as-quote-consent');
-    var consent = element('input');
-    consent.type = 'checkbox';
-    consent.name = 'consent_to_contact';
-    consent.required = true;
-    consentLabel.appendChild(consent);
-    consentLabel.appendChild(element('span', '', 'I agree to be contacted by All Season Solar by call, text, or email about my request, including by automated means. Consent is not required to make a purchase. Message and data rates may apply.'));
-    form.appendChild(consentLabel);
+    var submitLabel = 'Request my roof plan';
+    var notice = element('p', 'as-quote-consent', TCPA_NOTICE.replace('{submitLabel}', submitLabel) + ' ');
+    var noticeLink = element('a', '', 'Privacy Policy');
+    noticeLink.href = '/privacy.html';
+    notice.appendChild(noticeLink);
+    form.appendChild(notice);
 
     var intentSignaled = false;
     function signalLeadIntent() {
-      if (intentSignaled || !processingConsent.checked || !consent.checked) return;
+      if (intentSignaled) return;
       intentSignaled = true;
       var tracker = window.AllSeasonMeta;
       if (tracker && typeof tracker.trackConversion === 'function') {
         tracker.trackConversion({name: 'Lead', eventId: submissionId, issuedAt: new Date().toISOString()});
       }
     }
-    processingConsent.addEventListener('change', signalLeadIntent);
-    consent.addEventListener('change', signalLeadIntent);
 
     var status = element('p', 'as-quote-status');
     status.setAttribute('role', 'status');
     status.setAttribute('aria-live', 'polite');
-    var submit = element('button', 'as-quote-submit', 'Request my roof plan');
+    var submit = element('button', 'as-quote-submit', submitLabel);
     submit.type = 'submit';
     form.appendChild(status);
     form.appendChild(submit);
@@ -238,12 +227,7 @@
         setError(item, message);
         if (message && !firstInvalid) firstInvalid = item.input;
       });
-      if (!processingConsent.checked || !consent.checked) {
-        status.textContent = 'Confirm property processing and contact permission to continue.';
-        if (!firstInvalid) firstInvalid = !processingConsent.checked ? processingConsent : consent;
-      } else {
-        status.textContent = '';
-      }
+      status.textContent = '';
       if (firstInvalid) firstInvalid.focus();
       return !firstInvalid;
     }
@@ -264,6 +248,7 @@
     form.addEventListener('submit', async function (event) {
       event.preventDefault();
       if (submitting || !validate()) return;
+      signalLeadIntent();
       submitting = true;
       submit.disabled = true;
       submit.textContent = 'Sending request';
@@ -288,8 +273,8 @@
         city: city.input.value.trim(),
         state: 'NJ',
         postal_code: postalCode.input.value.trim(),
-        consent_to_contact: consent.checked,
-        consent_to_process_property: processingConsent.checked,
+        consent_to_contact: true,
+        consent_to_process_property: true,
       };
       ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'fbclid'].forEach(function (key) {
         body[key] = params.get(key);

@@ -57,9 +57,6 @@ function formData() {
     city: "",
     state: "NJ",
     postalCode: "",
-    consentEstimate: "on",
-    consentEmail: "on",
-    consentSms: "on",
   }).forEach(([key, value]) => data.set(key, value));
   return data;
 }

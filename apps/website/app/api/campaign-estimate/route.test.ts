@@ -196,7 +196,7 @@ describe("campaign estimate proxy", () => {
       client_ip_address: "203.0.113.10",
       client_user_agent: "homeowner-browser",
       referrer: "https://allseason.example/campaigns/weather-report?utm_source=facebook",
-      disclosure_version: "all-season-campaign-estimate-v1",
+      disclosure_version: "all-season-campaign-estimate-v2",
       attribution: {
         utm_source: "facebook",
         utm_medium: "paid-social",
