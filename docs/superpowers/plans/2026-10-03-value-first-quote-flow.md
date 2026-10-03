@@ -125,12 +125,12 @@ create function public.expire_property_previews() returns integer;
 
 **Steps**
 
-- [ ] `create_property_preview` increments rate buckets (10 per hashed IP per hour, configurable per-company daily cap) in the same transaction and returns `rate_limited = true` without inserting when over. It matches or creates the property through the existing identity function (Place ID first, then normalized address) and sets `expires_at = now() + 7 days`.
-- [ ] `record_property_preview_responses` accepts only `reason`, `roofAge`, `timeline` with the enums from `src/domain/roof-assessment.ts`; rejects other keys; only for `active`, unexpired previews.
-- [ ] `save_property_preview_email` stores email and evidence, extends expiry to 30 days, and enforces three sends per preview and per normalized email per day.
-- [ ] `expire_property_previews` marks overdue active previews `expired` (called by an Inngest cron in Task 8).
-- [ ] RLS on with no policies; all functions `security definer`, `service_role` only, `search_path` pinned.
-- [ ] pgTAP: rate limits, property reuse for the same Place ID, tenant isolation, response key validation, email limits, expiry, no anon/authenticated access.
+- [x] `create_property_preview` increments rate buckets (10 per hashed IP per hour, configurable per-company daily cap) in the same transaction and returns `rate_limited = true` without inserting when over. It reuses the property of a preview for the same Place ID (or, for manual addresses, the same normalized address) from the last 30 days, otherwise creates an unresolved property the way the intake transaction does, and sets `expires_at = now() + 7 days`. Rate buckets store a SHA-256 digest, never the raw IP.
+- [x] `record_property_preview_responses` accepts only `reason`, `roofAge`, `timeline` with the enums from `src/domain/roof-assessment.ts`; rejects other keys; only for `active`, unexpired previews.
+- [x] `save_property_preview_email` stores email and evidence, extends expiry to 30 days, and enforces three sends per preview and per normalized email per day (tracked in `property_preview_email_sends`). `mark_property_preview_progress` records `revealed_at` and `contact_viewed_at` for the server-side funnel.
+- [x] `expire_property_previews` marks overdue active previews `expired` (called by an Inngest cron in Task 8).
+- [x] RLS on with no policies; all functions `security definer`, `service_role` only, `search_path` pinned.
+- [x] pgTAP: rate limits, property reuse for the same Place ID, tenant isolation, response key validation, email limits, expiry, no anon/authenticated access.
 
 **Done when:** previews can be created, answered, and emailed purely through RPCs, with limits enforced in the database.
 
