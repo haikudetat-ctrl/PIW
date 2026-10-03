@@ -72,3 +72,7 @@
 @media (prefers-reduced-motion:reduce){.as-quote-launcher{transition:none}}
 @keyframes as-quote-sun-rotation{to{transform:rotate(1turn)}}
 @keyframes as-quote-enter{from{opacity:0;transform:translateY(12px) scale(.985)}to{opacity:1;transform:none}}
+/* Value-first address step mounted by public/address-entry.js */
+.as-quote-panel [data-preview-address-form]{padding:20px 24px 24px}
+.as-quote-panel [data-preview-address-form] .consent{color:var(--as-muted)}
+@media (max-width:640px){.as-quote-panel [data-preview-address-form]{padding:18px}}

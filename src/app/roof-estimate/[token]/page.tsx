@@ -42,10 +42,13 @@ function PropertyMedia({ token, address }: { token: string; address: string }) {
 
 export default async function RoofEstimateResultPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ token: string }>;
+  searchParams?: Promise<{ refine?: string | string[] }>;
 }) {
   const { token } = await params;
+  const refineRequested = (await searchParams)?.refine === "1";
   if (!z.uuid().safeParse(token).success) notFound();
 
   const service = createServiceClient();
@@ -56,7 +59,7 @@ export default async function RoofEstimateResultPage({
     .maybeSingle();
   if (!estimate) notFound();
 
-  const [{ data: pipeline }, { data: property }, { data: lead }, { data: assessment }, {data: insight}] = await Promise.all([
+  const [{ data: pipeline }, { data: property }, { data: lead }, { data: assessment }, {data: insight}, {data: previewOrigin}] = await Promise.all([
     service
       .from("pipeline_runs")
       .select("status")
@@ -83,6 +86,13 @@ export default async function RoofEstimateResultPage({
       .select("id, company_id, property_id, provider, lookup_status")
       .eq("id",estimate.roof_insight_id).eq("company_id",estimate.company_id)
       .eq("property_id",estimate.property_id).maybeSingle() : Promise.resolve({data:null}),
+    service
+      .from("property_previews")
+      .select("id")
+      .eq("company_id", estimate.company_id)
+      .eq("converted_lead_id", estimate.lead_id)
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   const pipelineTerminal = Boolean(
@@ -137,7 +147,17 @@ export default async function RoofEstimateResultPage({
   const view = selectPublicEstimateView({
     assessmentEnabled: parseServerEnv(process.env).ROOF_ASSESSMENT_ENABLED,
     assessmentStatus: assessmentStatus.success ? assessmentStatus.data : null,
+    priceFirst: Boolean(previewOrigin),
+    refineRequested,
   });
+  const refineLink = view === "price_first" ? (
+    <a
+      href={`/roof-estimate/${token}?refine=1`}
+      className="mt-4 w-full rounded-2xl border border-slate-300 px-5 py-3.5 text-center text-sm font-bold text-slate-900 transition hover:border-slate-500 active:translate-y-px dark:border-slate-700 dark:text-slate-100"
+    >
+      Refine your estimate with 6 quick questions
+    </a>
+  ) : null;
   const assessmentCopy = view === "result" && assessmentRecommendation.success
     ? getAssessmentResultCopy(assessmentRecommendation.data)
     : null;
@@ -190,7 +210,7 @@ export default async function RoofEstimateResultPage({
     );
   }
 
-  if (pending && view === "legacy") {
+  if (pending && (view === "legacy" || view === "price_first")) {
     return (
       <>
         <EstimateStatusRefresh pending />
@@ -265,6 +285,7 @@ export default async function RoofEstimateResultPage({
                 >
                   {assessmentCopy?.cta ?? "Talk with a roofing specialist"}
                 </a>
+                {refineLink}
                 <p className="mt-5 text-xs leading-5 text-slate-500 dark:text-slate-400">
                   Preliminary sales estimate only. Decking, tear-off layers, access, permits, and field conditions can change the final proposal.
                 </p>
@@ -280,6 +301,7 @@ export default async function RoofEstimateResultPage({
                 <p className="mt-5 text-base leading-7 text-slate-600 dark:text-slate-300">
                   {assessmentCopy?.body ?? "We could not create a reliable instant range. A roofing professional can review the property and follow up."}
                 </p>
+                {refineLink}
                 {assessmentCopy ? (
                   <a
                     href={roofEstimateBrand.phoneHref}

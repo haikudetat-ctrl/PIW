@@ -195,8 +195,21 @@ export async function handleAllSeasonCampaignEstimateRequest(
     return noStoreJson({error: "Invalid campaign estimate submission"}, 400);
   }
 
+  return processCampaignEstimate(request, parsed.data, dependencies);
+}
+
+/**
+ * Accepts a validated campaign estimate and runs everything that follows an
+ * accepted lead (immediate delivery, QualifiedLead reservation). Shared by the
+ * website intake and the property-preview conversion route.
+ */
+export async function processCampaignEstimate(
+  request: NextRequest,
+  input: AllSeasonCampaignEstimateInput,
+  dependencies: CampaignEstimateDependencies,
+) {
   try {
-    const result = await dependencies.accept(parsed.data);
+    const result = await dependencies.accept(input);
     if (result.kind === "duplicate_requires_restart") {
       return noStoreJson(
         {error: "Please restart this estimate request.", retryable: true},
@@ -207,12 +220,12 @@ export async function handleAllSeasonCampaignEstimateRequest(
       reserveMetaLeadAfterAcceptance({
         request,
         result,
-        submissionId: parsed.data.submission_id,
+        submissionId: input.submission_id,
         dependencies,
       }),
       deliverLeadAfterAcceptance({
         result,
-        submissionId: parsed.data.submission_id,
+        submissionId: input.submission_id,
         dependencies,
       }),
     ]);
@@ -228,27 +241,23 @@ export async function handleAllSeasonCampaignEstimateRequest(
   }
 }
 
-export async function POST(request: NextRequest) {
-  let environment: ReturnType<typeof parseServerEnv>;
-  try {
-    environment = parseServerEnv(process.env);
-  } catch {
-    return noStoreJson(
-      { error: "All Season campaign estimate intake is not configured" },
-      503,
-    );
-  }
+export type CampaignEstimateRuntimeOptions = {
+  // Where the signed privacy-consent token comes from: the website forwards it
+  // in a header; the tenant-host preview conversion reads the PIW cookie.
+  consentToken?: (request: NextRequest) => string | undefined;
+};
+
+export function createCampaignEstimateDependencies(
+  request: NextRequest,
+  environment: ReturnType<typeof parseServerEnv>,
+  options: CampaignEstimateRuntimeOptions = {},
+): CampaignEstimateDependencies | null {
   if (
     !environment.ROOF_ASSESSMENT_ENABLED
     || !environment.ROOF_ASSESSMENT_SIGNING_SECRET
     || !environment.ALL_SEASON_INTAKE_SHARED_SECRET
     || !environment.ALL_SEASON_INTAKE_COMPANY_ID
-  ) {
-    return noStoreJson(
-      { error: "All Season campaign estimate intake is not configured" },
-      503,
-    );
-  }
+  ) return null;
 
   const service = createServiceClient();
   const repository = new SupabaseAssessmentIntakeRepository(service);
@@ -308,7 +317,7 @@ export async function POST(request: NextRequest) {
       }
     : undefined;
 
-  return handleAllSeasonCampaignEstimateRequest(request, {
+  return {
     expectedSecret: environment.ALL_SEASON_INTAKE_SHARED_SECRET,
     companyId,
     metaTrackingEnabled: Boolean(tracking),
@@ -325,7 +334,9 @@ export async function POST(request: NextRequest) {
     },
     verifyAdvertisingConsent: async (incoming) =>
       resolveCurrentVerifiedConsent({
-        consentToken: incoming.headers.get("x-piw-privacy-consent") ?? undefined,
+        consentToken: options.consentToken
+          ? options.consentToken(incoming)
+          : incoming.headers.get("x-piw-privacy-consent") ?? undefined,
         signingSecret: environment.PRIVACY_CONSENT_SIGNING_SECRET ?? "",
         gpcDetected: requestHasGlobalPrivacyControl(incoming.headers),
         now: () => new Date(),
@@ -378,5 +389,25 @@ export async function POST(request: NextRequest) {
       if (result.kind === "continue") composition.markAccepted();
       return result;
     },
-  });
+  };
+}
+
+export async function POST(request: NextRequest) {
+  let environment: ReturnType<typeof parseServerEnv>;
+  try {
+    environment = parseServerEnv(process.env);
+  } catch {
+    return noStoreJson(
+      { error: "All Season campaign estimate intake is not configured" },
+      503,
+    );
+  }
+  const dependencies = createCampaignEstimateDependencies(request, environment);
+  if (!dependencies) {
+    return noStoreJson(
+      { error: "All Season campaign estimate intake is not configured" },
+      503,
+    );
+  }
+  return handleAllSeasonCampaignEstimateRequest(request, dependencies);
 }

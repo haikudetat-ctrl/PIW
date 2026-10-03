@@ -2,6 +2,8 @@ import Image from "next/image";
 import Link from "next/link";
 import type {CSSProperties} from "react";
 import {campaignThemeCssVariables, campaignThemes} from "../../../../shared/all-season-campaign-themes";
+import {previewFlowEnabled} from "../../lib/property-preview-notice";
+import {CampaignAddressEntry} from "./campaign-address-entry";
 import {CampaignEstimateForm} from "./campaign-estimate-form";
 import type {CampaignDefinition} from "./campaigns";
 
@@ -55,7 +57,11 @@ export function CampaignLandingPage({campaign}: {campaign: CampaignDefinition}) 
             </h1>
             <p>{campaign.bridgeCopy}</p>
           </div>
-          <CampaignEstimateForm campaign={campaign} />
+          {previewFlowEnabled() ? (
+            <CampaignAddressEntry campaign={campaign} turnstileSiteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!.trim()} />
+          ) : (
+            <CampaignEstimateForm campaign={campaign} />
+          )}
         </div>
       </section>
 

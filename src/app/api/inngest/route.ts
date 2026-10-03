@@ -5,6 +5,12 @@ import { processDiagnosticEvent } from "@/inngest/functions/process-diagnostic-e
 import { crmWriter } from "@/inngest/functions/crm-writer";
 import { addressValidationWorker } from "@/inngest/functions/address-validation-worker";
 import { roofEstimateWorker } from "@/inngest/functions/roof-estimate-worker";
+import { propertyPreviewMeasurementWorker } from "@/inngest/functions/property-preview-measurement-worker";
+import {
+  previewReportReminders,
+  previewReportSender,
+  propertyPreviewExpiry,
+} from "@/inngest/functions/preview-report-sender";
 import { processIntegrationEvent } from "@/inngest/functions/process-integration-event";
 import { repIntroSender } from "@/inngest/functions/rep-intro-sender";
 import { estimateDeliverySender } from "@/inngest/functions/estimate-delivery-sender";
@@ -35,6 +41,10 @@ export const { GET, POST, PUT } = serve({
     crmWriter,
     addressValidationWorker,
     roofEstimateWorker,
+    propertyPreviewMeasurementWorker,
+    previewReportSender,
+    previewReportReminders,
+    propertyPreviewExpiry,
     processIntegrationEvent,
     repIntroSender,
     estimateDeliverySender,

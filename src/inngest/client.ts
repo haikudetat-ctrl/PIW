@@ -58,6 +58,14 @@ export const metaDeliveryRequested = eventType("marketing/meta.delivery.requeste
   schema: staticSchema<{deliveryId: string}>(),
 });
 
+export const propertyPreviewMeasurementRequested = eventType("property/preview_measurement_requested", {
+  schema: staticSchema<{companyId: string; previewId: string}>(),
+});
+
+export const propertyPreviewReportRequested = eventType("property/preview_report_requested", {
+  schema: staticSchema<{companyId: string; previewId: string}>(),
+});
+
 export const leadDistributionRequested = eventType("lead/distribution.requested", {
   schema: staticSchema<LeadDistributionRequestedData>(),
 });

@@ -351,6 +351,41 @@ export type Database = {
           },
         ]
       }
+      company_public_hosts: {
+        Row: {
+          brand: Json
+          company_id: string
+          created_at: string
+          host: string
+          updated_at: string
+          verified_at: string | null
+        }
+        Insert: {
+          brand?: Json
+          company_id: string
+          created_at?: string
+          host: string
+          updated_at?: string
+          verified_at?: string | null
+        }
+        Update: {
+          brand?: Json
+          company_id?: string
+          created_at?: string
+          host?: string
+          updated_at?: string
+          verified_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_public_hosts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       consultation_requests: {
         Row: {
           assessment_id: string
@@ -3607,6 +3642,250 @@ export type Database = {
           },
         ]
       }
+      property_preview_email_sends: {
+        Row: {
+          company_id: string
+          email_normalized: string
+          id: string
+          preview_id: string
+          sent_at: string
+        }
+        Insert: {
+          company_id: string
+          email_normalized: string
+          id?: string
+          preview_id: string
+          sent_at?: string
+        }
+        Update: {
+          company_id?: string
+          email_normalized?: string
+          id?: string
+          preview_id?: string
+          sent_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_preview_email_sends_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_preview_email_sends_company_id_preview_id_fkey"
+            columns: ["company_id", "preview_id"]
+            isOneToOne: false
+            referencedRelation: "property_previews"
+            referencedColumns: ["company_id", "id"]
+          },
+        ]
+      }
+      property_preview_email_suppressions: {
+        Row: {
+          company_id: string
+          created_at: string
+          email_normalized: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          email_normalized: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          email_normalized?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_preview_email_suppressions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      property_preview_rate_buckets: {
+        Row: {
+          bucket_key: string
+          request_count: number
+          window_start: string
+        }
+        Insert: {
+          bucket_key: string
+          request_count?: number
+          window_start: string
+        }
+        Update: {
+          bucket_key?: string
+          request_count?: number
+          window_start?: string
+        }
+        Relationships: []
+      }
+      property_previews: {
+        Row: {
+          address_mode: string
+          attribution: Json
+          campaign: string | null
+          canonical_address: string | null
+          company_id: string
+          contact_viewed_at: string | null
+          converted_lead_id: string | null
+          created_at: string
+          email_accepted_at: string | null
+          email_disclosure_version: string | null
+          entry_point: string
+          experiment_arm: string
+          expires_at: string
+          google_place_id: string | null
+          id: string
+          ip_address: unknown
+          latitude: number | null
+          longitude: number | null
+          measurement_status: string
+          normalized_address: string
+          place_resolved_at: string | null
+          presentation_key: string
+          privacy_consent_token: string | null
+          processing_accepted_at: string
+          processing_disclosure_version: string
+          property_id: string
+          referrer: string | null
+          reminders_sent: number
+          responses: Json
+          reveal_mode: string
+          revealed_at: string | null
+          roof_insight_id: string | null
+          saved_email: string | null
+          saved_email_normalized: string | null
+          status: string
+          submission_id: string | null
+          submitted_address: string
+          token_hash: string
+          unsubscribed_at: string | null
+          updated_at: string
+          user_agent: string
+        }
+        Insert: {
+          address_mode: string
+          attribution?: Json
+          campaign?: string | null
+          canonical_address?: string | null
+          company_id: string
+          contact_viewed_at?: string | null
+          converted_lead_id?: string | null
+          created_at?: string
+          email_accepted_at?: string | null
+          email_disclosure_version?: string | null
+          entry_point: string
+          experiment_arm?: string
+          expires_at: string
+          google_place_id?: string | null
+          id?: string
+          ip_address: unknown
+          latitude?: number | null
+          longitude?: number | null
+          measurement_status?: string
+          normalized_address: string
+          place_resolved_at?: string | null
+          presentation_key: string
+          privacy_consent_token?: string | null
+          processing_accepted_at: string
+          processing_disclosure_version: string
+          property_id: string
+          referrer?: string | null
+          reminders_sent?: number
+          responses?: Json
+          reveal_mode?: string
+          revealed_at?: string | null
+          roof_insight_id?: string | null
+          saved_email?: string | null
+          saved_email_normalized?: string | null
+          status?: string
+          submission_id?: string | null
+          submitted_address: string
+          token_hash: string
+          unsubscribed_at?: string | null
+          updated_at?: string
+          user_agent: string
+        }
+        Update: {
+          address_mode?: string
+          attribution?: Json
+          campaign?: string | null
+          canonical_address?: string | null
+          company_id?: string
+          contact_viewed_at?: string | null
+          converted_lead_id?: string | null
+          created_at?: string
+          email_accepted_at?: string | null
+          email_disclosure_version?: string | null
+          entry_point?: string
+          experiment_arm?: string
+          expires_at?: string
+          google_place_id?: string | null
+          id?: string
+          ip_address?: unknown
+          latitude?: number | null
+          longitude?: number | null
+          measurement_status?: string
+          normalized_address?: string
+          place_resolved_at?: string | null
+          presentation_key?: string
+          privacy_consent_token?: string | null
+          processing_accepted_at?: string
+          processing_disclosure_version?: string
+          property_id?: string
+          referrer?: string | null
+          reminders_sent?: number
+          responses?: Json
+          reveal_mode?: string
+          revealed_at?: string | null
+          roof_insight_id?: string | null
+          saved_email?: string | null
+          saved_email_normalized?: string | null
+          status?: string
+          submission_id?: string | null
+          submitted_address?: string
+          token_hash?: string
+          unsubscribed_at?: string | null
+          updated_at?: string
+          user_agent?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_previews_company_id_converted_lead_id_fkey"
+            columns: ["company_id", "converted_lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["company_id", "id"]
+          },
+          {
+            foreignKeyName: "property_previews_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_previews_company_id_property_id_fkey"
+            columns: ["company_id", "property_id"]
+            isOneToOne: false
+            referencedRelation: "properties"
+            referencedColumns: ["company_id", "id"]
+          },
+          {
+            foreignKeyName: "property_previews_roof_insight_id_fkey"
+            columns: ["roof_insight_id"]
+            isOneToOne: false
+            referencedRelation: "roof_insights"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       provider_cost_entries: {
         Row: {
           actual_cost_micros: number | null
@@ -5014,6 +5293,7 @@ export type Database = {
           campaign_slug: string | null
           company_id: string
           created_at: string
+          experiment_arm: string | null
           fbclid: string | null
           id: string
           is_likely_bot: boolean
@@ -5034,6 +5314,7 @@ export type Database = {
           campaign_slug?: string | null
           company_id: string
           created_at?: string
+          experiment_arm?: string | null
           fbclid?: string | null
           id?: string
           is_likely_bot?: boolean
@@ -5054,6 +5335,7 @@ export type Database = {
           campaign_slug?: string | null
           company_id?: string
           created_at?: string
+          experiment_arm?: string | null
           fbclid?: string | null
           id?: string
           is_likely_bot?: boolean
@@ -5187,6 +5469,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      quote_funnel_daily: {
+        Row: {
+          campaign_leads: number | null
+          campaign_visitor_days: number | null
+          company_id: string | null
+          funnel_date: string | null
+          main_site_leads: number | null
+          main_site_visitor_days: number | null
+          previews_contact_viewed: number | null
+          previews_converted: number | null
+          previews_created: number | null
+          previews_revealed: number | null
+          reports_saved: number | null
+          value_first_campaign_visitor_days: number | null
+          value_first_main_site_visitor_days: number | null
+        }
+        Relationships: []
       }
       reconciled_lead_routes: {
         Row: {
@@ -5551,10 +5851,40 @@ export type Database = {
           status: string
         }[]
       }
+      consume_property_preview_rate_limit: {
+        Args: { p_bucket_key: string; p_limit: number; p_window: string }
+        Returns: boolean
+      }
       consume_roof_assessment_result_view_limit: {
         Args: { p_public_token: string; p_request_ip: unknown }
         Returns: {
           allowed: boolean
+        }[]
+      }
+      create_property_preview: {
+        Args: {
+          p_address_mode: string
+          p_attribution: Json
+          p_campaign: string
+          p_company_id: string
+          p_daily_company_limit?: number
+          p_entry_point: string
+          p_google_place_id: string
+          p_hourly_ip_limit?: number
+          p_ip_address: string
+          p_presentation_key: string
+          p_processing_accepted_at: string
+          p_processing_disclosure_version: string
+          p_referrer: string
+          p_submitted_address: string
+          p_token_hash: string
+          p_user_agent: string
+        }
+        Returns: {
+          preview_id: string
+          property_id: string
+          rate_limited: boolean
+          reused_property: boolean
         }[]
       }
       current_company_id: { Args: never; Returns: string }
@@ -5591,9 +5921,21 @@ export type Database = {
           status: Database["public"]["Enums"]["review_task_status"]
         }[]
       }
+      expire_property_previews: { Args: never; Returns: number }
       fail_outbox_event: {
         Args: { p_error: string; p_event_id: string }
         Returns: undefined
+      }
+      finalize_property_preview_conversion: {
+        Args: {
+          p_company_id: string
+          p_submission_id: string
+          p_token_hash: string
+        }
+        Returns: {
+          attempt_kind: string
+          lead_id: string
+        }[]
       }
       finalize_roof_estimate_packages: {
         Args: {
@@ -5652,6 +5994,7 @@ export type Database = {
         Returns: boolean
       }
       is_platform_admin: { Args: never; Returns: boolean }
+      is_scanner_request_path: { Args: { p_path: string }; Returns: boolean }
       is_suppressed: {
         Args: {
           p_channel: string
@@ -5712,6 +6055,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      mark_property_preview_progress: {
+        Args: { p_company_id: string; p_step: string; p_token_hash: string }
+        Returns: undefined
+      }
       mark_roof_assessment_result_viewed: {
         Args: {
           p_assessment_id: string
@@ -5761,6 +6108,10 @@ export type Database = {
         Returns: {
           evidence_id: string
         }[]
+      }
+      record_property_preview_responses: {
+        Args: { p_company_id: string; p_responses: Json; p_token_hash: string }
+        Returns: undefined
       }
       record_public_privacy_consent: {
         Args: {
@@ -6017,6 +6368,20 @@ export type Database = {
           assessment_id: string
           public_token: string
           token_rotated_at: string
+        }[]
+      }
+      save_property_preview_email: {
+        Args: {
+          p_accepted_at: string
+          p_company_id: string
+          p_daily_limit?: number
+          p_disclosure_version: string
+          p_email: string
+          p_token_hash: string
+        }
+        Returns: {
+          allowed: boolean
+          preview_id: string
         }[]
       }
       save_roof_assessment_progress: {

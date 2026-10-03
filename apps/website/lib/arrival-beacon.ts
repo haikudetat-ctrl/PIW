@@ -1,4 +1,5 @@
 import {campaignSlugs, type CampaignSlug} from "../app/campaigns/campaigns";
+import {previewFlowEnabled} from "./property-preview-notice";
 
 export type WebsiteArrival = {
   occurred_at: string;
@@ -16,6 +17,7 @@ export type WebsiteArrival = {
   meta_placement: string | null;
   meta_site_source: string | null;
   is_likely_bot: boolean;
+  experiment_arm?: "value_first";
 };
 
 const BOT_PATTERN =
@@ -34,8 +36,17 @@ export function shouldLogArrival(pathname: string): boolean {
   return !SKIP_PATH.test(pathname);
 }
 
+/**
+ * Vulnerability scanners probe these with ordinary browser agents. The site
+ * serves no PHP, dotfiles or CGI, so a request for one is never a homeowner.
+ * Keep in sync with public.is_scanner_request_path().
+ */
+const SCANNER_PATH =
+  /^\/(?:wp-admin|wp-includes|wp-content|vendor|cgi-bin|\.git)(?:\/|$)|^\/\.env|\.php$/i;
+
 /** Advisory only. Rows are still recorded so the raw arrival record stays complete. */
-export function isLikelyBot(userAgent: string | null): boolean {
+export function isLikelyBot(userAgent: string | null, pathname?: string): boolean {
+  if (pathname !== undefined && SCANNER_PATH.test(pathname)) return true;
   return userAgent ? BOT_PATTERN.test(userAgent) : true;
 }
 
@@ -105,6 +116,9 @@ export async function buildArrival(input: {
     utm_term: bounded(query.get("utm_term"), 500),
     meta_placement: bounded(query.get("placement") ?? query.get("utm_term"), 200),
     meta_site_source: bounded(query.get("site_source_name"), 200),
-    is_likely_bot: isLikelyBot(userAgent),
+    is_likely_bot: isLikelyBot(userAgent, url.pathname),
+    // Sent only once the value-first flow is on, so PIW (which accepts the
+    // field) never sees it from a deploy that predates it. Absent = legacy.
+    ...(previewFlowEnabled() ? {experiment_arm: "value_first" as const} : {}),
   };
 }

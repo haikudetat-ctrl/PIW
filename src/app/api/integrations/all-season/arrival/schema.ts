@@ -18,6 +18,8 @@ export const websiteArrivalSchema = z.strictObject({
   meta_placement: boundedText(200).nullish(),
   meta_site_source: boundedText(200).nullish(),
   is_likely_bot: z.boolean(),
+  // Quote flow that served the arrival; absent means legacy.
+  experiment_arm: z.enum(["legacy", "value_first"]).optional(),
 });
 
 /** Arrivals are batched by the beacon so a burst of traffic costs one request, not one per hit. */

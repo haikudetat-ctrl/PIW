@@ -19,16 +19,33 @@ function staticRuntimeConfig(): StaticRuntimeConfig {
   return {enabled, pixelId: enabled ? pixelId : null, analyticsDefaultOn: process.env.NEXT_PUBLIC_ANALYTICS_DEFAULT_ON === "true"};
 }
 
+type QuoteRuntimeConfig = {
+  previewEnabled: boolean;
+  turnstileSiteKey: string | null;
+};
+
+function quoteRuntimeConfig(): QuoteRuntimeConfig {
+  const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim() || null;
+  const previewEnabled = process.env.NEXT_PUBLIC_PROPERTY_PREVIEW_ENABLED === "true" && turnstileSiteKey !== null;
+  return {previewEnabled, turnstileSiteKey: previewEnabled ? turnstileSiteKey : null};
+}
+
 function inlineJson(value: unknown) {
   return JSON.stringify(value).replace(/</g, "\\u003c");
 }
 
-export function injectPublicRuntime(html: string, config = staticRuntimeConfig()) {
+export function injectPublicRuntime(
+  html: string,
+  config = staticRuntimeConfig(),
+  quoteConfig = quoteRuntimeConfig(),
+) {
   if (html.includes('data-all-season-privacy-runtime="script"')) return html;
 
   const runtime = [
     '<link rel="stylesheet" href="/privacy-runtime.css" data-all-season-privacy-runtime="styles">',
     `<script id="all-season-meta-config" type="application/json">${inlineJson(config)}</script>`,
+    `<script id="all-season-quote-config" type="application/json">${inlineJson(quoteConfig)}</script>`,
+    '<script defer src="/address-entry.js" data-all-season-address-entry="script"></script>',
     '<script defer src="/posthog-runtime.js" data-all-season-posthog-runtime="script"></script>',
     '<script defer src="/privacy-runtime.js" data-all-season-privacy-runtime="script"></script>',
   ].join("");

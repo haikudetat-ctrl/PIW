@@ -184,6 +184,19 @@
     panel.appendChild(header);
     panel.appendChild(form);
     panel.appendChild(success);
+
+    // Value-first flow: swap the long form for the shared address step
+    // (public/address-entry.js); contact details come after the roof reveal.
+    var addressStep = null;
+    if (window.AllSeasonAddressEntry) {
+      var placeholder = element('form');
+      placeholder.setAttribute('data-entry-point', 'main-drawer');
+      placeholder.setAttribute('data-presentation-key', 'all-season-main');
+      form.replaceWith(placeholder);
+      window.AllSeasonAddressEntry.mount(placeholder);
+      addressStep = panel.querySelector('[data-preview-address-form]');
+      panel.querySelector('.as-quote-intro').textContent = 'See your roof from above in seconds. No contact details needed to look.';
+    }
     root.appendChild(panel);
     root.appendChild(launcher);
     document.body.appendChild(root);
@@ -196,7 +209,12 @@
       root.dataset.trigger = trigger;
       launcher.setAttribute('aria-expanded', 'true');
       track('quote_form_view', {trigger: trigger});
-      if (focusFirst) window.requestAnimationFrame(function () { name.input.focus(); });
+      if (focusFirst) {
+        window.requestAnimationFrame(function () {
+          var first = addressStep ? addressStep.querySelector('[data-address-search]') : name.input;
+          if (first) first.focus();
+        });
+      }
     }
 
     function closeDrawer(reason) {

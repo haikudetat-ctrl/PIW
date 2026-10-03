@@ -177,13 +177,17 @@ describe("All Season campaign estimate intake", () => {
     });
   });
 
-  test("accepts the passive-notice disclosure and the prior checkbox disclosure during rollout", () => {
-    for (const disclosure_version of ["all-season-campaign-estimate-v1", "all-season-campaign-estimate-v2"]) {
+  test("accepts the checkbox, passive-notice and preview contact disclosures during rollout", () => {
+    for (const disclosure_version of [
+      "all-season-campaign-estimate-v1",
+      "all-season-campaign-estimate-v2",
+      "all-season-campaign-estimate-v3",
+    ]) {
       expect(allSeasonCampaignEstimateSchema.safeParse({...validPayload, disclosure_version}).success).toBe(true);
     }
     expect(allSeasonCampaignEstimateSchema.safeParse({
       ...validPayload,
-      disclosure_version: "all-season-campaign-estimate-v3",
+      disclosure_version: "all-season-campaign-estimate-v4",
     }).success).toBe(false);
   });
 

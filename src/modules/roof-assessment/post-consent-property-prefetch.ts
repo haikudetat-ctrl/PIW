@@ -55,7 +55,7 @@ export type PostConsentPropertyPrefetchDependencies = {
   logCompletion?: (context: CompletionLog) => void;
 };
 
-function isExactNjEvidence(
+export function isExactNjEvidence(
   evidence: AddressValidationResult,
   googlePlaceId: string,
 ): boolean {

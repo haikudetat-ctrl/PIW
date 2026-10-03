@@ -42,9 +42,25 @@ const serverEnvSchema = z
       (value) => value === "" ? undefined : value,
       z.email().optional(),
     ),
+    // Customer-facing sender for "Email me this" preview reports. Must be a
+    // Resend-verified address on the tenant's domain.
+    PREVIEW_REPORT_FROM_EMAIL: z.preprocess(
+      (value) => value === "" ? undefined : value,
+      z.email().optional(),
+    ),
     PAID_PROVIDERS_ENABLED: booleanString,
     ROOF_ASSESSMENT_ENABLED: booleanString,
     ROOF_ASSESSMENT_PROPERTY_PREFETCH_ENABLED: booleanString,
+    PROPERTY_PREVIEW_ENABLED: booleanString,
+    TURNSTILE_SECRET_KEY: optionalString,
+    // Hostnames the Turnstile widget may render on (the website and tenant
+    // estimate hosts). A verified token from any other hostname is rejected.
+    TURNSTILE_ALLOWED_HOSTNAMES: z.preprocess(
+      (value) => typeof value === "string"
+        ? value.split(",").map((host) => host.trim().toLowerCase()).filter(Boolean)
+        : [],
+      z.array(z.string().min(1)),
+    ),
     ROOF_ASSESSMENT_SIGNING_SECRET: optionalSigningSecret,
     PRIVACY_CONSENT_SIGNING_SECRET: optionalString,
     TWILIO_VERIFY_ENABLED: booleanString,
@@ -139,6 +155,16 @@ const serverEnvSchema = z
         code: "custom",
         path: ["ROOF_ASSESSMENT_PROPERTY_PREFETCH_ENABLED"],
         message: "Property prefetch requires roof assessments, paid providers, and a Google Maps API key",
+      });
+    }
+    if (
+      value.PROPERTY_PREVIEW_ENABLED
+      && (!value.TURNSTILE_SECRET_KEY || !value.ROOF_ASSESSMENT_ENABLED || !value.PAID_PROVIDERS_ENABLED)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["PROPERTY_PREVIEW_ENABLED"],
+        message: "Property previews require a Turnstile secret, roof assessments, and paid providers",
       });
     }
     if (value.ROOF_ASSESSMENT_ENABLED && !value.ROOF_ASSESSMENT_SIGNING_SECRET) {

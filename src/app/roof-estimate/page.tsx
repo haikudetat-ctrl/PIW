@@ -1,6 +1,27 @@
+import { headers } from "next/headers";
+import { parseServerEnv } from "@/lib/env/server";
+import { createServiceClient } from "@/lib/supabase/service";
+import { resolvePublicHost } from "@/modules/tenancy/public-host";
+import { createSupabasePublicHostLookup } from "@/modules/tenancy/supabase-public-host-lookup";
+import { PreviewAddressForm } from "./preview-address-form";
 import { RoofEstimateForm } from "./roof-estimate-form";
 
-export default function PublicRoofEstimatePage() {
+// The value-first address step needs the preview flag, a Turnstile site key,
+// and a verified tenant host (previews are created only there). Otherwise the
+// legacy form renders, which is also the rollback path.
+async function previewAddressStep() {
+  const environment = parseServerEnv(process.env);
+  const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim();
+  if (!environment.PROPERTY_PREVIEW_ENABLED || !siteKey) return null;
+  const tenant = await resolvePublicHost(
+    (await headers()).get("host"),
+    createSupabasePublicHostLookup(createServiceClient()),
+  ).catch(() => null);
+  return tenant ? {siteKey, brandName: tenant.brand.displayName} : null;
+}
+
+export default async function PublicRoofEstimatePage() {
+  const preview = await previewAddressStep();
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,#e9f1fb_0,transparent_38%),var(--color-page)] px-4 py-10 sm:py-16">
       <div className="mx-auto grid max-w-5xl gap-10 lg:grid-cols-[1fr_28rem] lg:items-center">
@@ -15,7 +36,15 @@ export default function PublicRoofEstimatePage() {
           </ul>
         </section>
         <section className="rounded-2xl border border-border bg-surface p-6 shadow-[0_24px_70px_rgba(15,42,74,0.12)] sm:p-8">
-          <RoofEstimateForm browserApiKey={process.env.GOOGLE_MAPS_BROWSER_API_KEY} />
+          {preview ? (
+            <PreviewAddressForm
+              browserApiKey={process.env.GOOGLE_MAPS_BROWSER_API_KEY}
+              turnstileSiteKey={preview.siteKey}
+              brandName={preview.brandName}
+            />
+          ) : (
+            <RoofEstimateForm browserApiKey={process.env.GOOGLE_MAPS_BROWSER_API_KEY} />
+          )}
         </section>
       </div>
     </main>
