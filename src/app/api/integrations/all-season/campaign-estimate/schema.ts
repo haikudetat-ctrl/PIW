@@ -7,9 +7,9 @@ export const canonicalCampaignSlugs = [
 ] as const;
 
 const nullableAttribution = z.string().trim().max(500).nullable();
-const campaignSchema = z.enum(canonicalCampaignSlugs);
-const presentationSchema = z.enum(["all-season-main", ...canonicalCampaignSlugs]);
-const entryPointSchema = z.enum([
+export const campaignSchema = z.enum(canonicalCampaignSlugs);
+export const presentationSchema = z.enum(["all-season-main", ...canonicalCampaignSlugs]);
+export const entryPointSchema = z.enum([
   "main-home",
   "main-contact",
   "main-drawer",

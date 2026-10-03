@@ -3704,6 +3704,7 @@ export type Database = {
           address_mode: string
           attribution: Json
           campaign: string | null
+          canonical_address: string | null
           company_id: string
           contact_viewed_at: string | null
           converted_lead_id: string | null
@@ -3716,7 +3717,11 @@ export type Database = {
           google_place_id: string | null
           id: string
           ip_address: unknown
+          latitude: number | null
+          longitude: number | null
+          measurement_status: string
           normalized_address: string
+          place_resolved_at: string | null
           presentation_key: string
           processing_accepted_at: string
           processing_disclosure_version: string
@@ -3726,6 +3731,7 @@ export type Database = {
           responses: Json
           reveal_mode: string
           revealed_at: string | null
+          roof_insight_id: string | null
           saved_email: string | null
           saved_email_normalized: string | null
           status: string
@@ -3740,6 +3746,7 @@ export type Database = {
           address_mode: string
           attribution?: Json
           campaign?: string | null
+          canonical_address?: string | null
           company_id: string
           contact_viewed_at?: string | null
           converted_lead_id?: string | null
@@ -3752,7 +3759,11 @@ export type Database = {
           google_place_id?: string | null
           id?: string
           ip_address: unknown
+          latitude?: number | null
+          longitude?: number | null
+          measurement_status?: string
           normalized_address: string
+          place_resolved_at?: string | null
           presentation_key: string
           processing_accepted_at: string
           processing_disclosure_version: string
@@ -3762,6 +3773,7 @@ export type Database = {
           responses?: Json
           reveal_mode?: string
           revealed_at?: string | null
+          roof_insight_id?: string | null
           saved_email?: string | null
           saved_email_normalized?: string | null
           status?: string
@@ -3776,6 +3788,7 @@ export type Database = {
           address_mode?: string
           attribution?: Json
           campaign?: string | null
+          canonical_address?: string | null
           company_id?: string
           contact_viewed_at?: string | null
           converted_lead_id?: string | null
@@ -3788,7 +3801,11 @@ export type Database = {
           google_place_id?: string | null
           id?: string
           ip_address?: unknown
+          latitude?: number | null
+          longitude?: number | null
+          measurement_status?: string
           normalized_address?: string
+          place_resolved_at?: string | null
           presentation_key?: string
           processing_accepted_at?: string
           processing_disclosure_version?: string
@@ -3798,6 +3815,7 @@ export type Database = {
           responses?: Json
           reveal_mode?: string
           revealed_at?: string | null
+          roof_insight_id?: string | null
           saved_email?: string | null
           saved_email_normalized?: string | null
           status?: string
@@ -3829,6 +3847,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "properties"
             referencedColumns: ["company_id", "id"]
+          },
+          {
+            foreignKeyName: "property_previews_roof_insight_id_fkey"
+            columns: ["roof_insight_id"]
+            isOneToOne: false
+            referencedRelation: "roof_insights"
+            referencedColumns: ["id"]
           },
         ]
       }

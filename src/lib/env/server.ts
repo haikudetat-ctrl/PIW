@@ -47,6 +47,14 @@ const serverEnvSchema = z
     ROOF_ASSESSMENT_PROPERTY_PREFETCH_ENABLED: booleanString,
     PROPERTY_PREVIEW_ENABLED: booleanString,
     TURNSTILE_SECRET_KEY: optionalString,
+    // Hostnames the Turnstile widget may render on (the website and tenant
+    // estimate hosts). A verified token from any other hostname is rejected.
+    TURNSTILE_ALLOWED_HOSTNAMES: z.preprocess(
+      (value) => typeof value === "string"
+        ? value.split(",").map((host) => host.trim().toLowerCase()).filter(Boolean)
+        : [],
+      z.array(z.string().min(1)),
+    ),
     ROOF_ASSESSMENT_SIGNING_SECRET: optionalSigningSecret,
     PRIVACY_CONSENT_SIGNING_SECRET: optionalString,
     TWILIO_VERIFY_ENABLED: booleanString,

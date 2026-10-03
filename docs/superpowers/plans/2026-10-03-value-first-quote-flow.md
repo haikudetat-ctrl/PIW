@@ -176,10 +176,12 @@ type CreatePreviewResult =
 
 **Steps**
 
-- [ ] Strict zod schemas; reject any coordinate or size field. Integration route uses the existing shared-secret + OIDC check from the campaign-estimate route.
-- [ ] Order: verify Turnstile → `create_property_preview` (commits processing evidence) → for a Google Place ID, run the existing 2,500 ms Place Details fast path and enqueue `property/discovery_requested` for the preview's property → return the preview URL. Fast-path failure still returns `created`.
-- [ ] Budget check: if the Solar monthly reservation is exhausted, skip discovery and set the preview's `reveal_mode = 'skipped'` so the UI goes straight to questions.
-- [ ] Tests: challenge failure makes no RPC or provider call; rate-limited returns 429 with no provider call; replays of the same Place ID reuse the stored Solar result; manual address skips the fast path; logs contain no address or token.
+- [x] Strict zod schema (`property-preview/schema.ts`) rejects coordinates and mismatched campaign context; the integration route uses the existing shared-secret check.
+- [x] `createPropertyPreview`: Turnstile (PIW is the only verifier; the website forwards the browser token, allowed widget hostnames come from `TURNSTILE_ALLOWED_HOSTNAMES`) → resolve the company's verified host → `create_property_preview` (commits processing evidence) → for a Google Place ID, the existing Place Details adapter with a 2,500 ms budget and the same exact-NJ check as the intake fast path → store canonical address and coordinates on the preview → emit `property/preview_measurement_requested`. Any provider or queue failure sets `measurement_status = 'unavailable'` and still returns the preview URL.
+- [x] Migration `property_preview_measurement`: `canonical_address`, `latitude`, `longitude`, `place_resolved_at`, `measurement_status`, `roof_insight_id`, with all-or-nothing place and insight constraints.
+- [x] `property-preview-measurement-worker` (Inngest): reuses the company's cached `roof_insights` row for the normalized canonical address, otherwise reserves the monthly Solar budget (exhausted → `skipped`, reveal skipped), records a pipeline-less `provider_requests` row (`roof.measurement:preview:<id>`), calls Solar, and upserts the same `roof_insights` cache key the lead worker reads. That is what makes conversion reuse the measurement instead of paying for Solar twice.
+- [x] Tests: challenge failure makes no write or provider call; rate-limited makes no provider call; manual and non-exact addresses are never measured; cache hits skip budget and Solar; provider failures degrade without throwing.
+- Moved to Task 9: the direct PIW `POST /api/property-preview` route for the tenant-host `/roof-estimate` form (tenant from the host), built alongside that form.
 
 ## Task 5: Preview read model and image access
 
