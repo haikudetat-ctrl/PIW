@@ -1,4 +1,4 @@
-import {describe, expect, test} from "vitest";
+import {afterEach, describe, expect, test, vi} from "vitest";
 import {buildArrival, isLikelyBot, shouldLogArrival, visitorHash} from "./arrival-beacon";
 
 const SECRET = "test-salt";
@@ -133,5 +133,29 @@ describe("shouldLogArrival", () => {
                         "/privacy-runtime.js", "/fonts/inter.woff2"]) {
       expect(shouldLogArrival(path)).toBe(false);
     }
+  });
+});
+
+describe("experiment arm", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  async function arrival() {
+    return buildArrival({
+      url: new URL("https://allseasonroofingquote.com/campaigns/weather-report"),
+      headers: new Headers({"user-agent": "Mozilla/5.0"}),
+      ip: "203.0.113.5",
+      secret: "test-salt",
+      now: new Date("2026-10-03T12:00:00.000Z"),
+    });
+  }
+
+  test("omits the arm while the value-first flow is off", async () => {
+    expect(await arrival()).not.toHaveProperty("experiment_arm");
+  });
+
+  test("tags value-first arrivals once the flow is on", async () => {
+    vi.stubEnv("NEXT_PUBLIC_PROPERTY_PREVIEW_ENABLED", "true");
+    vi.stubEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY", "site");
+    expect((await arrival()).experiment_arm).toBe("value_first");
   });
 });

@@ -1,4 +1,5 @@
 import {campaignSlugs, type CampaignSlug} from "../app/campaigns/campaigns";
+import {previewFlowEnabled} from "./property-preview-notice";
 
 export type WebsiteArrival = {
   occurred_at: string;
@@ -16,6 +17,7 @@ export type WebsiteArrival = {
   meta_placement: string | null;
   meta_site_source: string | null;
   is_likely_bot: boolean;
+  experiment_arm?: "value_first";
 };
 
 const BOT_PATTERN =
@@ -115,5 +117,8 @@ export async function buildArrival(input: {
     meta_placement: bounded(query.get("placement") ?? query.get("utm_term"), 200),
     meta_site_source: bounded(query.get("site_source_name"), 200),
     is_likely_bot: isLikelyBot(userAgent, url.pathname),
+    // Sent only once the value-first flow is on, so PIW (which accepts the
+    // field) never sees it from a deploy that predates it. Absent = legacy.
+    ...(previewFlowEnabled() ? {experiment_arm: "value_first" as const} : {}),
   };
 }

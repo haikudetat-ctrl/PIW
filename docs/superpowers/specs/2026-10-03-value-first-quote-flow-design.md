@@ -191,8 +191,8 @@ Even the higher-volume address-submit rate needs two to three months to detect a
 The main site produced no leads from 927 visitor-days in 60 days. A check on 2026-10-03 ran the production `script.js` against the homepage and contact markup, fed the payload it builds through the website's `/api/campaign-estimate` handler, and validated the forwarded payload against PIW's intake schema. Both forms pass, so the code path isn't broken. Three other findings:
 
 - About 180 of the 927 visitor-days are vulnerability scanners (`/wp-admin/install.php`, `/xmlrpc.php`, `/.env`, `/.git/config`) that `is_likely_bot` doesn't flag, inflating the denominator.
-- The quote drawer (`quote-drawer.js`) isn't loaded on any page, so it has never been a live entry point.
-- `index.html` declares `https://allseasonsolar.net/` as its canonical URL, but the site is served from `allseasonroofingquote.com`. That's an SEO issue, not a form issue.
+- The quote drawer (`quote-drawer.js`) is loaded by `script.js` on every static page, so it is a live `main-drawer` entry point. (An earlier version of this section said otherwise; that was wrong.)
+- `index.html` declares `https://allseasonsolar.net/` as its canonical URL, but the site responds with `x-robots-tag: noindex`, so the canonical has no search effect today.
 
 The likeliest explanation is low-intent organic traffic meeting a seven-field form, which is what this redesign addresses. Production log retention (about one day) is too short to confirm historical submit attempts; the server-side funnel counts in this plan fix that going forward.
 

@@ -71,6 +71,7 @@ export async function POST(request: NextRequest) {
     meta_placement: arrival.meta_placement ?? null,
     meta_site_source: arrival.meta_site_source ?? null,
     is_likely_bot: arrival.is_likely_bot,
+    experiment_arm: arrival.experiment_arm ?? null,
   }));
 
   const supabase = createServiceClient();

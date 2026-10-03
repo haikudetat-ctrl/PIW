@@ -288,15 +288,17 @@ create function public.convert_property_preview(
 - Modify: `apps/website/app/campaigns/campaign-estimate-form.tsx`, `apps/website/public/index.html`, `contact.html`, `script.js`
 - Modify: `src/app/roof-estimate/roof-estimate-form.tsx`
 - Create: `apps/website/lib/property-preview-notice.ts` with the step-1 notice (version `all-season-property-preview-v1`)
-- Delete: `apps/website/public/quote-drawer.js` and `quote-drawer.css` (never loaded on any page)
+- Modify: `apps/website/public/quote-drawer.js` (loaded by `script.js` on every static page) to mount the shared address step
 
 **Steps**
 
-- [ ] One field with autocomplete, “Enter it manually” fallback, the property-processing notice naming “See my roof”, and invisible Turnstile. On success, `window.location.assign(previewUrl)`.
-- [ ] `PROPERTY_PREVIEW_ENABLED=false` renders the legacy form unchanged on every entry point. Set the arrival's `experiment_arm` from the same flag in the proxy.
-- [ ] Carry campaign, entry point, presentation key, UTM, `fbclid`, and referrer exactly as the legacy payload does; test the mapping for every entry point.
-- [ ] Mobile: single column, 16 px inputs, no layout shift when the Turnstile widget appears.
-- [ ] Fix the homepage canonical URL to `https://allseasonroofingquote.com/` while editing `index.html`.
+- [x] Website `POST /api/property-preview`: strict schema (no coordinates, campaign context must match), forwards address + browser evidence + the visitor's signed consent token (only if it verifies) to PIW, validates the returned URL is an https `/roof-estimate/p/<token>` path, maps 403/429/503.
+- [x] Campaign pages: `CampaignAddressEntry` (existing autocomplete, manual fallback, invisible Turnstile, notice naming "See my roof") when `NEXT_PUBLIC_PROPERTY_PREVIEW_ENABLED=true` and a site key exist; otherwise the legacy form.
+- [x] Static homepage and contact: `public/address-entry.js` (deferred, runs before `script.js` binds) replaces `#leadForm` with the address step when the injected `all-season-quote-config` enables it; the quote drawer (loaded by `script.js` on every static page) mounts the same step.
+- [x] PIW `/roof-estimate`: `PreviewAddressForm` on a verified tenant host with the flag and site key, posting to the tenant-host `POST /api/property-preview`; otherwise the legacy form.
+- [x] The website's consent token is stored on the preview and used at conversion when the estimate host has no consent cookie, so preview leads keep consented Meta attribution.
+- [x] Arrivals carry `experiment_arm: "value_first"` once the flow is on (sent only then, so PIW's strict arrival schema never sees it from an older deploy); absent means legacy.
+- Dropped: the canonical URL change (the site sends `x-robots-tag: noindex`).
 
 ## Task 10: Analytics and server-side funnel
 
