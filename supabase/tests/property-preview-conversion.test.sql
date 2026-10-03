@@ -21,10 +21,10 @@ create temp table preview_a as select * from public.create_property_preview(
   'weather-report', 'campaign:weather-report', 'weather-report', '{"utm_source":"facebook"}', null,
   'all-season-property-preview-v1', '2026-10-03 12:00:00+00', '203.0.113.40', 'pgtap'
 );
-create temp table answers_a as select public.record_property_preview_responses(
+create temp table answers_a as select 1 as recorded from public.record_property_preview_responses(
   'fd000000-0000-4000-8000-000000000001', pg_catalog.repeat('a', 64),
   '{"reason":"storm_damage","roofAge":"15_20","timeline":"asap"}'
-) as recorded;
+);
 
 create temp table intake_a as select * from public.start_or_resume_roof_assessment(
   'fd000000-0000-4000-8000-000000000001', 'fd000000-0000-4000-8000-000000000011',
