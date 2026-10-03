@@ -10,7 +10,7 @@ import { AssessmentLoading } from "./assessment-loading";
 import { AssessmentRevisionContext } from "./assessment-revision-context";
 import "./assessment.css";
 
-type ExperienceStage = "loading" | "reveal" | "questions";
+export type ExperienceStage = "loading" | "reveal" | "questions";
 type AerialState =
   | {source: string; kind: "loading" | "waiting" | "unavailable"; objectUrl: null}
   | {source: string; kind: "ready"; objectUrl: string};
@@ -23,7 +23,7 @@ function withAerialRetry(url: string, attempt: number) {
   return `${url}${url.includes("?") ? "&" : "?"}aerial_retry=${attempt}`;
 }
 
-function useAssessmentAerial({
+export function useAssessmentAerial({
   aerialLoader,
   enabled,
   imageUrl,

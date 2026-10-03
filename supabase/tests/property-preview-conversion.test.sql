@@ -1,6 +1,6 @@
 begin;
 
-select plan(12);
+select plan(14);
 
 select has_function(
   'public', 'finalize_property_preview_conversion', array['uuid','text','uuid'],
@@ -73,6 +73,19 @@ select is(
                where submission_id = 'fd000000-0000-4000-8000-000000000011')),
   '{"reason":"storm_damage","roofAge":"15_20","timeline":"asap"}'::jsonb,
   'the pre-contact answers seed the assessment'
+);
+select ok(
+  (select property_revealed_at is not null from public.roof_assessments
+   where id = (select assessment_id from public.roof_assessment_access_attempts
+               where submission_id = 'fd000000-0000-4000-8000-000000000011')),
+  'the refine questionnaire skips the property reveal the homeowner already saw'
+);
+select is(
+  (select current_step from public.roof_assessments
+   where id = (select assessment_id from public.roof_assessment_access_attempts
+               where submission_id = 'fd000000-0000-4000-8000-000000000011')),
+  2,
+  'the refine questionnaire starts after the answered reason and roof age'
 );
 select ok(
   (select status = 'converted' and converted_lead_id = (select lead_id from finalized)

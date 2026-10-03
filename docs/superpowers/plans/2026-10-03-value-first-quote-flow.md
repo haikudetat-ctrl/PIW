@@ -224,13 +224,12 @@ type PreviewView = {
 
 **Steps**
 
-- [ ] Sequence: analysis (existing 8 s minimum / 12 s imagery ceiling) → reveal (aerial, address with correction link, roof size or “Measuring your roof…”) → three questions (`reason`, `roofAge`, `timeline`) with auto-advance and back → contact step.
-- [ ] Refactor `assessment-questionnaire.tsx` so a step list can be passed in; the preview uses the first three, the post-result refine uses the remaining six. Existing assessment tests must still pass unchanged.
-- [ ] Contact step: name, email, mobile, TCPA notice built from a new `contactOnlyNotice(submitLabel)` (version `all-season-campaign-estimate-v3`) with the button “Unlock my price”. Notice copy unit-tested.
-- [ ] “Email me this roof report” link from the reveal onward opens an inline email field with the email notice (version `all-season-preview-email-v1`).
-- [ ] Manual address: neutral placeholder, no “Google-confirmed” copy, no roof size.
-- [ ] Brand from `PublicBrand`; campaign theming as today. Reduced motion supported.
-- [ ] Tests for each roof state, manual address, back navigation, keyboard and screen-reader labels, and that no price renders before conversion.
+- [x] `/roof-estimate/p/[token]`: tenant from host, view from the token hash; converted previews show "Your price is on its way". `noindex`.
+- [x] `PreviewExperience`: the existing analysis sequence (`AssessmentLoading`, shared aerial hook exported from `assessment-experience.tsx`) → reveal with aerial, address (Google-confirmed label only when it is), and "About N roofing squares · <complexity>" or honest pending/review copy → up to three one-tap questions (auto-advance, Back, skips answered ones, each saved via `POST /answers`) → contact step with the contact-only notice naming "Unlock my price" and the brand's privacy link → `POST /convert` (stable submission ID across retries) → continuation link. Pending measurements poll the view for up to 75 s. `POST /progress` beacons record reveal and contact-step views.
+- [x] Notices in `src/modules/property-preview/notices.ts` (address step: property processing only; contact step: calls/texts/email only), unit-tested.
+- [x] Existing estimate page: leads with a converted preview get a `price_first` view (price panel, or the loading view while pending) with "Refine your estimate with 6 quick questions" (`?refine=1`), which opens the existing questionnaire. Other leads' journeys are unchanged.
+- [x] `finalize_property_preview_conversion` also marks the property revealed and starts the questionnaire at step 2 when reason and roof age were answered.
+- Deferred to Task 8: the "Email me this roof report" link (needs the save-report endpoint).
 
 ## Task 7: Conversion into the canonical intake
 

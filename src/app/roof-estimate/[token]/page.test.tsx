@@ -237,6 +237,43 @@ describe("production roof assessment page", () => {
     expect(container.innerHTML).not.toContain("$24,750");
   });
 
+  test("shows preview-origin leads their price first with a refine link", async () => {
+    const rows = database.rows as Record<string, unknown>;
+    rows.property_previews = {id: "66666666-6666-4666-8666-666666666666"};
+    database.rows.roof_estimates = {
+      ...database.rows.roof_estimates,
+      status: "ready",
+      range_low_cents: 1_200_000,
+      range_high_cents: 1_800_000,
+      roof_squares: 24,
+      roof_insight_id: "55555555-5555-4555-8555-555555555555",
+    };
+    try {
+      render(await RoofEstimateResultPage({
+        params: Promise.resolve({token: "11111111-1111-4111-8111-111111111111"}),
+      }));
+      expect(assessmentMounts.questionnaire).toBe(0);
+      expect(screen.getByRole("link", {name: "Refine your estimate with 6 quick questions"}).getAttribute("href"))
+        .toBe("/roof-estimate/11111111-1111-4111-8111-111111111111?refine=1");
+    } finally {
+      delete rows.property_previews;
+    }
+  });
+
+  test("opens the questionnaire when a preview-origin lead asks to refine", async () => {
+    const rows = database.rows as Record<string, unknown>;
+    rows.property_previews = {id: "66666666-6666-4666-8666-666666666666"};
+    try {
+      render(await RoofEstimateResultPage({
+        params: Promise.resolve({token: "11111111-1111-4111-8111-111111111111"}),
+        searchParams: Promise.resolve({refine: "1"}),
+      }));
+      expect(assessmentMounts.questionnaire).toBe(1);
+    } finally {
+      delete rows.property_previews;
+    }
+  });
+
   test("keeps completed assessments on the result payoff", async () => {
     database.rows.roof_assessments = {
       status: "completed",

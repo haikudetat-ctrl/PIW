@@ -8,13 +8,21 @@ import {
 export function selectPublicEstimateView({
   assessmentEnabled,
   assessmentStatus,
+  priceFirst = false,
+  refineRequested = false,
 }: {
   assessmentEnabled: boolean;
   assessmentStatus: "in_progress" | "abandoned" | "completed" | null;
+  // Leads that came through a value-first preview already answered the
+  // questions that matter before contact, so they see their price first and
+  // the remaining questions only when they ask to refine it.
+  priceFirst?: boolean;
+  refineRequested?: boolean;
 }) {
   if (assessmentStatus === "abandoned") return "resume_required" as const;
   if (!assessmentEnabled) return "legacy" as const;
-  return assessmentStatus === "completed" ? "result" as const : "assessment" as const;
+  if (assessmentStatus === "completed") return "result" as const;
+  return priceFirst && !refineRequested ? "price_first" as const : "assessment" as const;
 }
 
 const resultCopy: Record<RoofAssessmentRecommendation, {

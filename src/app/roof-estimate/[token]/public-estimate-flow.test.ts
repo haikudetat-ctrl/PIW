@@ -1,5 +1,5 @@
 import {describe, expect, test} from "vitest";
-import {getAssessmentCalculationState, getAssessmentResultCta, getAssessmentResultRange} from "./public-estimate-flow";
+import {getAssessmentCalculationState, getAssessmentResultCta, getAssessmentResultRange, selectPublicEstimateView} from "./public-estimate-flow";
 
 const insight = {
   id: "99999999-9999-4999-8999-999999999999",
@@ -88,5 +88,24 @@ describe("trustworthy public assessment result states", () => {
     [{status:"review_required",reason:"low_confidence"} as const,"Review my roof with a specialist"],
   ])("uses state-aware replacement CTA copy for %o",(state,expected)=>{
     expect(getAssessmentResultCta("replacement_may_make_sense",state)).toBe(expected);
+  });
+});
+
+describe("public estimate view selection", () => {
+  test("shows preview-origin leads their price before the remaining questions", () => {
+    expect(selectPublicEstimateView({assessmentEnabled: true, assessmentStatus: "in_progress", priceFirst: true}))
+      .toBe("price_first");
+  });
+
+  test("opens the questionnaire when a preview-origin lead asks to refine", () => {
+    expect(selectPublicEstimateView({
+      assessmentEnabled: true, assessmentStatus: "in_progress", priceFirst: true, refineRequested: true,
+    })).toBe("assessment");
+  });
+
+  test("keeps the existing journey for other leads", () => {
+    expect(selectPublicEstimateView({assessmentEnabled: true, assessmentStatus: "in_progress"})).toBe("assessment");
+    expect(selectPublicEstimateView({assessmentEnabled: true, assessmentStatus: "completed", priceFirst: true})).toBe("result");
+    expect(selectPublicEstimateView({assessmentEnabled: true, assessmentStatus: "abandoned", priceFirst: true})).toBe("resume_required");
   });
 });

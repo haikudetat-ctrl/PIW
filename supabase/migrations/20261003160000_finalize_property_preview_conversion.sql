@@ -6,7 +6,8 @@
 --   homeowner actually accepted (its disclosure version and time). The contact
 --   consents keep the contact-step notice written by intake.
 -- * The three pre-contact answers seed the assessment. On a resumed assessment,
---   answers already given there win.
+--   answers already given there win. The reveal is marked seen and the refine
+--   questionnaire starts after the answered questions.
 -- * The preview becomes converted and links to the lead.
 
 create function public.finalize_property_preview_conversion(
@@ -68,8 +69,18 @@ begin
       and consent.consent_type = 'estimate_processing';
   end if;
 
+  -- The homeowner already saw the property and answered reason and roof age
+  -- on the preview, so the optional refine questionnaire skips the reveal and
+  -- starts at the first question they have not answered (step 2).
   update public.roof_assessments as assessment
   set responses = v_preview.responses || assessment.responses,
+      property_revealed_at = coalesce(assessment.property_revealed_at, v_preview.revealed_at, pg_catalog.now()),
+      current_step = case
+        when (v_preview.responses || assessment.responses) ?& array['reason', 'roofAge']
+          then greatest(assessment.current_step, 2)
+        else assessment.current_step
+      end,
+      revision = assessment.revision + 1,
       updated_at = pg_catalog.now()
   where assessment.company_id = p_company_id
     and assessment.id = v_attempt.assessment_id
