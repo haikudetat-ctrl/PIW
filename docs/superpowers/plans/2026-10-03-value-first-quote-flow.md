@@ -255,12 +255,10 @@ create function public.convert_property_preview(
 
 **Steps**
 
-- [ ] The function locks the preview row, requires `active` and unexpired (or returns `replay` for the same `submission_id` on a converted preview), then calls the existing `start_or_resume_roof_assessment` internals with the preview's property, address, campaign, entry point, attribution, and referrer.
-- [ ] Consent evidence: `estimate_processing` from the preview's processing evidence; `email_contact` and `sms_contact` from the contact step. If a saved-report email exists and matches, its evidence is kept as an additional row in the preview, not a fourth consent type.
-- [ ] Seed the assessment responses with the three preview answers; the result page shows “Refine your estimate” for the remaining six, and they never block the price.
-- [ ] Mark the preview `converted` with `converted_lead_id` and `submission_id` in the same transaction.
-- [ ] Meta: browser `Lead` fires on contact submit; server `QualifiedLead` unchanged.
-- [ ] pgTAP: double conversion, expiry, tenant mismatch, consent rows and versions, responses copied, existing pipeline gates satisfied. Integration test through `src/integration/canonical-assessment-journey.test.ts` patterns.
+- [x] Refactor `campaign-estimate/route.ts` without behavior change: `createCampaignEstimateDependencies` (dependency wiring, consent-token source injectable) and `processCampaignEstimate` (accept → immediate delivery → QualifiedLead). The existing 31 route tests pass unchanged.
+- [x] `POST /api/property-preview/[token]/convert`: tenant from host (must be the configured intake company), strict contact schema (submission ID, name, email, phone only), address/campaign/entry point/attribution from the server-held preview, advertising cookies only with verified advertising consent, contact disclosure `all-season-campaign-estimate-v3`, then the shared `processCampaignEstimate`. Resume candidates, replays and delivery behave exactly as on the website intake.
+- [x] `finalize_property_preview_conversion` runs only after a 202: rewrites `estimate_processing` evidence and the current-consent projection to the address-step notice and time (new intakes only), seeds the three answers (an existing resumed assessment's answers win), and marks the preview converted. Replays of the same submission are idempotent; other submissions and expired previews are rejected. A finalize failure is logged and never blocks the accepted lead's continuation.
+- Moved to Task 6: skipping answered questions and the post-price "Refine your estimate" step in the assessment UI.
 
 ## Task 8: Saved reports and reminders
 

@@ -5890,6 +5890,17 @@ export type Database = {
         Args: { p_error: string; p_event_id: string }
         Returns: undefined
       }
+      finalize_property_preview_conversion: {
+        Args: {
+          p_company_id: string
+          p_submission_id: string
+          p_token_hash: string
+        }
+        Returns: {
+          attempt_kind: string
+          lead_id: string
+        }[]
+      }
       finalize_roof_estimate_packages: {
         Args: {
           p_company_id: string
