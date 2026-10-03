@@ -5816,7 +5816,7 @@ export type Database = {
         }[]
       }
       consume_property_preview_rate_limit: {
-        Args: { p_bucket_key: string; p_limit: number; p_window: unknown }
+        Args: { p_bucket_key: string; p_limit: number; p_window: string }
         Returns: boolean
       }
       consume_roof_assessment_result_view_limit: {
