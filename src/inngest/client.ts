@@ -62,6 +62,10 @@ export const propertyPreviewMeasurementRequested = eventType("property/preview_m
   schema: staticSchema<{companyId: string; previewId: string}>(),
 });
 
+export const propertyPreviewReportRequested = eventType("property/preview_report_requested", {
+  schema: staticSchema<{companyId: string; previewId: string}>(),
+});
+
 export const leadDistributionRequested = eventType("lead/distribution.requested", {
   schema: staticSchema<LeadDistributionRequestedData>(),
 });

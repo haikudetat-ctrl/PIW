@@ -6,3 +6,6 @@ export const PROPERTY_PREVIEW_DISCLOSURE_VERSION = "all-season-property-preview-
 // Version of the contact-step TCPA notice on the preview flow. It covers calls,
 // texts and email only, because property processing was accepted at step 1.
 export const PREVIEW_CONTACT_DISCLOSURE_VERSION = "all-season-campaign-estimate-v3";
+
+// Version of the "Email me this roof report" notice beside the email field.
+export const PREVIEW_EMAIL_DISCLOSURE_VERSION = "all-season-preview-email-v1";

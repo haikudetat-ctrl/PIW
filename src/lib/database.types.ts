@@ -3681,6 +3681,32 @@ export type Database = {
           },
         ]
       }
+      property_preview_email_suppressions: {
+        Row: {
+          company_id: string
+          created_at: string
+          email_normalized: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          email_normalized: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          email_normalized?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_preview_email_suppressions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       property_preview_rate_buckets: {
         Row: {
           bucket_key: string

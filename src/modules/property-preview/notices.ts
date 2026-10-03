@@ -13,3 +13,10 @@ export function propertyProcessingNotice(brandName: string, submitLabel = PREVIE
 export function contactOnlyNotice(brandName: string, submitLabel = PREVIEW_CONTACT_SUBMIT_LABEL) {
   return `By clicking “${submitLabel},” you agree that ${brandName} may contact you about this request by call, text, or email at the number and email you provided, including by autodialed calls, prerecorded or artificial voice messages, and automated texts. Consent is not required to purchase. Message frequency varies. Message and data rates may apply. Reply STOP to opt out.`;
 }
+
+export const PREVIEW_EMAIL_SUBMIT_LABEL = "Send my report";
+
+/** "Email me this" (version all-season-preview-email-v1). Email only. */
+export function reportEmailNotice(brandName: string, submitLabel = PREVIEW_EMAIL_SUBMIT_LABEL) {
+  return `By clicking “${submitLabel},” you agree ${brandName} may email you this report and follow up about your roof. Unsubscribe anytime.`;
+}

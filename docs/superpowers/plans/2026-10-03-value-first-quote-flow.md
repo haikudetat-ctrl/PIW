@@ -271,12 +271,12 @@ create function public.convert_property_preview(
 
 **Steps**
 
-- [ ] Save endpoint verifies a fresh Turnstile token, calls `save_property_preview_email`, emits `property/preview_report_requested`.
-- [ ] Report email: aerial (signed, short-lived image URL), roof size if ready, and a resume link that carries a newly issued preview token (rotate: store the new hash, keep the old valid until expiry). No price.
-- [ ] Reminders run only while the preview is `active`, not unsubscribed, and the email isn't suppressed. Cap at two.
-- [ ] One-click unsubscribe (RFC 8058 `List-Unsubscribe-Post`) writes a company-scoped suppression row.
-- [ ] Daily cron calls `expire_property_previews`.
-- [ ] Tests: no lead, CRM, dialer, or LeadConduit event is ever produced by a saved report; reminders stop on conversion and unsubscribe.
+- [x] `POST /api/property-preview/[token]/save-report` (email only, notice `all-season-preview-email-v1`) → `save_property_preview_email` (3 per preview and per address per day, enforced in the database) → `property/preview_report_requested`. No second Turnstile: the preview already passed one, and the database limits cap abuse.
+- [x] `preview-report-sender` (Inngest): the report on every request; one reminder sequence per preview (idempotent by preview ID) at 24 h and 3 days later; reminders only for active, unconverted, unsubscribed-from-nothing, unsuppressed previews, in order. Sent through Resend from `PREVIEW_REPORT_FROM_EMAIL` with `List-Unsubscribe` and `List-Unsubscribe-Post` headers. Daily `property-preview-expiry` cron.
+- [x] Emails never contain a preview capability. Links are HMAC-signed preview IDs (`preview-links.ts`, purpose-bound): `/roof-estimate/p/resume/<link>` issues a fresh token and redirects (anything invalid starts over); the unsubscribe page posts to `/api/property-preview/unsubscribe/<link>`, which is also the RFC 8058 one-click target. GET never unsubscribes.
+- [x] `property_preview_email_suppressions` (company + normalized address). An explicitly requested report is still sent; reminders never go to a suppressed address.
+- [x] "Email me this roof report" on the reveal with its own notice naming "Send my report".
+- Simplified from the original plan: the resume link rotates the existing preview token rather than keeping two valid tokens per preview.
 
 ## Task 9: Shared address entry on every entry point
 

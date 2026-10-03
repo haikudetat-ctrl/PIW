@@ -42,6 +42,12 @@ const serverEnvSchema = z
       (value) => value === "" ? undefined : value,
       z.email().optional(),
     ),
+    // Customer-facing sender for "Email me this" preview reports. Must be a
+    // Resend-verified address on the tenant's domain.
+    PREVIEW_REPORT_FROM_EMAIL: z.preprocess(
+      (value) => value === "" ? undefined : value,
+      z.email().optional(),
+    ),
     PAID_PROVIDERS_ENABLED: booleanString,
     ROOF_ASSESSMENT_ENABLED: booleanString,
     ROOF_ASSESSMENT_PROPERTY_PREFETCH_ENABLED: booleanString,

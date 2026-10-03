@@ -161,3 +161,27 @@ describe("preview contact step", () => {
     expect((await screen.findByRole("alert")).textContent).toContain("This preview has expired");
   });
 });
+
+describe("email me this", () => {
+  test("saves the report email under its own notice", async () => {
+    renderPreview();
+    fireEvent.click(await screen.findByRole("button", {name: "Email me this roof report"}));
+    expect(screen.getByTestId("preview-email-notice").textContent)
+      .toBe("By clicking “Send my report,” you agree All Season Solar may email you this report and follow up about your roof. Unsubscribe anytime.");
+    fireEvent.change(screen.getByLabelText("Email for your report"), {target: {value: "alex@example.com"}});
+    fireEvent.click(screen.getByRole("button", {name: "Send my report"}));
+    expect(await screen.findByText("Sent. Check your inbox for your roof report.")).toBeTruthy();
+    expect(JSON.parse(String(calls("/save-report")[0][1].body))).toEqual({email: "alex@example.com"});
+  });
+
+  test("explains the daily limit", async () => {
+    fetchMock.mockImplementation(async (url: string) => String(url).includes("/save-report")
+      ? new Response(null, {status: 429})
+      : new Response(null, {status: 204}));
+    renderPreview();
+    fireEvent.click(await screen.findByRole("button", {name: "Email me this roof report"}));
+    fireEvent.change(screen.getByLabelText("Email for your report"), {target: {value: "alex@example.com"}});
+    fireEvent.click(screen.getByRole("button", {name: "Send my report"}));
+    expect((await screen.findByRole("alert")).textContent).toContain("already sent this report");
+  });
+});

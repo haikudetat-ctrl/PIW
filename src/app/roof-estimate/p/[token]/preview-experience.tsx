@@ -4,7 +4,12 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import type { RoofAssessmentContext } from "@/config/roof-assessment";
 import type { PreviewView } from "@/modules/property-preview/preview-read-model";
-import { contactOnlyNotice, PREVIEW_CONTACT_SUBMIT_LABEL } from "@/modules/property-preview/notices";
+import {
+  contactOnlyNotice,
+  PREVIEW_CONTACT_SUBMIT_LABEL,
+  PREVIEW_EMAIL_SUBMIT_LABEL,
+  reportEmailNotice,
+} from "@/modules/property-preview/notices";
 import { loadAssessmentAerial } from "../../[token]/assessment-aerial-loader";
 import { useAssessmentAerial } from "../../[token]/assessment-experience";
 import { AssessmentLoading } from "../../[token]/assessment-loading";
@@ -69,6 +74,51 @@ function RoofSummary({roof}: {roof: PreviewView["roof"]}) {
     );
   }
   return null;
+}
+
+function EmailReport({token, brandName, initiallySaved}: {token: string; brandName: string; initiallySaved: boolean}) {
+  const [open, setOpen] = useState(false);
+  const [state, setState] = useState<"idle" | "sending" | "sent" | "limited" | "error">(initiallySaved ? "sent" : "idle");
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (state === "sending" || !event.currentTarget.reportValidity()) return;
+    setState("sending");
+    const response = await fetch(`/api/property-preview/${token}/save-report`, {
+      method: "POST",
+      headers: {"content-type": "application/json"},
+      body: JSON.stringify({email: String(new FormData(event.currentTarget).get("email") ?? "").trim()}),
+    }).catch(() => null);
+    setState(response?.status === 204 ? "sent" : response?.status === 429 ? "limited" : "error");
+  }
+
+  if (state === "sent") {
+    return <p role="status" className="mt-5 text-sm font-semibold text-slate-700">Sent. Check your inbox for your roof report.</p>;
+  }
+  if (!open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)} className="mt-5 text-sm font-semibold text-slate-700 underline underline-offset-4">
+        Email me this roof report
+      </button>
+    );
+  }
+  return (
+    <form onSubmit={submit} className="mt-5 grid gap-3 rounded-2xl border border-slate-200 p-4" noValidate>
+      <label className="grid gap-1.5 text-sm font-semibold text-slate-800">
+        Email for your report
+        <input name="email" type="email" inputMode="email" autoComplete="email" required className="min-h-12 rounded-xl border border-slate-300 bg-white px-4 text-base" />
+      </label>
+      <p data-testid="preview-email-notice" className="text-xs leading-5 text-slate-500">{reportEmailNotice(brandName)}</p>
+      {state === "limited" || state === "error" ? (
+        <p role="alert" className="text-sm font-semibold text-red-700">
+          {state === "limited" ? "We’ve already sent this report today. Check your inbox." : "We could not send your report. Please try again."}
+        </p>
+      ) : null}
+      <button type="submit" disabled={state === "sending"} className="min-h-12 rounded-xl border border-slate-900 px-5 text-sm font-bold text-slate-900 disabled:opacity-65">
+        {state === "sending" ? "Sending…" : PREVIEW_EMAIL_SUBMIT_LABEL}
+      </button>
+    </form>
+  );
 }
 
 export function PreviewExperience({
@@ -358,6 +408,7 @@ export function PreviewExperience({
               >
                 {ctaLabel}
               </button>
+              <EmailReport token={token} brandName={brandName} initiallySaved={view.savedEmail} />
             </div>
           </section>
         </div>
