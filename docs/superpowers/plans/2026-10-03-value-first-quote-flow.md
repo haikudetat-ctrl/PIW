@@ -209,9 +209,10 @@ type PreviewView = {
 
 **Steps**
 
-- [ ] Roof size and complexity come only from a ready Google Solar record bound to the preview's company and property. Complexity derives from roof segment count and pitch variance; put the thresholds in `src/domain/roof-complexity.ts` with unit tests.
-- [ ] Never return price, contact data, lead IDs, coordinates, or the Place ID.
-- [ ] `Cache-Control: no-store`; 404 for unknown, other-tenant, or expired tokens (no distinction in the response).
+- [x] `src/domain/roof-complexity.ts`: whole squares on the pricing function's sqft/100 basis; simple (≤4 planes, ≤10° pitch range), complex (≥10 planes or >25° range), moderate otherwise.
+- [x] `loadPreviewView`: roof size only from the `roof_insights` row the measurement worker linked, bound by company and id (a cached insight can belong to an earlier property row for the same address). Measurement `no_coverage`/`unavailable` and a missing insight all map to `review_required`; nothing invents a size.
+- [x] `GET /api/property-preview/[token]` and `/house-image`: tenant from the host, preview from the token hash, one indistinguishable 404 for bad tokens, unknown hosts, and unknown or expired previews; `no-store` for the view, `private, max-age=3600` for the image.
+- [x] The view never contains price, contact data, row identifiers, coordinates, or the Place ID (asserted in tests).
 
 ## Task 6: PIW preview experience
 
