@@ -1,6 +1,6 @@
 begin;
 
-select plan(27);
+select plan(30);
 
 select has_table('public', 'property_previews', 'property previews table exists');
 select has_table('public', 'property_preview_rate_buckets', 'preview rate buckets table exists');
@@ -132,12 +132,31 @@ select throws_ok(
 );
 
 select is(
-  (select pg_catalog.array_agg(allowed order by n)
-   from pg_catalog.generate_series(1, 4) as n,
-   lateral public.save_property_preview_email(
-     'fc000000-0000-4000-8000-000000000001', pg_catalog.repeat('1', 64),
-     'Alex@Example.com', 'all-season-preview-email-v1', pg_catalog.now())),
-  array[true, true, true, false],
+  (select allowed from public.save_property_preview_email(
+    'fc000000-0000-4000-8000-000000000001', pg_catalog.repeat('1', 64),
+    'Alex@Example.com', 'all-season-preview-email-v1', pg_catalog.now())),
+  true,
+  'the first report send is allowed'
+);
+select is(
+  (select allowed from public.save_property_preview_email(
+    'fc000000-0000-4000-8000-000000000001', pg_catalog.repeat('1', 64),
+    'Alex@Example.com', 'all-season-preview-email-v1', pg_catalog.now())),
+  true,
+  'the second report send is allowed'
+);
+select is(
+  (select allowed from public.save_property_preview_email(
+    'fc000000-0000-4000-8000-000000000001', pg_catalog.repeat('1', 64),
+    'Alex@Example.com', 'all-season-preview-email-v1', pg_catalog.now())),
+  true,
+  'the third report send is allowed'
+);
+select is(
+  (select allowed from public.save_property_preview_email(
+    'fc000000-0000-4000-8000-000000000001', pg_catalog.repeat('1', 64),
+    'Alex@Example.com', 'all-season-preview-email-v1', pg_catalog.now())),
+  false,
   'a preview can send at most three reports a day'
 );
 select is(
