@@ -25,6 +25,15 @@ export class SupabasePropertyPreviewRepository implements PropertyPreviewReposit
     });
     const row = data?.[0];
     if (error || !row) throw new Error("Failed to create property preview");
+    if (!row.rate_limited && input.privacyConsentToken) {
+      // Best effort: without it the conversion simply falls back to the
+      // tenant-host cookie, as for any visitor without website consent.
+      await this.client
+        .from("property_previews")
+        .update({privacy_consent_token: input.privacyConsentToken.slice(0, 4096)})
+        .eq("company_id", input.companyId)
+        .eq("id", row.preview_id);
+    }
     return {previewId: row.preview_id, rateLimited: row.rate_limited};
   }
 

@@ -15,6 +15,7 @@ export type CreatePreviewInput = {
   clientIp: string;
   userAgent: string;
   turnstileToken: string;
+  privacyConsentToken?: string | null;
 };
 
 export type CreatePreviewResult =
@@ -41,6 +42,7 @@ export interface PropertyPreviewRepository {
     processingAcceptedAt: string;
     ipAddress: string;
     userAgent: string;
+    privacyConsentToken: string | null;
   }): Promise<{previewId: string; rateLimited: boolean}>;
   applyPlace(input: {
     companyId: string;
@@ -111,6 +113,7 @@ export async function createPropertyPreview(
     processingAcceptedAt: now().toISOString(),
     ipAddress: input.clientIp,
     userAgent: input.userAgent,
+    privacyConsentToken: input.privacyConsentToken ?? null,
   });
   if (created.rateLimited) return {kind: "rate_limited"};
 

@@ -40,6 +40,8 @@ describe("isTenantPublicPath", () => {
     "/api/roof-estimate/abc/house-image",
     "/privacy",
     "/campaigns/for-every-season/hero.webp",
+    "/fonts/montserrat-700.ttf",
+    "/brand/as-sun-white.svg",
   ])("serves %s on a tenant host", (pathname) => {
     expect(isTenantPublicPath(pathname)).toBe(true);
   });
@@ -54,6 +56,7 @@ describe("isTenantPublicPath", () => {
     "/api/integrations/all-season/campaign-estimate",
     "/roof-estimate-admin",
     "/api/property-previews",
+    "/fontsx",
   ])("hides %s on a tenant host", (pathname) => {
     expect(isTenantPublicPath(pathname)).toBe(false);
   });

@@ -26,17 +26,15 @@ const TENANT_PUBLIC_PREFIXES = [
   "/api/property-preview",
   "/api/roof-estimate",
   "/privacy",
+  // Static assets the public estimate pages load (fonts, campaign and brand imagery).
+  "/fonts",
+  "/campaigns",
+  "/brand",
 ];
-const TENANT_PUBLIC_ASSETS = new Set([
-  "/campaigns/for-every-season/hero.webp",
-  "/campaigns/weather-report/hero.webp",
-  "/campaigns/seasonal-shield/hero.webp",
-]);
 
 /** Routes a tenant host may serve. Everything else, including the staff app, is 404. */
 export function isTenantPublicPath(pathname: string) {
-  return TENANT_PUBLIC_ASSETS.has(pathname)
-    || TENANT_PUBLIC_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+  return TENANT_PUBLIC_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
 
 const httpsUrl = z.url().refine((value) => value.startsWith("https://"), "Must be an https URL");

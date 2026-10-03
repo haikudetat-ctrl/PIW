@@ -44,6 +44,7 @@ describe("All Season property preview intake", () => {
       clientIp: "203.0.113.5",
       userAgent: "Mozilla/5.0",
       turnstileToken: "turnstile-token",
+      privacyConsentToken: null,
     });
   });
 

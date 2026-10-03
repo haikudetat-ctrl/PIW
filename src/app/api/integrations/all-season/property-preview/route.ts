@@ -61,6 +61,7 @@ export async function handleAllSeasonPropertyPreviewRequest(
       clientIp: input.client_ip_address,
       userAgent: input.client_user_agent,
       turnstileToken: input.turnstile_token,
+      privacyConsentToken: request.headers.get("x-piw-privacy-consent"),
     });
   } catch {
     return noStoreJson({error: "unavailable"}, 503);

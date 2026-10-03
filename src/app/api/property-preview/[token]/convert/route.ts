@@ -88,8 +88,11 @@ export async function POST(request: NextRequest, {params}: {params: Promise<{tok
   } catch {
     return json({error: "unavailable"}, 503);
   }
+  // The tenant host rarely has the website's consent cookie; the token the
+  // website forwarded when the preview was created is the fallback.
+  let previewConsentToken: string | undefined;
   const intake = createCampaignEstimateDependencies(request, environment, {
-    consentToken: (incoming) => incoming.cookies.get(PRIVACY_COOKIE_NAME)?.value,
+    consentToken: (incoming) => incoming.cookies.get(PRIVACY_COOKIE_NAME)?.value ?? previewConsentToken,
   });
   if (!environment.PROPERTY_PREVIEW_ENABLED || !intake || !environment.ALL_SEASON_INTAKE_COMPANY_ID) {
     return json({error: "unavailable"}, 503);
@@ -103,11 +106,12 @@ export async function POST(request: NextRequest, {params}: {params: Promise<{tok
     async loadPreview({companyId, tokenHash}) {
       const {data, error} = await service
         .from("property_previews")
-        .select("submitted_address, canonical_address, google_place_id, campaign, entry_point, presentation_key, attribution, referrer, status, expires_at")
+        .select("submitted_address, canonical_address, google_place_id, campaign, entry_point, presentation_key, attribution, referrer, status, expires_at, privacy_consent_token")
         .eq("company_id", companyId)
         .eq("token_hash", tokenHash)
         .maybeSingle();
       if (error) throw new Error("Failed to load property preview");
+      previewConsentToken = data?.privacy_consent_token ?? undefined;
       return data;
     },
     advertisingAllowed: async (incoming) =>

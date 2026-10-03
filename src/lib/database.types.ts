@@ -3749,6 +3749,7 @@ export type Database = {
           normalized_address: string
           place_resolved_at: string | null
           presentation_key: string
+          privacy_consent_token: string | null
           processing_accepted_at: string
           processing_disclosure_version: string
           property_id: string
@@ -3791,6 +3792,7 @@ export type Database = {
           normalized_address: string
           place_resolved_at?: string | null
           presentation_key: string
+          privacy_consent_token?: string | null
           processing_accepted_at: string
           processing_disclosure_version: string
           property_id: string
@@ -3833,6 +3835,7 @@ export type Database = {
           normalized_address?: string
           place_resolved_at?: string | null
           presentation_key?: string
+          privacy_consent_token?: string | null
           processing_accepted_at?: string
           processing_disclosure_version?: string
           property_id?: string
