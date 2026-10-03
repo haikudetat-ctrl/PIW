@@ -1,6 +1,6 @@
 begin;
 
-select plan(16);
+select plan(17);
 
 select has_function(
   'public', 'is_scanner_request_path', array['text'],
@@ -75,6 +75,24 @@ select results_eq(
     ('2026-10-01'::date, 1::bigint, 1::bigint, 1::bigint, 0::bigint),
     ('2026-10-02'::date, 0::bigint, 0::bigint, 0::bigint, 1::bigint)$$,
   'funnel counts non-bot visitor-days per surface and leads by entry point, including lead-only days'
+);
+
+create temp table funnel_preview as select * from public.create_property_preview(
+  'fa000000-0000-4000-8000-000000000001', pg_catalog.repeat('9', 64),
+  '9 Funnel St, Newark, NJ 07102', null, 'manual', null, 'main-home', 'all-season-main',
+  '{}', null, 'all-season-property-preview-v1', pg_catalog.now(), '203.0.113.90', 'pgtap'
+);
+create temp table funnel_progress as select 1 as marked from public.mark_property_preview_progress(
+  'fa000000-0000-4000-8000-000000000001', pg_catalog.repeat('9', 64), 'revealed'
+);
+
+select results_eq(
+  $$select previews_created, previews_revealed, previews_contact_viewed, reports_saved, previews_converted
+    from public.quote_funnel_daily
+    where company_id = 'fa000000-0000-4000-8000-000000000001'
+      and funnel_date = (pg_catalog.now() at time zone 'America/New_York')::date$$,
+  $$values (1::bigint, 1::bigint, 0::bigint, 0::bigint, 0::bigint)$$,
+  'previews are counted by creation day through each funnel step'
 );
 
 select table_privs_are(

@@ -309,9 +309,9 @@ create function public.convert_property_preview(
 
 **Steps**
 
-- [ ] Browser events (`address_submitted`, `roof_revealed`, `question_answered`, `report_saved`, `contact_step_reached`, `refine_completed`) stay consent-gated and value-free.
-- [ ] The server-side funnel uses only PIW records (preview timestamps and status), so it covers every visitor. Write `revealed_at` and `contact_viewed_at` (added in Task 2) from the preview UI through small `POST /api/property-preview/[token]/progress` calls.
-- [ ] pgTAP for the view; component tests that events carry no form values.
+- [x] Website browser events `address_submitted` and `address_submit_error` (allowlisted, value-free, `entry_point` property), plus `form_view` for the address step. Consent-gated as before.
+- [x] The estimate host doesn't load browser analytics; its steps are measured server-side only (`revealed_at`, `contact_viewed_at`, saved reports, conversions on `property_previews`), which covers every visitor regardless of consent.
+- [x] `quote_funnel_daily` gains value-first visitor-days (from arrival `experiment_arm`) and preview cohorts by creation day: created, revealed, contact step, reports saved, converted. pgTAP covers the new columns.
 
 ## Task 11: End-to-end verification and rollout
 

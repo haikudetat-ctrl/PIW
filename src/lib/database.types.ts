@@ -5478,6 +5478,13 @@ export type Database = {
           funnel_date: string | null
           main_site_leads: number | null
           main_site_visitor_days: number | null
+          previews_contact_viewed: number | null
+          previews_converted: number | null
+          previews_created: number | null
+          previews_revealed: number | null
+          reports_saved: number | null
+          value_first_campaign_visitor_days: number | null
+          value_first_main_site_visitor_days: number | null
         }
         Relationships: []
       }

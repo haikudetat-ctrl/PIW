@@ -113,6 +113,28 @@ describe("PostHog browser runtime", () => {
     }]]);
   });
 
+  test("captures the value-first address step without the address", () => {
+    const dom = runtimeDom();
+    dom.window.eval(runtime);
+    consent(dom, true);
+    const posthog = (dom.window as Window & {posthog?: unknown[][] & {capture?: (...args: unknown[]) => void}}).posthog;
+    const calls: unknown[][] = [];
+    if (!posthog) throw new Error("Missing PostHog stub");
+    posthog.capture = (...args: unknown[]) => calls.push(args);
+
+    dom.window.dispatchEvent(new dom.window.CustomEvent("allseason:address_submitted", {
+      detail: {form_type: "preview_address", entry_point: "main-home", address: "123 Private Street"},
+    }));
+    dom.window.dispatchEvent(new dom.window.CustomEvent("allseason:address_submit_error", {
+      detail: {form_type: "preview_address", entry_point: "main-drawer"},
+    }));
+
+    expect(calls).toEqual([
+      ["address_submitted", {form_type: "preview_address", entry_point: "main-home"}],
+      ["address_submit_error", {form_type: "preview_address", entry_point: "main-drawer"}],
+    ]);
+  });
+
   test("opts out and stops replay immediately when Analytics consent is revoked", () => {
     const dom = runtimeDom();
     dom.window.eval(runtime);

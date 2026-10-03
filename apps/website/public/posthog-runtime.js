@@ -23,8 +23,10 @@
     "embedded_form_submit",
     "embedded_form_success",
     "embedded_form_error",
+    "address_submitted",
+    "address_submit_error",
   ];
-  var ALLOWED_PROPERTIES = ["campaign", "page_path", "trigger", "reason", "form_type", "error_type", "location", "address_mode"];
+  var ALLOWED_PROPERTIES = ["campaign", "page_path", "trigger", "reason", "form_type", "error_type", "location", "address_mode", "entry_point"];
   var analyticsAllowed = false;
   var initialized = false;
   var embeddedFormStarted = false;
@@ -139,11 +141,12 @@
     visibleForms.forEach(function (form) {
       if (viewedForms.has(form)) return;
       viewedForms.add(form);
-      capture("form_view", {form_type: form.id === "leadForm" ? "embedded" : "campaign", page_path: window.location.pathname});
+      var formType = form.hasAttribute("data-preview-address-form") ? "preview_address" : form.id === "leadForm" ? "embedded" : "campaign";
+      capture("form_view", {form_type: formType, page_path: window.location.pathname});
     });
   }
   function observeForms() {
-    document.querySelectorAll("form.campaign-form, form#leadForm").forEach(function (form) {
+    document.querySelectorAll("form.campaign-form, form#leadForm, form[data-preview-address-form]").forEach(function (form) {
       if (!formObserver || observedForms.has(form)) return;
       observedForms.add(form); formObserver.observe(form);
     });
