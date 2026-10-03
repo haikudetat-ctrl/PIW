@@ -64,7 +64,7 @@ Today the homeowner lands on the PIW domain after submitting. With value-first t
 
 ### Branded domain
 
-The preview, questions, contact, result, and refine steps are served by PIW on a tenant host, recommended `estimate.allseasonsolar.net` (the brand named in the notices and privacy policy). The campaign domain `allseasonroofingquote.com` keeps its landing pages and hands off to the same host.
+The preview, questions, contact, result, and refine steps are served by PIW on a tenant host, `estimate.allseasonroofingquote.com`. The whole public site, including the campaign landing pages, is served from `allseasonroofingquote.com`, so the flow stays on the same registrable domain end to end.
 
 - A `company_public_hosts` table maps each verified host to one company. PIW resolves the tenant from the request host, never from the URL or request body.
 - On a tenant host, PIW's proxy serves only the public estimate pages, their APIs, and the image routes. Staff routes return 404, so the PIW app is never reachable under a customer brand.
@@ -188,11 +188,17 @@ Even the higher-volume address-submit rate needs two to three months to detect a
 
 ### Main-site leads
 
-The main site produced no leads from 927 visitor-days in 60 days. Before launch, confirm that the homepage, contact, and drawer forms submit successfully in production. If they're broken, fixing them is a separate, faster win, and the baseline above should be set after that fix.
+The main site produced no leads from 927 visitor-days in 60 days. A check on 2026-10-03 ran the production `script.js` against the homepage and contact markup, fed the payload it builds through the website's `/api/campaign-estimate` handler, and validated the forwarded payload against PIW's intake schema. Both forms pass, so the code path isn't broken. Three other findings:
+
+- About 180 of the 927 visitor-days are vulnerability scanners (`/wp-admin/install.php`, `/xmlrpc.php`, `/.env`, `/.git/config`) that `is_likely_bot` doesn't flag, inflating the denominator.
+- The quote drawer (`quote-drawer.js`) isn't loaded on any page, so it has never been a live entry point.
+- `index.html` declares `https://allseasonsolar.net/` as its canonical URL, but the site is served from `allseasonroofingquote.com`. That's an SEO issue, not a form issue.
+
+The likeliest explanation is low-intent organic traffic meeting a seven-field form, which is what this redesign addresses. Production log retention (about one day) is too short to confirm historical submit attempts; the server-side funnel counts in this plan fix that going forward.
 
 ## Rollout
 
-1. Fix or confirm the main-site forms and record the 30-day baseline.
+1. Flag scanner traffic as bots and record the 30-day baseline (the main-site forms were checked and work).
 2. Ship the preview tables, API, Turnstile verification, limits, branded host, and saved reports behind `PROPERTY_PREVIEW_ENABLED` (off).
 3. Verify end to end on the branded host with PIW `/roof-estimate`, then on one campaign page with internal traffic.
 4. Enable for every entry point at once. The legacy forms stay in the code behind the same flag for one release, so rollback is a flag change.
@@ -211,11 +217,11 @@ Old continuation links and in-flight submissions keep working throughout.
 
 ## Decisions
 
-1. **Branded domain:** yes. The flow runs on a tenant host, recommended `estimate.allseasonsolar.net`.
+1. **Branded domain:** yes, `estimate.allseasonroofingquote.com`.
 2. **Saved reports:** yes. “Email me this” captures email only, with two reminders, and is not a lead.
 3. **Counsel review:** approved the separate property-processing, email, and contact notices.
 4. **Split test:** not viable at current traffic. Monitored full rollout with stop and cost rules instead (see **Measurement**).
 
 ## Open questions
 
-1. Confirm the host name (`estimate.allseasonsolar.net` or a host under `allseasonroofingquote.com`). It's a DNS and config choice and doesn't change the design.
+None. Implementation plan: [`docs/superpowers/plans/2026-10-03-value-first-quote-flow.md`](../plans/2026-10-03-value-first-quote-flow.md).
