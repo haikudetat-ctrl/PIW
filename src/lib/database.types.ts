@@ -351,6 +351,41 @@ export type Database = {
           },
         ]
       }
+      company_public_hosts: {
+        Row: {
+          brand: Json
+          company_id: string
+          created_at: string
+          host: string
+          updated_at: string
+          verified_at: string | null
+        }
+        Insert: {
+          brand?: Json
+          company_id: string
+          created_at?: string
+          host: string
+          updated_at?: string
+          verified_at?: string | null
+        }
+        Update: {
+          brand?: Json
+          company_id?: string
+          created_at?: string
+          host?: string
+          updated_at?: string
+          verified_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_public_hosts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       consultation_requests: {
         Row: {
           assessment_id: string

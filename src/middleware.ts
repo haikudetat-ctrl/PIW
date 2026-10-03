@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { parseClientEnv } from "@/lib/env/client";
+import { isTenantPublicPath, normalizeHost, parseTenantHosts } from "@/modules/tenancy/public-host";
 
 const PUBLIC_PATHS = [
   "/login",
@@ -24,6 +25,16 @@ export function isPublicPath(pathname: string) {
 }
 
 export async function middleware(request: NextRequest) {
+  // Tenant estimate hosts serve only the public estimate experience. They never
+  // reach the staff app or its session handling, so a customer-branded domain
+  // cannot expose PIW.
+  const host = normalizeHost(request.headers.get("host"));
+  if (host && parseTenantHosts(process.env.PUBLIC_ESTIMATE_HOSTS).has(host)) {
+    return isTenantPublicPath(request.nextUrl.pathname)
+      ? NextResponse.next({ request })
+      : new NextResponse(null, { status: 404 });
+  }
+
   // API routes authenticate themselves (Supabase session or Inngest signing
   // key) and must return REST status codes, not an HTML redirect to /login.
   if (request.nextUrl.pathname.startsWith("/api/")) {

@@ -71,11 +71,11 @@ export async function resolvePublicHost(host: string): Promise<{companyId: strin
 
 **Steps**
 
-- [ ] Table with RLS on and no policies; service role only. pgTAP for lowercase/format checks and access.
-- [ ] `resolvePublicHost` strips the port, lowercases, requires `verified_at`, and caches per request.
-- [ ] Middleware: on a tenant host, allow only `/roof-estimate/**`, `/api/property-preview/**`, `/api/roof-estimate/**`, `/privacy`, and static assets; everything else returns 404. Tests cover a staff route, `/login`, and an API outside the allowlist.
-- [ ] Middleware: on the PIW host, a `/roof-estimate/**` request for a company with a verified host 308-redirects to the tenant host (existing links keep working).
-- [ ] Seed the All Season row for `estimate.allseasonroofingquote.com` (unverified) in the migration's data section, guarded so it is idempotent.
+- [x] Table with RLS on and no policies; service role only. pgTAP for lowercase/format checks, uniqueness, and access.
+- [x] `resolvePublicHost(host, lookup)` strips the port, lowercases, requires `verified_at`, and validates the brand (https URLs only). The Supabase lookup lives in `supabase-public-host-lookup.ts` so the pure helpers stay usable in middleware.
+- [x] Middleware: hosts listed in `PUBLIC_ESTIMATE_HOSTS` serve only `/roof-estimate/**`, `/api/property-preview/**`, `/api/roof-estimate/**`, `/privacy`, and the campaign hero assets, with no staff session lookup; everything else returns 404. The allowlist comes from config, not the database, so the middleware adds no per-request query.
+- Decided against: redirecting PIW-domain `/roof-estimate` links to the tenant host. Existing links keep working where they are; new links (Tasks 4, 7, 8) are issued on the tenant host.
+- Moved to the Task 11 runbook: inserting the All Season `company_public_hosts` row. Company IDs differ per environment, so a migration can't seed it.
 
 **Done when:** a tenant host serves only public estimate routes and resolves the tenant without reading the request body.
 
