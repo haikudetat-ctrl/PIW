@@ -142,3 +142,12 @@
 .hero-headline-medium{transform:scaleX(.95)}
 .hero-headline-line{transform-origin:left center}
 @media (max-width:640px){.roof-first-section{isolation:isolate;background:linear-gradient(rgba(5,32,56,.88),rgba(5,32,56,.94)),url('/assets/roof-craft-detail.jpg') center/cover no-repeat;color:#fff}.roof-first-media{display:none}.roof-first-section .editorial-copy{position:relative;z-index:1}.roof-first-section .eyebrow,.roof-first-section .text-link{color:#ffda00}.roof-first-section .lede,.roof-first-section .check-list li{color:rgba(255,255,255,.86)}.roof-first-section .check-list li{border-color:rgba(255,255,255,.2)}}
+/* Value-first address step (public/address-entry.js) */
+[data-preview-address-form] [data-manual-toggle]{display:inline-flex;margin:0 0 14px;padding:0;border:0;background:none;color:var(--blue);font:700 .84rem Manrope,sans-serif;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.preview-address-search{position:relative}
+.preview-address-suggestions{display:grid;margin-top:6px;border:1px solid var(--line);border-radius:8px;background:var(--card);overflow:hidden}
+.preview-address-suggestions:empty{display:none}
+.preview-address-option{min-height:44px;padding:10px 12px;border:0;border-top:1px solid var(--line);background:none;color:var(--ink);font:500 .9rem Manrope,sans-serif;text-align:left;cursor:pointer}
+.preview-address-option:first-child{border-top:0}
+.preview-address-option:hover,.preview-address-option:focus-visible{background:var(--soft)}
+[data-preview-address-form] .form-error{margin:0 0 12px;color:#b42318;font-size:.84rem;font-weight:600}

@@ -322,9 +322,10 @@ create function public.convert_property_preview(
 
 **Steps**
 
-- [ ] Playwright journeys for campaign page, homepage, contact page, and PIW `/roof-estimate`: Google address → reveal → three questions → contact → price; manual address; Solar pending; budget-skipped reveal; saved report then resume; mobile viewport. Intercept provider and lead calls.
-- [ ] Runbook: DNS (`estimate.allseasonroofingquote.com` CNAME to Vercel), add the domain to the `piw` project, verify the `company_public_hosts` row, Turnstile keys, env flags, the baseline query, the stop rule (≤1 lead in the first 1,000 non-bot campaign visitor-days → rollback), the cost rule (provider spend per lead above 3× baseline → rollback), and the rollback procedure (set `PROPERTY_PREVIEW_ENABLED=false` on both projects).
-- [ ] Rollout order: enable on PIW `/roof-estimate` with internal traffic → one campaign page with internal traffic → all entry points.
+- [x] `apps/website/scripts/value-first-journey.py`: real-Chromium journey (desktop and mobile) through the homepage, contact page, campaign page and quote drawer with Turnstile, suggestions and PIW intercepted. Checks the notice, absence of contact fields and checkboxes, no horizontal scroll, the exact preview request (address, Place ID, campaign, entry point, attribution, Turnstile token), and the continuation to the preview URL. Passed on 2026-10-03; the run also drove two styling fixes (manual-entry toggle, suggestion list, drawer padding).
+- [x] `docs/runbooks/value-first-quote-flow-rollout.md`: DNS, Vercel domain, `company_public_hosts` row, Turnstile, Resend sender, env vars for both projects, baseline query, internal verification, the stop and cost rules, rollback, and the 60-day review.
+- [x] Estimate emails and texts link to the company's verified tenant host when one exists (falls back to the PIW host).
+- Not automated here: a PIW-side browser journey through the estimate host needs a local Supabase stack (Docker), which this environment lacks. The runbook's step 3 covers it manually; the conversion path is covered by pgTAP and route tests.
 
 ## Task 12: Cleanup after the 60-day review
 

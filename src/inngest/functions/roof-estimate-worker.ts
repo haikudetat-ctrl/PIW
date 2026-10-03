@@ -18,6 +18,7 @@ import { parseServerEnv } from "@/lib/env/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { normalizeAddressForMatching } from "@/modules/property-identity/normalize-address";
 import { createGoogleSolarProvider } from "@/modules/providers/adapters/google-solar";
+import { findVerifiedPublicHost } from "@/modules/property-preview/supabase-preview-repository";
 
 const SOLAR_MONTHLY_CALL_LIMIT = 9_500;
 
@@ -811,7 +812,10 @@ export class SupabaseRoofEstimateWorkerRepository
       .single();
     if (tokenError || !publicEstimate) throw new Error("Failed to load estimate delivery link");
     const environment=parseServerEnv(process.env);
-    const host=environment.VERCEL_PROJECT_PRODUCTION_URL ?? environment.VERCEL_URL ?? "localhost:3000";
+    // A verified tenant estimate host (e.g. estimate.allseasonroofingquote.com)
+    // keeps the homeowner on the brand's domain; otherwise the PIW host.
+    const tenantHost=await findVerifiedPublicHost(this.client, input.companyId).catch(() => null);
+    const host=tenantHost ?? environment.VERCEL_PROJECT_PRODUCTION_URL ?? environment.VERCEL_URL ?? "localhost:3000";
     const baseUrl=host.includes("://") ? host : `https://${host}`;
     const resultUrl=new URL(`/roof-estimate/${publicEstimate.public_token}`,baseUrl).toString();
     const email=ready ? composeEstimateEmail({name:input.name,resultUrl,estimate:input.estimate!}) : null;
