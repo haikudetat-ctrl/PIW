@@ -42,3 +42,30 @@ describe("parseServerEnv property prefetch", () => {
     expect(parseServerEnv(enabledPrefetch).ROOF_ASSESSMENT_PROPERTY_PREFETCH_ENABLED).toBe(true);
   });
 });
+
+describe("parseServerEnv property preview", () => {
+  const enabledPreview = {
+    ...enabledPrefetch,
+    ROOF_ASSESSMENT_PROPERTY_PREFETCH_ENABLED: "false",
+    PROPERTY_PREVIEW_ENABLED: "true",
+    TURNSTILE_SECRET_KEY: "turnstile-secret",
+  };
+
+  test("disables property previews by default", () => {
+    expect(parseServerEnv(base).PROPERTY_PREVIEW_ENABLED).toBe(false);
+  });
+
+  test.each([
+    ["a Turnstile secret", {TURNSTILE_SECRET_KEY: undefined}],
+    ["roof assessments", {ROOF_ASSESSMENT_ENABLED: "false", ROOF_ASSESSMENT_SIGNING_SECRET: undefined}],
+    ["paid providers", {PAID_PROVIDERS_ENABLED: "false"}],
+  ] as const)("rejects enabled previews without %s", (_requirement, invalid) => {
+    expect(() => parseServerEnv({...enabledPreview, ...invalid})).toThrow(
+      "Property previews require a Turnstile secret, roof assessments, and paid providers",
+    );
+  });
+
+  test("accepts previews with all required capabilities", () => {
+    expect(parseServerEnv(enabledPreview).PROPERTY_PREVIEW_ENABLED).toBe(true);
+  });
+});

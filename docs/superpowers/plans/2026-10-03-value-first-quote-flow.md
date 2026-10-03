@@ -144,9 +144,9 @@ create function public.expire_property_previews() returns integer;
 
 **Steps**
 
-- [ ] `verifyTurnstile(token, remoteIp)` posts to Cloudflare siteverify with `TURNSTILE_SECRET_KEY`, a 3 s timeout, and checks `success`, `hostname`, and `action = "property_preview"`. Timeout or network failure returns `unavailable`, which callers treat as a failed challenge (interactive retry), never as a pass.
-- [ ] `issuePreviewToken()` returns a 32-byte base64url token and its SHA-256 hex hash; `hashPreviewToken()` for lookups. Mirror the conventions in `continuation-token.ts`.
-- [ ] New env vars: `TURNSTILE_SECRET_KEY` (PIW, website), `NEXT_PUBLIC_TURNSTILE_SITE_KEY` (website, PIW), `PROPERTY_PREVIEW_ENABLED` (both, default false). Env schema tests for required-when-enabled.
+- [x] `verifyTurnstile(token, remoteIp)` posts to Cloudflare siteverify with `TURNSTILE_SECRET_KEY`, a 3 s timeout, and checks `success`, `hostname`, and `action = "property_preview"`. Timeout or network failure returns `unavailable`, which callers treat as a failed challenge (interactive retry), never as a pass.
+- [x] `issuePreviewToken()` returns a 32-byte base64url token and its SHA-256 hex hash; `hashPreviewToken()` for lookups. Mirror the conventions in `continuation-token.ts`.
+- [x] PIW env: `PROPERTY_PREVIEW_ENABLED` (default false; requires `TURNSTILE_SECRET_KEY`, roof assessments, and paid providers) and `NEXT_PUBLIC_TURNSTILE_SITE_KEY`. The website's equivalents are added in Task 9 where they're first used.
 
 ## Task 4: Preview creation API
 

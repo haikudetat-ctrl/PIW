@@ -45,6 +45,8 @@ const serverEnvSchema = z
     PAID_PROVIDERS_ENABLED: booleanString,
     ROOF_ASSESSMENT_ENABLED: booleanString,
     ROOF_ASSESSMENT_PROPERTY_PREFETCH_ENABLED: booleanString,
+    PROPERTY_PREVIEW_ENABLED: booleanString,
+    TURNSTILE_SECRET_KEY: optionalString,
     ROOF_ASSESSMENT_SIGNING_SECRET: optionalSigningSecret,
     PRIVACY_CONSENT_SIGNING_SECRET: optionalString,
     TWILIO_VERIFY_ENABLED: booleanString,
@@ -139,6 +141,16 @@ const serverEnvSchema = z
         code: "custom",
         path: ["ROOF_ASSESSMENT_PROPERTY_PREFETCH_ENABLED"],
         message: "Property prefetch requires roof assessments, paid providers, and a Google Maps API key",
+      });
+    }
+    if (
+      value.PROPERTY_PREVIEW_ENABLED
+      && (!value.TURNSTILE_SECRET_KEY || !value.ROOF_ASSESSMENT_ENABLED || !value.PAID_PROVIDERS_ENABLED)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["PROPERTY_PREVIEW_ENABLED"],
+        message: "Property previews require a Turnstile secret, roof assessments, and paid providers",
       });
     }
     if (value.ROOF_ASSESSMENT_ENABLED && !value.ROOF_ASSESSMENT_SIGNING_SECRET) {
