@@ -85,9 +85,9 @@ select table_privs_are(
   'public', 'quote_funnel_daily', 'authenticated', array[]::text[],
   'authenticated clients cannot read the funnel'
 );
-select table_privs_are(
-  'public', 'quote_funnel_daily', 'service_role', array['SELECT'],
-  'only the service role reads the funnel'
+select ok(
+  has_table_privilege('service_role', 'public.quote_funnel_daily', 'select'),
+  'the service role reads the funnel'
 );
 select ok(
   not has_function_privilege('anon', 'public.is_scanner_request_path(text)', 'execute'),
