@@ -5014,6 +5014,7 @@ export type Database = {
           campaign_slug: string | null
           company_id: string
           created_at: string
+          experiment_arm: string | null
           fbclid: string | null
           id: string
           is_likely_bot: boolean
@@ -5034,6 +5035,7 @@ export type Database = {
           campaign_slug?: string | null
           company_id: string
           created_at?: string
+          experiment_arm?: string | null
           fbclid?: string | null
           id?: string
           is_likely_bot?: boolean
@@ -5054,6 +5056,7 @@ export type Database = {
           campaign_slug?: string | null
           company_id?: string
           created_at?: string
+          experiment_arm?: string | null
           fbclid?: string | null
           id?: string
           is_likely_bot?: boolean
@@ -5187,6 +5190,17 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      quote_funnel_daily: {
+        Row: {
+          campaign_leads: number | null
+          campaign_visitor_days: number | null
+          company_id: string | null
+          funnel_date: string | null
+          main_site_leads: number | null
+          main_site_visitor_days: number | null
+        }
+        Relationships: []
       }
       reconciled_lead_routes: {
         Row: {
@@ -5652,6 +5666,7 @@ export type Database = {
         Returns: boolean
       }
       is_platform_admin: { Args: never; Returns: boolean }
+      is_scanner_request_path: { Args: { p_path: string }; Returns: boolean }
       is_suppressed: {
         Args: {
           p_channel: string

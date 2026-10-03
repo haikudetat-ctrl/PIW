@@ -36,10 +36,10 @@ Fix the denominator before anything ships, so the stop rule and 60-day review co
 
 **Steps**
 
-- [ ] `isLikelyBot(userAgent, pathname)` also returns true for scanner paths: `/wp-admin`, `/wp-login.php`, `/xmlrpc.php`, `/.env`, `/.git/`, `/vendor/`, `/cgi-bin/`, and any `.php` path. Unit-test each.
-- [ ] Migration: add `experiment_arm text check (experiment_arm in ('legacy','value_first'))` to `website_arrivals`; one-time backfill of `is_likely_bot = true` for existing scanner-path rows.
-- [ ] Migration: `quote_funnel_daily` view (security invoker, service role only) with, per company, day, and arm: non-bot campaign visitor-days, non-bot main-site visitor-days, and leads by entry point. Later tasks add preview columns to it.
-- [ ] pgTAP: backfill is correct, view excludes bots, anon has no access.
+- [x] `isLikelyBot(userAgent, pathname)` also returns true for scanner paths: `/wp-admin`, `/wp-login.php`, `/xmlrpc.php`, `/.env`, `/.git/`, `/vendor/`, `/cgi-bin/`, and any `.php` path. Unit-test each. The database enforces the same rule with an insert trigger (`public.is_scanner_request_path`), so rows from any website deploy are covered.
+- [x] Migration: add `experiment_arm text check (experiment_arm in ('legacy','value_first'))` to `website_arrivals`; one-time backfill of `is_likely_bot = true` for existing scanner-path rows.
+- [x] Migration: `quote_funnel_daily` view (security invoker, service role only) with, per company and day: non-bot campaign visitor-days, non-bot main-site visitor-days, and leads by surface. Task 10 adds the arm split and preview columns once previews and arm tagging exist.
+- [x] pgTAP: scanner flagging, view excludes bots, anon has no access.
 - [ ] Record the 30-day baseline (leads per 100 campaign visitor-days) in the rollout runbook created in Task 11.
 
 **Done when:** scanner paths no longer count as visitors and the baseline query runs against production.

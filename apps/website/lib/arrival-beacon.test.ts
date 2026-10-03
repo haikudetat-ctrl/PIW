@@ -15,6 +15,29 @@ describe("isLikelyBot", () => {
     expect(isLikelyBot(null)).toBe(true);
   });
 
+  test.each([
+    "/wp-admin/install.php",
+    "/wp-login.php",
+    "/xmlrpc.php",
+    "/.env",
+    "/.git/config",
+    "/vendor/phpunit/phpunit/src/Util/PHP/eval-stdin.php",
+    "/cgi-bin/luci",
+    "/index.php",
+  ])("flags vulnerability-scanner path %s even with a browser agent", (pathname) => {
+    expect(isLikelyBot(
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/128.0 Safari/537.36",
+      pathname,
+    )).toBe(true);
+  });
+
+  test("does not flag ordinary site pages", () => {
+    const agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/128.0 Safari/537.36";
+    for (const pathname of ["/", "/index.html", "/contact.html", "/campaigns/for-every-season", "/services/roofing.html"]) {
+      expect(isLikelyBot(agent, pathname)).toBe(false);
+    }
+  });
+
   test("does not flag an ordinary mobile browser", () => {
     expect(isLikelyBot(
       "Mozilla/5.0 (iPhone; CPU iPhone OS 18_2 like Mac OS X) AppleWebKit/605.1.15 Safari/604.1",
