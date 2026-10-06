@@ -91,6 +91,22 @@ describe("buildArrival", () => {
     expect(arrival.occurred_at).toBe("2026-09-14T15:04:05.000Z");
   });
 
+  test("captures Google Ads click IDs and omits the ones the URL lacks", async () => {
+    const arrival = await buildArrival({
+      url: new URL("https://allseasonroofingquote.com/campaigns/roof-replacement?gclid=Cj0KCQ&utm_source=google&utm_medium=cpc"),
+      headers: headers({"user-agent": "Mozilla/5.0 (iPhone)", referer: "https://www.google.com/"}),
+      ip: "203.0.113.7",
+      secret: SECRET,
+      now: NOW,
+    });
+
+    expect(arrival.campaign_slug).toBe("roof-replacement");
+    expect(arrival.gclid).toBe("Cj0KCQ");
+    expect(arrival).not.toHaveProperty("gbraid");
+    expect(arrival).not.toHaveProperty("wbraid");
+    expect(arrival.fbclid).toBeNull();
+  });
+
   test("records no raw address and nulls an unknown campaign", async () => {
     const arrival = await buildArrival({
       url: new URL("https://allseasonroofingquote.com/campaigns/not-a-campaign"),

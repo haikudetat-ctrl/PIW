@@ -1,4 +1,5 @@
 import {campaignSlugs, type CampaignSlug} from "../app/campaigns/campaigns";
+import {presentGoogleClickIds} from "./google-click-ids";
 import {previewFlowEnabled} from "./property-preview-notice";
 
 export type WebsiteArrival = {
@@ -9,6 +10,9 @@ export type WebsiteArrival = {
   user_agent: string | null;
   referrer_host: string | null;
   fbclid: string | null;
+  gclid?: string;
+  gbraid?: string;
+  wbraid?: string;
   utm_source: string | null;
   utm_medium: string | null;
   utm_campaign: string | null;
@@ -109,6 +113,12 @@ export async function buildArrival(input: {
     user_agent: userAgent,
     referrer_host: referrerHost(headers.get("referer")),
     fbclid: bounded(query.get("fbclid"), 500),
+    // Present only when the URL carries one; see presentGoogleClickIds.
+    ...presentGoogleClickIds({
+      gclid: bounded(query.get("gclid"), 500),
+      gbraid: bounded(query.get("gbraid"), 500),
+      wbraid: bounded(query.get("wbraid"), 500),
+    }),
     utm_source: bounded(query.get("utm_source"), 500),
     utm_medium: bounded(query.get("utm_medium"), 500),
     utm_campaign: bounded(query.get("utm_campaign"), 500),

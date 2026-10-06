@@ -102,6 +102,9 @@ const attributionSchema = z.object({
   utm_term: nullableAttributionValueSchema,
   utm_content: nullableAttributionValueSchema,
   fbclid: nullableAttributionValueSchema,
+  gclid: nullableAttributionValueSchema.optional(),
+  gbraid: nullableAttributionValueSchema.optional(),
+  wbraid: nullableAttributionValueSchema.optional(),
   fbp: nullableAttributionValueSchema,
   fbc: nullableAttributionValueSchema,
 }).strict();

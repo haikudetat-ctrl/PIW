@@ -294,7 +294,7 @@
         consent_to_contact: true,
         consent_to_process_property: true,
       };
-      ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'fbclid'].forEach(function (key) {
+      ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'fbclid', 'gclid', 'gbraid', 'wbraid'].forEach(function (key) {
         body[key] = params.get(key);
       });
       try {

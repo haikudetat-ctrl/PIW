@@ -4,6 +4,7 @@ export const canonicalCampaignSlugs = [
   "weather-report",
   "seasonal-shield",
   "for-every-season",
+  "roof-replacement",
 ] as const;
 
 const nullableAttribution = z.string().trim().max(500).nullable();
@@ -45,6 +46,11 @@ export const allSeasonCampaignEstimateSchema = z.strictObject({
     utm_term: nullableAttribution,
     utm_content: nullableAttribution,
     fbclid: nullableAttribution,
+    // Google Ads click IDs. Optional because the website sends them only when
+    // the landing URL carried one.
+    gclid: nullableAttribution.optional(),
+    gbraid: nullableAttribution.optional(),
+    wbraid: nullableAttribution.optional(),
     fbp: nullableAttribution,
     fbc: nullableAttribution,
   }),

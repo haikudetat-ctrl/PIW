@@ -76,6 +76,7 @@ describe("roof assessment campaign presentation", () => {
       "weather-report": "weather-report",
       "seasonal-shield": "seasonal-shield",
       "for-every-season": "for-every-season",
+      "roof-replacement": "roof-replacement",
     });
     expect(roofAssessmentEntryContexts).toEqual({
       "main-home": {campaign: null, presentationKey: "all-season-main"},
@@ -93,6 +94,10 @@ describe("roof assessment campaign presentation", () => {
       "campaign:for-every-season": {
         campaign: "for-every-season",
         presentationKey: "for-every-season",
+      },
+      "campaign:roof-replacement": {
+        campaign: "roof-replacement",
+        presentationKey: "roof-replacement",
       },
     });
     expect(getRoofAssessmentContext("do-it-right-once").key).toBe("all-season-main");

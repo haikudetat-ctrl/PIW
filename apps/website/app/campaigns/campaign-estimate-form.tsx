@@ -3,6 +3,7 @@
 import {FormEvent, useCallback, useRef, useState} from "react";
 import {AddressAutocomplete} from "./address-autocomplete";
 import {buildCampaignSubmission, type CampaignDefinition} from "./campaigns";
+import {useGoogleAds} from "../../components/google-ads-provider";
 import {useMetaPixel, type MetaBrowserEventEnvelope} from "../../components/meta-pixel-provider";
 import {PRIVACY_POLICY_HREF, tcpaNoticeText} from "../../lib/tcpa-notice";
 
@@ -13,6 +14,7 @@ function track(event: string, campaign: string) {
 
 export function CampaignEstimateForm({campaign}: {campaign: CampaignDefinition}) {
   const {trackConversion} = useMetaPixel();
+  const {trackEstimateConversion} = useGoogleAds();
   const [step, setStep] = useState<1 | 2>(1);
   const [manual, setManual] = useState(false);
   const [selectedAddress, setSelectedAddress] = useState("");
@@ -82,6 +84,7 @@ export function CampaignEstimateForm({campaign}: {campaign: CampaignDefinition})
       if (!response.ok || !payload.estimateUrl) throw new Error(payload.error ?? "Submission failed");
       if (payload.metaEvent) trackConversion(payload.metaEvent);
       track("campaign_form_success", campaign.slug);
+      await trackEstimateConversion(submissionId);
       window.location.assign(payload.estimateUrl);
     } catch {
       setStatus("We could not start the estimate. Try again or call (888) 832-5050.");

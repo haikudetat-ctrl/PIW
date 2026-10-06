@@ -32,6 +32,7 @@ export const roofAssessmentPresentationByCampaign = {
   "weather-report": "weather-report",
   "seasonal-shield": "seasonal-shield",
   "for-every-season": "for-every-season",
+  "roof-replacement": "roof-replacement",
 } as const satisfies Record<CampaignSlug, RoofAssessmentPresentationKey>;
 
 export const roofAssessmentEntryContexts = {
@@ -42,6 +43,7 @@ export const roofAssessmentEntryContexts = {
   "campaign:weather-report": {campaign: "weather-report", presentationKey: "weather-report"},
   "campaign:seasonal-shield": {campaign: "seasonal-shield", presentationKey: "seasonal-shield"},
   "campaign:for-every-season": {campaign: "for-every-season", presentationKey: "for-every-season"},
+  "campaign:roof-replacement": {campaign: "roof-replacement", presentationKey: "roof-replacement"},
 } as const satisfies Record<AssessmentEntryPoint, {
   campaign: CampaignSlug | null;
   presentationKey: RoofAssessmentPresentationKey;
@@ -123,6 +125,19 @@ export const roofAssessmentContexts: Record<RoofAssessmentPresentationKey, RoofA
     accentClass: "assessment-accent-lime",
     fallbackImage: "/campaigns/for-every-season/hero.webp",
     fallbackImageAlt: "A New Jersey home shown through four seasons",
+  },
+  "roof-replacement": {
+    ...shared,
+    key: "roof-replacement",
+    kicker: "Your replacement RoofCheck",
+    headline: "What a new roof means for this home.",
+    intro: "We are measuring the roof so the replacement range starts from your actual property.",
+    resultHeadline: "Your roof replacement outlook",
+    resultIntro: "A measured view of the roof, the likely scope, and what drives the price.",
+    consultationIntro: "Walk through materials, timing, and price with a specialist who has your measurements ready.",
+    accentClass: "assessment-accent-blue",
+    fallbackImage: "/campaigns/roof-replacement/hero.webp",
+    fallbackImageAlt: "An All Season roofer setting new architectural shingles on a New Jersey home",
   },
 };
 

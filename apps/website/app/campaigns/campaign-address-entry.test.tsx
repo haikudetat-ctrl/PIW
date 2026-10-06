@@ -80,6 +80,9 @@ describe("CampaignAddressEntry", () => {
       utm_term: null,
       utm_content: null,
       fbclid: "abc",
+      gclid: null,
+      gbraid: null,
+      wbraid: null,
     });
   });
 

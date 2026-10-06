@@ -110,6 +110,23 @@ describe("startOrResumeRoofAssessment", () => {
     expect(result).not.toHaveProperty("publicToken");
   });
 
+  test("carries Google Ads click IDs through to the intake transaction", async () => {
+    const deps = dependencies();
+
+    await startOrResumeRoofAssessment({
+      ...input,
+      campaign: "roof-replacement",
+      presentationKey: "roof-replacement",
+      entryPoint: "campaign:roof-replacement",
+      attribution: {...input.attribution, gclid: "  Cj0KCQ-click  ", gbraid: "", wbraid: null},
+    }, deps);
+
+    expect(deps.repository.startOrResume).toHaveBeenCalledWith(expect.objectContaining({
+      campaign: "roof-replacement",
+      attribution: expect.objectContaining({gclid: "Cj0KCQ-click", gbraid: null, wbraid: null}),
+    }));
+  });
+
   test("runs selected-property prefetch after the committed first issue and before token issuance", async () => {
     const calls: string[] = [];
     const repository: AssessmentIntakeRepository = {

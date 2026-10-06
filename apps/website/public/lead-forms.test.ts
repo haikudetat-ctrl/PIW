@@ -65,7 +65,7 @@ describe("embedded lead form", () => {
 
   test("posts the campaign estimate contract and captures paid attribution", async () => {
     const dom = new JSDOM(`<!doctype html><body>${leadFormMarkup()}</body>`, {
-      url: "https://allseason.example/?utm_source=google&utm_medium=cpc&utm_campaign=roof-search&utm_term=roofing&utm_content=hero&fbclid=click-123",
+      url: "https://allseason.example/?utm_source=google&utm_medium=cpc&utm_campaign=roof-search&utm_term=roofing&utm_content=hero&fbclid=click-123&gclid=gclid-456",
       runScripts: "outside-only",
     });
     installBrowserGlobals(dom);
@@ -106,6 +106,9 @@ describe("embedded lead form", () => {
       utm_term: "roofing",
       utm_content: "hero",
       fbclid: "click-123",
+      gclid: "gclid-456",
+      gbraid: null,
+      wbraid: null,
     });
   });
 
@@ -391,6 +394,9 @@ describe("quote drawer", () => {
       utm_source: "facebook",
       utm_medium: "paid-social",
       fbclid: "click-123",
+      gclid: null,
+      gbraid: null,
+      wbraid: null,
     }));
   });
 

@@ -10,7 +10,7 @@
   var SUBMIT_LABEL = "See my roof";
   var NOTICE = "By clicking “See my roof,” you authorize All Season Solar to review this address using property records, maps, and imagery.";
   var TURNSTILE_SRC = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
-  var ATTRIBUTION_KEYS = ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "fbclid"];
+  var ATTRIBUTION_KEYS = ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "fbclid", "gclid", "gbraid", "wbraid"];
 
   function readConfig() {
     var node = document.getElementById("all-season-quote-config");

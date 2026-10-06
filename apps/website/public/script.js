@@ -138,7 +138,7 @@
         var state = String(data.get("state") || "NJ").trim();
         var postalCode = String(data.get("postal_code") || "").trim();
         var attribution = {};
-        ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "fbclid"]
+        ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "fbclid", "gclid", "gbraid", "wbraid"]
           .forEach(function (key) { attribution[key] = params.get(key); });
         var body = Object.assign({
           submission_id: submissionId,
