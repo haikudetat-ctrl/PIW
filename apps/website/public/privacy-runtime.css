@@ -10,39 +10,30 @@
   display: grid;
   align-items: end;
   justify-items: center;
-  padding: 24px max(18px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
+  padding: 8px max(12px, env(safe-area-inset-right)) 8px max(12px, env(safe-area-inset-left));
 }
 
 .all-season-privacy-banner {
   position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 24px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
   width: min(860px, 100%);
-  max-height: calc(100dvh - 48px);
-  overflow: auto;
-  padding: clamp(22px, 3vw, 30px);
+  padding: 8px 12px;
   border: 1px solid rgba(226, 242, 247, .3);
-  border-radius: 18px;
+  border-radius: 10px;
   background: #092536;
-  box-shadow: 0 28px 80px rgba(2, 16, 25, .5);
+  box-shadow: 0 8px 24px rgba(2, 16, 25, .25);
   color: #f5fbfd;
   animation: all-season-privacy-enter .22s ease-out both;
 }
 
-.all-season-privacy-copy { min-width: 0; }
-.all-season-privacy-kicker {
-  margin: 0 0 7px;
-  color: #8ee0cb;
-  font-size: .68rem;
-  font-weight: 800;
-  letter-spacing: .14em;
-  text-transform: uppercase;
-}
-.all-season-privacy-title { margin: 0; color: #fff; font-size: 1.03rem; line-height: 1.25; }
-.all-season-privacy-body { max-width: 60ch; margin: 8px 0; color: #c9d8df; font-size: .78rem; line-height: 1.55; }
+.all-season-privacy-copy { flex: 1 1 260px; min-width: 0; }
+.all-season-privacy-body { margin: 0; color: #c9d8df; font-size: .75rem; line-height: 1.4; }
 .all-season-privacy-link { color: #f4d568; font-size: .75rem; font-weight: 700; }
-.all-season-privacy-actions { display: flex; flex-wrap: wrap; align-content: center; gap: 8px; max-width: 270px; }
+.all-season-privacy-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.all-season-privacy-banner .all-season-privacy-button { min-height: 32px; padding: 6px 10px; font-size: .68rem; }
 .all-season-privacy-button {
   min-height: 40px;
   border: 1px solid transparent;
@@ -122,13 +113,9 @@
 .all-season-privacy-dialog .all-season-privacy-secondary { border-color: #8ea7b1; color: #173347; }
 
 @media (max-width: 640px) {
-  .all-season-privacy-gate {
-    padding: 12px max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
-    padding-bottom: max(12px, env(safe-area-inset-bottom));
-  }
-  .all-season-privacy-banner { grid-template-columns: 1fr; gap: 17px; padding: 19px; }
-  .all-season-privacy-actions { max-width: none; }
-  .all-season-privacy-actions .all-season-privacy-button { flex: 1 1 132px; }
+  .all-season-privacy-gate { padding: 6px max(8px, env(safe-area-inset-right)) 6px max(8px, env(safe-area-inset-left)); }
+  .all-season-privacy-actions { flex: 1 1 100%; }
+  .all-season-privacy-actions .all-season-privacy-button { flex: 1 1 auto; }
   .all-season-privacy-dialog { max-height: calc(100dvh - 28px); }
 }
 
