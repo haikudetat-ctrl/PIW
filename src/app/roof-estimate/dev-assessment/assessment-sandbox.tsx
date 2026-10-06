@@ -22,6 +22,7 @@ const campaigns: Array<{slug: RoofAssessmentPresentationKey; label: string}> = [
   {slug: "for-every-season", label: "For Every Season"},
   {slug: "weather-report", label: "Weather Report"},
   {slug: "seasonal-shield", label: "Seasonal Shield"},
+  {slug: "roof-replacement", label: "Roof Replacement"},
 ];
 
 const previewResponses: RoofAssessmentResponses = {

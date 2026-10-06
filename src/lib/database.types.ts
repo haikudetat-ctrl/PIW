@@ -2815,6 +2815,8 @@ export type Database = {
           fbp: string | null
           first_contact_attempted_at: string | null
           first_contact_channel: string | null
+          gbraid: string | null
+          gclid: string | null
           google_place_id: string | null
           id: string
           is_test: boolean
@@ -2841,6 +2843,7 @@ export type Database = {
           utm_medium: string | null
           utm_source: string | null
           utm_term: string | null
+          wbraid: string | null
         }
         Insert: {
           campaign?: string | null
@@ -2858,6 +2861,8 @@ export type Database = {
           fbp?: string | null
           first_contact_attempted_at?: string | null
           first_contact_channel?: string | null
+          gbraid?: string | null
+          gclid?: string | null
           google_place_id?: string | null
           id?: string
           is_test?: boolean
@@ -2884,6 +2889,7 @@ export type Database = {
           utm_medium?: string | null
           utm_source?: string | null
           utm_term?: string | null
+          wbraid?: string | null
         }
         Update: {
           campaign?: string | null
@@ -2901,6 +2907,8 @@ export type Database = {
           fbp?: string | null
           first_contact_attempted_at?: string | null
           first_contact_channel?: string | null
+          gbraid?: string | null
+          gclid?: string | null
           google_place_id?: string | null
           id?: string
           is_test?: boolean
@@ -2927,6 +2935,7 @@ export type Database = {
           utm_medium?: string | null
           utm_source?: string | null
           utm_term?: string | null
+          wbraid?: string | null
         }
         Relationships: [
           {
@@ -5295,6 +5304,8 @@ export type Database = {
           created_at: string
           experiment_arm: string | null
           fbclid: string | null
+          gbraid: string | null
+          gclid: string | null
           id: string
           is_likely_bot: boolean
           meta_placement: string | null
@@ -5309,6 +5320,7 @@ export type Database = {
           utm_source: string | null
           utm_term: string | null
           visitor_hash: string
+          wbraid: string | null
         }
         Insert: {
           campaign_slug?: string | null
@@ -5316,6 +5328,8 @@ export type Database = {
           created_at?: string
           experiment_arm?: string | null
           fbclid?: string | null
+          gbraid?: string | null
+          gclid?: string | null
           id?: string
           is_likely_bot?: boolean
           meta_placement?: string | null
@@ -5330,6 +5344,7 @@ export type Database = {
           utm_source?: string | null
           utm_term?: string | null
           visitor_hash: string
+          wbraid?: string | null
         }
         Update: {
           campaign_slug?: string | null
@@ -5337,6 +5352,8 @@ export type Database = {
           created_at?: string
           experiment_arm?: string | null
           fbclid?: string | null
+          gbraid?: string | null
+          gclid?: string | null
           id?: string
           is_likely_bot?: boolean
           meta_placement?: string | null
@@ -5351,6 +5368,7 @@ export type Database = {
           utm_source?: string | null
           utm_term?: string | null
           visitor_hash?: string
+          wbraid?: string | null
         }
         Relationships: [
           {
@@ -5539,6 +5557,7 @@ export type Database = {
           campaign_slug: string | null
           company_id: string | null
           distinct_visitors: number | null
+          google_paid_arrivals: number | null
           meta_placement: string | null
           paid_arrivals: number | null
         }

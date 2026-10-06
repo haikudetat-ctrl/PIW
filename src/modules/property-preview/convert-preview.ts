@@ -26,7 +26,9 @@ export type ConvertiblePreview = {
   referrer: string | null;
 };
 
-const ATTRIBUTION_KEYS = ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "fbclid"] as const;
+const ATTRIBUTION_KEYS = [
+  "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "fbclid", "gclid", "gbraid", "wbraid",
+] as const;
 
 export function buildPreviewConversionInput(input: {
   preview: ConvertiblePreview;

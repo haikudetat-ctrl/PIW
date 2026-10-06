@@ -2,6 +2,7 @@ import {NextResponse, type NextRequest} from "next/server";
 import {z} from "zod";
 import {campaignSlugs} from "../../campaigns/campaigns";
 import {PRIVACY_COOKIE_NAME, readWebsiteConsent} from "../../../lib/privacy-consent";
+import {presentGoogleClickIds} from "../../../lib/google-click-ids";
 import {trustedPiwOidcHeaders} from "../../../lib/vercel-protection";
 
 // Value-first address step. Forwards only what the homeowner entered plus the
@@ -28,6 +29,9 @@ const requestSchema = z.strictObject({
   utm_term: optionalAttribution,
   utm_content: optionalAttribution,
   fbclid: optionalAttribution,
+  gclid: optionalAttribution,
+  gbraid: optionalAttribution,
+  wbraid: optionalAttribution,
 }).superRefine((input, context) => {
   if (input.entry_point.startsWith("campaign:")) {
     const routeCampaign = input.entry_point.slice("campaign:".length);
@@ -87,6 +91,7 @@ export async function handlePropertyPreviewRequest(
       utm_term: nullable(input.utm_term),
       utm_content: nullable(input.utm_content),
       fbclid: nullable(input.fbclid),
+      ...presentGoogleClickIds(input),
     },
     referrer: referrer && z.url().safeParse(referrer).success ? referrer.slice(0, 2000) : null,
     client_ip_address: clientIp,

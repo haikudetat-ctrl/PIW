@@ -17,6 +17,7 @@ const PUBLIC_ASSET_PATHS = new Set([
   "/campaigns/for-every-season/hero.webp",
   "/campaigns/weather-report/hero.webp",
   "/campaigns/seasonal-shield/hero.webp",
+  "/campaigns/roof-replacement/hero.webp",
 ]);
 
 export function isPublicPath(pathname: string) {

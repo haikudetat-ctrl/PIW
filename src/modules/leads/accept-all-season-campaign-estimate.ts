@@ -13,6 +13,10 @@ export type CampaignAttribution = {
   utm_term: string | null;
   utm_content: string | null;
   fbclid: string | null;
+  /** Google Ads click IDs; absent from payloads sent before the website captured them. */
+  gclid?: string | null;
+  gbraid?: string | null;
+  wbraid?: string | null;
   fbp: string | null;
   fbc: string | null;
 };

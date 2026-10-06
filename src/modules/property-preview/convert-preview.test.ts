@@ -8,7 +8,7 @@ const preview = {
   campaign: "weather-report",
   entry_point: "campaign:weather-report",
   presentation_key: "weather-report",
-  attribution: {utm_source: "facebook", utm_medium: null, utm_campaign: "fall", utm_term: null, utm_content: null, fbclid: "abc"},
+  attribution: {utm_source: "facebook", utm_medium: null, utm_campaign: "fall", utm_term: null, utm_content: null, fbclid: "abc", gclid: "g-1"},
   referrer: "https://allseasonroofingquote.com/campaigns/weather-report",
 };
 
@@ -42,7 +42,7 @@ describe("buildPreviewConversionInput", () => {
       client_ip_address: "203.0.113.5",
       client_user_agent: "Mozilla/5.0",
       referrer: preview.referrer,
-      attribution: {...preview.attribution, fbp: "fb.1.1.1", fbc: null},
+      attribution: {...preview.attribution, gbraid: null, wbraid: null, fbp: "fb.1.1.1", fbc: null},
       address: "1 Main St, Newark, NJ 07102, USA",
       google_place_id: "ChIJ-one",
       consent_to_contact: true,
@@ -74,7 +74,7 @@ describe("buildPreviewConversionInput", () => {
     });
     expect(input.attribution).toEqual({
       utm_source: "x", utm_medium: null, utm_campaign: null, utm_term: null, utm_content: null,
-      fbclid: null, fbp: null, fbc: null,
+      fbclid: null, gclid: null, gbraid: null, wbraid: null, fbp: null, fbc: null,
     });
   });
 });

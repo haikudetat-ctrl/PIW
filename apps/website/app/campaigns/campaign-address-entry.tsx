@@ -4,9 +4,8 @@ import {useCallback, useState, type FormEvent} from "react";
 import {TurnstileWidget} from "../../components/turnstile";
 import {PREVIEW_ADDRESS_SUBMIT_LABEL, propertyProcessingNotice} from "../../lib/property-preview-notice";
 import {AddressAutocomplete} from "./address-autocomplete";
-import type {CampaignDefinition} from "./campaigns";
+import {attributionQueryKeys, type CampaignDefinition} from "./campaigns";
 
-const ATTRIBUTION_KEYS = ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "fbclid"] as const;
 
 function track(event: string, campaign: string) {
   window.dispatchEvent(new CustomEvent(`allseason:${event}`, {
@@ -68,7 +67,7 @@ export function CampaignAddressEntry({campaign, turnstileSiteKey}: {campaign: Ca
         entry_point: campaign.entryPoint,
         presentation_key: campaign.presentationKey,
         turnstile_token: turnstileToken,
-        ...Object.fromEntries(ATTRIBUTION_KEYS.map((key) => [key, params.get(key)])),
+        ...Object.fromEntries(attributionQueryKeys.map((key) => [key, params.get(key)])),
       }),
     }).catch(() => null);
     const payload = response?.status === 201 ? await response.json().catch(() => null) as {previewUrl?: string} | null : null;

@@ -6,11 +6,12 @@ import {
 } from "./campaigns";
 
 describe("All Season campaign definitions", () => {
-  test("publishes only the three canonical campaign routes", () => {
+  test("publishes only the canonical campaign routes", () => {
     expect(campaignSlugs).toEqual([
       "weather-report",
       "seasonal-shield",
       "for-every-season",
+      "roof-replacement",
     ]);
     expect(getCampaign("do-it-right-once")).toBeUndefined();
     expect(getCampaign("not-a-campaign")).toBeUndefined();
@@ -20,6 +21,7 @@ describe("All Season campaign definitions", () => {
     ["weather-report", "campaign:weather-report", "weather-report"],
     ["seasonal-shield", "campaign:seasonal-shield", "seasonal-shield"],
     ["for-every-season", "campaign:for-every-season", "for-every-season"],
+    ["roof-replacement", "campaign:roof-replacement", "roof-replacement"],
   ] as const)("maps %s to its canonical entry and presentation", (slug, entryPoint, presentationKey) => {
     expect(getCampaign(slug)).toMatchObject({slug, entryPoint, presentationKey});
   });
@@ -38,7 +40,7 @@ describe("campaign estimate submission", () => {
       form,
       selectedAddress: "12 Birch Street, Newark, NJ 07102, USA",
       googlePlaceId: "ChIJ-selected",
-      search: "?utm_source=facebook&utm_medium=paid-social&utm_campaign=storm-week&utm_content=forecast&fbclid=click-123",
+      search: "?utm_source=facebook&utm_medium=paid-social&utm_campaign=storm-week&utm_content=forecast&fbclid=click-123&gbraid=braid-789",
     })).toEqual({
       submission_id: "11111111-1111-4111-8111-111111111111",
       campaign: "weather-report",
@@ -57,6 +59,9 @@ describe("campaign estimate submission", () => {
       utm_term: null,
       utm_content: "forecast",
       fbclid: "click-123",
+      gclid: null,
+      gbraid: "braid-789",
+      wbraid: null,
     });
   });
 

@@ -2,6 +2,25 @@ export const campaignSlugs = [
   "weather-report",
   "seasonal-shield",
   "for-every-season",
+  "roof-replacement",
+] as const;
+
+/**
+ * Query parameters copied from the landing URL into the estimate payload.
+ * gclid/gbraid/wbraid are Google Ads click IDs: gclid for ordinary clicks,
+ * gbraid/wbraid for iOS app and web-to-app traffic where gclid is withheld.
+ * They key offline conversion imports, so they travel with the lead.
+ */
+export const attributionQueryKeys = [
+  "utm_source",
+  "utm_medium",
+  "utm_campaign",
+  "utm_term",
+  "utm_content",
+  "fbclid",
+  "gclid",
+  "gbraid",
+  "wbraid",
 ] as const;
 
 export type CampaignSlug = (typeof campaignSlugs)[number];
@@ -10,7 +29,7 @@ export type CampaignDefinition = {
   slug: CampaignSlug;
   entryPoint: `campaign:${CampaignSlug}`;
   presentationKey: CampaignSlug;
-  theme: "forecast" | "shield" | "seasons";
+  theme: "forecast" | "shield" | "seasons" | "heritage";
   name: string;
   kicker: string;
   headline: string;
@@ -120,6 +139,35 @@ export const campaigns: Record<CampaignSlug, CampaignDefinition> = {
     sectionTitle: "Confidence starts with knowing who stands behind the work.",
     sectionCopy: "We make the condition, options, materials, price, and warranty clear before work begins. Then our own team carries the project through completion.",
   },
+  "roof-replacement": {
+    slug: "roof-replacement",
+    entryPoint: "campaign:roof-replacement",
+    presentationKey: "roof-replacement",
+    theme: "heritage",
+    name: "Roof Replacement",
+    kicker: "What a new roof costs for your home",
+    headline: "See your roof replacement",
+    headlineAccent: "estimate in minutes.",
+    intro: "Enter your address for a measured roof replacement estimate from a licensed New Jersey roofing team. No pressure and no obligation.",
+    bridgeHeadline: "Get a real number for your roof replacement.",
+    bridgeAccents: ["real", "number"],
+    bridgeCopy: "We measure your roof from the address and show a preliminary price range before anyone calls.",
+    image: "/campaigns/roof-replacement/hero.webp",
+    imageAlt: "An All Season roofer setting new architectural shingles on a New Jersey home",
+    formTitle: "Start your free estimate",
+    formIntro: "Share the address. We will measure the roof and show your preliminary replacement range.",
+    submitLabel: "Get my free estimate",
+    proof: "20+ years in business",
+    warranty: "Lifetime warranty",
+    proofItems: [
+      {value: "Free", label: "measured estimate"},
+      {value: "20+", label: "years serving homeowners"},
+      {value: "Licensed", label: "New Jersey team"},
+    ],
+    sectionEyebrow: "Replacement, explained",
+    sectionTitle: "A clear price range before a sales call.",
+    sectionCopy: "Roof size, pitch, and materials drive the cost of a new roof. We start from your actual roof, explain the options in plain language, and recommend replacement only when the roof needs it.",
+  },
 };
 
 export function isCampaignSlug(value: string): value is CampaignSlug {
@@ -152,8 +200,7 @@ export function buildCampaignSubmission({
   const params = new URLSearchParams(search);
   const source = campaigns[campaign];
   const attribution = Object.fromEntries(
-    ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "fbclid"]
-      .map((key) => [key, params.get(key)]),
+    attributionQueryKeys.map((key) => [key, params.get(key)]),
   );
   const base = {
     submission_id: submissionId,

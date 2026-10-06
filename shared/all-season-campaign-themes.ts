@@ -3,6 +3,7 @@ export const campaignSlugs = [
   "weather-report",
   "seasonal-shield",
   "for-every-season",
+  "roof-replacement",
 ] as const;
 
 export type CampaignSlug = (typeof campaignSlugs)[number];
@@ -83,6 +84,21 @@ export const campaignThemes: Record<CampaignSlug, CampaignTheme> = {
     resultHeadline: "Confidence for every New Jersey season.",
     trustHeadline: "Choose the local team built for lasting trust.",
     trustCopy: "Get a clear plan from one New Jersey company that installs the work and stands behind it for the years ahead.",
+  },
+  "roof-replacement": {
+    slug: "roof-replacement",
+    theme: "heritage",
+    background: "#061f34",
+    surface: "#0b3554",
+    text: "#f7fbff",
+    muted: "#c9dce8",
+    accent: "#63b7dc",
+    accentContrast: "#061f34",
+    artworkPath: "/campaigns/roof-replacement/hero.webp",
+    loadingStatement: "Measuring your roof for a replacement range.",
+    resultHeadline: "Your roof replacement estimate is ready.",
+    trustHeadline: "A new roof should come with a clear price.",
+    trustCopy: "See the measured scope and preliminary range first, then talk with one local team that installs the work and stands behind it.",
   },
 };
 

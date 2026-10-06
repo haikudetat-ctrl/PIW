@@ -234,16 +234,15 @@
     banner.setAttribute("role", "region");
 
     var copy = element("div", "all-season-privacy-copy");
-    copy.appendChild(element("p", "all-season-privacy-kicker", "Privacy choices"));
-    copy.appendChild(element("h2", "all-season-privacy-title", "Your privacy choices."));
-    copy.appendChild(element(
+    var body = element(
       "p",
       "all-season-privacy-body",
-      "With your permission, we use analytics to understand how our service is used and improve its performance, and advertising tools to measure and personalize ads. Allow both, reject all, or customize each choice. You can change your choices anytime in Privacy Choices.",
-    ));
-    var policy = element("a", "all-season-privacy-link", "Read our privacy policy");
+      "We use analytics and advertising cookies only with your permission. ",
+    );
+    var policy = element("a", "all-season-privacy-link", "Privacy policy");
     policy.href = "/privacy.html";
-    copy.appendChild(policy);
+    body.appendChild(policy);
+    copy.appendChild(body);
     var message = errorMessage();
     if (message) copy.appendChild(message);
 

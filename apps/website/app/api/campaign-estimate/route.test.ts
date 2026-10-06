@@ -218,6 +218,35 @@ describe("campaign estimate proxy", () => {
     expect(forwarded).not.toHaveProperty("fbclid");
   });
 
+  test("forwards Google Ads click IDs for the roof-replacement campaign in the PIW contract", async () => {
+    let forwarded: Record<string, unknown> | undefined;
+    const response = await handleCampaignEstimateRequest(
+      request(googleSubmission({
+        campaign: "roof-replacement",
+        presentation_key: "roof-replacement",
+        entry_point: "campaign:roof-replacement",
+        utm_source: "google",
+        utm_medium: "cpc",
+        fbclid: null,
+        gclid: " Cj0KCQ-click ",
+        gbraid: "",
+        wbraid: null,
+      })),
+      async (payload) => {
+        forwarded = payload;
+        return Response.json({accepted: true, continuationPath: "/roof-estimate/continue/signed_token-123"}, {status: 202});
+      },
+      publicAppUrl,
+    );
+
+    expect(response.status).toBe(202);
+    expect(forwarded?.attribution).toEqual(expect.objectContaining({gclid: "Cj0KCQ-click", fbclid: null}));
+    expect(forwarded?.attribution).not.toHaveProperty("gbraid");
+    expect(forwarded?.attribution).not.toHaveProperty("wbraid");
+    expect(forwarded).not.toHaveProperty("gclid");
+    expect(allSeasonCampaignEstimateSchema.safeParse(forwarded).success).toBe(true);
+  });
+
   test("forwards Meta attribution only with verified advertising consent", async () => {
     const token = signWebsiteConsent(privacyConsent, privacySigningSecret);
     let forwarded: Record<string, unknown> | undefined;

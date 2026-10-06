@@ -2,6 +2,7 @@ export const campaignSlugs = [
   "weather-report",
   "seasonal-shield",
   "for-every-season",
+  "roof-replacement",
 ] as const;
 
 export type CampaignSlug = (typeof campaignSlugs)[number];
@@ -80,6 +81,23 @@ export const campaigns: Record<CampaignSlug, CampaignDefinition> = {
     driveFolderUrl:
       "https://drive.google.com/drive/folders/12RvWglbQEvT8BPidnDGOJBqLplGI1zG2",
     assetStatus: "ready",
+  },
+  "roof-replacement": {
+    slug: "roof-replacement",
+    name: "Roof Replacement",
+    kicker: "Free roof replacement estimate",
+    headline: "See what a new roof costs for your home.",
+    intro:
+      "Enter your address. We will measure the roof and prepare a preliminary replacement range.",
+    addressTitle: "Which roof are we measuring?",
+    addressHelp: "Choose the New Jersey property you want priced.",
+    contactTitle: "Where should we send the estimate?",
+    contactHelp: "We will send the preliminary range by email and text.",
+    submitLabel: "Get my free estimate",
+    image: "/campaigns/roof-replacement/hero.webp",
+    imageAlt: "An All Season roofer setting new architectural shingles on a New Jersey home",
+    driveFolderUrl: campaignSourceFolderUrl,
+    assetStatus: "placeholder",
   },
 };
 

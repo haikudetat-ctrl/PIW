@@ -14,6 +14,7 @@ import {
 } from "../../../lib/canonical-privacy-consent";
 import {TCPA_DISCLOSURE_VERSION} from "../../../lib/tcpa-notice";
 import {trustedWebsiteRequestIp} from "../../../lib/trusted-request-ip";
+import {presentGoogleClickIds} from "../../../lib/google-click-ids";
 import {trustedPiwOidcHeaders} from "../../../lib/vercel-protection";
 import {campaignSlugs} from "../../campaigns/campaigns";
 
@@ -53,6 +54,9 @@ const campaignEstimateSchema = z.object({
   utm_content: optionalAttribution,
   utm_term: optionalAttribution,
   fbclid: optionalAttribution,
+  gclid: optionalAttribution,
+  gbraid: optionalAttribution,
+  wbraid: optionalAttribution,
 }).strict().superRefine((input, context) => {
   if (input.google_place_id) return;
 
@@ -264,6 +268,7 @@ export async function handleCampaignEstimateRequest(
       utm_content: nullable(input.utm_content),
       utm_term: nullable(input.utm_term),
       fbclid: nullable(input.fbclid),
+      ...presentGoogleClickIds(input),
       fbp: nullable(evidence.data.fbp),
       fbc: nullable(evidence.data.fbc),
     },
