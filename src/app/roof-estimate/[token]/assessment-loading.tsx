@@ -25,6 +25,7 @@ export function AssessmentLoading({
   minimumDurationMs = MINIMUM_ANALYSIS_MS,
   imageTimeoutMs = AERIAL_HARD_CAP_MS,
   onReady,
+  quiet,
 }: {
   address: string;
   imageSrc: string;
@@ -37,6 +38,8 @@ export function AssessmentLoading({
     imageAvailable: boolean;
     outcome: AssessmentAnalysisOutcome;
   }) => void;
+  /** Plain white presentation for the value-first preview; timing is unchanged. */
+  quiet?: {brandName: string};
 }) {
   const [storedTiming, setTiming] = useState<LoadingTiming>(() => initialTiming(imageSrc));
   const timing = storedTiming.imageSrc === imageSrc ? storedTiming : initialTiming(imageSrc);
@@ -97,6 +100,40 @@ export function AssessmentLoading({
   }, [imageObjectUrl, onReady, timing.imageTimeoutElapsed, timing.minimumElapsed]);
 
   const activeLabel = stages[timing.activeStage] ?? "Preparing the assessment";
+
+  if (quiet) {
+    return (
+      <main className="quiet-flow">
+        <div className="quiet-frame">
+          <header className="quiet-header">{quiet.brandName.toUpperCase()}</header>
+          <section className="quiet-body">
+            <p className="quiet-step">Analysis in progress</p>
+            <h1 className="quiet-question">Analyzing your property.</h1>
+            <p className="quiet-lede">
+              Matching {address} with the property information available for your roof.
+            </p>
+            <ol className="quiet-stages" aria-hidden="true">
+              {stages.map((stage, index) => (
+                <li
+                  key={stage}
+                  className="quiet-stage"
+                  data-active={index === timing.activeStage}
+                  data-complete={index < timing.activeStage}
+                >
+                  <span>{stage}</span>
+                  <span>{index < timing.activeStage ? "Done" : index === timing.activeStage ? "…" : ""}</span>
+                </li>
+              ))}
+            </ol>
+            <p role="status" aria-live="polite" className="sr-only">{activeLabel}</p>
+            <div className="quiet-progress" aria-hidden="true">
+              <span style={{width: `${((timing.activeStage + 1) / stages.length) * 100}%`}} />
+            </div>
+          </section>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="assessment-flow assessment-analysis-shell min-h-[100dvh] w-full max-w-full overflow-x-hidden bg-[#071f2e] text-white">

@@ -240,3 +240,44 @@
 .quiet-secondary:hover:not(:disabled) { border-color: var(--quiet-ink); }
 .quiet-secondary:disabled { cursor: wait; opacity: 0.6; }
 .quiet-secondary:focus-visible { outline: 1px solid var(--quiet-ink); outline-offset: 4px; }
+
+/* Loading: stage list in hairline rows and a 1px progress line. */
+.quiet-stages {
+  margin: 2.25rem 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--quiet-rule);
+}
+
+.quiet-stage {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.875rem 0;
+  border-bottom: 1px solid var(--quiet-rule);
+  color: rgb(0 0 0 / 0.3);
+  font-size: 0.9375rem;
+  font-weight: 400;
+  transition: color 300ms ease;
+}
+
+.quiet-stage[data-complete="true"] { color: var(--quiet-grey); }
+.quiet-stage[data-active="true"] { color: var(--quiet-ink); }
+
+.quiet-progress {
+  height: 1px;
+  margin-top: 2rem;
+  overflow: hidden;
+  background: var(--quiet-rule);
+}
+
+.quiet-progress span {
+  display: block;
+  height: 100%;
+  background: var(--quiet-ink);
+  transition: width 600ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .quiet-stage, .quiet-progress span { transition: none; }
+}

@@ -269,6 +269,7 @@ export function PreviewExperience({
         imageObjectUrl={aerial.objectUrl}
         stages={context.loadingStages}
         onReady={() => setStage("reveal")}
+        quiet={{brandName}}
       />
     );
   }
