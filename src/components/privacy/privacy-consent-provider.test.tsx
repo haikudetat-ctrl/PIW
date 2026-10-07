@@ -373,12 +373,15 @@ describe("PrivacyConsentProvider", () => {
     const {unmount} = render(<PrivacyConsentProvider initialConsent={null}><Probe /></PrivacyConsentProvider>);
     expect(screen.getByRole("region", {name: "Privacy choices"}).className).toContain("privacy-quiet");
     expect(screen.getByRole("button", {name: "Privacy choices"}).className).toContain("privacy-quiet");
-    expect(screen.getByRole("button", {name: "Reject nonessential"})).toBeTruthy();
+    expect(screen.getByRole("button", {name: "Accept"})).toBeTruthy();
+    expect(screen.getByRole("button", {name: "Decline"})).toBeTruthy();
+    expect(screen.getByRole("button", {name: "Choices"})).toBeTruthy();
     unmount();
 
     navigation.pathname = "/privacy";
     render(<PrivacyConsentProvider initialConsent={null}><Probe /></PrivacyConsentProvider>);
     expect(screen.getByRole("region", {name: "Privacy choices"}).className).not.toContain("privacy-quiet");
+    expect(screen.getByRole("button", {name: "Reject nonessential"})).toBeTruthy();
     navigation.pathname = "/";
   });
 });
