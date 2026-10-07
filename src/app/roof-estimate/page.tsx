@@ -27,7 +27,6 @@ export default async function PublicRoofEstimatePage() {
       <QuietAddressStep
         brandName={preview.brandName}
         logoUrl={preview.logoUrl}
-        browserApiKey={process.env.GOOGLE_MAPS_BROWSER_API_KEY}
         turnstileSiteKey={preview.siteKey}
       />
     );
