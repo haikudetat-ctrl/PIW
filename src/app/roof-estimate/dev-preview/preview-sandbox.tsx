@@ -15,8 +15,8 @@ const ESTIMATE_TOKEN = "dev-estimate";
 const BRAND = {
   name: "All Season Solar",
   logoUrl: "/brand/all-season-mark.svg",
-  phoneDisplay: "(888) 832-5050",
-  phoneHref: "tel:+18888325050",
+  phoneDisplay: "(856) 835-6022",
+  phoneHref: "tel:+18568356022",
 };
 
 const TOKEN = "dev-preview";

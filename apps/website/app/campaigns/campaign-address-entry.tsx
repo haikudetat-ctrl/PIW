@@ -78,7 +78,7 @@ export function CampaignAddressEntry({campaign, turnstileSiteKey}: {campaign: Ca
     }
     setPending(false);
     setResetKey((key) => key + 1);
-    setError("We couldn’t look up that address just now. Please try again or call (888) 832-5050.");
+    setError("We couldn’t look up that address just now. Please try again or call (856) 835-6022.");
     track("address_submit_error", campaign.slug);
   }
 

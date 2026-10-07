@@ -89,8 +89,8 @@ export default function PrivacyPage() {
           <h2 id="contact-heading" className="text-2xl font-bold text-slate-950">Contact us</h2>
           <p className="mt-3">
             For privacy questions or requests, call AllSeason Solar &amp; Roofing at{" "}
-            <a className="font-bold text-emerald-800 underline" href="tel:+18888325050">
-              (888) 832-5050
+            <a className="font-bold text-emerald-800 underline" href="tel:+18568356022">
+              (856) 835-6022
             </a>.
           </p>
         </section>

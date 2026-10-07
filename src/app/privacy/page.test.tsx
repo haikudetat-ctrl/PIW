@@ -20,9 +20,9 @@ describe("privacy notice", () => {
     expect(screen.getByText(/Meta Pixel and Conversions API/i)).toBeVisible();
     expect(screen.getByText(/consent evidence/i)).toBeVisible();
     expect(screen.getByText(/Privacy choices/i)).toBeVisible();
-    expect(screen.getByRole("link", {name: /888.*832.*5050/})).toHaveAttribute(
+    expect(screen.getByRole("link", {name: /856.*835.*6022/})).toHaveAttribute(
       "href",
-      "tel:+18888325050",
+      "tel:+18568356022",
     );
   });
 

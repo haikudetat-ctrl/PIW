@@ -11,8 +11,8 @@ const token = "11111111-1111-4111-8111-111111111111";
 const brand = {
   name: "All Season Solar",
   logoUrl: "https://estimate.example.com/brand/all-season-mark.svg",
-  phoneDisplay: "(888) 832-5050",
-  phoneHref: "tel:+18888325050",
+  phoneDisplay: "(856) 835-6022",
+  phoneHref: "tel:+18568356022",
 };
 
 describe("quiet price-first estimate", () => {
@@ -38,7 +38,7 @@ describe("quiet price-first estimate", () => {
   test("explains a professional review without a price", () => {
     render(<QuietEstimateView token={token} address="1 Main St" brand={brand} state={{kind: "review"}} />);
     expect(screen.getByRole("heading", {name: "We are checking the property match."})).toBeTruthy();
-    expect(screen.getByRole("link", {name: "Call (888) 832-5050"})).toBeTruthy();
+    expect(screen.getByRole("link", {name: "Call (856) 835-6022"})).toBeTruthy();
     expect(document.body.textContent).not.toMatch(/\$\d/);
   });
 
