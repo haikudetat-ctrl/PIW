@@ -21,6 +21,7 @@ import {
   type AssessmentOption,
 } from "../../[token]/assessment-questions";
 import "../../[token]/assessment.css";
+import "./preview-quiet.css";
 
 type Stage = "loading" | "reveal" | "question" | "contact";
 type QuestionKey = "reason" | "roofAge" | "timeline";
@@ -277,30 +278,32 @@ export function PreviewExperience({
     </header>
   );
 
+  const quietHeader = <header className="quiet-header">{brandName.toUpperCase()}</header>;
+
   if (stage === "question") {
     const question = QUESTIONS.find((item) => item.key === flow[questionIndex])!;
     return (
-      <main className={shell}>
-        <div className="mx-auto flex min-h-[calc(100dvh-2.5rem)] max-w-3xl flex-col">
-          {header}
-          <section className="my-auto py-8">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+      <main className="quiet-flow">
+        <div className="quiet-frame">
+          {quietHeader}
+          <section className="quiet-body">
+            <p className="quiet-step">
               Question {questionIndex + 1} of {flow.length}
             </p>
-            <h1 className="mt-3 text-3xl font-semibold tracking-[-0.03em] sm:text-4xl">{question.title}</h1>
-            <div className="mt-7 grid gap-3 sm:grid-cols-2">
+            <h1 className="quiet-question">{question.title}</h1>
+            <div className="quiet-options">
               {question.options.map((option) => (
                 <button
                   key={option.value}
                   type="button"
                   onClick={() => answer(question.key, option.value)}
-                  className="min-h-14 rounded-xl border border-slate-300 bg-white px-5 py-4 text-left text-base font-semibold text-slate-900 transition hover:border-slate-900 active:translate-y-px"
+                  className="quiet-option"
                 >
                   {option.label}
                 </button>
               ))}
             </div>
-            <button type="button" onClick={back} className="mt-6 text-sm font-semibold text-slate-600 underline underline-offset-4">
+            <button type="button" onClick={back} className="quiet-back">
               Back
             </button>
           </section>
@@ -311,41 +314,37 @@ export function PreviewExperience({
 
   if (stage === "contact") {
     return (
-      <main className={shell}>
-        <div className="mx-auto flex min-h-[calc(100dvh-2.5rem)] max-w-xl flex-col">
-          {header}
-          <section className="my-auto py-8">
-            <h1 className="text-3xl font-semibold tracking-[-0.03em] sm:text-4xl">Where should we send your price?</h1>
-            <p className="mt-3 text-base leading-7 text-slate-600">
+      <main className="quiet-flow">
+        <div className="quiet-frame">
+          {quietHeader}
+          <section className="quiet-body">
+            <h1 className="quiet-question">Where should we send your price?</h1>
+            <p className="quiet-lede">
               Your Good, Better and Best options for {view.address.display} are one step away.
             </p>
-            <form onSubmit={submitContact} className="mt-7 grid gap-4" noValidate>
-              <label className="grid gap-1.5 text-sm font-semibold text-slate-800">
+            <form onSubmit={submitContact} className="quiet-form" noValidate>
+              <label className="quiet-field">
                 Full name
-                <input name="name" autoComplete="name" required minLength={2} className="min-h-12 rounded-xl border border-slate-300 bg-white px-4 text-base" />
+                <input name="name" autoComplete="name" required minLength={2} className="quiet-input" />
               </label>
-              <label className="grid gap-1.5 text-sm font-semibold text-slate-800">
+              <label className="quiet-field">
                 Email
-                <input name="email" type="email" inputMode="email" autoComplete="email" required className="min-h-12 rounded-xl border border-slate-300 bg-white px-4 text-base" />
+                <input name="email" type="email" inputMode="email" autoComplete="email" required className="quiet-input" />
               </label>
-              <label className="grid gap-1.5 text-sm font-semibold text-slate-800">
+              <label className="quiet-field">
                 Mobile phone
-                <input name="phone" type="tel" inputMode="tel" autoComplete="tel" required minLength={7} className="min-h-12 rounded-xl border border-slate-300 bg-white px-4 text-base" />
+                <input name="phone" type="tel" inputMode="tel" autoComplete="tel" required minLength={7} className="quiet-input" />
               </label>
-              <p data-testid="preview-contact-notice" className="text-xs leading-5 text-slate-500">
+              <p data-testid="preview-contact-notice" className="quiet-notice">
                 {contactOnlyNotice(brandName)}{" "}
-                <a href={privacyUrl} className="underline underline-offset-2">Privacy Policy</a>
+                <a href={privacyUrl}>Privacy Policy</a>
               </p>
-              {contactError ? <p role="alert" className="text-sm font-semibold text-red-700">{contactError}</p> : null}
-              <button
-                type="submit"
-                disabled={submitting}
-                className="assessment-primary-action min-h-14 rounded-xl bg-slate-950 px-5 py-4 text-base font-black text-white transition hover:bg-slate-800 active:translate-y-px disabled:cursor-wait disabled:opacity-65"
-              >
+              {contactError ? <p role="alert" className="quiet-alert">{contactError}</p> : null}
+              <button type="submit" disabled={submitting} className="quiet-submit">
                 {submitting ? "Unlocking your price…" : PREVIEW_CONTACT_SUBMIT_LABEL}
               </button>
             </form>
-            <button type="button" onClick={back} className="mt-6 text-sm font-semibold text-slate-600 underline underline-offset-4">
+            <button type="button" onClick={back} className="quiet-back">
               Back
             </button>
           </section>
