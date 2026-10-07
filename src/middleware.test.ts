@@ -23,6 +23,7 @@ describe("public assessment media boundary", () => {
     "/campaigns/for-every-season/hero.webp",
     "/campaigns/weather-report/hero.webp",
     "/campaigns/seasonal-shield/hero.webp",
+    "/brand/all-season-mark.svg",
   ])("allows anonymous access to %s", (pathname) => {
     expect(isPublicPath(pathname)).toBe(true);
   });
@@ -32,6 +33,7 @@ describe("public assessment media boundary", () => {
     "/campaign-admin",
     "/campaigns-private/roof.webp",
     "/campaigns/unapproved/hero.webp",
+    "/brand/other-logo.svg",
   ])("does not broaden anonymous access to %s", (pathname) => {
     expect(isPublicPath(pathname)).toBe(false);
   });

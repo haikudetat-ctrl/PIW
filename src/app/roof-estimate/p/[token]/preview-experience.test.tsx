@@ -18,13 +18,14 @@ const baseView: PreviewView = {
 };
 const readyAerial = vi.fn(async () => ({kind: "ready" as const, objectUrl: "blob:aerial"}));
 
-function renderPreview(view: Partial<PreviewView> = {}) {
+function renderPreview(view: Partial<PreviewView> = {}, logoUrl?: string) {
   return render(
     <PreviewExperience
       token={token}
       initialView={{...baseView, ...view}}
       context={context}
       brandName="All Season Solar"
+      logoUrl={logoUrl}
       privacyUrl="https://allseasonroofingquote.com/privacy.html"
       initialStage="reveal"
       aerialLoader={readyAerial}
@@ -75,6 +76,20 @@ describe("preview reveal", () => {
     renderPreview({address: {display: "2 Main St, Newark, NJ", googleConfirmed: false}, image: {state: "unavailable"}, roof: {state: "review_required"}});
     expect(await screen.findByText("2 Main St, Newark, NJ")).toBeTruthy();
     expect(screen.queryByText("Confirmed property")).toBeNull();
+  });
+});
+
+describe("preview header", () => {
+  test("shows the tenant logo named for the brand", async () => {
+    renderPreview({}, "https://quote.example.com/brand/all-season-mark.svg");
+    const logo = await screen.findByAltText("All Season Solar");
+    expect(logo.getAttribute("src")).toBe("https://quote.example.com/brand/all-season-mark.svg");
+  });
+
+  test("falls back to the brand name when the tenant has no logo", async () => {
+    renderPreview();
+    expect(await screen.findByText("ALL SEASON SOLAR")).toBeTruthy();
+    expect(screen.queryByAltText("All Season Solar")).toBeNull();
   });
 });
 

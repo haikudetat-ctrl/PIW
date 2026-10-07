@@ -115,4 +115,27 @@ describe("assessment analysis loading", () => {
       outcome: "ready_at_8s",
     });
   });
+
+  test("quiet variant shows the brand, no aerial, and keeps the same timing", () => {
+    const onReady = vi.fn();
+    const {container, rerender} = render(
+      <AssessmentLoading {...props} quiet={{brandName: "Acme Roofing"}} onReady={onReady} />,
+    );
+
+    expect(screen.getByText("ACME ROOFING")).toBeTruthy();
+    expect(container.querySelector("img")).toBeNull();
+    expect(screen.getByRole("status").textContent).toBe(assessmentLoadingStages[0]);
+    rerender(
+      <AssessmentLoading {...props} quiet={{brandName: "Acme Roofing", logoUrl: "/brand/acme.svg"}} onReady={onReady} />,
+    );
+    expect(screen.getByAltText("Acme Roofing").getAttribute("src")).toBe("/brand/acme.svg");
+    expect(container.querySelectorAll("img")).toHaveLength(1);
+
+    rerender(
+      <AssessmentLoading {...props} imageObjectUrl="blob:ready" quiet={{brandName: "Acme Roofing"}} onReady={onReady} />,
+    );
+    expect(container.querySelector("img")).toBeNull();
+    act(() => vi.advanceTimersByTime(8_000));
+    expect(onReady).toHaveBeenCalledWith(expect.objectContaining({imageAvailable: true, outcome: "ready_at_8s"}));
+  });
 });
