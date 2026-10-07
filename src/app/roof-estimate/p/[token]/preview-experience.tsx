@@ -53,23 +53,28 @@ function beacon(token: string, step: "revealed" | "contact_viewed") {
 function RoofSummary({roof}: {roof: PreviewView["roof"]}) {
   if (roof.state === "ready") {
     return (
-      <div className="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-5">
-        <p className="text-[0.65rem] font-bold uppercase tracking-[0.18em] text-slate-500">Measured from above</p>
-        <p className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-slate-950">About {roof.squares} roofing squares</p>
-        <p className="mt-1 text-sm font-semibold text-slate-600">{COMPLEXITY_LABEL[roof.complexity]}</p>
-      </div>
+      <dl className="quiet-facts">
+        <div className="quiet-fact">
+          <dt>Measured from above</dt>
+          <dd>About {roof.squares} roofing squares</dd>
+        </div>
+        <div className="quiet-fact">
+          <dt>Complexity</dt>
+          <dd>{COMPLEXITY_LABEL[roof.complexity]}</dd>
+        </div>
+      </dl>
     );
   }
   if (roof.state === "pending") {
     return (
-      <p role="status" aria-live="polite" className="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-5 text-sm font-semibold text-slate-700">
+      <p role="status" aria-live="polite" className="quiet-facts quiet-fact-note">
         Measuring your roof…
       </p>
     );
   }
   if (roof.state === "review_required") {
     return (
-      <p className="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-5 text-sm leading-6 text-slate-600">
+      <p className="quiet-facts quiet-fact-note">
         A roofing specialist will confirm your roof’s measurements.
       </p>
     );
@@ -94,28 +99,28 @@ function EmailReport({token, brandName, initiallySaved}: {token: string; brandNa
   }
 
   if (state === "sent") {
-    return <p role="status" className="mt-5 text-sm font-semibold text-slate-700">Sent. Check your inbox for your roof report.</p>;
+    return <p role="status" className="quiet-email-status">Sent. Check your inbox for your roof report.</p>;
   }
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)} className="mt-5 text-sm font-semibold text-slate-700 underline underline-offset-4">
+      <button type="button" onClick={() => setOpen(true)} className="quiet-back">
         Email me this roof report
       </button>
     );
   }
   return (
-    <form onSubmit={submit} className="mt-5 grid gap-3 rounded-2xl border border-slate-200 p-4" noValidate>
-      <label className="grid gap-1.5 text-sm font-semibold text-slate-800">
+    <form onSubmit={submit} className="quiet-form quiet-email-form" noValidate>
+      <label className="quiet-field">
         Email for your report
-        <input name="email" type="email" inputMode="email" autoComplete="email" required className="min-h-12 rounded-xl border border-slate-300 bg-white px-4 text-base" />
+        <input name="email" type="email" inputMode="email" autoComplete="email" required className="quiet-input" />
       </label>
-      <p data-testid="preview-email-notice" className="text-xs leading-5 text-slate-500">{reportEmailNotice(brandName)}</p>
+      <p data-testid="preview-email-notice" className="quiet-notice">{reportEmailNotice(brandName)}</p>
       {state === "limited" || state === "error" ? (
-        <p role="alert" className="text-sm font-semibold text-red-700">
+        <p role="alert" className="quiet-alert">
           {state === "limited" ? "We’ve already sent this report today. Check your inbox." : "We could not send your report. Please try again."}
         </p>
       ) : null}
-      <button type="submit" disabled={state === "sending"} className="min-h-12 rounded-xl border border-slate-900 px-5 text-sm font-bold text-slate-900 disabled:opacity-65">
+      <button type="submit" disabled={state === "sending"} className="quiet-secondary">
         {state === "sending" ? "Sending…" : PREVIEW_EMAIL_SUBMIT_LABEL}
       </button>
     </form>
@@ -268,16 +273,6 @@ export function PreviewExperience({
     );
   }
 
-  const shell = `assessment-flow ${context.accentClass} min-h-[100dvh] w-full max-w-full overflow-x-hidden bg-[#edf2f3] px-4 py-5 text-slate-950 sm:px-7 sm:py-8`;
-  const header = (
-    <header className="assessment-nav flex items-center justify-between border-b border-slate-300/80 pb-5">
-      <div>
-        <p className="text-xs font-black tracking-[0.2em] text-slate-900">{brandName.toUpperCase()}</p>
-        <p className="mt-1 text-[0.65rem] font-bold uppercase tracking-[0.18em] text-slate-500">Personalized RoofCheck</p>
-      </div>
-    </header>
-  );
-
   const quietHeader = <header className="quiet-header">{brandName.toUpperCase()}</header>;
 
   if (stage === "question") {
@@ -358,59 +353,43 @@ export function PreviewExperience({
     : `Answer ${remaining.length} quick question${remaining.length === 1 ? "" : "s"}`;
 
   return (
-    <main className={`${shell} assessment-reveal-shell`}>
-      <div className="assessment-reveal-frame mx-auto flex min-h-[calc(100dvh-2.5rem)] max-w-7xl flex-col">
-        {header}
-        <div className="assessment-reveal-stage my-auto py-6 lg:py-10">
-          <section
-            aria-label="Your roof preview"
-            className="assessment-reveal-card grid overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_28px_90px_rgba(15,42,55,0.16)] lg:grid-cols-[minmax(0,1.12fr)_minmax(24rem,0.88fr)]"
-          >
-            <div className="assessment-reveal-visual relative min-h-[23rem] overflow-hidden bg-[#102f3d] sm:min-h-[32rem] lg:min-h-[39rem]">
-              {aerial.kind === "ready" ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={aerial.objectUrl} alt={`Aerial view of ${view.address.display}`} className="assessment-reveal-aerial absolute inset-0 size-full object-cover" />
-              ) : (
-                <div className="assessment-imagery-pending absolute inset-0 grid place-items-center px-6">
-                  <p className="max-w-xs text-center text-sm font-bold text-white">
-                    {view.image.state === "ready" ? "Finalizing your property imagery" : "We’ll review this address with you."}
-                  </p>
-                </div>
-              )}
-              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-slate-950/15" />
-              <div className="absolute inset-x-0 bottom-0 p-6 text-white sm:p-8">
-                {view.address.googleConfirmed ? (
-                  <p className="text-[0.65rem] font-bold uppercase tracking-[0.18em] text-white/60">Confirmed property</p>
-                ) : null}
-                <p className="mt-2 max-w-2xl text-lg font-semibold tracking-[-0.02em] sm:text-xl">{view.address.display}</p>
-                <Link href="/roof-estimate" className="mt-3 inline-flex text-xs font-semibold text-white/70 underline underline-offset-4 hover:text-white">
-                  Not your property? Update the address
-                </Link>
-              </div>
-            </div>
+    <main className="quiet-flow">
+      <div className="quiet-frame quiet-frame-wide">
+        {quietHeader}
+        <section aria-label="Your roof preview" className="quiet-body quiet-reveal">
+          <figure className="quiet-aerial">
+            {aerial.kind === "ready" ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={aerial.objectUrl} alt={`Aerial view of ${view.address.display}`} />
+            ) : (
+              <figcaption className="quiet-aerial-pending">
+                {view.image.state === "ready" ? "Finalizing your property imagery" : "We’ll review this address with you."}
+              </figcaption>
+            )}
+          </figure>
 
-            <div className="assessment-reveal-copy flex flex-col justify-center border-t border-slate-200 bg-white p-7 sm:p-10 lg:border-l lg:border-t-0 lg:p-12">
-              <p className="assessment-context-kicker text-xs font-black uppercase tracking-[0.19em]">{context.kicker}</p>
-              <h1 className="assessment-display mt-3 text-[clamp(2.6rem,5vw,4.6rem)] leading-[0.92] tracking-[0.01em]">
-                Here’s your roof.
-              </h1>
-              <RoofSummary roof={view.roof} />
-              <p className="mt-6 max-w-lg text-base leading-7 text-slate-600">
-                {remaining.length === 0
-                  ? "Your price is ready to unlock."
-                  : "A few quick taps tailor your estimate. No measurements or roofing knowledge needed."}
-              </p>
-              <button
-                type="button"
-                onClick={startQuestions}
-                className="assessment-primary-action mt-7 w-full rounded-xl bg-slate-950 px-5 py-4 text-sm font-black text-white transition hover:bg-slate-800 active:translate-y-px"
-              >
-                {ctaLabel}
-              </button>
-              <EmailReport token={token} brandName={brandName} initiallySaved={view.savedEmail} />
-            </div>
-          </section>
-        </div>
+          <div className="quiet-reveal-copy">
+            <p className="quiet-step">
+              {view.address.googleConfirmed ? "Confirmed property" : context.kicker}
+            </p>
+            <p className="quiet-address">{view.address.display}</p>
+            <Link href="/roof-estimate" className="quiet-back">
+              Not your property? Update the address
+            </Link>
+
+            <h1 className="quiet-question quiet-reveal-title">Here’s your roof.</h1>
+            <RoofSummary roof={view.roof} />
+            <p className="quiet-lede">
+              {remaining.length === 0
+                ? "Your price is ready to unlock."
+                : "A few quick taps tailor your estimate. No measurements or roofing knowledge needed."}
+            </p>
+            <button type="button" onClick={startQuestions} className="quiet-submit quiet-cta">
+              {ctaLabel}
+            </button>
+            <EmailReport token={token} brandName={brandName} initiallySaved={view.savedEmail} />
+          </div>
+        </section>
       </div>
     </main>
   );

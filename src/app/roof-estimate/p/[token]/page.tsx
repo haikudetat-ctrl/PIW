@@ -8,6 +8,7 @@ import { createSupabasePreviewReadDependencies } from "@/modules/property-previe
 import { resolvePublicHost } from "@/modules/tenancy/public-host";
 import { createSupabasePublicHostLookup } from "@/modules/tenancy/supabase-public-host-lookup";
 import { PreviewExperience } from "./preview-experience";
+import "./preview-quiet.css";
 
 export const dynamic = "force-dynamic";
 
@@ -31,12 +32,14 @@ export default async function PropertyPreviewPage({params}: {params: Promise<{to
 
   if (view.status === "converted") {
     return (
-      <main className="grid min-h-[100dvh] place-items-center bg-[#edf2f3] px-4 text-slate-950">
-        <div className="max-w-md text-center">
-          <h1 className="text-3xl font-semibold tracking-[-0.03em]">Your price is on its way.</h1>
-          <p className="mt-4 text-base leading-7 text-slate-600">
-            We sent your estimate link by text and email. Open it there to see your options.
-          </p>
+      <main className="quiet-flow">
+        <div className="quiet-frame">
+          <section className="quiet-body">
+            <h1 className="quiet-question">Your price is on its way.</h1>
+            <p className="quiet-lede">
+              We sent your estimate link by text and email. Open it there to see your options.
+            </p>
+          </section>
         </div>
       </main>
     );
