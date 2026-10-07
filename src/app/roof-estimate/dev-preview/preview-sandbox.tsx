@@ -5,6 +5,19 @@ import {getRoofAssessmentContext} from "@/config/roof-assessment";
 import type {PreviewView} from "@/modules/property-preview/preview-read-model";
 import {createPreviewAerialLoader} from "../dev-assessment/assessment-sandbox";
 import {PreviewExperience} from "../p/[token]/preview-experience";
+import {QuietEstimateView} from "../[token]/quiet-estimate-view";
+import {QuoteLoadingView} from "../[token]/quote-loading-view";
+import {QuietAddressStep} from "../quiet-address-step";
+
+export type SandboxScreen = "preview" | "address" | "loading" | "price" | "review";
+
+const ESTIMATE_TOKEN = "dev-estimate";
+const BRAND = {
+  name: "All Season Solar",
+  logoUrl: "/brand/all-season-mark.svg",
+  phoneDisplay: "(856) 835-6022",
+  phoneHref: "tel:+18568356022",
+};
 
 const TOKEN = "dev-preview";
 // Neutral stand-in for the Google aerial; real imagery needs the preview API.
@@ -32,6 +45,11 @@ function installSandboxFetch() {
   const originalFetch = window.fetch.bind(window);
   window.fetch = async (input, init) => {
     const target = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    if (target.includes(`/api/roof-estimate/${ESTIMATE_TOKEN}/house-image`)) {
+      return new Response(decodeURIComponent(AERIAL_FIXTURE.slice(AERIAL_FIXTURE.indexOf(",") + 1)), {
+        headers: {"content-type": "image/svg+xml"},
+      });
+    }
     if (!target.includes(`/api/property-preview/${TOKEN}`)) return originalFetch(input, init);
     await new Promise((resolve) => window.setTimeout(resolve, 600));
     if (target.endsWith("/convert")) return new Response(null, {status: 503});
@@ -40,18 +58,33 @@ function installSandboxFetch() {
   };
 }
 
-export function PreviewSandbox() {
+export function PreviewSandbox({screen = "preview"}: {screen?: SandboxScreen}) {
   // Install the stub once, before the flow's first request.
   useState(() => {
     if (typeof window !== "undefined") installSandboxFetch();
   });
 
+  const address = VIEW.address.display;
+  if (screen === "address") {
+    return <QuietAddressStep brandName={BRAND.name} logoUrl={BRAND.logoUrl} turnstileSiteKey="1x00000000000000000000AA" />;
+  }
+  if (screen === "loading") return <QuoteLoadingView brand={BRAND} address={address} />;
+  if (screen === "price" || screen === "review") {
+    return (
+      <QuietEstimateView
+        token={ESTIMATE_TOKEN}
+        address={address}
+        brand={BRAND}
+        state={screen === "price" ? {kind: "ready", lowCents: 1_400_000, highCents: 2_100_000, roofSquares: 28} : {kind: "review"}}
+      />
+    );
+  }
   return (
     <PreviewExperience
       token={TOKEN}
       initialView={VIEW}
       context={getRoofAssessmentContext(VIEW.presentationKey)}
-      brandName="AllSeason Solar & Roofing"
+      brandName={BRAND.name}
       logoUrl="/brand/all-season-mark.svg"
       privacyUrl="#privacy"
       aerialLoader={async ({signal}) =>

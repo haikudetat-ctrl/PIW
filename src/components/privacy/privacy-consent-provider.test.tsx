@@ -6,6 +6,9 @@ import {
   usePrivacyConsent,
 } from "./privacy-consent-provider";
 
+const navigation = vi.hoisted(() => ({pathname: "/" as string | null}));
+vi.mock("next/navigation", () => ({usePathname: () => navigation.pathname}));
+
 const rejectedConsent: VerifiedConsent = {
   policyVersion: "piw-privacy-v1",
   consentId: "11111111-1111-4111-8111-111111111111",
@@ -363,5 +366,22 @@ describe("PrivacyConsentProvider", () => {
     expect(banner.compareDocumentPosition(form) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     fireEvent.click(screen.getByRole("button", {name: "Submit lead"}));
     expect(submit).toHaveBeenCalledOnce();
+  });
+
+  test("uses the minimal style only on the homeowner estimate pages", () => {
+    navigation.pathname = "/roof-estimate/p/token";
+    const {unmount} = render(<PrivacyConsentProvider initialConsent={null}><Probe /></PrivacyConsentProvider>);
+    expect(screen.getByRole("region", {name: "Privacy choices"}).className).toContain("privacy-quiet");
+    expect(screen.getByRole("button", {name: "Privacy choices"}).className).toContain("privacy-quiet");
+    expect(screen.getByRole("button", {name: "Accept"})).toBeTruthy();
+    expect(screen.getByRole("button", {name: "Decline"})).toBeTruthy();
+    expect(screen.getByRole("button", {name: "Choices"})).toBeTruthy();
+    unmount();
+
+    navigation.pathname = "/privacy";
+    render(<PrivacyConsentProvider initialConsent={null}><Probe /></PrivacyConsentProvider>);
+    expect(screen.getByRole("region", {name: "Privacy choices"}).className).not.toContain("privacy-quiet");
+    expect(screen.getByRole("button", {name: "Reject nonessential"})).toBeTruthy();
+    navigation.pathname = "/";
   });
 });

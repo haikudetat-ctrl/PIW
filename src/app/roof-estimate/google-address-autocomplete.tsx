@@ -48,8 +48,11 @@ export function GoogleAddressAutocomplete({
   apiKey,
   onSelect,
   onLoadError,
+  quiet = false,
 }: {
   apiKey: string;
+  /** Minimal white styling for the value-first preview's address step. */
+  quiet?: boolean;
   onSelect(value: { placeId: string; address: string }): void;
   onLoadError(): void;
 }) {
@@ -137,15 +140,16 @@ export function GoogleAddressAutocomplete({
     }
   }
 
+  const classes = quiet ? quietClasses : defaultClasses;
   return (
-    <label className={labelClasses}>
+    <label className={classes.label}>
       Property address
       {loading ? (
-        <div className="min-h-12 animate-pulse rounded-lg border border-border bg-surface-muted" aria-label="Loading Google address search" />
+        <div className={classes.loading} aria-label="Loading Google address search" />
       ) : (
         <div className="relative">
           <input
-            className={inputClasses}
+            className={classes.input}
             value={query}
             onChange={(event) => {
               setQuery(event.target.value);
@@ -158,14 +162,14 @@ export function GoogleAddressAutocomplete({
             aria-expanded={suggestions.length > 0}
             aria-controls="google-address-suggestions"
           />
-          {searching ? <span className="mt-2 block text-xs text-ink-subtle">Searching Google…</span> : null}
+          {searching ? <span className={classes.searching}>Searching Google…</span> : null}
           {suggestions.length > 0 ? (
-            <ul id="google-address-suggestions" role="listbox" className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-border bg-surface shadow-lg">
+            <ul id="google-address-suggestions" role="listbox" className={classes.list}>
               {suggestions.map((prediction) => {
                 const address = String(prediction.text);
                 return (
                   <li key={prediction.placeId} role="option" aria-selected="false">
-                    <button type="button" className="w-full px-4 py-3 text-left text-sm text-ink hover:bg-surface-muted focus:bg-surface-muted" onClick={() => select(prediction)}>
+                    <button type="button" className={classes.option} onClick={() => select(prediction)}>
                       {address}
                     </button>
                   </li>
@@ -175,9 +179,27 @@ export function GoogleAddressAutocomplete({
           ) : null}
         </div>
       )}
-      <span className="font-normal text-ink-subtle">Select the exact property from Google’s suggestions.</span>
+      <span className={classes.hint}>Select the exact property from Google’s suggestions.</span>
     </label>
   );
 }
 
-const labelClasses = "grid gap-2 text-sm font-medium text-ink";
+const defaultClasses = {
+  label: "grid gap-2 text-sm font-medium text-ink",
+  loading: "min-h-12 animate-pulse rounded-lg border border-border bg-surface-muted",
+  input: inputClasses,
+  searching: "mt-2 block text-xs text-ink-subtle",
+  list: "absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-border bg-surface shadow-lg",
+  option: "w-full px-4 py-3 text-left text-sm text-ink hover:bg-surface-muted focus:bg-surface-muted",
+  hint: "font-normal text-ink-subtle",
+};
+
+const quietClasses = {
+  label: "quiet-field",
+  loading: "quiet-input quiet-input-loading",
+  input: "quiet-input",
+  searching: "quiet-hint",
+  list: "quiet-suggestions",
+  option: "quiet-suggestion",
+  hint: "quiet-hint",
+};

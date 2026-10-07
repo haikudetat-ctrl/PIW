@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { QuietHeader } from "../p/[token]/quiet-header";
+import { QuietHeader } from "../quiet/quiet-header";
 import type {AssessmentAnalysisOutcome} from "@/modules/roof-assessment/analysis-telemetry";
 
 export const MINIMUM_ANALYSIS_MS = 8_000;

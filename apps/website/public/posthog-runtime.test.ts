@@ -29,7 +29,7 @@ describe("PostHog browser runtime", () => {
     expect((dom.window as Window & {posthog?: unknown}).posthog).toBeUndefined();
     consent(dom, true);
     emit("address_selected"); emit("campaign_form_contact_step"); emit("campaign_form_success");
-    const link = dom.window.document.createElement("a"); link.href = "tel:+18888325050";
+    const link = dom.window.document.createElement("a"); link.href = "tel:+18568356022";
     link.addEventListener("click", (event: Event) => event.preventDefault());
     dom.window.document.body.appendChild(link); link.click();
     const queue = (dom.window as Window & {posthog: unknown[][]}).posthog;

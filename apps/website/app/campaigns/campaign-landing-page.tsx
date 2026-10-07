@@ -29,7 +29,7 @@ export function CampaignLandingPage({campaign}: {campaign: CampaignDefinition}) 
           <Image src="/assets/all-season-sun.svg" alt="" width={48} height={48} />
           <span><strong>ALL SEASON</strong><small>Roofing &amp; Solar</small></span>
         </Link>
-        <a className="campaign-phone" href="tel:+18888325050"><small>Talk to a local specialist</small><strong>(888) 832-5050</strong></a>
+        <a className="campaign-phone" href="tel:+18568356022"><small>Talk to a local specialist</small><strong>(856) 835-6022</strong></a>
       </nav>
 
       <section className="campaign-hero" data-campaign={campaign.slug}>

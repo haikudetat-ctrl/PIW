@@ -8,8 +8,8 @@ import { createSupabasePreviewReadDependencies } from "@/modules/property-previe
 import { resolvePublicHost } from "@/modules/tenancy/public-host";
 import { createSupabasePublicHostLookup } from "@/modules/tenancy/supabase-public-host-lookup";
 import { PreviewExperience } from "./preview-experience";
-import { QuietHeader } from "./quiet-header";
-import "./preview-quiet.css";
+import { QuietHeader } from "../../quiet/quiet-header";
+import "../../quiet/quiet.css";
 
 export const dynamic = "force-dynamic";
 

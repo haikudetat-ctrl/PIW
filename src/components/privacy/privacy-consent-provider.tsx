@@ -11,6 +11,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
+import {usePathname} from "next/navigation";
 import type {ConsentPreferences, VerifiedConsent} from "@/modules/privacy/consent";
 import {PrivacyConsentBanner} from "./privacy-consent-banner";
 import "./privacy-consent.css";
@@ -109,6 +110,7 @@ export function usePrivacyConsent() {
 }
 
 export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsentProviderProps) {
+  const pathname = usePathname();
   const initialConsentId = initialConsent?.consentId ?? null;
   const initialPolicyVersion = initialConsent?.policyVersion ?? null;
   const [status, setStatus] = useState<ConsentStatus>(initialConsent ? "saved" : "unset");
@@ -331,6 +333,9 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
     authorizeAdvertising,
   };
   const saving = status === "saving";
+  // The homeowner estimate pages use the minimal white style throughout.
+  const quiet = pathname?.startsWith("/roof-estimate") ?? false;
+  const quietClass = quiet ? " privacy-quiet" : "";
 
   return (
     <PrivacyConsentContext.Provider value={value}>
@@ -349,16 +354,17 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
             source: gpcDefaultActive ? "gpc" : "banner",
           })}
           onCustomize={openPreferences}
+          quiet={quiet}
         />
       ) : null}
       {gpcDefaultActive && !dialogOpen ? (
-        <p className="privacy-consent-gpc-notice" role="status">
+        <p className={`privacy-consent-gpc-notice${quietClass}`} role="status">
           Global Privacy Control was detected, so Advertising remains off while it is active.
         </p>
       ) : null}
       <button
         type="button"
-        className="privacy-consent-reopen"
+        className={`privacy-consent-reopen${quietClass}`}
         aria-haspopup="dialog"
         onClick={openPreferences}
       >
@@ -366,7 +372,7 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
       </button>
       {children}
       {dialogOpen ? (
-        <div className="privacy-consent-dialog-backdrop">
+        <div className={`privacy-consent-dialog-backdrop${quietClass}`}>
           <div
             ref={dialogRef}
             className="privacy-consent-dialog"

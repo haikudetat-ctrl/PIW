@@ -47,7 +47,7 @@ test("keeps an unavailable estimate actionable and provider-neutral", () => {
 
   expect(screen.getByRole("link", { name: /call/i })).toHaveAttribute(
     "href",
-    "tel:+18888325050",
+    "tel:+18568356022",
   );
   expect(screen.queryByText(/Google Solar|API|pipeline|provider/i)).not.toBeInTheDocument();
 });
@@ -71,7 +71,7 @@ test("keeps manual review reassuring, actionable, and provider-neutral", () => {
   expect(screen.getByRole("heading", { name: /checking the property match/i })).toBeVisible();
   expect(screen.getByRole("link", { name: /call/i })).toHaveAttribute(
     "href",
-    "tel:+18888325050",
+    "tel:+18568356022",
   );
   expect(screen.queryByText(/Google Solar|API|pipeline|provider/i)).not.toBeInTheDocument();
 });

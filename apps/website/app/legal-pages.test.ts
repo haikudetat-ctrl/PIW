@@ -30,6 +30,6 @@ describe("public legal pages", () => {
     expect(html).toContain("hashed email address and phone number");
     expect(html).toContain("We do not send your property address, property imagery, assessment answers, roof measurements, quote amounts, or package selections");
     expect(html).toContain("withdraw or change your advertising choice");
-    expect(html).toContain("(888) 832-5050");
+    expect(html).toContain("(856) 835-6022");
   });
 });

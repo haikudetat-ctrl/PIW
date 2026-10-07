@@ -186,3 +186,182 @@
     scroll-behavior: auto;
   }
 }
+
+/*
+ * Minimal variant for the homeowner estimate pages (/roof-estimate): white,
+ * Helvetica, greys only, hairline dividers. All three choices stay equally
+ * prominent, and the copy is unchanged.
+ */
+.privacy-quiet {
+  --privacy-ink: rgb(0 0 0 / 0.7);
+  --privacy-grey: rgb(0 0 0 / 0.45);
+  --privacy-rule: rgb(0 0 0 / 0.3);
+  color: var(--privacy-ink);
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.privacy-consent-banner.privacy-quiet {
+  position: fixed;
+  z-index: 50;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  margin: 0;
+  padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
+  gap: 0.25rem 1.5rem;
+  align-items: center;
+  border: 0;
+  border-top: 1px solid var(--privacy-rule);
+  border-radius: 0;
+  background: rgb(255 255 255 / 0.96);
+  box-shadow: none;
+  backdrop-filter: saturate(180%) blur(12px);
+}
+
+/* Keep the page's last button reachable above the bar, and hide the
+   reopen link while the bar itself is showing. */
+body:has(.privacy-consent-banner.privacy-quiet) { padding-bottom: 7rem; }
+body:has(.privacy-consent-banner.privacy-quiet) .privacy-consent-reopen.privacy-quiet { display: none; }
+
+.privacy-consent-banner.privacy-quiet h2 {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.privacy-consent-banner.privacy-quiet p {
+  display: inline;
+  margin: 0;
+  color: var(--privacy-grey);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.privacy-consent-banner.privacy-quiet a {
+  margin-left: 0.375rem;
+  color: var(--privacy-grey);
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+
+.privacy-consent-banner.privacy-quiet .privacy-consent-error {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--privacy-ink);
+  font-weight: 500;
+}
+
+.privacy-consent-banner.privacy-quiet .privacy-consent-banner__actions {
+  flex: 0 0 auto;
+  gap: 1.25rem;
+}
+
+.privacy-quiet .privacy-consent-banner__actions button,
+.privacy-consent-reopen.privacy-quiet {
+  min-height: 2rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--privacy-ink);
+  font-size: 0.8125rem;
+  font-weight: 400;
+}
+
+.privacy-quiet .privacy-consent-banner__actions button:first-child { background: transparent; color: var(--privacy-ink); }
+
+.privacy-quiet .privacy-consent-banner__actions button:hover:not(:disabled) { text-decoration: underline; text-underline-offset: 3px; }
+
+.privacy-consent-reopen.privacy-quiet {
+  position: fixed;
+  z-index: 10;
+  right: 1rem;
+  bottom: 0.5rem;
+  margin: 0;
+  color: var(--privacy-grey);
+  font-size: 0.6875rem;
+}
+
+.privacy-consent-gpc-notice.privacy-quiet {
+  width: 100%;
+  margin: 0;
+  padding: 0.5rem 1rem;
+  border: 0;
+  border-bottom: 1px solid var(--privacy-rule);
+  border-radius: 0;
+  background: #fff;
+  color: var(--privacy-grey);
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+
+.privacy-consent-dialog-backdrop.privacy-quiet { background: rgb(255 255 255 / 0.85); }
+
+.privacy-quiet .privacy-consent-dialog {
+  border: 1px solid var(--privacy-rule);
+  border-radius: 0;
+  box-shadow: none;
+  color: var(--privacy-ink);
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+.privacy-quiet .privacy-consent-dialog h2 { font-size: 1.5rem; font-weight: 200; }
+
+.privacy-quiet .privacy-consent-dialog p { color: var(--privacy-grey); font-size: 0.875rem; }
+
+.privacy-quiet .privacy-consent-gpc { border-left: 0; background: transparent; font-weight: 400; }
+
+.privacy-quiet .privacy-consent-options { gap: 0; border-top: 1px solid var(--privacy-rule); }
+
+.privacy-quiet .privacy-consent-options label {
+  padding: 0.875rem 0;
+  border: 0;
+  border-bottom: 1px solid var(--privacy-rule);
+  border-radius: 0;
+  font-size: 0.875rem;
+}
+
+.privacy-quiet .privacy-consent-options strong { font-weight: 500; }
+
+.privacy-quiet .privacy-consent-options input { accent-color: #4d4d4d; }
+
+.privacy-quiet .privacy-consent-dialog__actions button {
+  min-height: 2.75rem;
+  padding: 0 1.25rem;
+  border: 1px solid var(--privacy-rule);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--privacy-ink);
+  font-weight: 400;
+}
+
+.privacy-quiet .privacy-consent-dialog__actions button:first-child {
+  border-color: #4d4d4d;
+  background: #4d4d4d;
+  color: #fff;
+}
+
+.privacy-quiet .privacy-consent-error { color: var(--privacy-ink); font-weight: 500; }
+
+.privacy-quiet button:focus-visible,
+.privacy-quiet a:focus-visible,
+.privacy-quiet input:focus-visible,
+.privacy-consent-reopen.privacy-quiet:focus-visible {
+  outline: 1px solid var(--privacy-ink);
+  outline-offset: 3px;
+}
+
+@media (max-width: 48rem) {
+  .privacy-consent-banner.privacy-quiet { align-items: stretch; }
+  .privacy-consent-banner.privacy-quiet .privacy-consent-banner__actions { display: flex; }
+}
+
+@media (min-width: 48.0625rem) {
+  body:has(.privacy-consent-banner.privacy-quiet) { padding-bottom: 4rem; }
+}
