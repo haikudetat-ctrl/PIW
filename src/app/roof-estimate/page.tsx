@@ -3,7 +3,7 @@ import { parseServerEnv } from "@/lib/env/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { resolvePublicHost } from "@/modules/tenancy/public-host";
 import { createSupabasePublicHostLookup } from "@/modules/tenancy/supabase-public-host-lookup";
-import { PreviewAddressForm } from "./preview-address-form";
+import { QuietAddressStep } from "./quiet-address-step";
 import { RoofEstimateForm } from "./roof-estimate-form";
 
 // The value-first address step needs the preview flag, a Turnstile site key,
@@ -17,11 +17,22 @@ async function previewAddressStep() {
     (await headers()).get("host"),
     createSupabasePublicHostLookup(createServiceClient()),
   ).catch(() => null);
-  return tenant ? {siteKey, brandName: tenant.brand.displayName} : null;
+  return tenant ? {siteKey, brandName: tenant.brand.displayName, logoUrl: tenant.brand.logoUrl} : null;
 }
 
 export default async function PublicRoofEstimatePage() {
   const preview = await previewAddressStep();
+  if (preview) {
+    return (
+      <QuietAddressStep
+        brandName={preview.brandName}
+        logoUrl={preview.logoUrl}
+        browserApiKey={process.env.GOOGLE_MAPS_BROWSER_API_KEY}
+        turnstileSiteKey={preview.siteKey}
+      />
+    );
+  }
+
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,#e9f1fb_0,transparent_38%),var(--color-page)] px-4 py-10 sm:py-16">
       <div className="mx-auto grid max-w-5xl gap-10 lg:grid-cols-[1fr_28rem] lg:items-center">
@@ -36,15 +47,7 @@ export default async function PublicRoofEstimatePage() {
           </ul>
         </section>
         <section className="rounded-2xl border border-border bg-surface p-6 shadow-[0_24px_70px_rgba(15,42,74,0.12)] sm:p-8">
-          {preview ? (
-            <PreviewAddressForm
-              browserApiKey={process.env.GOOGLE_MAPS_BROWSER_API_KEY}
-              turnstileSiteKey={preview.siteKey}
-              brandName={preview.brandName}
-            />
-          ) : (
-            <RoofEstimateForm browserApiKey={process.env.GOOGLE_MAPS_BROWSER_API_KEY} />
-          )}
+          <RoofEstimateForm browserApiKey={process.env.GOOGLE_MAPS_BROWSER_API_KEY} />
         </section>
       </div>
     </main>

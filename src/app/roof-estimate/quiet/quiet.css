@@ -287,3 +287,128 @@
 @media (min-width: 640px) {
   .quiet-logo { height: 1.125rem; }
 }
+
+/* Shared helpers for the address step and the estimate pages. */
+.quiet-link-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  text-decoration: none;
+}
+
+.quiet-cta + .quiet-cta { margin-top: 0.75rem; }
+
+.quiet-inline-link { display: inline-block; text-decoration: none; }
+
+.quiet-toggle { justify-self: start; margin-top: 0; }
+
+.quiet-hint { color: var(--quiet-grey); font-size: 0.8125rem; font-weight: 400; }
+
+.quiet-input-loading { display: block; background: rgb(0 0 0 / 0.03); }
+
+/* Google address suggestions: a plain list with hairline rows. */
+.quiet-field .relative { position: relative; }
+
+.quiet-suggestions {
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  right: 0;
+  margin: 0.25rem 0 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--quiet-rule);
+  background: #fff;
+}
+
+.quiet-suggestions li + li { border-top: 1px solid var(--quiet-rule); }
+
+.quiet-suggestion {
+  display: block;
+  width: 100%;
+  padding: 0.875rem 1rem;
+  border: 0;
+  background: #fff;
+  color: var(--quiet-ink);
+  font: inherit;
+  font-size: 0.9375rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.quiet-suggestion:hover,
+.quiet-suggestion:focus-visible { background: rgb(0 0 0 / 0.03); outline: none; }
+
+/* Estimate result: price in thin type, image caption, fine print. */
+.quiet-price {
+  margin-top: 1.5rem;
+  color: var(--quiet-ink);
+  font-size: clamp(2rem, 6vw, 3rem);
+  font-weight: 200;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.quiet-price span { color: var(--quiet-grey); }
+
+.quiet-aerial-figure { margin: 0; }
+
+.quiet-caption {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.625rem;
+  color: var(--quiet-grey);
+  font-size: 0.75rem;
+}
+
+.quiet-fine { margin-top: 1.5rem; }
+
+/* The satellite image's loading and unavailable states, restyled for white. */
+.quiet-aerial .campaign-property-media-state,
+.quiet-aerial .estimate-map-skeleton { background: #fff; }
+
+.quiet-aerial .campaign-property-media-message,
+.quiet-aerial .campaign-property-loading-label {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--quiet-grey);
+  font-weight: 400;
+}
+
+.quiet-aerial .campaign-property-media-heading {
+  color: var(--quiet-ink);
+  font-family: inherit;
+  font-weight: 400;
+}
+
+.quiet-aerial .campaign-property-media-link {
+  border-radius: 999px;
+  background: var(--quiet-ink);
+  color: #fff;
+}
+
+/* Indeterminate 1px progress while the measurement finishes. */
+.quiet-progress-indeterminate span {
+  width: 35%;
+  animation: quiet-progress-slide 1.6s ease-in-out infinite;
+}
+
+@keyframes quiet-progress-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(290%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .quiet-progress-indeterminate span { width: 66%; animation: none; }
+}
+
+.quiet-body > .quiet-inline-link { margin-top: 2rem; }
+
+@media (max-width: 420px) {
+  .quiet-secondary.quiet-cta { padding: 0 1rem; font-size: 0.875rem; }
+}

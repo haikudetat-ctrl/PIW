@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { inputClasses, labelClasses, primaryButtonClasses } from "@/components/ui/form";
 import { TurnstileWidget } from "@/components/turnstile/turnstile";
 import { PREVIEW_ADDRESS_SUBMIT_LABEL, propertyProcessingNotice } from "@/modules/property-preview/notices";
 import { GoogleAddressAutocomplete } from "./google-address-autocomplete";
@@ -68,14 +67,11 @@ export function PreviewAddressForm({
   }
 
   return (
-    <form onSubmit={submit} className="grid gap-5" aria-label="Roof preview request" noValidate>
-      <div className="grid gap-2">
-        <h2 className="text-lg font-semibold text-ink">Where is the roof?</h2>
-        <p className="text-sm leading-6 text-ink-muted">Enter the New Jersey address. You’ll see the roof from above in seconds.</p>
-      </div>
+    <form onSubmit={submit} className="quiet-form" aria-label="Roof preview request" noValidate>
       {!manual && browserApiKey ? (
         <GoogleAddressAutocomplete
           apiKey={browserApiKey}
+          quiet
           onLoadError={() => setManual(true)}
           onSelect={(value) => {
             setSelected(value.placeId ? value : null);
@@ -83,21 +79,21 @@ export function PreviewAddressForm({
           }}
         />
       ) : (
-        <div className="grid gap-4">
-          <label className={labelClasses}>Street address<input name="addressLine1" autoComplete="address-line1" required minLength={3} className={inputClasses} /></label>
-          <label className={labelClasses}>City<input name="city" autoComplete="address-level2" required minLength={2} className={inputClasses} /></label>
-          <label className={labelClasses}>ZIP code<input name="postalCode" autoComplete="postal-code" inputMode="numeric" pattern="[0-9]{5}(-[0-9]{4})?" required className={inputClasses} /></label>
-        </div>
+        <>
+          <label className="quiet-field">Street address<input name="addressLine1" autoComplete="address-line1" required minLength={3} className="quiet-input" /></label>
+          <label className="quiet-field">City<input name="city" autoComplete="address-level2" required minLength={2} className="quiet-input" /></label>
+          <label className="quiet-field">ZIP code<input name="postalCode" autoComplete="postal-code" inputMode="numeric" pattern="[0-9]{5}(-[0-9]{4})?" required className="quiet-input" /></label>
+        </>
       )}
       {browserApiKey ? (
-        <button type="button" className="w-fit text-sm font-semibold text-accent underline underline-offset-4" onClick={() => { setManual((value) => !value); setError(null); }}>
+        <button type="button" className="quiet-back quiet-toggle" onClick={() => { setManual((value) => !value); setError(null); }}>
           {manual ? "Use Google address search" : "Can’t find it? Enter the address manually"}
         </button>
       ) : null}
       <TurnstileWidget siteKey={turnstileSiteKey} action="property_preview" onToken={setTurnstileToken} resetKey={resetKey} />
-      <p data-testid="preview-address-notice" className="text-xs leading-5 text-ink-muted">{propertyProcessingNotice(brandName)}</p>
-      {error ? <p role="alert" className="rounded-md bg-danger-bg p-3 text-sm text-danger">{error}</p> : null}
-      <button type="submit" disabled={pending} className={`${primaryButtonClasses} min-h-11`}>
+      <p data-testid="preview-address-notice" className="quiet-notice">{propertyProcessingNotice(brandName)}</p>
+      {error ? <p role="alert" className="quiet-alert">{error}</p> : null}
+      <button type="submit" disabled={pending} className="quiet-submit">
         {pending ? "Finding your roof…" : PREVIEW_ADDRESS_SUBMIT_LABEL}
       </button>
     </form>

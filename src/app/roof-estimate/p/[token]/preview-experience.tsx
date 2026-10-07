@@ -21,8 +21,8 @@ import {
   type AssessmentOption,
 } from "../../[token]/assessment-questions";
 import "../../[token]/assessment.css";
-import "./preview-quiet.css";
-import { QuietHeader } from "./quiet-header";
+import "../../quiet/quiet.css";
+import { QuietHeader } from "../../quiet/quiet-header";
 
 type Stage = "loading" | "reveal" | "question" | "contact";
 type QuestionKey = "reason" | "roofAge" | "timeline";

@@ -14,6 +14,8 @@ import { EstimateWaitExperience } from "./estimate-wait-experience";
 import { PropertySatelliteImage } from "./property-satellite-image";
 import { getAssessmentCalculationState, getAssessmentResultCopy, selectPublicEstimateView } from "./public-estimate-flow";
 import { QuoteLoadingView } from "./quote-loading-view";
+import { QuietEstimateView } from "./quiet-estimate-view";
+import { loadQuietBrand } from "../quiet/quiet-brand";
 import { ResumeRequiredView } from "./resume-required-view";
 
 const money = new Intl.NumberFormat("en-US", {
@@ -150,14 +152,6 @@ export default async function RoofEstimateResultPage({
     priceFirst: Boolean(previewOrigin),
     refineRequested,
   });
-  const refineLink = view === "price_first" ? (
-    <a
-      href={`/roof-estimate/${token}?refine=1`}
-      className="mt-4 w-full rounded-2xl border border-slate-300 px-5 py-3.5 text-center text-sm font-bold text-slate-900 transition hover:border-slate-500 active:translate-y-px dark:border-slate-700 dark:text-slate-100"
-    >
-      Refine your estimate with 6 quick questions
-    </a>
-  ) : null;
   const assessmentCopy = view === "result" && assessmentRecommendation.success
     ? getAssessmentResultCopy(assessmentRecommendation.data)
     : null;
@@ -214,7 +208,30 @@ export default async function RoofEstimateResultPage({
     return (
       <>
         <EstimateStatusRefresh pending />
-        <QuoteLoadingView brand={roofEstimateBrand} address={address} />
+        <QuoteLoadingView brand={await loadQuietBrand()} address={address} />
+      </>
+    );
+  }
+
+  if (view === "price_first") {
+    return (
+      <>
+        <EstimateStatusRefresh pending={pending} />
+        <QuietEstimateView
+          token={token}
+          address={address}
+          brand={await loadQuietBrand()}
+          state={manualReview
+            ? {kind: "review"}
+            : ready
+              ? {
+                kind: "ready",
+                lowCents: estimate.range_low_cents!,
+                highCents: estimate.range_high_cents!,
+                roofSquares: Number(estimate.roof_squares),
+              }
+              : {kind: "received"}}
+        />
       </>
     );
   }
@@ -285,7 +302,6 @@ export default async function RoofEstimateResultPage({
                 >
                   {assessmentCopy?.cta ?? "Talk with a roofing specialist"}
                 </a>
-                {refineLink}
                 <p className="mt-5 text-xs leading-5 text-slate-500 dark:text-slate-400">
                   Preliminary sales estimate only. Decking, tear-off layers, access, permits, and field conditions can change the final proposal.
                 </p>
@@ -301,7 +317,6 @@ export default async function RoofEstimateResultPage({
                 <p className="mt-5 text-base leading-7 text-slate-600 dark:text-slate-300">
                   {assessmentCopy?.body ?? "We could not create a reliable instant range. A roofing professional can review the property and follow up."}
                 </p>
-                {refineLink}
                 {assessmentCopy ? (
                   <a
                     href={roofEstimateBrand.phoneHref}
