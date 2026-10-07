@@ -281,3 +281,9 @@
 @media (prefers-reduced-motion: reduce) {
   .quiet-stage, .quiet-progress span { transition: none; }
 }
+
+.quiet-logo { display: block; width: auto; height: 1rem; }
+
+@media (min-width: 640px) {
+  .quiet-logo { height: 1.125rem; }
+}

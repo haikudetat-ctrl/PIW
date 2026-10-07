@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { QuietHeader } from "../p/[token]/quiet-header";
 import type {AssessmentAnalysisOutcome} from "@/modules/roof-assessment/analysis-telemetry";
 
 export const MINIMUM_ANALYSIS_MS = 8_000;
@@ -39,7 +40,7 @@ export function AssessmentLoading({
     outcome: AssessmentAnalysisOutcome;
   }) => void;
   /** Plain white presentation for the value-first preview; timing is unchanged. */
-  quiet?: {brandName: string};
+  quiet?: {brandName: string; logoUrl?: string};
 }) {
   const [storedTiming, setTiming] = useState<LoadingTiming>(() => initialTiming(imageSrc));
   const timing = storedTiming.imageSrc === imageSrc ? storedTiming : initialTiming(imageSrc);
@@ -105,7 +106,7 @@ export function AssessmentLoading({
     return (
       <main className="quiet-flow">
         <div className="quiet-frame">
-          <header className="quiet-header">{quiet.brandName.toUpperCase()}</header>
+          <QuietHeader brandName={quiet.brandName} logoUrl={quiet.logoUrl} />
           <section className="quiet-body">
             <p className="quiet-step">Analysis in progress</p>
             <h1 className="quiet-question">Analyzing your property.</h1>

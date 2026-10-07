@@ -125,6 +125,11 @@ describe("assessment analysis loading", () => {
     expect(screen.getByText("ACME ROOFING")).toBeTruthy();
     expect(container.querySelector("img")).toBeNull();
     expect(screen.getByRole("status").textContent).toBe(assessmentLoadingStages[0]);
+    rerender(
+      <AssessmentLoading {...props} quiet={{brandName: "Acme Roofing", logoUrl: "/brand/acme.svg"}} onReady={onReady} />,
+    );
+    expect(screen.getByAltText("Acme Roofing").getAttribute("src")).toBe("/brand/acme.svg");
+    expect(container.querySelectorAll("img")).toHaveLength(1);
 
     rerender(
       <AssessmentLoading {...props} imageObjectUrl="blob:ready" quiet={{brandName: "Acme Roofing"}} onReady={onReady} />,

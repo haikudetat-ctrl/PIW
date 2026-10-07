@@ -51,7 +51,8 @@ export function PreviewSandbox() {
       token={TOKEN}
       initialView={VIEW}
       context={getRoofAssessmentContext(VIEW.presentationKey)}
-      brandName="All Season Roofing"
+      brandName="AllSeason Solar & Roofing"
+      logoUrl="/brand/all-season-mark.svg"
       privacyUrl="#privacy"
       aerialLoader={async ({signal}) =>
         createPreviewAerialLoader("ready")({imageSrc: AERIAL_FIXTURE, signal})}

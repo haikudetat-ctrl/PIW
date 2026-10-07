@@ -22,6 +22,7 @@ import {
 } from "../../[token]/assessment-questions";
 import "../../[token]/assessment.css";
 import "./preview-quiet.css";
+import { QuietHeader } from "./quiet-header";
 
 type Stage = "loading" | "reveal" | "question" | "contact";
 type QuestionKey = "reason" | "roofAge" | "timeline";
@@ -132,6 +133,7 @@ export function PreviewExperience({
   initialView,
   context,
   brandName,
+  logoUrl,
   privacyUrl,
   initialStage = "loading",
   aerialLoader = loadAssessmentAerial,
@@ -140,6 +142,7 @@ export function PreviewExperience({
   initialView: PreviewView;
   context: RoofAssessmentContext;
   brandName: string;
+  logoUrl?: string;
   privacyUrl: string;
   initialStage?: Stage;
   aerialLoader?: typeof loadAssessmentAerial;
@@ -269,12 +272,12 @@ export function PreviewExperience({
         imageObjectUrl={aerial.objectUrl}
         stages={context.loadingStages}
         onReady={() => setStage("reveal")}
-        quiet={{brandName}}
+        quiet={{brandName, logoUrl}}
       />
     );
   }
 
-  const quietHeader = <header className="quiet-header">{brandName.toUpperCase()}</header>;
+  const quietHeader = <QuietHeader brandName={brandName} logoUrl={logoUrl} />;
 
   if (stage === "question") {
     const question = QUESTIONS.find((item) => item.key === flow[questionIndex])!;
