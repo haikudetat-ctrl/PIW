@@ -6,6 +6,8 @@ type PrivacyConsentBannerProps = {
   onAcceptAll(): void;
   onRejectNonessential(): void;
   onCustomize(): void;
+  /** Minimal white style for the homeowner estimate pages. */
+  quiet?: boolean;
 };
 
 export function PrivacyConsentBanner({
@@ -14,9 +16,10 @@ export function PrivacyConsentBanner({
   onAcceptAll,
   onRejectNonessential,
   onCustomize,
+  quiet = false,
 }: PrivacyConsentBannerProps) {
   return (
-    <section className="privacy-consent-banner" aria-label="Privacy choices">
+    <section className={`privacy-consent-banner${quiet ? " privacy-quiet" : ""}`} aria-label="Privacy choices">
       <div className="privacy-consent-banner__copy">
         <h2>Your privacy choices</h2>
         <p>
