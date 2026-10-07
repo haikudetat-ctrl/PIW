@@ -50,6 +50,13 @@ function installSandboxFetch() {
         headers: {"content-type": "image/svg+xml"},
       });
     }
+    if (target.includes("/api/property-preview/address-suggestions")) {
+      const query = new URL(target, window.location.origin).searchParams.get("q") ?? "";
+      return Response.json({suggestions: [
+        {placeId: "dev-place-1", address: `${query} Harbor View Drive, Red Bank, NJ 07701, USA`},
+        {placeId: "dev-place-2", address: `${query} Harbor Road, Rumson, NJ 07760, USA`},
+      ]});
+    }
     if (!target.includes(`/api/property-preview/${TOKEN}`)) return originalFetch(input, init);
     await new Promise((resolve) => window.setTimeout(resolve, 600));
     if (target.endsWith("/convert")) return new Response(null, {status: 503});

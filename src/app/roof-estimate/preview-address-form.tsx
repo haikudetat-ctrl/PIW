@@ -3,20 +3,20 @@
 import { useState, type FormEvent } from "react";
 import { TurnstileWidget } from "@/components/turnstile/turnstile";
 import { PREVIEW_ADDRESS_SUBMIT_LABEL, propertyProcessingNotice } from "@/modules/property-preview/notices";
-import { GoogleAddressAutocomplete } from "./google-address-autocomplete";
+import { QuietAddressSearch } from "./quiet/quiet-address-search";
 
 // Value-first address step: only the address, under a property-processing
 // notice. Contact details come later, after the homeowner has seen their roof.
+// Google search is the default so the preview starts from a Google place ID;
+// manual entry is the fallback when search is unavailable or can't find it.
 export function PreviewAddressForm({
-  browserApiKey,
   turnstileSiteKey,
   brandName,
 }: {
-  browserApiKey?: string;
   turnstileSiteKey: string;
   brandName: string;
 }) {
-  const [manual, setManual] = useState(!browserApiKey);
+  const [manual, setManual] = useState(false);
   const [selected, setSelected] = useState<{placeId: string; address: string} | null>(null);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [resetKey, setResetKey] = useState(0);
@@ -68,11 +68,9 @@ export function PreviewAddressForm({
 
   return (
     <form onSubmit={submit} className="quiet-form" aria-label="Roof preview request" noValidate>
-      {!manual && browserApiKey ? (
-        <GoogleAddressAutocomplete
-          apiKey={browserApiKey}
-          quiet
-          onLoadError={() => setManual(true)}
+      {!manual ? (
+        <QuietAddressSearch
+          onUnavailable={() => setManual(true)}
           onSelect={(value) => {
             setSelected(value.placeId ? value : null);
             setError(null);
@@ -85,11 +83,9 @@ export function PreviewAddressForm({
           <label className="quiet-field">ZIP code<input name="postalCode" autoComplete="postal-code" inputMode="numeric" pattern="[0-9]{5}(-[0-9]{4})?" required className="quiet-input" /></label>
         </>
       )}
-      {browserApiKey ? (
-        <button type="button" className="quiet-back quiet-toggle" onClick={() => { setManual((value) => !value); setError(null); }}>
-          {manual ? "Use Google address search" : "Can’t find it? Enter the address manually"}
-        </button>
-      ) : null}
+      <button type="button" className="quiet-back quiet-toggle" onClick={() => { setManual((value) => !value); setError(null); }}>
+        {manual ? "Use Google address search" : "Can’t find it? Enter the address manually"}
+      </button>
       <TurnstileWidget siteKey={turnstileSiteKey} action="property_preview" onToken={setTurnstileToken} resetKey={resetKey} />
       <p data-testid="preview-address-notice" className="quiet-notice">{propertyProcessingNotice(brandName)}</p>
       {error ? <p role="alert" className="quiet-alert">{error}</p> : null}

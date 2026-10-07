@@ -305,11 +305,7 @@
 
 .quiet-hint { color: var(--quiet-grey); font-size: 0.8125rem; font-weight: 400; }
 
-.quiet-input-loading { display: block; background: rgb(0 0 0 / 0.03); }
-
 /* Google address suggestions: a plain list with hairline rows. */
-.quiet-field .relative { position: relative; }
-
 .quiet-suggestions {
   position: absolute;
   z-index: 20;
@@ -412,3 +408,6 @@
 @media (max-width: 420px) {
   .quiet-secondary.quiet-cta { padding: 0 1rem; font-size: 0.875rem; }
 }
+
+.quiet-search { position: relative; }
+.quiet-search .quiet-input { width: 100%; box-sizing: border-box; }

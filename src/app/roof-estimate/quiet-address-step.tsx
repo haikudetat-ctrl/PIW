@@ -6,12 +6,10 @@ import "./quiet/quiet.css";
 export function QuietAddressStep({
   brandName,
   logoUrl,
-  browserApiKey,
   turnstileSiteKey,
 }: {
   brandName: string;
   logoUrl?: string;
-  browserApiKey?: string;
   turnstileSiteKey: string;
 }) {
   return (
@@ -22,7 +20,7 @@ export function QuietAddressStep({
           <p className="quiet-step">Free roof preview</p>
           <h1 className="quiet-question">Where is the roof?</h1>
           <p className="quiet-lede">Enter the New Jersey address. You’ll see the roof from above in seconds.</p>
-          <PreviewAddressForm browserApiKey={browserApiKey} turnstileSiteKey={turnstileSiteKey} brandName={brandName} />
+          <PreviewAddressForm turnstileSiteKey={turnstileSiteKey} brandName={brandName} />
         </section>
       </div>
     </main>
