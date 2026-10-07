@@ -6,9 +6,15 @@ vi.mock("@/components/turnstile/turnstile", () => ({
     <button type="button" onClick={() => onToken("turnstile-token")}>Complete check</button>
   ),
 }));
-vi.mock("./google-address-autocomplete", () => ({
-  GoogleAddressAutocomplete: ({onSelect}: {onSelect(value: {placeId: string; address: string}): void}) => (
-    <button type="button" onClick={() => onSelect({placeId: "ChIJ-one", address: "1 Main St, Newark, NJ 07102, USA"})}>Pick address</button>
+vi.mock("./quiet/quiet-address-search", () => ({
+  QuietAddressSearch: ({onSelect, onUnavailable}: {
+    onSelect(value: {placeId: string; address: string}): void;
+    onUnavailable(): void;
+  }) => (
+    <>
+      <button type="button" onClick={() => onSelect({placeId: "ChIJ-one", address: "1 Main St, Newark, NJ 07102, USA"})}>Pick address</button>
+      <button type="button" onClick={onUnavailable}>Search unavailable</button>
+    </>
   ),
 }));
 
@@ -25,7 +31,7 @@ afterEach(() => {
 
 describe("PreviewAddressForm", () => {
   test("shows the property-processing notice naming the button, with no checkboxes", () => {
-    render(<PreviewAddressForm browserApiKey="maps" turnstileSiteKey="site" brandName="All Season Solar" />);
+    render(<PreviewAddressForm turnstileSiteKey="site" brandName="All Season Solar" />);
     expect(screen.getByTestId("preview-address-notice").textContent)
       .toBe("By clicking “See my roof,” you authorize All Season Solar to review this address using property records, maps, and imagery.");
     expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
@@ -35,7 +41,7 @@ describe("PreviewAddressForm", () => {
   test("creates a preview for the selected Google address and continues to it", async () => {
     const fetchMock = vi.fn(async () => Response.json({previewUrl: "https://estimate.allseasonroofingquote.com/roof-estimate/p/token"}, {status: 201}));
     vi.stubGlobal("fetch", fetchMock);
-    render(<PreviewAddressForm browserApiKey="maps" turnstileSiteKey="site" brandName="All Season Solar" />);
+    render(<PreviewAddressForm turnstileSiteKey="site" brandName="All Season Solar" />);
     fireEvent.click(screen.getByRole("button", {name: "Pick address"}));
     fireEvent.click(screen.getByRole("button", {name: "Complete check"}));
     fireEvent.click(screen.getByRole("button", {name: "See my roof"}));
@@ -52,7 +58,7 @@ describe("PreviewAddressForm", () => {
   test("requires a selected address before submitting", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
-    render(<PreviewAddressForm browserApiKey="maps" turnstileSiteKey="site" brandName="All Season Solar" />);
+    render(<PreviewAddressForm turnstileSiteKey="site" brandName="All Season Solar" />);
     fireEvent.click(screen.getByRole("button", {name: "See my roof"}));
     expect(await screen.findByRole("alert")).toBeTruthy();
     expect(fetchMock).not.toHaveBeenCalled();
@@ -61,7 +67,7 @@ describe("PreviewAddressForm", () => {
   test("submits a manual address without a Place ID", async () => {
     const fetchMock = vi.fn(async () => Response.json({previewUrl: "https://estimate.allseasonroofingquote.com/roof-estimate/p/token"}, {status: 201}));
     vi.stubGlobal("fetch", fetchMock);
-    render(<PreviewAddressForm browserApiKey="maps" turnstileSiteKey="site" brandName="All Season Solar" />);
+    render(<PreviewAddressForm turnstileSiteKey="site" brandName="All Season Solar" />);
     fireEvent.click(screen.getByRole("button", {name: "Can’t find it? Enter the address manually"}));
     fireEvent.change(screen.getByLabelText("Street address"), {target: {value: "12 Birch Street"}});
     fireEvent.change(screen.getByLabelText("City"), {target: {value: "Trenton"}});
@@ -79,11 +85,25 @@ describe("PreviewAddressForm", () => {
 
   test("asks the homeowner to try again after a failed check or rate limit", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => Response.json({error: "rate_limited"}, {status: 429})));
-    render(<PreviewAddressForm browserApiKey="maps" turnstileSiteKey="site" brandName="All Season Solar" />);
+    render(<PreviewAddressForm turnstileSiteKey="site" brandName="All Season Solar" />);
     fireEvent.click(screen.getByRole("button", {name: "Pick address"}));
     fireEvent.click(screen.getByRole("button", {name: "Complete check"}));
     fireEvent.click(screen.getByRole("button", {name: "See my roof"}));
     expect((await screen.findByRole("alert")).textContent).toMatch(/try again/i);
     expect(assign).not.toHaveBeenCalled();
+  });
+
+  test("starts in Google search with manual entry offered as a fallback", () => {
+    render(<PreviewAddressForm turnstileSiteKey="site" brandName="All Season Solar" />);
+    expect(screen.getByRole("button", {name: "Pick address"})).toBeTruthy();
+    expect(screen.queryByLabelText("Street address")).toBeNull();
+    expect(screen.getByRole("button", {name: "Can’t find it? Enter the address manually"})).toBeTruthy();
+  });
+
+  test("falls back to manual entry when Google search is unavailable", () => {
+    render(<PreviewAddressForm turnstileSiteKey="site" brandName="All Season Solar" />);
+    fireEvent.click(screen.getByRole("button", {name: "Search unavailable"}));
+    expect(screen.getByLabelText("Street address")).toBeTruthy();
+    expect(screen.getByRole("button", {name: "Use Google address search"})).toBeTruthy();
   });
 });
