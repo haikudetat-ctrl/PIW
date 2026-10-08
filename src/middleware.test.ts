@@ -46,7 +46,7 @@ describe("tenant estimate hosts", () => {
     return new NextRequest(`https://${host}${pathname}`, {headers: {host}});
   }
 
-  test.each(["/", "/login", "/leads", "/api/inngest", "/api/integrations/all-season/campaign-estimate"])(
+  test.each(["/", "/login", "/leads", "/api/inngest", "/api/integrations/all-season/campaign-estimate", "/api/privacy/consent/current"])(
     "returns 404 for %s on a tenant host",
     async (pathname) => {
       vi.stubEnv("PUBLIC_ESTIMATE_HOSTS", "estimate.allseasonroofingquote.com");
@@ -55,7 +55,7 @@ describe("tenant estimate hosts", () => {
     },
   );
 
-  test.each(["/roof-estimate/p/abc", "/api/property-preview/abc", "/privacy"])(
+  test.each(["/roof-estimate/p/abc", "/api/property-preview/abc", "/api/privacy/consent", "/privacy"])(
     "serves %s on a tenant host without a staff session lookup",
     async (pathname) => {
       vi.stubEnv("PUBLIC_ESTIMATE_HOSTS", "estimate.allseasonroofingquote.com");
