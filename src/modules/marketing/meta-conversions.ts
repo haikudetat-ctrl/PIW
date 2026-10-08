@@ -65,15 +65,15 @@ function canonicalEventSourceUrl(source: MetaDeliverySource): string {
 
   if (
     (source.eventName === "Lead" || source.eventName === "QualifiedLead")
-    && (url.hostname === "allseasonsolar.net" || url.hostname === "www.allseasonsolar.net")
+    && (url.hostname === "allseasonroofingquote.com" || url.hostname === "www.allseasonroofingquote.com")
   ) {
-    return "https://allseasonsolar.net/";
+    return "https://allseasonroofingquote.com/";
   }
   if (
     source.eventName === "AssessmentCompleted"
-    && url.hostname === "piw-sepia.vercel.app"
+    && url.hostname === "estimate.allseasonroofingquote.com"
   ) {
-    return "https://piw-sepia.vercel.app/roof-estimate";
+    return "https://estimate.allseasonroofingquote.com/roof-estimate";
   }
 
   throw new Error("Meta event source URL is not allowlisted");

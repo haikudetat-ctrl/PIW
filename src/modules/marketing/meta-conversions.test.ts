@@ -13,7 +13,7 @@ const fixture: MetaDeliverySource = {
   eventName: "QualifiedLead",
   eventId: "90000000-0000-4000-8000-000000000002",
   eventTime: "2026-09-01T12:00:00.000Z",
-  eventSourceUrl: "https://allseasonsolar.net/form/thank-you?lead=private",
+  eventSourceUrl: "https://allseasonroofingquote.com/form/thank-you?lead=private",
   email: " Chris@Example.COM ",
   phone: "(732) 555-0124",
   clientIpAddress: "203.0.113.10",
@@ -52,9 +52,10 @@ describe("Meta payload construction", () => {
       event_id: fixture.eventId,
       event_time: 1788264000,
       action_source: "website",
-      event_source_url: "https://allseasonsolar.net/",
+      event_source_url: "https://allseasonroofingquote.com/",
     });
-    expect(JSON.stringify(payload)).not.toMatch(
+    // The brand domain itself contains "roof"; it is asserted exactly above.
+    expect(JSON.stringify({ ...payload.data[0], event_source_url: undefined })).not.toMatch(
       /submitted_address|canonical_address|roof|price|package|answer/i,
     );
     expect(payload.data[0].user_data.em[0]).toMatch(/^[a-f0-9]{64}$/);
@@ -82,6 +83,23 @@ describe("Meta payload construction", () => {
       ...fixture,
       eventSourceUrl: "https://attacker.example/collect",
     })).toThrow(/event source/i);
+  });
+
+  test("reports assessments from the branded estimate host", () => {
+    expect(buildMetaCapiPayload({
+      ...fixture,
+      eventName: "AssessmentCompleted",
+      eventSourceUrl: "https://estimate.allseasonroofingquote.com/roof-estimate/private-token",
+    }).data[0].event_source_url).toBe("https://estimate.allseasonroofingquote.com/roof-estimate");
+  });
+
+  test.each([
+    ["QualifiedLead", "https://allseasonsolar.net/"],
+    ["AssessmentCompleted", "https://piw-sepia.vercel.app/roof-estimate"],
+    ["QualifiedLead", "https://estimate.allseasonroofingquote.com/roof-estimate"],
+  ] as const)("rejects %s from %s", (eventName, eventSourceUrl) => {
+    expect(() => buildMetaCapiPayload({ ...fixture, eventName, eventSourceUrl }))
+      .toThrow(/event source/i);
   });
 
   test.each([
@@ -425,7 +443,7 @@ describe("SupabaseMetaRepository", () => {
 
     await expect(repository.claim(fixture.deliveryId)).resolves.toEqual({
       ...fixture,
-      eventSourceUrl: "https://allseasonsolar.net/",
+      eventSourceUrl: "https://allseasonroofingquote.com/",
     });
     expect(order).toEqual(["claim", "contact"]);
     expect(contactQuery.select).toHaveBeenCalledWith(
