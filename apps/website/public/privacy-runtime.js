@@ -216,6 +216,24 @@
   function clearConsentSurface() {
     document.querySelectorAll("[data-all-season-privacy-gate], [data-all-season-privacy-banner], [data-all-season-privacy-reopen]")
       .forEach(function (node) { node.remove(); });
+    document.documentElement.classList.remove("all-season-privacy-pending");
+    document.documentElement.style.removeProperty("--all-season-privacy-bar-height");
+  }
+
+  // The bar is fixed to the bottom of the screen, so the page reserves its
+  // height while it shows and the bar never covers the last form button.
+  var barGate = null;
+  function measureBar() {
+    if (!barGate || !document.documentElement.contains(barGate)) return;
+    document.documentElement.style.setProperty("--all-season-privacy-bar-height", barGate.offsetHeight + "px");
+  }
+
+  function reserveBarSpace(gate) {
+    if (!barGate) window.addEventListener("resize", measureBar);
+    barGate = gate;
+    document.documentElement.classList.add("all-season-privacy-pending");
+    measureBar();
+    if (typeof window.requestAnimationFrame === "function") window.requestAnimationFrame(measureBar);
   }
 
   function errorMessage() {
@@ -234,27 +252,26 @@
     banner.setAttribute("role", "region");
 
     var copy = element("div", "all-season-privacy-copy");
-    copy.appendChild(element("p", "all-season-privacy-kicker", "Privacy choices"));
-    copy.appendChild(element("h2", "all-season-privacy-title", "Your privacy choices."));
-    copy.appendChild(element(
+    var body = element(
       "p",
       "all-season-privacy-body",
-      "With your permission, we use analytics to understand how our service is used and improve its performance, and advertising tools to measure and personalize ads. Allow both, reject all, or customize each choice. You can change your choices anytime in Privacy Choices.",
-    ));
-    var policy = element("a", "all-season-privacy-link", "Read our privacy policy");
+      "With your OK, we use cookies for analytics and advertising. Saying no won’t affect your quote. ",
+    );
+    var policy = element("a", "all-season-privacy-link", "Privacy policy");
     policy.href = "/privacy.html";
-    copy.appendChild(policy);
+    body.appendChild(policy);
+    copy.appendChild(body);
     var message = errorMessage();
     if (message) copy.appendChild(message);
 
     var actions = element("div", "all-season-privacy-actions");
-    var acceptAll = button("Allow analytics & advertising", function () { savePreferences({analytics: true, advertising: true}); }, "all-season-privacy-button all-season-privacy-secondary");
-    actions.appendChild(acceptAll);
-    actions.appendChild(button("Reject all", function () { savePreferences({analytics: false, advertising: false}); }, "all-season-privacy-button all-season-privacy-secondary"));
-    actions.appendChild(button("Customize", openDialog, "all-season-privacy-button all-season-privacy-quiet"));
+    actions.appendChild(button("Accept", function () { savePreferences({analytics: true, advertising: true}); }, "all-season-privacy-button all-season-privacy-decision"));
+    actions.appendChild(button("Decline", function () { savePreferences({analytics: false, advertising: false}); }, "all-season-privacy-button all-season-privacy-decision"));
+    actions.appendChild(button("Choices", openDialog, "all-season-privacy-button all-season-privacy-quiet"));
     banner.append(copy, actions);
     gate.appendChild(banner);
     document.body.prepend(gate);
+    reserveBarSpace(gate);
     return banner;
   }
 

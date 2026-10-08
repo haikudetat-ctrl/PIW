@@ -57,7 +57,7 @@ describe("static privacy runtime", () => {
     const fetch = vi.fn().mockResolvedValueOnce(Response.json({consent: null})).mockResolvedValue(Response.json({consent: granted}));
     dom.window.fetch = fetch;
     await boot(dom);
-    (Array.from(dom.window.document.querySelectorAll("button")) as HTMLButtonElement[]).find((button) => button.textContent === "Allow analytics & advertising")!.click();
+    (Array.from(dom.window.document.querySelectorAll("button")) as HTMLButtonElement[]).find((button) => button.textContent === "Accept")!.click();
     await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
     expect(JSON.parse(fetch.mock.calls[1][1].body)).toEqual({analytics: true, advertising: false, gpcDetected: true});
     expect(dom.window.document.querySelector('script[src*="facebook"]')).toBeNull();
@@ -90,7 +90,7 @@ describe("static privacy runtime", () => {
     const fetch = vi.fn().mockResolvedValueOnce(Response.json({consent: null})).mockResolvedValue(Response.json({consent: granted}));
     dom.window.fetch = fetch;
     await boot(dom);
-    (Array.from(dom.window.document.querySelectorAll("button")) as HTMLButtonElement[]).find((button) => button.textContent === "Allow analytics & advertising")!.click();
+    (Array.from(dom.window.document.querySelectorAll("button")) as HTMLButtonElement[]).find((button) => button.textContent === "Accept")!.click();
     await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
     expect(JSON.parse(fetch.mock.calls[1][1].body)).toEqual({analytics: true, advertising: true});
     await vi.waitFor(() => expect(dom.window.document.querySelector('script[src*="facebook"]')).not.toBeNull());
@@ -100,7 +100,7 @@ describe("static privacy runtime", () => {
     expect(existsSync(path.join(__dirname, "privacy-runtime.css"))).toBe(true);
   });
 
-  test("places undecided choices in normal page flow", async () => {
+  test("pins undecided choices to the bottom without blocking the page", async () => {
     const dom = runtimeDom();
     dom.window.fetch = vi.fn(async () => Response.json({consent: null})) as typeof dom.window.fetch;
 
@@ -109,9 +109,24 @@ describe("static privacy runtime", () => {
     const banner = dom.window.document.querySelector('[data-all-season-privacy-banner]');
     const gate = banner?.parentElement;
     const styles = readFileSync(path.join(__dirname, "privacy-runtime.css"), "utf8");
+    const gateRule = styles.match(/\.all-season-privacy-gate\s*\{[^}]*\}/)?.[0];
     expect(gate?.dataset.allSeasonPrivacyGate).toBe("true");
-    expect(styles.match(/\.all-season-privacy-gate\s*\{[^}]*\}/)?.[0]).toContain("position: relative");
-    expect(styles.match(/\.all-season-privacy-gate\s*\{[^}]*\}/)?.[0]).not.toContain("inset: 0");
+    expect(gateRule).toContain("position: fixed");
+    expect(gateRule).toContain("bottom: 0");
+    expect(gateRule).not.toContain("inset: 0");
+    expect(gateRule).not.toMatch(/[\s{;]top:/);
+    expect(dom.window.document.documentElement.classList.contains("all-season-privacy-pending")).toBe(true);
+  });
+
+  test("releases the reserved bar space once a choice is saved", async () => {
+    const dom = runtimeDom();
+    const declined = verifiedConsent(false);
+    dom.window.fetch = vi.fn().mockResolvedValueOnce(Response.json({consent: null})).mockResolvedValue(Response.json({consent: declined}));
+    await boot(dom);
+    (Array.from(dom.window.document.querySelectorAll("button")) as HTMLButtonElement[]).find((button) => button.textContent === "Decline")!.click();
+    await vi.waitFor(() => expect(dom.window.document.querySelector("[data-all-season-privacy-banner]")).toBeNull());
+    expect(dom.window.document.documentElement.classList.contains("all-season-privacy-pending")).toBe(false);
+    expect(dom.window.document.querySelector("[data-all-season-privacy-reopen]")).not.toBeNull();
   });
 
   test("keeps Meta and residual attribution cookies untouched until verified advertising consent", async () => {
@@ -337,7 +352,7 @@ describe("static privacy runtime", () => {
 
     await boot(dom);
     const customize = Array.from(dom.window.document.querySelectorAll("button")) as HTMLButtonElement[];
-    customize.find((button) => button.textContent === "Customize")?.click();
+    customize.find((button) => button.textContent === "Choices")?.click();
     dom.window.document.querySelector<HTMLInputElement>('input[name="advertising"]')?.click();
     const buttons = Array.from(dom.window.document.querySelectorAll("button")) as HTMLButtonElement[];
     buttons.find((button) => button.textContent === "Save preferences")?.click();
@@ -355,7 +370,7 @@ describe("static privacy runtime", () => {
 
     await boot(dom);
     const customize = (Array.from(dom.window.document.querySelectorAll("button")) as unknown as HTMLButtonElement[])
-      .find((button) => button.textContent === "Customize");
+      .find((button) => button.textContent === "Choices");
     customize?.dispatchEvent(new dom.window.MouseEvent("click", {bubbles: true}));
 
     const dialog = dom.window.document.querySelector('[role="dialog"][aria-modal="true"]');
@@ -373,8 +388,8 @@ describe("static privacy runtime", () => {
 
     await boot(dom);
     const customize = (Array.from(dom.window.document.querySelectorAll("button")) as unknown as HTMLButtonElement[])
-      .find((button) => button.textContent === "Customize");
-    if (!customize) throw new Error("Missing Customize control");
+      .find((button) => button.textContent === "Choices");
+    if (!customize) throw new Error("Missing Choices control");
     customize.focus();
     customize.dispatchEvent(new dom.window.MouseEvent("click", {bubbles: true}));
     const cancel = (Array.from(dom.window.document.querySelectorAll("button")) as unknown as HTMLButtonElement[])
@@ -393,7 +408,7 @@ describe("static privacy runtime", () => {
 
     await boot(dom);
     const customize = (Array.from(dom.window.document.querySelectorAll("button")) as unknown as HTMLButtonElement[])
-      .find((button) => button.textContent === "Customize");
+      .find((button) => button.textContent === "Choices");
     customize?.dispatchEvent(new dom.window.MouseEvent("click", {bubbles: true}));
     const save = (Array.from(dom.window.document.querySelectorAll("button")) as unknown as HTMLButtonElement[])
       .find((button) => button.textContent === "Save preferences");
@@ -417,7 +432,7 @@ describe("static privacy runtime", () => {
 
     await boot(dom);
     const customize = (Array.from(dom.window.document.querySelectorAll("button")) as unknown as HTMLButtonElement[])
-      .find((button) => button.textContent === "Customize");
+      .find((button) => button.textContent === "Choices");
     customize?.dispatchEvent(new dom.window.MouseEvent("click", {bubbles: true}));
     const save = (Array.from(dom.window.document.querySelectorAll("button")) as unknown as HTMLButtonElement[])
       .find((button) => button.textContent === "Save preferences");
