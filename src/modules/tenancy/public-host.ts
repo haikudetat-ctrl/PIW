@@ -32,9 +32,15 @@ const TENANT_PUBLIC_PREFIXES = [
   "/brand",
 ];
 
+// Exact routes only: the privacy banner on the estimate pages saves and reads
+// the visitor's choice here, while /api/privacy/consent/current stays a
+// server-to-server route for the website and is not served on tenant hosts.
+const TENANT_PUBLIC_EXACT_PATHS = new Set(["/api/privacy/consent"]);
+
 /** Routes a tenant host may serve. Everything else, including the staff app, is 404. */
 export function isTenantPublicPath(pathname: string) {
-  return TENANT_PUBLIC_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+  return TENANT_PUBLIC_EXACT_PATHS.has(pathname)
+    || TENANT_PUBLIC_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
 
 const httpsUrl = z.url().refine((value) => value.startsWith("https://"), "Must be an https URL");
