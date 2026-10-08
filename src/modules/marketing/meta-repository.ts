@@ -5,8 +5,8 @@ import type { MetaBrowserEventEnvelope, MetaDeliverySource } from "./meta-events
 import type { MetaDeliveryResult } from "./meta-conversions";
 
 const POLICY_VERSION = "piw-privacy-v1";
-const ALL_SEASON_SOURCE_URL = "https://allseasonsolar.net/";
-const PIW_ASSESSMENT_SOURCE_URL = "https://piw-sepia.vercel.app/roof-estimate";
+const ALL_SEASON_SOURCE_URL = "https://allseasonroofingquote.com/";
+const PIW_ASSESSMENT_SOURCE_URL = "https://estimate.allseasonroofingquote.com/roof-estimate";
 
 const metaEventNameSchema = z.enum(["Lead", "QualifiedLead", "AssessmentCompleted"]);
 const deliveryStatusSchema = z.enum([
