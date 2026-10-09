@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
+import { useMetaPixel } from "@/components/marketing/meta-pixel-provider";
 import type { RoofAssessmentContext } from "@/config/roof-assessment";
 import type { PreviewView } from "@/modules/property-preview/preview-read-model";
 import {
@@ -167,16 +168,20 @@ export function PreviewExperience({
     stage: stage === "loading" ? "loading" : stage === "reveal" ? "reveal" : "questions",
   });
 
+  const {trackConversion} = useMetaPixel();
+
   useEffect(() => {
     if (stage === "reveal" && !revealSent.current) {
       revealSent.current = true;
       beacon(token, "revealed");
+      // The homeowner is looking at their own roof: Meta's earliest intent signal.
+      trackConversion({name: "RoofPreviewStarted", eventId: view.metaEventId, issuedAt: new Date().toISOString()});
     }
     if (stage === "contact" && !contactSent.current) {
       contactSent.current = true;
       beacon(token, "contact_viewed");
     }
-  }, [stage, token]);
+  }, [stage, token, trackConversion, view.metaEventId]);
 
   // The Solar measurement usually lands within seconds of the preview being
   // created; keep the reveal current without making the homeowner wait.

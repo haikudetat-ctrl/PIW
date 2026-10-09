@@ -3,6 +3,7 @@ import {
   hashMetaValue,
   normalizeMetaEmail,
   normalizeMetaPhone,
+  roofPreviewStartedEventId,
 } from "./meta-events";
 
 describe("Meta identifier normalization", () => {
@@ -28,5 +29,21 @@ describe("Meta identifier normalization", () => {
     expect(() => normalizeMetaPhone("020 7946 0958", "GB" as "US")).toThrow(
       /country/i,
     );
+  });
+});
+
+describe("roofPreviewStartedEventId", () => {
+  const previewId = "22222222-2222-4222-8222-222222222222";
+
+  test("is a stable UUID that the Pixel accepts and that does not reveal the preview ID", () => {
+    const eventId = roofPreviewStartedEventId(previewId);
+    expect(eventId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(roofPreviewStartedEventId(previewId)).toBe(eventId);
+    expect(eventId).not.toContain(previewId.slice(0, 8));
+  });
+
+  test("differs between previews", () => {
+    expect(roofPreviewStartedEventId(previewId))
+      .not.toBe(roofPreviewStartedEventId("33333333-3333-4333-8333-333333333333"));
   });
 });

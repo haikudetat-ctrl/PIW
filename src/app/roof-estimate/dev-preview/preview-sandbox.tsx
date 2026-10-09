@@ -37,6 +37,8 @@ const VIEW: PreviewView = {
   savedEmail: false,
   campaign: null,
   presentationKey: "all-season-main",
+  // Fixed placeholder for the local sandbox.
+  metaEventId: "00000000-0000-4000-8000-000000000000",
 };
 
 // Development-only walkthrough of the value-first preview: simulated preview

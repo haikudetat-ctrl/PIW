@@ -47,7 +47,7 @@ function isCurrentEnvelope(
   envelope: MetaBrowserEventEnvelope | null | undefined,
 ): envelope is MetaBrowserEventEnvelope {
   if (!envelope || !isUuid(envelope.eventId)) return false;
-  if (envelope.name !== "Lead" && envelope.name !== "AssessmentCompleted") return false;
+  if (!["Lead", "AssessmentCompleted", "RoofPreviewStarted"].includes(envelope.name)) return false;
   const issuedAt = Date.parse(envelope.issuedAt);
   return !Number.isNaN(issuedAt) && Date.now() - issuedAt <= MAX_EVENT_AGE_MS;
 }
@@ -155,7 +155,7 @@ export function MetaPixelProvider({children, enabled}: {children: ReactNode; ena
       if (conversions.current.has(envelope.eventId)) return;
       const fbq = ensurePixel();
       if (envelope.name === "Lead") fbq("track", "Lead", {}, {eventID: envelope.eventId});
-      else fbq("trackCustom", "AssessmentCompleted", {}, {eventID: envelope.eventId});
+      else fbq("trackCustom", envelope.name, {}, {eventID: envelope.eventId});
       conversions.current.add(envelope.eventId);
     });
   }, [authorizeAdvertising]);

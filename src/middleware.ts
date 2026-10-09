@@ -1,6 +1,9 @@
 import { createServerClient } from "@supabase/ssr";
-import { NextResponse, type NextRequest } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/database.types";
+import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server";
 import { parseClientEnv } from "@/lib/env/client";
+import { recordEstimateArrival, shouldLogEstimateArrival } from "@/modules/marketing/estimate-arrivals";
 import { isTenantPublicPath, normalizeHost, parseTenantHosts } from "@/modules/tenancy/public-host";
 
 const PUBLIC_PATHS = [
@@ -25,15 +28,27 @@ export function isPublicPath(pathname: string) {
     || PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
 }
 
-export async function middleware(request: NextRequest) {
+function logEstimateArrival(request: NextRequest, host: string, event: NextFetchEvent | undefined) {
+  if (!event || !shouldLogEstimateArrival(request)) return;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !serviceKey) return;
+  // Dispatched after the response: a slow or failing insert never delays the page.
+  event.waitUntil(recordEstimateArrival(request, host, {
+    client: createClient<Database>(url, serviceKey, {auth: {persistSession: false, autoRefreshToken: false}}),
+    environment: process.env,
+  }));
+}
+
+export async function middleware(request: NextRequest, event?: NextFetchEvent) {
   // Tenant estimate hosts serve only the public estimate experience. They never
   // reach the staff app or its session handling, so a customer-branded domain
   // cannot expose PIW.
   const host = normalizeHost(request.headers.get("host"));
   if (host && parseTenantHosts(process.env.PUBLIC_ESTIMATE_HOSTS).has(host)) {
-    return isTenantPublicPath(request.nextUrl.pathname)
-      ? NextResponse.next({ request })
-      : new NextResponse(null, { status: 404 });
+    if (!isTenantPublicPath(request.nextUrl.pathname)) return new NextResponse(null, { status: 404 });
+    logEstimateArrival(request, host, event);
+    return NextResponse.next({ request });
   }
 
   // API routes authenticate themselves (Supabase session or Inngest signing
