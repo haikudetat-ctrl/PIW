@@ -21,4 +21,4 @@ Allow: /
 User-agent: CCBot
 Allow: /
 
-Sitemap: https://allseasonsolar.net/sitemap.xml
+Sitemap: https://allseasonroofingquote.com/sitemap.xml

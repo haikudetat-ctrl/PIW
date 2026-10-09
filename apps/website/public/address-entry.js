@@ -180,9 +180,9 @@
       var body = {
         address: address,
         google_place_id: placeId,
-        campaign: null,
+        campaign: legacyForm.getAttribute("data-campaign") || null,
         entry_point: entryPoint,
-        presentation_key: "all-season-main",
+        presentation_key: legacyForm.getAttribute("data-presentation-key") || "all-season-main",
         turnstile_token: state.token,
       };
       ATTRIBUTION_KEYS.forEach(function (key) { body[key] = params.get(key); });
