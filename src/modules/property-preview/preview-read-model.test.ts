@@ -1,4 +1,5 @@
 import { describe, expect, test, vi } from "vitest";
+import { roofPreviewStartedEventId } from "@/modules/marketing/meta-events";
 import { loadPreviewView, type PreviewReadDependencies } from "./preview-read-model";
 
 const scope = {companyId: "11111111-1111-4111-8111-111111111111", tokenHash: "a".repeat(64)};
@@ -45,6 +46,7 @@ describe("loadPreviewView", () => {
       savedEmail: false,
       campaign: "weather-report",
       presentationKey: "weather-report",
+      metaEventId: roofPreviewStartedEventId(row.id),
     });
     const serialized = JSON.stringify(view);
     for (const forbidden of ["40.7357", "-74.1724", "ChIJ", row.property_id, row.roof_insight_id, row.id]) {

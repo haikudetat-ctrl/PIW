@@ -1,4 +1,5 @@
 import { summarizeRoofForPreview, type RoofComplexity } from "@/domain/roof-complexity";
+import { roofPreviewStartedEventId } from "@/modules/marketing/meta-events";
 
 // What the public preview page may know. Never a price, contact data, lead or
 // row identifiers, coordinates, or the Place ID.
@@ -16,6 +17,8 @@ export type PreviewView = {
   savedEmail: boolean;
   campaign: string | null;
   presentationKey: string;
+  /** Derived one-way from the row ID; dedupes the RoofPreviewStarted Pixel event. */
+  metaEventId: string;
 };
 
 export type PreviewRow = {
@@ -95,5 +98,6 @@ export async function loadPreviewView(
     savedEmail: row.saved_email !== null,
     campaign: row.campaign,
     presentationKey: row.presentation_key,
+    metaEventId: roofPreviewStartedEventId(row.id),
   };
 }

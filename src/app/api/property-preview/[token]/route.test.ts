@@ -12,6 +12,7 @@ const view = {
   savedEmail: false,
   campaign: null,
   presentationKey: "all-season-main",
+  metaEventId: "88888888-8888-4888-8888-888888888888",
 };
 
 function request(host = "estimate.allseasonroofingquote.com") {

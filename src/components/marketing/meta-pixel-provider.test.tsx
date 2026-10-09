@@ -306,4 +306,30 @@ describe("PIW MetaPixelProvider", () => {
       {eventID: "66666666-6666-4666-8666-666666666666"},
     ));
   });
+  test("tracks RoofPreviewStarted as a custom event with its stable eventID", async () => {
+    state.advertising = true;
+    const fbq = vi.fn();
+    (window as Window & {fbq?: BrowserFbq}).fbq = fbq;
+    let trackConversion: ReturnType<typeof useMetaPixel>["trackConversion"] | undefined;
+    renderProvider((track) => {
+      trackConversion = track;
+    });
+    await waitFor(() => expect(trackConversion).toBeDefined());
+
+    const envelope = {
+      name: "RoofPreviewStarted" as const,
+      eventId: "77777777-7777-4777-8777-777777777777",
+      issuedAt: new Date().toISOString(),
+    };
+    trackConversion?.(envelope);
+    trackConversion?.(envelope);
+
+    await waitFor(() => expect(fbq).toHaveBeenCalledWith(
+      "trackCustom",
+      "RoofPreviewStarted",
+      {},
+      {eventID: "77777777-7777-4777-8777-777777777777"},
+    ));
+    expect(fbq.mock.calls.filter((call) => call[1] === "RoofPreviewStarted")).toHaveLength(1);
+  });
 });

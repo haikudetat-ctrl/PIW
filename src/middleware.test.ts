@@ -65,6 +65,25 @@ describe("tenant estimate hosts", () => {
     },
   );
 
+  test("schedules an arrival log for estimate page loads only, after the response", async () => {
+    vi.stubEnv("PUBLIC_ESTIMATE_HOSTS", "estimate.allseasonroofingquote.com");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://project.supabase.co");
+    vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "service-role-key");
+    // No salt configured, so the scheduled task returns before any network call.
+    vi.stubEnv("ARRIVAL_VISITOR_SALT", "");
+    vi.stubEnv("ALL_SEASON_INTAKE_SHARED_SECRET", "");
+    const event = {waitUntil: vi.fn()};
+
+    const page = await middleware(request("estimate.allseasonroofingquote.com", "/roof-estimate?utm_source=meta"), event as never);
+    expect(page.headers.get("x-middleware-next")).toBe("1");
+    expect(event.waitUntil).toHaveBeenCalledOnce();
+    await event.waitUntil.mock.calls[0][0];
+
+    await middleware(request("estimate.allseasonroofingquote.com", "/api/property-preview/abc"), event as never);
+    await middleware(request("estimate.allseasonroofingquote.com", "/login"), event as never);
+    expect(event.waitUntil).toHaveBeenCalledOnce();
+  });
+
   test("leaves the PIW host's API routes unchanged when tenant hosts are configured", async () => {
     vi.stubEnv("PUBLIC_ESTIMATE_HOSTS", "estimate.allseasonroofingquote.com");
     const response = await middleware(request("piw.example.com", "/api/inngest"));

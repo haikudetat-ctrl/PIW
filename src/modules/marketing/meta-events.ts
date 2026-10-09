@@ -2,8 +2,15 @@ import { createHash } from "node:crypto";
 
 export type MetaEventName = "Lead" | "QualifiedLead" | "AssessmentCompleted";
 
+/**
+ * Sent by the browser Pixel only. A roof preview has no lead, email or phone
+ * yet, so it has no Conversions API copy; it gives Meta an earlier, more
+ * frequent intent signal than Lead while ad sets are learning.
+ */
+export type MetaBrowserOnlyEventName = "RoofPreviewStarted";
+
 export type MetaBrowserEventEnvelope = {
-  name: MetaEventName;
+  name: MetaEventName | MetaBrowserOnlyEventName;
   eventId: string;
   issuedAt: string;
 };
@@ -56,4 +63,19 @@ export function normalizeMetaPhone(value: string, country: "US"): string {
 
 export function hashMetaValue(value: string): string {
   return createHash("sha256").update(value, "utf8").digest("hex");
+}
+
+/**
+ * Stable, UUID-shaped Meta event ID for a roof preview, so reloads of the same
+ * preview are deduplicated by Meta. One-way: the preview row ID never leaves the server.
+ */
+export function roofPreviewStartedEventId(previewId: string): string {
+  const hex = hashMetaValue(`roof-preview-started:${previewId}`);
+  return [
+    hex.slice(0, 8),
+    hex.slice(8, 12),
+    `8${hex.slice(13, 16)}`,
+    `${(8 | (Number.parseInt(hex[16], 16) & 3)).toString(16)}${hex.slice(17, 20)}`,
+    hex.slice(20, 32),
+  ].join("-");
 }

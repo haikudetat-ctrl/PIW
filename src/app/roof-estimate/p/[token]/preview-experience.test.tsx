@@ -4,6 +4,11 @@ import { getRoofAssessmentContext } from "@/config/roof-assessment";
 import type { PreviewView } from "@/modules/property-preview/preview-read-model";
 import { PreviewExperience } from "./preview-experience";
 
+const trackConversion = vi.fn();
+vi.mock("@/components/marketing/meta-pixel-provider", () => ({
+  useMetaPixel: () => ({trackConversion}),
+}));
+
 const token = "t".repeat(43);
 const context = getRoofAssessmentContext("for-every-season");
 const baseView: PreviewView = {
@@ -15,6 +20,7 @@ const baseView: PreviewView = {
   savedEmail: false,
   campaign: null,
   presentationKey: "all-season-main",
+  metaEventId: "88888888-8888-4888-8888-888888888888",
 };
 const readyAerial = vi.fn(async () => ({kind: "ready" as const, objectUrl: "blob:aerial"}));
 
@@ -53,6 +59,17 @@ function calls(path: string) {
 }
 
 describe("preview reveal", () => {
+  test("sends Meta the RoofPreviewStarted event once, with the preview's stable event ID", async () => {
+    trackConversion.mockClear();
+    renderPreview();
+    await screen.findByText("About 24 roofing squares");
+    await waitFor(() => expect(trackConversion).toHaveBeenCalledTimes(1));
+    expect(trackConversion.mock.calls[0][0]).toMatchObject({
+      name: "RoofPreviewStarted",
+      eventId: "88888888-8888-4888-8888-888888888888",
+    });
+  });
+
   test("shows the roof size and complexity without any price", async () => {
     renderPreview();
     expect(await screen.findByText("About 24 roofing squares")).toBeTruthy();
