@@ -142,7 +142,7 @@
           .forEach(function (key) { attribution[key] = params.get(key); });
         var body = Object.assign({
           submission_id: submissionId,
-          campaign: null,
+          campaign: form.dataset.campaign || null,
           presentation_key: String(form.dataset.presentationKey || ""),
           entry_point: String(form.dataset.entryPoint || ""),
           name: String(data.get("name") || "").trim(),
@@ -303,6 +303,21 @@
         card.append(avatar, body);
         return card;
       }
+      // Location pages list their town and neighborhood names; reviews that
+      // mention one move to the front, otherwise Google's order is kept.
+      function localReviewsFirst(reviews, matchList) {
+        var terms = String(matchList || "").split("|").map(function (term) {
+          return term.trim().toLowerCase();
+        }).filter(Boolean);
+        if (!terms.length) return reviews;
+        function mentionsTerm(review) {
+          var text = String(review.text || "").toLowerCase();
+          return terms.some(function (term) { return text.indexOf(term) !== -1; });
+        }
+        return reviews.filter(mentionsTerm).concat(reviews.filter(function (review) {
+          return !mentionsTerm(review);
+        }));
+      }
       fetch("/api/google-reviews", {headers: {accept: "application/json"}})
         .then(function (response) {
           if (!response.ok) throw new Error(String(response.status));
@@ -317,8 +332,9 @@
           }
           renderAttributions(data.attributions);
           if (!reviewsTrack || !reviewsViewport || !Array.isArray(data.reviews) || !data.reviews.length) return;
-          var cards = data.reviews.map(function (review) { return makeReviewCard(review, googleUrl); });
-          var duplicates = reduced ? [] : data.reviews.map(function (review) {
+          var ordered = localReviewsFirst(data.reviews, reviewsSection.dataset.reviewMatch);
+          var cards = ordered.map(function (review) { return makeReviewCard(review, googleUrl); });
+          var duplicates = reduced ? [] : ordered.map(function (review) {
             var duplicate = makeReviewCard(review, googleUrl);
             duplicate.setAttribute("aria-hidden", "true");
             duplicate.querySelectorAll("a").forEach(function (link) { link.tabIndex = -1; });

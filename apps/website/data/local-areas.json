@@ -1,0 +1,372 @@
+{
+  "counties": [
+    {
+      "name": "Atlantic",
+      "slug": "atlantic-county",
+      "summary": "Our home county. All Season works out of Galloway, so Atlantic County homes are the roofs our crews know best, from bayside neighborhoods that take the shore wind to wooded lots on the Pinelands side.",
+      "conditions": [
+        "Wind-driven rain and salt air near the bays, which test flashing, edges, and shingle seal strips",
+        "Pine needles and leaf litter in valleys and gutters on wooded lots",
+        "Summer heat that bakes undervented attics and shortens shingle life"
+      ],
+      "otherTowns": [
+        "Absecon",
+        "Linwood",
+        "Somers Point",
+        "Northfield",
+        "Pleasantville",
+        "Port Republic"
+      ],
+      "reviewTerms": [
+        "Atlantic County"
+      ]
+    },
+    {
+      "name": "Burlington",
+      "slug": "burlington-county",
+      "summary": "From the Route 73 and Route 38 suburbs to wooded lots at the edge of the Pinelands, Burlington County homes range from planned communities with HOA rules to older houses on large properties.",
+      "conditions": [
+        "HOA communities that may need shingle color and product details before work is approved",
+        "Mature trees over the roof on wooded lots, with debris in valleys and gutters",
+        "Roofs from the 1970s to 1990s building boom that are on their second or third replacement"
+      ],
+      "otherTowns": [
+        "Moorestown",
+        "Cinnaminson",
+        "Marlton",
+        "Delran",
+        "Lumberton",
+        "Shamong"
+      ],
+      "reviewTerms": [
+        "Burlington County"
+      ]
+    },
+    {
+      "name": "Camden",
+      "slug": "camden-county",
+      "summary": "Camden County suburbs hold some of South Jersey's most established neighborhoods, with mid-century ranches, split-levels, and colonials alongside newer townhome communities.",
+      "conditions": [
+        "Older homes with several layers of past roofing work underneath the current shingles",
+        "Low-slope additions and porch roofs that need a different system than the main roof",
+        "Tight lots where crew access, dumpster placement, and cleanup need planning"
+      ],
+      "otherTowns": [
+        "Haddonfield",
+        "Collingswood",
+        "Haddon Township",
+        "Berlin",
+        "Lindenwold",
+        "Pine Hill"
+      ],
+      "reviewTerms": [
+        "Camden County"
+      ]
+    },
+    {
+      "name": "Gloucester",
+      "slug": "gloucester-county",
+      "summary": "Gloucester County mixes fast-growing subdivisions with older homes in established towns, so roof age and the original build quality vary a lot from street to street.",
+      "conditions": [
+        "Builder-grade roofs on 1990s and 2000s subdivisions reaching the end of their life",
+        "Open, exposed lots where wind lifts shingles along ridges and edges",
+        "Attic ventilation that was never balanced when the house was built"
+      ],
+      "otherTowns": [
+        "Glassboro",
+        "Mantua",
+        "West Deptford",
+        "Woolwich",
+        "Harrison Township",
+        "Pitman"
+      ],
+      "reviewTerms": [
+        "Gloucester County"
+      ]
+    }
+  ],
+  "towns": [
+    {
+      "name": "Galloway",
+      "slug": "galloway-nj",
+      "county": "atlantic-county",
+      "intro": "All Season is based in Galloway, on South New York Road. When you call about a roof here, you're calling a neighbor.",
+      "places": [
+        "Smithville",
+        "Oceanville",
+        "Pomona",
+        "Cologne",
+        "Absecon Highlands"
+      ],
+      "notes": [
+        "Homes toward the bay in Oceanville take more wind and salt air than wooded lots near Pomona and Cologne, so edge metal and flashing get extra attention.",
+        "Many Galloway neighborhoods were built from the 1980s through the 2000s, which puts a lot of original roofs at or past replacement age.",
+        "Wooded lots drop pine needles into valleys and gutters, where they hold water against the shingles."
+      ],
+      "nearby": [
+        "egg-harbor-township-nj",
+        "hamilton-township-nj",
+        "hammonton-nj"
+      ]
+    },
+    {
+      "name": "Egg Harbor Township",
+      "slug": "egg-harbor-township-nj",
+      "county": "atlantic-county",
+      "intro": "Egg Harbor Township runs from bayside neighborhoods to newer subdivisions inland, and we work across all of it from our Galloway base.",
+      "places": [
+        "West Atlantic City",
+        "Scullville",
+        "Bargaintown",
+        "Cardiff",
+        "English Creek",
+        "Farmington"
+      ],
+      "notes": [
+        "Bayside homes in West Atlantic City and Scullville see more wind-driven rain, so we look closely at flashing, edges, and ridge caps.",
+        "Subdivisions from the 1990s and 2000s often have builder-grade shingles that are now wearing out.",
+        "Unbalanced attic ventilation is common and cooks shingles from underneath in summer."
+      ],
+      "nearby": [
+        "galloway-nj",
+        "hamilton-township-nj",
+        "hammonton-nj"
+      ]
+    },
+    {
+      "name": "Hamilton Township",
+      "slug": "hamilton-township-nj",
+      "county": "atlantic-county",
+      "intro": "From Mays Landing along the Great Egg Harbor River to the wooded developments around it, Hamilton Township roofs live under a lot of trees.",
+      "places": [
+        "Mays Landing",
+        "Mizpah",
+        "Laureldale"
+      ],
+      "notes": [
+        "Shade from pines and oaks keeps roofs damp, which encourages moss and algae streaking.",
+        "Needles and leaves collect in valleys and gutters and back water up under the shingles.",
+        "Branches over the roof scrape shingles in storms and should be part of the plan."
+      ],
+      "nearby": [
+        "egg-harbor-township-nj",
+        "galloway-nj",
+        "hammonton-nj"
+      ]
+    },
+    {
+      "name": "Hammonton",
+      "slug": "hammonton-nj",
+      "county": "atlantic-county",
+      "intro": "Hammonton, the Blueberry Capital of the World, has older homes around downtown and larger properties and farms on the outskirts.",
+      "places": [
+        "Downtown Hammonton"
+      ],
+      "notes": [
+        "Older homes near downtown can have several layers of roofing and decking that needs repair once the old roof comes off.",
+        "Farmhouses and outbuildings often need a different scope than the main house.",
+        "Chimneys on older homes are a common source of leaks and need proper flashing."
+      ],
+      "nearby": [
+        "hamilton-township-nj",
+        "galloway-nj",
+        "monroe-township-nj"
+      ]
+    },
+    {
+      "name": "Mount Laurel",
+      "slug": "mount-laurel-nj",
+      "county": "burlington-county",
+      "intro": "Mount Laurel has many planned communities from the 1970s through the 1990s, and plenty of those original roofs are due.",
+      "places": [
+        "Ramblewood",
+        "Larchmont",
+        "Holiday Village",
+        "Rancocas Woods"
+      ],
+      "notes": [
+        "HOA communities often require approval of shingle style and color, and we provide the product details you need for it.",
+        "Townhome rows share roof lines, so tying a new roof into a neighbor's needs care.",
+        "Many homes here are on a second or third roof, so we check the decking underneath."
+      ],
+      "nearby": [
+        "evesham-nj",
+        "medford-nj",
+        "cherry-hill-nj"
+      ]
+    },
+    {
+      "name": "Evesham",
+      "slug": "evesham-nj",
+      "county": "burlington-county",
+      "intro": "Evesham, including Marlton, has lake communities, established neighborhoods, and newer developments, each with its own roof questions.",
+      "places": [
+        "Marlton",
+        "Kings Grant",
+        "Marlton Lakes"
+      ],
+      "notes": [
+        "Lake communities like Kings Grant have heavy tree cover, with debris in valleys and gutters.",
+        "HOA rules in many neighborhoods mean shingle color and product details need to be approved first.",
+        "Larger two-story homes often have complex rooflines with many valleys and step flashing."
+      ],
+      "nearby": [
+        "mount-laurel-nj",
+        "medford-nj",
+        "voorhees-nj"
+      ]
+    },
+    {
+      "name": "Medford",
+      "slug": "medford-nj",
+      "county": "burlington-county",
+      "intro": "Medford runs from its historic village to wooded lots at the edge of the Pinelands, near Medford Lakes.",
+      "places": [
+        "Medford Village",
+        "Taunton Lakes",
+        "Medford Farms",
+        "Lake Pine"
+      ],
+      "notes": [
+        "Wooded lots mean shade, moss, and needles in valleys and gutters.",
+        "Older homes in and around the village can have layered roofs and decking that needs repair.",
+        "Large properties with detached garages and outbuildings can be planned in the same project."
+      ],
+      "nearby": [
+        "evesham-nj",
+        "mount-laurel-nj",
+        "voorhees-nj"
+      ]
+    },
+    {
+      "name": "Cherry Hill",
+      "slug": "cherry-hill-nj",
+      "county": "camden-county",
+      "intro": "Cherry Hill's neighborhoods are full of 1950s and 1960s ranches, split-levels, and colonials, many on their second or third roof.",
+      "places": [
+        "Barclay",
+        "Kingston",
+        "Erlton",
+        "Woodcrest",
+        "Old Orchard"
+      ],
+      "notes": [
+        "Older homes often have past layers and decking that needs repair, which we check before quoting.",
+        "Low-slope porch roofs and additions need a different system than the main shingle roof.",
+        "Mature street trees over the roof add debris and storm risk."
+      ],
+      "nearby": [
+        "voorhees-nj",
+        "mount-laurel-nj",
+        "gloucester-township-nj"
+      ]
+    },
+    {
+      "name": "Voorhees",
+      "slug": "voorhees-nj",
+      "county": "camden-county",
+      "intro": "Voorhees grew quickly from the 1970s through the 1990s, so many neighborhoods and townhome communities are due for new roofs at the same time.",
+      "places": [
+        "Kresson",
+        "Echelon",
+        "Ashland",
+        "Kirkwood"
+      ],
+      "notes": [
+        "Townhome communities often need the HOA involved and roof lines matched with neighbors.",
+        "Original roofs from the building boom are at or past the end of their life.",
+        "Two-story homes with complex rooflines need careful valley and step flashing work."
+      ],
+      "nearby": [
+        "cherry-hill-nj",
+        "gloucester-township-nj",
+        "evesham-nj"
+      ]
+    },
+    {
+      "name": "Gloucester Township",
+      "slug": "gloucester-township-nj",
+      "county": "camden-county",
+      "intro": "Gloucester Township in Camden County covers Blackwood, Sicklerville, and several other communities, with homes from many different decades.",
+      "places": [
+        "Blackwood",
+        "Sicklerville",
+        "Erial",
+        "Glendora",
+        "Chews Landing"
+      ],
+      "notes": [
+        "Housing ranges from older Blackwood homes to newer Sicklerville developments, so roof age varies widely.",
+        "Builder-grade roofs on newer subdivisions are reaching replacement age.",
+        "Attic ventilation is often unbalanced and shortens shingle life."
+      ],
+      "nearby": [
+        "washington-township-nj",
+        "voorhees-nj",
+        "deptford-nj"
+      ]
+    },
+    {
+      "name": "Washington Township",
+      "slug": "washington-township-nj",
+      "county": "gloucester-county",
+      "intro": "Washington Township in Gloucester County is a large residential township, with subdivisions built from the 1960s into the 2000s.",
+      "places": [
+        "Turnersville",
+        "Hurffville",
+        "Grenloch"
+      ],
+      "notes": [
+        "Roofs on subdivisions from the 1990s and 2000s are reaching the end of their life.",
+        "Open lots take wind along ridges and edges, so we check for lifted and creased shingles.",
+        "Older homes may have more than one layer to remove before the new roof goes on."
+      ],
+      "nearby": [
+        "deptford-nj",
+        "monroe-township-nj",
+        "gloucester-township-nj"
+      ]
+    },
+    {
+      "name": "Monroe Township",
+      "slug": "monroe-township-nj",
+      "county": "gloucester-county",
+      "intro": "Monroe Township, centered on Williamstown, mixes older homes, newer developments, and wooded lots.",
+      "places": [
+        "Williamstown",
+        "Cecil",
+        "Victory Lakes"
+      ],
+      "notes": [
+        "Newer developments have builder-grade roofs that are aging out.",
+        "Wooded lots leave debris in valleys and gutters and keep shaded roofs damp.",
+        "Older Williamstown homes can have layered roofing and decking repairs."
+      ],
+      "nearby": [
+        "washington-township-nj",
+        "hammonton-nj",
+        "gloucester-township-nj"
+      ]
+    },
+    {
+      "name": "Deptford",
+      "slug": "deptford-nj",
+      "county": "gloucester-county",
+      "intro": "Deptford Township has established neighborhoods and newer communities close to Route 55 and Route 42.",
+      "places": [
+        "Almonesson",
+        "Oak Valley"
+      ],
+      "notes": [
+        "Many mid-century and 1970s homes are on their second or third roof, so we check decking condition.",
+        "Low-slope sections over porches and additions need their own system.",
+        "Attic ventilation and bathroom fans that vent into the attic cause hidden damage."
+      ],
+      "nearby": [
+        "washington-township-nj",
+        "gloucester-township-nj",
+        "cherry-hill-nj"
+      ]
+    }
+  ]
+}
