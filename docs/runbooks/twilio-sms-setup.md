@@ -1,12 +1,12 @@
-# Twilio SMS setup — AllSeason Solar (All Season Roofing)
+# Twilio SMS setup — AllSeason Solar
 
 Two-way texting for PiW (estimate delivery, inspection scheduling, follow-ups and
 staff conversations) on a local 856 number, registered for US A2P 10DLC.
 
 Decisions (Oct 10, 2026):
 
-- Sender of record: **AllSeason Solar** only (direct customer, not ISV). Customers
-  see "All Season Roofing".
+- Sender of record: **AllSeason Solar** only (direct customer, not ISV). Texts
+  are signed "All Season Solar", matching the website and consent notices.
 - Brand: **Low-Volume Standard** (has an EIN, under 6,000 segments/day).
 - Number: one **local 856** number.
 - Campaign: one **Low-Volume Mixed** campaign: customer care, account
@@ -19,7 +19,7 @@ before paying. Every step marked **$** waits for explicit approval.
 
 | # | Step | Cost | Who | Wait |
 |---|------|------|-----|------|
-| 1 | Fix compliance gaps on the website (below) | free | PiW code | — |
+| 1 | Fix compliance gaps on the website (below) | free | PiW code | done in branch `compliance/sms-consent` (checkbox still open) |
 | 2 | Create Primary Customer Profile in Trust Hub for AllSeason Solar | free | Console | up to 72 h review |
 | 3 | **$** Buy one local 856 number with SMS capability | ~$1–2/mo per number | Console/API | instant |
 | 4 | Create Messaging Service "PiW – All Season"; add the number; enable Advanced Opt-Out; set inbound webhook and status callback to PiW (POST) | free | Console/API | — |
@@ -29,8 +29,8 @@ before paying. Every step marked **$** waits for explicit approval.
 | 8 | Test end to end with a staff phone, then enable for leads | per-message + carrier fees | — | — |
 
 Brand registration (step 5) must match IRS records exactly: legal name
-**AllSeason Solar**, EIN, and registered address. Enter "All Season Roofing" as the
-DBA/brand name. A mismatch is the most common cause of a failed brand.
+**AllSeason Solar**, EIN, and registered address. Use "All Season Solar" as the
+brand name customers see. A mismatch is the most common cause of a failed brand.
 
 ## Compliance gaps to fix before step 6
 
@@ -38,13 +38,12 @@ Campaign vetting reviews the website and the opt-in flow. Current state:
 
 - The estimate and preview disclosures already say texts are automated,
   frequency varies, message and data rates may apply, and Reply STOP.
-- **Missing:** "Reply HELP for help" and links to the Privacy Policy and SMS
-  Terms next to the disclosure.
-- **Missing:** the privacy policy has no SMS section. Carriers expect a line
-  that mobile numbers and opt-in data are not shared with or sold to third
-  parties or affiliates for marketing.
-- **Missing:** an SMS terms page (program name, what messages are sent,
-  frequency, rates, STOP/HELP, support contact).
+- **Done (`compliance/sms-consent`):** "Reply HELP for help" and a "Text
+  message terms" link next to every disclosure; disclosure versions bumped.
+- **Done:** privacy SMS section with the no-sharing clause (PIW
+  `/privacy#text-messages`, website `privacy.html#text-messages`).
+- **Done:** text message terms (website `terms.html#text-messages`; PIW-hosted
+  forms link to `/privacy#text-messages`).
 - **Recommended:** a separate, unchecked, optional SMS checkbox instead of
   consent by clicking Submit. Bundled consent is a frequent vetting rejection.
   Any wording change needs a new `disclosure_version` so stored consent evidence
@@ -57,8 +56,8 @@ Conversational.
 
 **Campaign description**
 
-> AllSeason Solar, doing business as All Season Roofing, is a residential roofing
-> company in southern New Jersey. We text homeowners who request a roof estimate
+> AllSeason Solar is a residential roofing and solar company in southern New
+> Jersey. We text homeowners who request a roof estimate
 > on our website or by phone. Messages deliver their preliminary estimate,
 > schedule and remind them of roof inspections, introduce the inspector, follow
 > up about the estimate they requested, and let our staff answer their questions
@@ -76,24 +75,27 @@ Conversational.
 
 **Sample messages**
 
-1. `All Season Roofing: Hi Maria, your roof estimate is ready: $14,200–$21,300 for about 28 squares. View it: https://allseasonroofingquote.com/roof-estimate/7f3c… Reply STOP to opt out.`
-2. `All Season Roofing: Riley Kane will inspect your roof Thu, Oct 15 at 10:30 AM. Reply C to confirm or R to reschedule. Reply STOP to opt out.`
-3. `All Season Roofing: Hi Maria, it's Jordan. Following up on your estimate. Any questions I can answer? Reply STOP to opt out.`
+1. `All Season Solar: Hi Maria, your roof estimate is ready: $14,200–$21,300 for about 28 squares. View it: https://allseasonroofingquote.com/roof-estimate/7f3c… Reply STOP to opt out.`
+2. `All Season Solar: Riley Kane will inspect your roof Thu, Oct 15 at 10:30 AM. Reply C to confirm or R to reschedule. Reply STOP to opt out.`
+3. `All Season Solar: Hi Maria, it's Jordan. Following up on your estimate. Any questions I can answer? Reply STOP to opt out.`
+
+Confirmed with the owner (Oct 10, 2026): HELP replies use (856) 835-6022, and
+staff record verbal consent in PiW before texting anyone who calls in.
 
 **Opt-in confirmation (Advanced Opt-Out, START/opt-in reply)**
 
-> All Season Roofing: You're subscribed to texts about your roof estimate and
+> All Season Solar: You're subscribed to texts about your roof estimate and
 > appointments. Msg frequency varies. Msg & data rates may apply. Reply HELP for
 > help, STOP to opt out.
 
 **HELP reply**
 
-> All Season Roofing: For help call (856) 835-6022 or visit
+> All Season Solar: For help call (856) 835-6022 or visit
 > allseasonroofingquote.com. Reply STOP to opt out.
 
 **STOP reply**
 
-> All Season Roofing: You're unsubscribed and won't receive more texts. Reply
+> All Season Solar: You're unsubscribed and won't receive more texts. Reply
 > START to resubscribe.
 
 **Message contents:** links yes; phone numbers yes; no age-gated content; no
