@@ -38,7 +38,7 @@ describe("buildPreviewConversionInput", () => {
       phone: "201-555-0100",
       source: "all-season-campaign",
       submittedAt: "2026-10-03T12:05:00.000Z",
-      disclosure_version: "all-season-campaign-estimate-v3",
+      disclosure_version: "all-season-campaign-estimate-v5",
       client_ip_address: "203.0.113.5",
       client_user_agent: "Mozilla/5.0",
       referrer: preview.referrer,

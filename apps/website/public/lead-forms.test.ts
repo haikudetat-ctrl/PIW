@@ -204,7 +204,8 @@ describe("embedded lead form", () => {
     const submitLabel = form.querySelector('button[type="submit"]')?.textContent ?? "";
 
     expect(form.querySelectorAll('input[type="checkbox"]')).toHaveLength(0);
-    expect(form.querySelector(".consent")?.textContent).toBe(`${tcpaNoticeText(submitLabel)} Privacy Policy`);
+    expect(form.querySelector(".consent")?.textContent).toBe(`${tcpaNoticeText(submitLabel)} Privacy Policy · Text message terms`);
+    expect(form.querySelector('.consent a[href="/terms.html#text-messages"]')).not.toBeNull();
   });
 
   test.each([
@@ -267,7 +268,8 @@ describe("quote drawer", () => {
 
     expect(form.querySelectorAll('input[type="checkbox"]')).toHaveLength(0);
     expect(form.querySelector(".as-quote-consent")?.textContent)
-      .toBe(`${tcpaNoticeText("Request my roof plan")} Privacy Policy`);
+      .toBe(`${tcpaNoticeText("Request my roof plan")} Privacy Policy · Text message terms`);
+    expect(form.querySelector('.as-quote-consent a[href="/terms.html#text-messages"]')).not.toBeNull();
     expect(form.querySelector(".as-quote-submit")?.textContent).toBe("Request my roof plan");
   });
 

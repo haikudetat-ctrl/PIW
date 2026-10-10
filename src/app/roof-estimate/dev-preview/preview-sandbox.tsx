@@ -96,6 +96,7 @@ export function PreviewSandbox({screen = "preview"}: {screen?: SandboxScreen}) {
       brandName={BRAND.name}
       logoUrl="/brand/all-season-mark.svg"
       privacyUrl="#privacy"
+      textTermsUrl="#text-messages"
       aerialLoader={async ({signal}) =>
         createPreviewAerialLoader("ready")({imageSrc: AERIAL_FIXTURE, signal})}
     />

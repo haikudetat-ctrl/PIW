@@ -55,6 +55,7 @@ export default async function PropertyPreviewPage({params}: {params: Promise<{to
       brandName={tenant.brand.displayName}
       logoUrl={tenant.brand.logoUrl}
       privacyUrl={tenant.brand.privacyUrl}
+      textTermsUrl={`${tenant.brand.termsUrl ?? tenant.brand.privacyUrl}#text-messages`}
     />
   );
 }

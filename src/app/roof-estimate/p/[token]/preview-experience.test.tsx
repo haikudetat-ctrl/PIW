@@ -33,6 +33,7 @@ function renderPreview(view: Partial<PreviewView> = {}, logoUrl?: string) {
       brandName="All Season Solar"
       logoUrl={logoUrl}
       privacyUrl="https://allseasonroofingquote.com/privacy.html"
+      textTermsUrl="https://allseasonroofingquote.com/terms.html#text-messages"
       initialStage="reveal"
       aerialLoader={readyAerial}
     />,
@@ -151,6 +152,9 @@ describe("preview contact step", () => {
     const notice = screen.getByTestId("preview-contact-notice");
     expect(notice.textContent).toContain("By clicking “Unlock my price,” you agree that All Season Solar may contact you");
     expect(notice.querySelector("a")?.getAttribute("href")).toBe("https://allseasonroofingquote.com/privacy.html");
+    expect(notice.textContent).toContain("Reply HELP for help or STOP to opt out.");
+    expect(notice.querySelectorAll("a")[1]?.getAttribute("href"))
+      .toBe("https://allseasonroofingquote.com/terms.html#text-messages");
     expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
     await waitFor(() => expect(calls("/progress").map(([, init]) => JSON.parse(String(init.body)))).toContainEqual({step: "contact_viewed"}));
   });

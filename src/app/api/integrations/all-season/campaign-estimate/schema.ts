@@ -28,12 +28,16 @@ export const allSeasonCampaignEstimateSchema = z.strictObject({
   submittedAt: z.iso.datetime({offset: true}),
   // v1 = consent checkboxes; v2 = passive notice where submitting is the
   // agreement; v3 = contact-only notice on the value-first preview flow (the
-  // property-processing notice was accepted at the address step). Older
-  // versions stay accepted while the website and PIW deploy separately.
+  // property-processing notice was accepted at the address step); v4 and v5
+  // are v2 and v3 with "Reply HELP for help" and the text-message terms link
+  // added for A2P 10DLC. Older versions stay accepted while the website and
+  // PIW deploy separately.
   disclosure_version: z.enum([
     "all-season-campaign-estimate-v1",
     "all-season-campaign-estimate-v2",
     "all-season-campaign-estimate-v3",
+    "all-season-campaign-estimate-v4",
+    "all-season-campaign-estimate-v5",
   ]),
   client_ip_address: z.union([z.ipv4(), z.ipv6()]),
   client_user_agent: z.string().trim().min(1).max(1000),

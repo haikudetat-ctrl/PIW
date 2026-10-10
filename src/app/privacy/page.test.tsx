@@ -26,6 +26,19 @@ describe("privacy notice", () => {
     );
   });
 
+  test("publishes the text-message terms carriers require for A2P 10DLC", () => {
+    render(<PrivacyPage />);
+
+    const section = screen.getByRole("region", {name: "Text messages"});
+    expect(section).toHaveAttribute("id", "text-messages");
+    expect(section).toHaveTextContent(/Message frequency varies\. Message and data rates may apply\./);
+    expect(section).toHaveTextContent(/Reply HELP for help or STOP/);
+    expect(section).toHaveTextContent(/Reply START to resume/);
+    expect(section).toHaveTextContent(
+      /do not sell, rent, or share your mobile number or text-message consent with\s+third parties or affiliates/,
+    );
+  });
+
   test("is available without authentication", () => {
     expect(isPublicPath("/privacy")).toBe(true);
   });

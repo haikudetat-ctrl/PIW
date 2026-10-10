@@ -136,6 +136,7 @@ export function PreviewExperience({
   brandName,
   logoUrl,
   privacyUrl,
+  textTermsUrl,
   initialStage = "loading",
   aerialLoader = loadAssessmentAerial,
 }: {
@@ -145,6 +146,7 @@ export function PreviewExperience({
   brandName: string;
   logoUrl?: string;
   privacyUrl: string;
+  textTermsUrl: string;
   initialStage?: Stage;
   aerialLoader?: typeof loadAssessmentAerial;
 }) {
@@ -341,7 +343,8 @@ export function PreviewExperience({
               </label>
               <p data-testid="preview-contact-notice" className="quiet-notice">
                 {contactOnlyNotice(brandName)}{" "}
-                <a href={privacyUrl}>Privacy Policy</a>
+                <a href={privacyUrl}>Privacy Policy</a>{" · "}
+                <a href={textTermsUrl}>Text message terms</a>
               </p>
               {contactError ? <p role="alert" className="quiet-alert">{contactError}</p> : null}
               <button type="submit" disabled={submitting} className="quiet-submit">

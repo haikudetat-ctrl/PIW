@@ -13,7 +13,7 @@ describe("preview notices", () => {
     expect(notice.startsWith("By clicking “Unlock my price,”")).toBe(true);
     expect(notice).toContain("autodialed calls, prerecorded or artificial voice messages, and automated texts");
     expect(notice).toContain("Consent is not required to purchase.");
-    expect(notice).toContain("Reply STOP to opt out.");
+    expect(notice).toContain("Reply HELP for help or STOP to opt out.");
     expect(notice).not.toMatch(/property records|imagery/);
   });
 });

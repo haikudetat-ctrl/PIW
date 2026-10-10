@@ -9,9 +9,9 @@ export function propertyProcessingNotice(brandName: string, submitLabel = PREVIE
   return `By clicking “${submitLabel},” you authorize ${brandName} to review this address using property records, maps, and imagery.`;
 }
 
-/** Contact step: calls, texts and email only (version all-season-campaign-estimate-v3). */
+/** Contact step: calls, texts and email only (version all-season-campaign-estimate-v5). */
 export function contactOnlyNotice(brandName: string, submitLabel = PREVIEW_CONTACT_SUBMIT_LABEL) {
-  return `By clicking “${submitLabel},” you agree that ${brandName} may contact you about this request by call, text, or email at the number and email you provided, including by autodialed calls, prerecorded or artificial voice messages, and automated texts. Consent is not required to purchase. Message frequency varies. Message and data rates may apply. Reply STOP to opt out.`;
+  return `By clicking “${submitLabel},” you agree that ${brandName} may contact you about this request by call, text, or email at the number and email you provided, including by autodialed calls, prerecorded or artificial voice messages, and automated texts. Consent is not required to purchase. Message frequency varies. Message and data rates may apply. Reply HELP for help or STOP to opt out.`;
 }
 
 export const PREVIEW_EMAIL_SUBMIT_LABEL = "Send my report";

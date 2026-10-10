@@ -59,7 +59,7 @@ describe("POST /api/property-preview/[token]/convert", () => {
     const [input] = d.process.mock.calls[0] as unknown as [{address: string; client_ip_address: string; attribution: {fbp: string | null}; disclosure_version: string}];
     expect(input.address).toBe("1 Main St, Newark, NJ 07102, USA");
     expect(input.client_ip_address).toBe("203.0.113.5");
-    expect(input.disclosure_version).toBe("all-season-campaign-estimate-v3");
+    expect(input.disclosure_version).toBe("all-season-campaign-estimate-v5");
     expect(input.attribution.fbp).toBeNull();
   });
 

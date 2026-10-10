@@ -4,7 +4,7 @@ import {FormEvent, useCallback, useRef, useState} from "react";
 import {AddressAutocomplete} from "./address-autocomplete";
 import {buildCampaignSubmission, type CampaignDefinition} from "./campaigns";
 import {useMetaPixel, type MetaBrowserEventEnvelope} from "../../components/meta-pixel-provider";
-import {PRIVACY_POLICY_HREF, tcpaNoticeText} from "../../lib/tcpa-notice";
+import {PRIVACY_POLICY_HREF, TEXT_MESSAGE_TERMS_HREF, tcpaNoticeText} from "../../lib/tcpa-notice";
 
 function track(event: string, campaign: string) {
   const detail = {event, campaign, page_path: window.location.pathname};
@@ -144,7 +144,8 @@ export function CampaignEstimateForm({campaign}: {campaign: CampaignDefinition})
         <label className="campaign-field"><span>Email</span><input name="email" type="email" inputMode="email" autoComplete="email" required /></label>
         <label className="campaign-field"><span>Mobile phone</span><input name="phone" type="tel" inputMode="tel" autoComplete="tel" required /></label>
         <p className="campaign-consent-notice">
-          {tcpaNoticeText(campaign.submitLabel)} <a href={PRIVACY_POLICY_HREF}>Privacy Policy</a>
+          {tcpaNoticeText(campaign.submitLabel)} <a href={PRIVACY_POLICY_HREF}>Privacy Policy</a>{" · "}
+          <a href={TEXT_MESSAGE_TERMS_HREF}>Text message terms</a>
         </p>
         <div className="campaign-form-actions">
           <button className="campaign-text-action" type="button" onClick={() => setStep(1)}>← Back</button>

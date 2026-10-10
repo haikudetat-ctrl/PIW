@@ -85,6 +85,33 @@ export default function PrivacyPage() {
           </p>
         </section>
 
+        <section id="text-messages" aria-labelledby="text-messages-heading">
+          <h2 id="text-messages-heading" className="text-2xl font-bold text-slate-950">
+            Text messages
+          </h2>
+          <p className="mt-3">
+            If you give us your mobile number with an estimate or appointment request,
+            AllSeason Solar &amp; Roofing may text you about that request: your estimate,
+            inspection scheduling and reminders, follow-up about the estimate you asked for,
+            and replies from our team. We do not send promotional texts. Consent to texts is
+            not required to purchase.
+          </p>
+          <p className="mt-3">
+            Message frequency varies. Message and data rates may apply. Reply HELP for help
+            or STOP at any time to stop texts; you will receive one confirmation and no
+            further texts. Reply START to resume. Carriers are not liable for delayed or
+            undelivered messages.
+          </p>
+          <p className="mt-3">
+            <strong>
+              We do not sell, rent, or share your mobile number or text-message consent with
+              third parties or affiliates for their marketing or promotional purposes.
+            </strong>{" "}
+            We share your number only with the service providers that deliver our messages,
+            and only so they can deliver them.
+          </p>
+        </section>
+
         <section aria-labelledby="contact-heading">
           <h2 id="contact-heading" className="text-2xl font-bold text-slate-950">Contact us</h2>
           <p className="mt-3">

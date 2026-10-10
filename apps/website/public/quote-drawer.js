@@ -3,7 +3,7 @@
 
   var API_URL = '/api/campaign-estimate';
   // Keep in sync with apps/website/lib/tcpa-notice.ts.
-  var TCPA_NOTICE = 'By clicking “{submitLabel},” you authorize All Season Solar to review this address using property records, maps, and imagery to prepare your estimate, and you agree that All Season Solar may contact you about this request by call, text, or email at the number and email you provided, including by autodialed calls, prerecorded or artificial voice messages, and automated texts. Consent is not required to purchase. Message frequency varies. Message and data rates may apply. Reply STOP to opt out.';
+  var TCPA_NOTICE = 'By clicking “{submitLabel},” you authorize All Season Solar to review this address using property records, maps, and imagery to prepare your estimate, and you agree that All Season Solar may contact you about this request by call, text, or email at the number and email you provided, including by autodialed calls, prerecorded or artificial voice messages, and automated texts. Consent is not required to purchase. Message frequency varies. Message and data rates may apply. Reply HELP for help or STOP to opt out.';
   var DISMISSED_KEY = 'all-season-quote-drawer-dismissed-v1';
   var DISMISS_FOR_MS = 7 * 24 * 60 * 60 * 1000;
   var root;
@@ -151,6 +151,10 @@
     var noticeLink = element('a', '', 'Privacy Policy');
     noticeLink.href = '/privacy.html';
     notice.appendChild(noticeLink);
+    notice.appendChild(document.createTextNode(' \u00b7 '));
+    var termsLink = element('a', '', 'Text message terms');
+    termsLink.href = '/terms.html#text-messages';
+    notice.appendChild(termsLink);
     form.appendChild(notice);
 
     var intentSignaled = false;

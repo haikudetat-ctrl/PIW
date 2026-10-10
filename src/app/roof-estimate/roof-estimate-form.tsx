@@ -112,7 +112,8 @@ export function RoofEstimateForm({ browserApiKey }: { browserApiKey?: string }) 
 
         <p className="text-xs leading-5 text-ink-muted">
           {roofEstimateTcpaNotice()}{" "}
-          <a href="/privacy" className="underline underline-offset-2">Privacy Policy</a>
+          <a href="/privacy" className="underline underline-offset-2">Privacy Policy</a>{" · "}
+          <a href="/privacy#text-messages" className="underline underline-offset-2">Text message terms</a>
         </p>
 
         <div className="grid grid-cols-[auto_1fr] gap-3">
