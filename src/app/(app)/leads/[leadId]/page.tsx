@@ -7,6 +7,8 @@ import { ParcelMap, type ParcelMapCandidate } from "./parcel-map";
 import { TaskList } from "./task-list";
 import { Card } from "@/components/ui/card";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
+import { primaryButtonClasses } from "@/components/ui/form";
+import { Icon } from "@/components/ui/icons";
 import { formatCurrency, formatDateTime, formatSource, humanize, sentenceCase } from "@/lib/format";
 
 const RESOLUTION_TONE: Record<string, BadgeTone> = {
@@ -25,12 +27,18 @@ function EvidenceItem({
   value: React.ReactNode;
 }) {
   return (
-    <div>
-      <dt className="text-xs font-medium tracking-wide text-ink-subtle uppercase">
-        {label}
-      </dt>
-      <dd className="mt-0.5 text-sm text-ink">{value ?? "—"}</dd>
+    <div className="flex items-baseline justify-between gap-4 border-b border-border py-2 last:border-b-0">
+      <dt className="shrink-0 text-[13px] text-ink-muted">{label}</dt>
+      <dd className="min-w-0 text-right text-[13px] font-medium break-words text-ink">{value ?? "—"}</dd>
     </div>
+  );
+}
+
+function EvidenceHeading({ id, children }: { id: string; children: React.ReactNode }) {
+  return (
+    <h3 id={id} className="text-[13px] font-semibold text-ink">
+      {children}
+    </h3>
   );
 }
 
@@ -164,240 +172,237 @@ export default async function LeadWorkspacePage({
   const resolutionStatus = lead.properties?.resolution_status ?? "unresolved";
 
   return (
-    <main className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold tracking-widest text-ink-subtle uppercase">
-            Lead workspace
-          </p>
-          <h1 className="mt-1 text-2xl font-bold text-ink">{lead.name}</h1>
-          <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-ink-muted">
-            <p>{lead.phone}</p>
-            <p>{lead.email}</p>
-            <p>Stage: {humanize(lead.stage)}</p>
+    <main className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="flex min-w-0 flex-col gap-5">
+        <nav aria-label="Breadcrumb" className="flex items-center gap-1 text-[13px]">
+          <Link href="/pipeline" className="text-tint hover:underline">Pipeline</Link>
+          <Icon name="chevronRight" size={14} className="text-ink-subtle" />
+          <span className="text-ink-muted">{lead.name}</span>
+        </nav>
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-ink-subtle">Lead workspace</p>
+            <div className="mt-0.5 flex flex-wrap items-center gap-3">
+              <h1 className="text-[28px] font-bold tracking-tight text-ink">{lead.name}</h1>
+              <Badge tone="info">Stage: {humanize(lead.stage)}</Badge>
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-[13px] text-ink-muted">
+              <a href={`tel:${lead.phone}`} className="inline-flex items-center gap-1.5 hover:text-ink">
+                <Icon name="phone" size={14} className="text-ink-subtle" />
+                {lead.phone}
+              </a>
+              <a href={`mailto:${lead.email}`} className="inline-flex items-center gap-1.5 hover:text-ink">
+                <Icon name="mail" size={14} className="text-ink-subtle" />
+                {lead.email}
+              </a>
+              <span className="inline-flex items-center gap-1.5">
+                <Icon name="route" size={14} className="text-ink-subtle" />
+                {lead.submitted_address}
+              </span>
+            </div>
           </div>
+          <Link href={`/leads/${lead.id}/dialer`} className={primaryButtonClasses}>
+            <Icon name="phone" size={14} />
+            Open Context Dialer
+          </Link>
         </div>
-        <Link
-          href={`/leads/${lead.id}/dialer`}
-          className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover"
-        >
-          Open Context Dialer
-        </Link>
-      </div>
 
-      {estimate ? (
-        <Card
-          title="Preliminary roof estimate"
-          ariaLabel="Preliminary roof estimate"
-          right={
-            <Badge tone={estimate.status === "ready" ? "success" : estimate.status === "pending" ? "info" : "warning"}>
-              {humanize(estimate.status)}
-            </Badge>
-          }
-        >
-          {estimate.status === "ready" ? (
-            <>
-              <p className="text-2xl font-bold text-ink">
-                {formatCurrency(estimate.range_low_cents)}–{formatCurrency(estimate.range_high_cents)}
-              </p>
-              <p className="mt-1 text-sm text-ink-muted">
-                {Number(estimate.roof_squares).toFixed(1)} roofing squares · {Math.round(Number(estimate.total_roof_sqft)).toLocaleString()} sq ft · NJ average pricing
-              </p>
-            </>
-          ) : (
-            <p className="text-sm text-ink-muted">
-              {estimate.failure_reason ?? "Google roof measurement is still processing."}
-            </p>
-          )}
-          <dl className="mt-5 grid gap-3 border-t border-border pt-4 sm:grid-cols-2">
-            {(deliveries ?? []).map((delivery) => (
-                <EvidenceItem
-                  key={delivery.channel}
-                label={`${delivery.channel} delivery`}
-                value={
-                  <span>
-                    {humanize(delivery.status)} · {delivery.destination}
-                    {delivery.sent_at ? ` · ${formatDateTime(delivery.sent_at)}` : ""}
-                    {delivery.failure_reason ? ` · ${delivery.failure_reason}` : ""}
-                  </span>
-                }
-              />
-            ))}
-          </dl>
-          <p role="note" className="mt-4 text-xs text-ink-subtle">
-            Preliminary range only. Confirm measurements, materials, access, decking, and permits before quoting.
-          </p>
-        </Card>
-      ) : null}
-
-      <Card
-        title="Property profile"
-        ariaLabel="Property profile"
-        right={<Badge tone={RESOLUTION_TONE[resolutionStatus]}>{humanize(resolutionStatus)}</Badge>}
-      >
-        <p className="text-sm text-ink-muted">
-          {lead.properties?.canonical_address ?? lead.submitted_address}
-        </p>
-
-        <div className="mt-5 grid gap-6 lg:grid-cols-3">
-          <section aria-labelledby="address-evidence-heading">
-            <h3
-              id="address-evidence-heading"
-              className="text-xs font-semibold tracking-wider text-ink uppercase"
-            >
-              Address evidence
-            </h3>
-            {address ? (
-              <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">
-                <EvidenceItem label="Validated address" value={address.canonical_address} />
-                <EvidenceItem label="Match method" value={sentenceCase(address.match_method)} />
-                <EvidenceItem label="Confidence" value={`${address.confidence}%`} />
-                <EvidenceItem label="Municipality" value={address.municipality} />
-                <EvidenceItem label="County" value={address.county} />
-                <EvidenceItem
-                  label="State / ZIP"
-                  value={[address.state_code, address.zip].filter(Boolean).join(" ")}
-                />
-                <EvidenceItem
-                  label="Observed"
-                  value={
-                    <time dateTime={address.created_at}>
-                      {formatDateTime(address.created_at)}
-                    </time>
-                  }
-                />
-              </dl>
+        {estimate ? (
+          <Card
+            title="Preliminary roof estimate"
+            ariaLabel="Preliminary roof estimate"
+            right={
+              <Badge tone={estimate.status === "ready" ? "success" : estimate.status === "pending" ? "info" : "warning"}>
+                {humanize(estimate.status)}
+              </Badge>
+            }
+          >
+            {estimate.status === "ready" ? (
+              <>
+                <p className="text-[32px] leading-tight font-semibold tracking-tight text-ink">
+                  {formatCurrency(estimate.range_low_cents)}–{formatCurrency(estimate.range_high_cents)}
+                </p>
+                <p className="mt-1 text-sm text-ink-muted">
+                  {Number(estimate.roof_squares).toFixed(1)} roofing squares · {Math.round(Number(estimate.total_roof_sqft)).toLocaleString()} sq ft · NJ average pricing
+                </p>
+              </>
             ) : (
-              <p className="mt-3 text-sm text-ink-subtle">
-                Address validation evidence is not yet available.
+              <p className="text-sm text-ink-muted">
+                {estimate.failure_reason ?? "Google roof measurement is still processing."}
               </p>
             )}
-          </section>
-
-          <section aria-labelledby="parcel-evidence-heading">
-            <h3
-              id="parcel-evidence-heading"
-              className="text-xs font-semibold tracking-wider text-ink uppercase"
-            >
-              Parcel evidence
-            </h3>
-            {parcel ? (
-              <>
-                <p className="mt-3 text-sm font-medium text-ink">
-                  Block {parcel.block} · Lot {parcel.lot}
-                </p>
-                <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">
-                  <EvidenceItem label="Qualifier" value={parcel.qualifier} />
-                  <EvidenceItem label="PAMS PIN" value={parcel.pams_pin} />
-                  <EvidenceItem label="Municipality" value={parcel.municipality_name} />
-                  <EvidenceItem label="County" value={parcel.county} />
-                  <EvidenceItem label="Property class" value={parcel.property_class} />
-                  <EvidenceItem label="Acreage" value={parcel.acreage} />
-                  <EvidenceItem label="Year built" value={parcel.year_built} />
-                  <EvidenceItem label="Land value" value={formatCurrency(parcel.land_value_cents)} />
+            <dl className="mt-4 grid gap-x-6 border-t border-border pt-2 sm:grid-cols-2">
+              {(deliveries ?? []).map((delivery) => (
                   <EvidenceItem
-                    label="Improvement value"
-                    value={formatCurrency(parcel.improvement_value_cents)}
+                    key={delivery.channel}
+                  label={`${delivery.channel} delivery`}
+                  value={
+                    <span>
+                      {humanize(delivery.status)} · {delivery.destination}
+                      {delivery.sent_at ? ` · ${formatDateTime(delivery.sent_at)}` : ""}
+                      {delivery.failure_reason ? ` · ${delivery.failure_reason}` : ""}
+                    </span>
+                  }
+                />
+              ))}
+            </dl>
+            <p role="note" className="mt-4 text-xs text-ink-subtle">
+              Preliminary range only. Confirm measurements, materials, access, decking, and permits before quoting.
+            </p>
+          </Card>
+        ) : null}
+
+        <Card
+          title="Property profile"
+          ariaLabel="Property profile"
+          right={<Badge tone={RESOLUTION_TONE[resolutionStatus]}>{humanize(resolutionStatus)}</Badge>}
+        >
+          <p className="text-sm text-ink-muted">
+            {lead.properties?.canonical_address ?? lead.submitted_address}
+          </p>
+
+          <div className="mt-4 grid gap-6 lg:grid-cols-3">
+            <section aria-labelledby="address-evidence-heading">
+              <EvidenceHeading id="address-evidence-heading">Address evidence</EvidenceHeading>
+              {address ? (
+                <dl className="mt-2">
+                  <EvidenceItem label="Validated address" value={address.canonical_address} />
+                  <EvidenceItem label="Match method" value={sentenceCase(address.match_method)} />
+                  <EvidenceItem label="Confidence" value={`${address.confidence}%`} />
+                  <EvidenceItem label="Municipality" value={address.municipality} />
+                  <EvidenceItem label="County" value={address.county} />
+                  <EvidenceItem
+                    label="State / ZIP"
+                    value={[address.state_code, address.zip].filter(Boolean).join(" ")}
                   />
-                  <EvidenceItem label="Net value" value={formatCurrency(parcel.net_value_cents)} />
-                  <EvidenceItem label="Building" value={parcel.building_description} />
-                  <EvidenceItem label="Units" value={parcel.dwelling_units} />
                   <EvidenceItem
                     label="Observed"
                     value={
-                      <time dateTime={parcel.created_at}>
-                        {formatDateTime(parcel.created_at)}
+                      <time dateTime={address.created_at}>
+                        {formatDateTime(address.created_at)}
                       </time>
                     }
                   />
                 </dl>
-              </>
-            ) : (
-              <p className="mt-3 text-sm text-ink-subtle">
-                Parcel details are not yet available.
-              </p>
-            )}
-          </section>
+              ) : (
+                <p className="mt-3 text-sm text-ink-subtle">
+                  Address validation evidence is not yet available.
+                </p>
+              )}
+            </section>
 
-          <section aria-labelledby="structure-evidence-heading">
-            <h3
-              id="structure-evidence-heading"
-              className="text-xs font-semibold tracking-wider text-ink uppercase"
-            >
-              Structure evidence
-            </h3>
-            {structure ? (
-              <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3">
-                <EvidenceItem label="Source" value={formatSource(structure.source)} />
-                <EvidenceItem
-                  label="Observed"
-                  value={
-                    <time dateTime={structure.created_at}>
-                      {formatDateTime(structure.created_at)}
-                    </time>
-                  }
-                />
-              </dl>
-            ) : (
-              <p className="mt-3 text-sm text-ink-subtle">
-                Structure details are not yet available.
-              </p>
-            )}
-          </section>
-        </div>
+            <section aria-labelledby="parcel-evidence-heading">
+              <EvidenceHeading id="parcel-evidence-heading">Parcel evidence</EvidenceHeading>
+              {parcel ? (
+                <>
+                  <p className="mt-3 text-sm font-medium text-ink">
+                    Block {parcel.block} · Lot {parcel.lot}
+                  </p>
+                  <dl className="mt-2">
+                    <EvidenceItem label="Qualifier" value={parcel.qualifier} />
+                    <EvidenceItem label="PAMS PIN" value={parcel.pams_pin} />
+                    <EvidenceItem label="Municipality" value={parcel.municipality_name} />
+                    <EvidenceItem label="County" value={parcel.county} />
+                    <EvidenceItem label="Property class" value={parcel.property_class} />
+                    <EvidenceItem label="Acreage" value={parcel.acreage} />
+                    <EvidenceItem label="Year built" value={parcel.year_built} />
+                    <EvidenceItem label="Land value" value={formatCurrency(parcel.land_value_cents)} />
+                    <EvidenceItem
+                      label="Improvement value"
+                      value={formatCurrency(parcel.improvement_value_cents)}
+                    />
+                    <EvidenceItem label="Net value" value={formatCurrency(parcel.net_value_cents)} />
+                    <EvidenceItem label="Building" value={parcel.building_description} />
+                    <EvidenceItem label="Units" value={parcel.dwelling_units} />
+                    <EvidenceItem
+                      label="Observed"
+                      value={
+                        <time dateTime={parcel.created_at}>
+                          {formatDateTime(parcel.created_at)}
+                        </time>
+                      }
+                    />
+                  </dl>
+                </>
+              ) : (
+                <p className="mt-3 text-sm text-ink-subtle">
+                  Parcel details are not yet available.
+                </p>
+              )}
+            </section>
 
-        {mapCandidates.length > 0 ? (
-          <section aria-labelledby="property-map-heading" className="mt-6 border-t border-border pt-5">
-            <h3
-              id="property-map-heading"
-              className="text-xs font-semibold tracking-wider text-ink uppercase"
-            >
-              Property map
-            </h3>
-            <div className="mt-3">
-              <ParcelMap candidates={mapCandidates} />
-            </div>
-          </section>
-        ) : null}
-        {parcel ? (
-          <p role="note" className="mt-3 text-xs text-ink-subtle">
-            Parcel geometry and public-record data are analytical aids and are not a legal
-            survey, appraisal, or title report.
-          </p>
-        ) : null}
-      </Card>
+            <section aria-labelledby="structure-evidence-heading">
+              <EvidenceHeading id="structure-evidence-heading">Structure evidence</EvidenceHeading>
+              {structure ? (
+                <dl className="mt-2">
+                  <EvidenceItem label="Source" value={formatSource(structure.source)} />
+                  <EvidenceItem
+                    label="Observed"
+                    value={
+                      <time dateTime={structure.created_at}>
+                        {formatDateTime(structure.created_at)}
+                      </time>
+                    }
+                  />
+                </dl>
+              ) : (
+                <p className="mt-3 text-sm text-ink-subtle">
+                  Structure details are not yet available.
+                </p>
+              )}
+            </section>
+          </div>
 
-      {lead.notes ? (
-        <Card title="Notes" ariaLabel="Notes">
-          <p className="text-sm text-ink">{lead.notes}</p>
+          {mapCandidates.length > 0 ? (
+            <section aria-labelledby="property-map-heading" className="mt-6 border-t border-border pt-5">
+              <EvidenceHeading id="property-map-heading">Property map</EvidenceHeading>
+              <div className="mt-3">
+                <ParcelMap candidates={mapCandidates} />
+              </div>
+            </section>
+          ) : null}
+          {parcel ? (
+            <p role="note" className="mt-3 text-xs text-ink-subtle">
+              Parcel geometry and public-record data are analytical aids and are not a legal
+              survey, appraisal, or title report.
+            </p>
+          ) : null}
         </Card>
-      ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <TaskList leadId={leadId} tasks={tasks ?? []} />
-        <InteractionList leadId={leadId} interactions={interactions ?? []} />
+        {lead.notes ? (
+          <Card title="Notes" ariaLabel="Notes">
+            <p className="text-sm text-ink">{lead.notes}</p>
+          </Card>
+        ) : null}
+
       </div>
 
-      <Card title="Activity" ariaLabel="Activity">
-        {timeline.length > 0 ? (
-          <ul className="flex flex-col divide-y divide-border">
-            {timeline.map((item, index) => (
-              <li key={index} className="py-2 text-sm text-ink first:pt-0 last:pb-0">
-                <span>
-                  {item.kind === "stage_change"
-                    ? `${item.fromStage ? humanize(item.fromStage) : "—"} → ${humanize(item.toStage)}`
-                    : `${humanize(item.interactionType)}: ${item.summary}`}
-                </span>{" "}
-                <span className="text-ink-subtle">
-                  ({formatDateTime(item.occurredAt)})
-                </span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-sm text-ink-subtle">No activity has been recorded.</p>
-        )}
-      </Card>
+      <aside aria-label="Lead activity" className="flex min-w-0 flex-col gap-5 xl:sticky xl:top-6">
+        <TaskList leadId={leadId} tasks={tasks ?? []} />
+        <InteractionList leadId={leadId} interactions={interactions ?? []} />
+        <Card title="Activity" ariaLabel="Activity">
+          {timeline.length > 0 ? (
+            <ul className="flex flex-col">
+              {timeline.map((item, index) => (
+                <li key={index} className="flex gap-2.5 py-1.5 text-[13px] text-ink">
+                  <span
+                    aria-hidden
+                    className={`mt-1.5 size-[7px] shrink-0 rounded-full ${item.kind === "stage_change" ? "bg-tint" : "bg-ink-subtle"}`}
+                  />
+                  <span>
+                    {item.kind === "stage_change"
+                      ? `${item.fromStage ? humanize(item.fromStage) : "—"} → ${humanize(item.toStage)}`
+                      : `${humanize(item.interactionType)}: ${item.summary}`}{" "}
+                    <span className="text-ink-subtle">({formatDateTime(item.occurredAt)})</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-ink-subtle">No activity has been recorded.</p>
+          )}
+        </Card>
+      </aside>
     </main>
   );
 }

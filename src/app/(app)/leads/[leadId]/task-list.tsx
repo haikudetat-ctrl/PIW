@@ -69,9 +69,9 @@ export function TaskList({ leadId, tasks }: { leadId: string; tasks: Task[] }) {
           "use server";
           await createTask(leadId, formData);
         }}
-        className="mt-4 flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-end"
+        className="mt-4 flex flex-col gap-3 border-t border-border pt-4"
       >
-        <label className={`${labelClasses} flex-1`}>
+        <label className={labelClasses}>
           New task
           <input name="title" required className={inputClasses} />
         </label>

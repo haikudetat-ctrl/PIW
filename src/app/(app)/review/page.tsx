@@ -19,10 +19,10 @@ export default async function ReviewQueuePage() {
     <main className="flex flex-col gap-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold tracking-widest text-ink-subtle uppercase">
+          <p className="text-xs font-semibold text-ink-subtle">
             Property identity
           </p>
-          <h1 className="mt-1 text-2xl font-bold text-ink">Review queue</h1>
+          <h1 className="mt-1 text-[28px] font-bold tracking-tight text-ink">Review queue</h1>
         </div>
         <p className="text-sm text-ink-muted">{tasks?.length ?? 0} open</p>
       </div>
