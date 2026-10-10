@@ -39,7 +39,7 @@ export default async function AccessRoutePage() {
       <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="text-sm font-medium text-accent">Owner / marketing overview</p>
-          <h1 className="text-2xl font-bold text-ink">Lead-to-job access route</h1>
+          <h1 className="text-[28px] font-bold tracking-tight text-ink">Lead-to-job access route</h1>
           <p className="mt-1 max-w-3xl text-sm text-ink-subtle">
             Read-only visibility across LeadConduit, LeadMaster, and JobNimbus. Raw vendor states remain separate until their mappings are confirmed.
           </p>
@@ -63,7 +63,7 @@ export default async function AccessRoutePage() {
         <Card title="Funnel by source" ariaLabel="Funnel by lead source">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[38rem] text-left text-sm">
-              <thead className="border-b border-border text-xs uppercase tracking-wide text-ink-subtle">
+              <thead className="border-b border-border text-xs text-ink-subtle">
                 <tr>
                   <th className="pb-2 font-medium">Source</th>
                   {FUNNEL_STAGES.map((stage) => <th key={stage} className="pb-2 text-right font-medium">{stage}</th>)}

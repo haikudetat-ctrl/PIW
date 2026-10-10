@@ -9,7 +9,7 @@ import { formatCurrency, formatDateTime, humanize } from "@/lib/format";
 function Fact({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
-      <dt className="text-xs font-semibold tracking-wide text-ink-subtle uppercase">
+      <dt className="text-xs font-semibold text-ink-subtle">
         {label}
       </dt>
       <dd className="mt-1 text-sm text-ink">{value ?? "—"}</dd>
@@ -152,7 +152,7 @@ export default async function ContextDialerPage({
     <main className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold tracking-widest text-ink-subtle uppercase">
+          <p className="text-xs font-semibold text-ink-subtle">
             Context Dialer
           </p>
           <h1 className="mt-1 text-3xl font-bold text-ink">{lead.name}</h1>
@@ -206,7 +206,7 @@ export default async function ContextDialerPage({
           </dl>
           {lead.notes ? (
             <div className="mt-5 border-t border-border pt-4">
-              <p className="text-xs font-semibold tracking-wide text-ink-subtle uppercase">Lead notes</p>
+              <p className="text-xs font-semibold text-ink-subtle">Lead notes</p>
               <p className="mt-2 text-sm leading-6 text-ink">{lead.notes}</p>
             </div>
           ) : null}

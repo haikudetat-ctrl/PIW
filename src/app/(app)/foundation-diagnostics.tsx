@@ -36,19 +36,19 @@ export function FoundationDiagnostics() {
     <Card title="Foundation diagnostics" ariaLabel="Foundation diagnostics">
       <dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
         <div>
-          <dt className="text-xs text-ink-subtle uppercase">Authentication</dt>
+          <dt className="text-xs text-ink-subtle">Authentication</dt>
           <dd className="mt-0.5 text-sm font-medium text-ink">OK</dd>
         </div>
         <div>
-          <dt className="text-xs text-ink-subtle uppercase">Database</dt>
+          <dt className="text-xs text-ink-subtle">Database</dt>
           <dd className="mt-0.5 text-sm font-medium text-ink">Connected</dd>
         </div>
         <div>
-          <dt className="text-xs text-ink-subtle uppercase">Event relay</dt>
+          <dt className="text-xs text-ink-subtle">Event relay</dt>
           <dd className="mt-0.5 text-sm font-medium text-ink">Configured</dd>
         </div>
         <div>
-          <dt className="text-xs text-ink-subtle uppercase">Last diagnostic</dt>
+          <dt className="text-xs text-ink-subtle">Last diagnostic</dt>
           <dd className="mt-0.5 text-sm font-medium text-ink">{lastDiagnosticLabel}</dd>
         </div>
       </dl>
