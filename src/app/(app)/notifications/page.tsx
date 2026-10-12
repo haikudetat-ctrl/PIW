@@ -13,7 +13,7 @@ export default async function NotificationsPage() {
 
   return (
     <main className="flex flex-col gap-6">
-      <h1 className="text-2xl font-bold text-ink">Notifications</h1>
+      <h1 className="text-[28px] font-bold tracking-tight text-ink">Notifications</h1>
 
       <ul className="flex flex-col divide-y divide-border overflow-hidden rounded-lg border border-border bg-surface">
         {(notifications ?? []).map((notification) => (

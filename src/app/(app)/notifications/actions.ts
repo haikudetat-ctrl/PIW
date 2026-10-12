@@ -11,6 +11,6 @@ export async function markNotificationRead(notificationId: string) {
     .eq("id", notificationId);
 
   // "layout" also revalidates the shared (app) layout — and its
-  // NotificationsBell — on every route, not just /notifications.
+  // sidebar's unread count — on every route, not just /notifications.
   revalidatePath("/notifications", "layout");
 }

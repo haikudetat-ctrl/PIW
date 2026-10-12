@@ -88,13 +88,13 @@ export function JobNimbusConnectionPanel() {
         {importState.importResult ? (
           <dl className="grid gap-3 border-t border-border pt-4 sm:grid-cols-2">
             <div>
-              <dt className="text-xs font-medium uppercase tracking-wide text-ink-subtle">Contacts</dt>
+              <dt className="text-xs font-medium text-ink-subtle">Contacts</dt>
               <dd className="mt-1 text-sm text-ink">
                 {importState.importResult.contactsSeen} seen · {importState.importResult.contactsWritten} written
               </dd>
             </div>
             <div>
-              <dt className="text-xs font-medium uppercase tracking-wide text-ink-subtle">Jobs</dt>
+              <dt className="text-xs font-medium text-ink-subtle">Jobs</dt>
               <dd className="mt-1 text-sm text-ink">
                 {importState.importResult.jobsSeen} seen · {importState.importResult.jobsWritten} written
               </dd>

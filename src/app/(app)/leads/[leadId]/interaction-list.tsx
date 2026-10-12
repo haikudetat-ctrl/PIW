@@ -37,7 +37,7 @@ export function InteractionList({
           "use server";
           await logInteraction(leadId, formData);
         }}
-        className="mt-4 flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-end"
+        className="mt-4 flex flex-col gap-3 border-t border-border pt-4"
       >
         <label className={labelClasses}>
           Type
@@ -49,7 +49,7 @@ export function InteractionList({
             ))}
           </select>
         </label>
-        <label className={`${labelClasses} flex-1`}>
+        <label className={labelClasses}>
           Summary
           <input name="summary" required className={inputClasses} />
         </label>

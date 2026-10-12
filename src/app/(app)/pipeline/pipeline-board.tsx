@@ -1,80 +1,98 @@
-import { leadStages, type LeadStage } from "@/modules/leads/change-lead-stage";
+import Link from "next/link";
 import { humanize } from "@/lib/format";
-import { moveLeadStage } from "./actions";
+import {
+  CLOSED_STAGES,
+  OPEN_STAGES,
+  formatCompactCurrency,
+  type PipelineCard,
+} from "@/modules/leads/pipeline-view";
+import { EstimateText, NextStepText, StageMenu } from "./pipeline-parts";
 
-type BoardLead = { id: string; name: string; submitted_address: string; stage: LeadStage };
+function stageValue(cards: PipelineCard[]): string | null {
+  const high = cards.reduce(
+    (sum, card) => sum + (card.estimate.kind === "ready" ? card.estimate.highCents : 0),
+    0,
+  );
+  return high > 0 ? formatCompactCurrency(high) : null;
+}
 
-const selectClasses =
-  "w-full rounded-md border border-border-strong bg-surface px-2 py-1 text-xs text-ink outline-none focus:border-accent focus:ring-1 focus:ring-accent";
-
-export function PipelineBoard({ leads }: { leads: BoardLead[] }) {
+function LeadCard({ card }: { card: PipelineCard }) {
   return (
-    <div className="-mx-6 overflow-x-auto px-6 pb-2">
-      <div className="flex gap-4">
-        {leadStages.map((stage, index) => {
-          const stageLeads = leads.filter((lead) => lead.stage === stage);
+    <li className="relative flex flex-col gap-2 rounded-2xl bg-surface p-3 shadow-card transition hover:shadow-raised">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          {/* The stretched link makes the whole card open the lead. */}
+          <Link
+            href={`/leads/${card.id}`}
+            className="text-sm font-medium text-ink after:absolute after:inset-0 after:rounded-2xl"
+          >
+            {card.name}
+          </Link>
+          <p className="truncate text-xs text-ink-subtle">{card.address}</p>
+        </div>
+        <StageMenu leadId={card.id} stage={card.stage} />
+      </div>
+      <EstimateText estimate={card.estimate} />
+      <div className="flex items-center justify-between gap-2">
+        <NextStepText nextStep={card.nextStep} />
+        <span className="shrink-0 text-xs text-ink-subtle">{card.ageLabel}</span>
+      </div>
+    </li>
+  );
+}
+
+export function PipelineBoard({ cards }: { cards: PipelineCard[] }) {
+  return (
+    <div className="-mx-4 overflow-x-auto px-4 pb-2 md:-mx-8 md:px-8">
+      <div className="flex gap-3">
+        {OPEN_STAGES.map((stage) => {
+          const stageCards = cards.filter((card) => card.stage === stage);
+          const value = stageValue(stageCards);
           return (
-            <section
-              key={stage}
-              aria-label={stage}
-              className="flex w-64 shrink-0 flex-col gap-3"
-            >
-              <div className="border-b-2 border-accent pb-2">
-                <p className="text-xs font-semibold tracking-wider text-accent uppercase">
-                  {index + 1}. {humanize(stage)}
-                </p>
-                <p className="text-xs text-ink-subtle">{stageLeads.length} leads</p>
+            <section key={stage} aria-label={humanize(stage)} className="flex w-60 shrink-0 flex-col gap-2">
+              <div className="flex items-baseline gap-1.5 px-1 pb-1">
+                <h2 className="text-[15px] font-semibold tracking-tight text-ink">{humanize(stage)}</h2>
+                <span className="text-xs text-ink-subtle">{stageCards.length}</span>
+                {value ? <span className="ml-auto text-xs text-ink-subtle">{value}</span> : null}
               </div>
-              <ul className="flex flex-col gap-3">
-                {stageLeads.map((lead) => (
-                  <li
-                    key={lead.id}
-                    className="rounded-lg border border-border bg-surface p-3"
-                  >
-                    <a
-                      href={`/leads/${lead.id}`}
-                      className="text-sm font-semibold text-accent hover:underline"
-                    >
-                      {lead.name}
-                    </a>
-                    <p className="mt-0.5 truncate text-xs text-ink-subtle">
-                      {lead.submitted_address}
-                    </p>
-                    <form
-                      action={async (formData) => {
-                        "use server";
-                        await moveLeadStage(lead.id, formData.get("toStage") as LeadStage);
-                      }}
-                      className="mt-2.5 flex items-center gap-1.5"
-                    >
-                      <label className="sr-only" htmlFor={`move-${lead.id}`}>
-                        Move to
-                      </label>
-                      <select
-                        id={`move-${lead.id}`}
-                        name="toStage"
-                        defaultValue={stage}
-                        className={selectClasses}
-                      >
-                        {leadStages.map((option) => (
-                          <option key={option} value={option}>
-                            {humanize(option)}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        type="submit"
-                        className="shrink-0 rounded-md bg-accent px-2 py-1 text-xs font-semibold text-white transition hover:bg-accent-hover"
-                      >
-                        Move
-                      </button>
-                    </form>
-                  </li>
+              <ul className="flex flex-col gap-2">
+                {stageCards.map((card) => (
+                  <LeadCard key={card.id} card={card} />
                 ))}
+                {stageCards.length === 0 ? (
+                  <li className="rounded-2xl border border-dashed border-border-strong px-3 py-4 text-center text-xs text-ink-subtle">
+                    No leads
+                  </li>
+                ) : null}
               </ul>
             </section>
           );
         })}
+
+        <section aria-label="Closed" className="flex w-44 shrink-0 flex-col gap-2">
+          <h2 className="px-1 pb-1 text-[15px] font-semibold tracking-tight text-ink-subtle">Closed</h2>
+          <ul className="overflow-hidden rounded-2xl bg-surface shadow-card">
+            {CLOSED_STAGES.map((stage) => {
+              const stageCards = cards.filter((card) => card.stage === stage);
+              const dot = stage === "won" ? "bg-success" : stage === "lost" ? "bg-danger" : "bg-ink-subtle";
+              return (
+                <li key={stage} className="border-b border-border last:border-b-0">
+                  <Link
+                    href={`/pipeline?view=list&stage=${stage}`}
+                    className="flex items-center gap-2 px-3 py-2.5 hover:bg-fill-hover"
+                  >
+                    <span aria-hidden className={`size-[7px] rounded-full ${dot}`} />
+                    <span className="flex-1 text-[13px] font-medium text-ink">{humanize(stage)}</span>
+                    <span className="text-right">
+                      <span className="block text-[13px] font-medium text-ink">{stageCards.length}</span>
+                      <span className="block text-xs text-ink-subtle">{stageValue(stageCards) ?? "—"}</span>
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
       </div>
     </div>
   );

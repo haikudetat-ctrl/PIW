@@ -37,14 +37,14 @@ export default async function AccessRouteSystemPage({ params }: { params: Promis
     <div className="flex flex-col gap-6">
       <div>
         <Link href="/access-route" className="text-sm font-medium text-accent hover:underline">← Access Route</Link>
-        <h1 className="mt-2 text-2xl font-bold text-ink">{humanize(system)} records</h1>
+        <h1 className="mt-2 text-[28px] font-bold tracking-tight text-ink">{humanize(system)} records</h1>
         <p className="mt-1 text-sm text-ink-subtle">Latest 100 normalized read-only records. Raw vendor status is intentionally preserved.</p>
       </div>
       {system === "jobnimbus" ? <JobNimbusConnectionPanel /> : null}
       <Card title={`${humanize(system)} drill-down`} ariaLabel={`${humanize(system)} records`}>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[42rem] text-left text-sm">
-            <thead className="border-b border-border text-xs uppercase tracking-wide text-ink-subtle">
+            <thead className="border-b border-border text-xs text-ink-subtle">
               <tr>{headers.map((header) => <th key={header} className="pb-2 pr-4 font-medium last:pr-0">{header}</th>)}</tr>
             </thead>
             <tbody className="divide-y divide-border">

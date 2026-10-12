@@ -2,26 +2,33 @@ export function StatTile({
   value,
   label,
   tone = "default",
+  detail,
 }: {
   value: string | number;
   label: string;
   tone?: "default" | "success" | "warning" | "danger";
+  detail?: string;
 }) {
-  const valueColor =
+  const detailColor =
     tone === "success"
       ? "text-success"
       : tone === "warning"
         ? "text-warning"
         : tone === "danger"
           ? "text-danger"
-          : "text-ink";
+          : "text-ink-subtle";
 
   return (
-    <div className="rounded-lg border border-border bg-surface px-5 py-4">
-      <p className={`text-2xl font-bold ${valueColor}`}>{value}</p>
-      <p className="mt-1 text-xs font-medium tracking-wide text-ink-subtle uppercase">
-        {label}
+    <div className="rounded-2xl bg-surface px-4 py-3.5 shadow-card">
+      <p className="text-xs text-ink-subtle">{label}</p>
+      <p
+        className={`mt-0.5 text-xl font-semibold tracking-tight ${
+          tone === "default" || detail ? "text-ink" : detailColor
+        }`}
+      >
+        {value}
       </p>
+      {detail ? <p className={`mt-0.5 text-xs font-medium ${detailColor}`}>{detail}</p> : null}
     </div>
   );
 }

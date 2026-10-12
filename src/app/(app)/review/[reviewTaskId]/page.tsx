@@ -106,7 +106,7 @@ function EvidenceItem({
   if (value === null || value === undefined || value === "") return null;
   return (
     <div>
-      <dt className="text-xs font-medium tracking-wide text-ink-subtle uppercase">
+      <dt className="text-xs font-medium text-ink-subtle">
         {label}
       </dt>
       <dd className="mt-0.5 text-sm text-ink">{value}</dd>
@@ -290,10 +290,10 @@ export default async function ReviewTaskPage({
 
       <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border pb-5">
         <div>
-          <p className="text-xs font-semibold tracking-widest text-ink-subtle uppercase">
+          <p className="text-xs font-semibold text-ink-subtle">
             {humanize(task.reason)}
           </p>
-          <h1 className="mt-1 text-2xl font-bold text-ink">Review property match</h1>
+          <h1 className="mt-1 text-[28px] font-bold tracking-tight text-ink">Review property match</h1>
           <p className="mt-2 text-sm text-ink-muted">
             {task.leads?.name ?? "Unknown lead"} ·{" "}
             {task.leads?.submitted_address ?? "No submitted address"}
