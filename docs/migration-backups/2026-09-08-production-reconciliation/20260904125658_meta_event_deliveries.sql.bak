@@ -1,0 +1,270 @@
+create table public.privacy_consent_evidence (
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid not null references public.companies(id) on delete cascade,
+  consent_id uuid not null unique,
+  submission_id uuid,
+  policy_version text not null check (length(trim(policy_version)) > 0),
+  analytics boolean not null,
+  advertising boolean not null,
+  gpc boolean not null,
+  decided_at timestamptz not null,
+  created_at timestamptz not null default now(),
+  check (not (gpc and advertising)),
+  unique (company_id, consent_id)
+);
+
+create index privacy_consent_evidence_company_submission_idx
+  on public.privacy_consent_evidence(company_id, submission_id);
+
+alter table public.privacy_consent_evidence enable row level security;
+revoke all on public.privacy_consent_evidence from public, anon, authenticated;
+grant select, insert on public.privacy_consent_evidence to service_role;
+
+create table public.meta_event_deliveries (
+  id uuid primary key default gen_random_uuid(),
+  company_id uuid not null references public.companies(id) on delete cascade,
+  submission_id uuid,
+  lead_id uuid references public.leads(id) on delete cascade,
+  assessment_id uuid references public.roof_assessments(id) on delete cascade,
+  consent_id uuid not null references public.privacy_consent_evidence(consent_id),
+  policy_version text not null check (length(trim(policy_version)) > 0),
+  event_name text not null check (event_name in ('Lead', 'QualifiedLead', 'AssessmentCompleted')),
+  event_id uuid not null default gen_random_uuid() unique,
+  event_time timestamptz not null,
+  event_source_url text not null check (event_source_url ~ '^https://'),
+  fbp text,
+  fbc text,
+  client_ip_address inet,
+  client_user_agent text,
+  status text not null default 'pending' check (
+    status in ('pending', 'sending', 'sent', 'retryable_failed', 'permanent_failed')
+  ),
+  attempt_count integer not null default 0 check (attempt_count >= 0),
+  payload_hash text check (payload_hash is null or payload_hash ~ '^[a-f0-9]{64}$'),
+  meta_http_status integer,
+  meta_trace_id text,
+  last_error_category text,
+  last_attempted_at timestamptz,
+  sent_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  check (
+    (event_name = 'Lead' and submission_id is not null and lead_id is null and assessment_id is null) or
+    (event_name = 'QualifiedLead' and submission_id is not null and lead_id is not null and assessment_id is null) or
+    (event_name = 'AssessmentCompleted' and lead_id is not null and assessment_id is not null)
+  )
+);
+
+create unique index meta_event_deliveries_lead_unique
+  on public.meta_event_deliveries(company_id, submission_id)
+  where event_name = 'Lead';
+create unique index meta_event_deliveries_qualified_unique
+  on public.meta_event_deliveries(company_id, lead_id)
+  where event_name = 'QualifiedLead';
+create unique index meta_event_deliveries_assessment_unique
+  on public.meta_event_deliveries(company_id, assessment_id)
+  where event_name = 'AssessmentCompleted';
+create index meta_event_deliveries_pending_idx
+  on public.meta_event_deliveries(status, created_at)
+  where status in ('pending', 'retryable_failed');
+
+alter table public.meta_event_deliveries enable row level security;
+revoke all on public.meta_event_deliveries from public, anon, authenticated;
+grant select, insert, update on public.meta_event_deliveries to service_role;
+
+create function public.reserve_meta_event_delivery(
+  p_company_id uuid,
+  p_submission_id uuid,
+  p_lead_id uuid,
+  p_assessment_id uuid,
+  p_consent_id uuid,
+  p_policy_version text,
+  p_event_name text,
+  p_event_time timestamptz,
+  p_event_source_url text,
+  p_fbp text,
+  p_fbc text,
+  p_client_ip_address inet,
+  p_client_user_agent text
+)
+returns table(delivery_id uuid, event_id uuid, event_name text, event_time timestamptz)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_delivery public.meta_event_deliveries%rowtype;
+begin
+  if p_event_name not in ('Lead', 'QualifiedLead', 'AssessmentCompleted') then
+    raise exception 'unsupported Meta event';
+  end if;
+
+  if not exists (
+    select 1
+    from public.privacy_consent_evidence as consent
+    where consent.company_id = p_company_id
+      and consent.consent_id = p_consent_id
+      and consent.submission_id = p_submission_id
+      and consent.policy_version = p_policy_version
+      and consent.advertising
+      and not consent.gpc
+  ) then
+    return;
+  end if;
+
+  if p_event_name in ('QualifiedLead', 'AssessmentCompleted') and not exists (
+    select 1 from public.leads as lead
+    where lead.id = p_lead_id
+      and lead.company_id = p_company_id
+      and lead.external_lead_id = p_submission_id::text
+  ) then
+    raise exception 'lead does not match Meta event';
+  end if;
+
+  if p_event_name = 'AssessmentCompleted' and not exists (
+    select 1 from public.roof_assessments as assessment
+    where assessment.id = p_assessment_id
+      and assessment.company_id = p_company_id
+      and assessment.lead_id = p_lead_id
+      and assessment.status = 'completed'
+      and assessment.completed_at is not null
+  ) then
+    raise exception 'assessment is not eligible for Meta completion';
+  end if;
+
+  insert into public.meta_event_deliveries (
+    company_id, submission_id, lead_id, assessment_id, consent_id, policy_version,
+    event_name, event_time, event_source_url, fbp, fbc, client_ip_address, client_user_agent
+  ) values (
+    p_company_id, p_submission_id, p_lead_id, p_assessment_id, p_consent_id, p_policy_version,
+    p_event_name, p_event_time, p_event_source_url, p_fbp, p_fbc, p_client_ip_address, p_client_user_agent
+  )
+  on conflict do nothing;
+
+  select delivery.* into v_delivery
+  from public.meta_event_deliveries as delivery
+  where delivery.company_id = p_company_id
+    and (
+      (p_event_name = 'Lead' and delivery.event_name = 'Lead' and delivery.submission_id = p_submission_id) or
+      (p_event_name = 'QualifiedLead' and delivery.event_name = 'QualifiedLead' and delivery.lead_id = p_lead_id) or
+      (p_event_name = 'AssessmentCompleted' and delivery.event_name = 'AssessmentCompleted' and delivery.assessment_id = p_assessment_id)
+    );
+
+  return query select v_delivery.id, v_delivery.event_id, v_delivery.event_name, v_delivery.event_time;
+end;
+$$;
+
+create function public.claim_meta_event_delivery(p_delivery_id uuid)
+returns setof public.meta_event_deliveries
+language sql
+security definer
+set search_path = ''
+as $$
+  update public.meta_event_deliveries
+  set status = 'sending',
+      attempt_count = attempt_count + 1,
+      last_attempted_at = now(),
+      updated_at = now()
+  where id = p_delivery_id
+    and status in ('pending', 'retryable_failed')
+  returning *;
+$$;
+
+create function public.reserve_meta_assessment_completed(
+  p_company_id uuid,
+  p_assessment_id uuid,
+  p_event_time timestamptz
+)
+returns table(delivery_id uuid, event_id uuid, event_name text, event_time timestamptz)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_assessment public.roof_assessments%rowtype;
+  v_prior public.meta_event_deliveries%rowtype;
+  v_delivery public.meta_event_deliveries%rowtype;
+begin
+  select assessment.* into v_assessment
+  from public.roof_assessments as assessment
+  where assessment.id = p_assessment_id
+    and assessment.company_id = p_company_id
+    and assessment.status = 'completed'
+    and assessment.completed_at is not null;
+  if not found or v_assessment.lead_id is null then return; end if;
+
+  select delivery.* into v_prior
+  from public.meta_event_deliveries as delivery
+  join public.privacy_consent_evidence as consent
+    on consent.consent_id = delivery.consent_id
+   and consent.company_id = delivery.company_id
+  where delivery.company_id = p_company_id
+    and delivery.lead_id = v_assessment.lead_id
+    and delivery.event_name = 'QualifiedLead'
+    and consent.advertising
+    and not consent.gpc
+  order by delivery.created_at desc
+  limit 1;
+  if not found then return; end if;
+
+  insert into public.meta_event_deliveries (
+    company_id, submission_id, lead_id, assessment_id, consent_id, policy_version,
+    event_name, event_time, event_source_url, fbp, fbc, client_ip_address, client_user_agent
+  ) values (
+    p_company_id, v_prior.submission_id, v_assessment.lead_id, p_assessment_id,
+    v_prior.consent_id, v_prior.policy_version, 'AssessmentCompleted', p_event_time,
+    v_prior.event_source_url, v_prior.fbp, v_prior.fbc, v_prior.client_ip_address, v_prior.client_user_agent
+  ) on conflict do nothing;
+
+  select delivery.* into v_delivery
+  from public.meta_event_deliveries as delivery
+  where delivery.company_id = p_company_id
+    and delivery.assessment_id = p_assessment_id
+    and delivery.event_name = 'AssessmentCompleted';
+  return query select v_delivery.id, v_delivery.event_id, v_delivery.event_name, v_delivery.event_time;
+end;
+$$;
+
+create function public.complete_meta_event_delivery(
+  p_delivery_id uuid,
+  p_status text,
+  p_http_status integer,
+  p_trace_id text,
+  p_error_category text,
+  p_payload_hash text,
+  p_completed_at timestamptz
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if p_status not in ('sent', 'retryable_failed', 'permanent_failed') then
+    raise exception 'invalid Meta delivery status';
+  end if;
+  if p_payload_hash is not null and p_payload_hash !~ '^[a-f0-9]{64}$' then
+    raise exception 'invalid Meta payload hash';
+  end if;
+
+  update public.meta_event_deliveries
+  set status = p_status,
+      meta_http_status = p_http_status,
+      meta_trace_id = p_trace_id,
+      last_error_category = p_error_category,
+      payload_hash = p_payload_hash,
+      sent_at = case when p_status = 'sent' then p_completed_at else null end,
+      updated_at = p_completed_at
+  where id = p_delivery_id and status = 'sending';
+  return found;
+end;
+$$;
+
+revoke execute on function public.reserve_meta_event_delivery(uuid,uuid,uuid,uuid,uuid,text,text,timestamptz,text,text,text,inet,text) from public, anon, authenticated;
+grant execute on function public.reserve_meta_event_delivery(uuid,uuid,uuid,uuid,uuid,text,text,timestamptz,text,text,text,inet,text) to service_role;
+revoke execute on function public.claim_meta_event_delivery(uuid) from public, anon, authenticated;
+grant execute on function public.claim_meta_event_delivery(uuid) to service_role;
+revoke execute on function public.reserve_meta_assessment_completed(uuid,uuid,timestamptz) from public, anon, authenticated;
+grant execute on function public.reserve_meta_assessment_completed(uuid,uuid,timestamptz) to service_role;
+revoke execute on function public.complete_meta_event_delivery(uuid,text,integer,text,text,text,timestamptz) from public, anon, authenticated;
+grant execute on function public.complete_meta_event_delivery(uuid,text,integer,text,text,text,timestamptz) to service_role;
