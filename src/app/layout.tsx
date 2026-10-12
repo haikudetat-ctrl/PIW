@@ -33,7 +33,7 @@ const bebasNeue = Bebas_Neue({
 });
 
 export const metadata: Metadata = {
-  title: "Property Intelligence Worker",
+  title: "Rake",
   description: "New Jersey residential roofing intelligence",
 };
 

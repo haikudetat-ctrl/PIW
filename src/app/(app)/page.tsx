@@ -45,10 +45,10 @@ export default async function DashboardPage() {
     <main className="flex flex-col gap-6">
       <div>
         <p className="text-sm text-ink-subtle">
-          PIW · New Jersey residential roofing
+          Rake · New Jersey residential roofing
         </p>
         <h1 className="text-[28px] font-bold tracking-tight text-ink">
-          Property Intelligence Worker
+          Rake operations
         </h1>
         <p className="mt-1 text-sm text-success">Foundation online</p>
       </div>

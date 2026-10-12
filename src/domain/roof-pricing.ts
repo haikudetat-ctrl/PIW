@@ -12,6 +12,9 @@ export const roofPricingTierRateSchema = z.object({
   differentiators: z.array(z.string().min(1)).min(1),
   lowCentsPerSquare: z.number().int().positive(),
   highCentsPerSquare: z.number().int().positive(),
+  // Snapshot of the catalog line the tier sells; absent on pre-catalog estimates.
+  manufacturerName: z.string().min(1).nullish(),
+  productLineName: z.string().min(1).nullish(),
 }).strict().superRefine((value, context) => {
   if (value.highCentsPerSquare < value.lowCentsPerSquare) {
     context.addIssue({code:"custom",path:["highCentsPerSquare"],message:"High rate must not be lower than low rate"});

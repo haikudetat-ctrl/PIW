@@ -89,6 +89,8 @@ export function AssessmentResult({token,address,imageUrl,recommendation,response
   const hasRenderedReadyPackageQuote=packageCalculation!==null
     &&packageCalculation.packages.length===3
     &&["good","better","best"].every(tier=>packageCalculation.packages.some(item=>item.tierKey===tier));
+  // Name the manufacturer only when every option is the same brand's system.
+  const packageManufacturer=packageCalculation?.packages.every(item=>item.manufacturerName&&item.manufacturerName===packageCalculation.packages[0].manufacturerName)?packageCalculation.packages[0].manufacturerName:null;
   const {trackConversion}=useMetaPixel();
   const resultRef=useRef<HTMLElement>(null); const recorded=useRef(false); const [consultationOpen,setConsultationOpen]=useState(false);
   useEffect(()=>{
@@ -110,7 +112,7 @@ export function AssessmentResult({token,address,imageUrl,recommendation,response
       <div className="assessment-result-copy p-6 sm:p-9 lg:p-11"><p className="assessment-context-kicker text-xs font-black uppercase tracking-[0.16em]">{copy.eyebrow}</p><h1 className="assessment-display mt-4 text-[clamp(3.2rem,5vw,5.5rem)] leading-[.92]">{context.resultHeadline}</h1><p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">{context.resultIntro}</p><h2 className="mt-7 text-2xl font-semibold tracking-[-.025em]">{copy.headline}</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">{copy.body}</p>
         {packageCalculation?<section className="mt-8" aria-live="polite">
           {recommendation!=="replacement_may_make_sense"?<p className="assessment-package-framing">If replacement is confirmed after inspection</p>:null}
-          <div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="text-2xl font-semibold tracking-[-.025em]">Three ways to approach the project</h2><p className="mt-2 text-sm leading-6 text-slate-600">Each option is based on approximately {packageCalculation.roofSquares.toFixed(1)} measured roofing squares.</p></div><p className="text-xs font-bold uppercase tracking-[.14em] text-slate-400">Preliminary planning ranges</p></div>
+          <div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="text-2xl font-semibold tracking-[-.025em]">{packageManufacturer?`Three ${packageManufacturer} roof systems`:"Three ways to approach the project"}</h2><p className="mt-2 text-sm leading-6 text-slate-600">Each option is based on approximately {packageCalculation.roofSquares.toFixed(1)} measured roofing squares.</p></div><p className="text-xs font-bold uppercase tracking-[.14em] text-slate-400">Preliminary planning ranges</p></div>
           <div className="assessment-package-grid mt-6">{packageCalculation.packages.map(item=><article key={item.tierKey} aria-label={item.recommended?"Recommended package":undefined} className={`assessment-package-card ${item.recommended?"assessment-package-card--recommended":""}`}>
             <div className="flex items-center justify-between gap-3"><p className="text-[.68rem] font-black uppercase tracking-[.16em] text-slate-500">{item.tierKey}</p>{item.recommended?<span className="assessment-package-badge">Recommended package</span>:null}</div>
             <h3 className="mt-4 text-xl font-semibold tracking-[-.025em]">{item.customerName}</h3>

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { RakeLogo } from "@/components/brand/rake-logo";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { Icon, type IconName } from "@/components/ui/icons";
@@ -71,12 +72,9 @@ export function AppSidebar({
     <>
       <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-border bg-surface-muted px-4 pt-5 pb-4 md:flex">
         <div className="flex items-center gap-2.5 px-1.5 pb-4">
-          <span className="flex size-[30px] items-center justify-center rounded-lg bg-accent text-[15px] font-semibold text-white">
-            P
-          </span>
           <div className="min-w-0">
-            <p className="truncate text-[13px] font-medium text-ink">Property Intelligence</p>
-            <p className="truncate text-xs text-ink-subtle">New Jersey residential roofing</p>
+            <RakeLogo className="h-3.5 w-auto text-ink" />
+            <p className="mt-1.5 truncate text-xs text-ink-subtle">New Jersey residential roofing</p>
           </div>
         </div>
         <Link

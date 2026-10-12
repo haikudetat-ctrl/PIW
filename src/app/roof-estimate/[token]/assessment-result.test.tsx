@@ -68,6 +68,19 @@ describe("assessment result payoff",()=>{
     expect(container.textContent).not.toMatch(/CertainTeed|Landmark|NorthGate|Presidential|Grand Manor|ShingleMaster/i);
   });
 
+  test("names the manufacturer when every option is a catalog-backed system from it",()=>{
+    const pkg=(tierKey:"good"|"better"|"best",displayOrder:number,line:string,low:number,high:number)=>({tierKey,displayOrder,customerName:`CertainTeed ${line}`,customerDescription:"Complete CertainTeed roof system.",warrantySummary:"CertainTeed lifetime limited warranty with 10-year SureStart protection.",differentiators:["CertainTeed starter and ridge"],lowCentsPerSquare:low/25,highCentsPerSquare:high/25,recommended:tierKey==="better",measuredRoofSquares:25,rangeLowCents:low,rangeHighCents:high,pricingVersion:"all-season-nj-2026-v1",generatedAt:"2026-10-12T12:00:00.000Z",manufacturerName:"CertainTeed",productLineName:line});
+    renderResult({
+      status:"ready",source:"google",lowCents:2_375_000,highCents:3_000_000,roofSquares:25,
+      generatedAt:"2026-10-12T12:00:00.000Z",pricingVersion:"all-season-nj-2026-v1",
+      packages:[pkg("good",1,"Patriot",2_000_000,2_437_500),pkg("better",2,"Landmark",2_375_000,3_000_000),pkg("best",3,"Landmark PRO",3_125_000,4_125_000)],
+      adjustments:[],
+    });
+    expect(screen.getByRole("heading",{name:"Three CertainTeed roof systems"})).toBeVisible();
+    expect(screen.getByRole("heading",{name:"CertainTeed Landmark PRO"})).toBeVisible();
+    expect(screen.queryByText("Three ways to approach the project")).toBeNull();
+  });
+
   test("records one ready package result view under React StrictMode",async()=>{
     const fetch=vi.fn(async()=>Response.json({resultViewed:true,metaEvent:null}));
     vi.stubGlobal("fetch",fetch);
