@@ -133,11 +133,12 @@ select throws_ok(
       low_cents_per_square, high_cents_per_square, range_low_cents, range_high_cents,
       customer_name, customer_description, warranty_summary, differentiators, pricing_version,
       product_line_id, manufacturer_name, product_line_name)
-    select company_id, '92000000-0000-4000-8000-000000000031', rate_card_id, 'good', 9, 1, 1, 1, 1, 1,
-      'x', 'x', 'x', '["x"]', 'x', id, null, null
-    from public.roof_estimate_packages, public.catalog_product_lines
-    where estimate_id = '92000000-0000-4000-8000-000000000031' and tier_key = 'good' and code = 'patriot'$$,
-  '23514', null, 'a package cannot carry a line id without its names'
+    select pkg.company_id, '92000000-0000-4000-8000-000000000031', pkg.rate_card_id, 'good', 1, 1, 1, 1, 1, 1,
+      'x', 'x', 'x', '["x"]', 'x', line.id, null, null
+    from public.roof_estimate_packages pkg, public.catalog_product_lines line
+    where pkg.estimate_id = '92000000-0000-4000-8000-000000000031' and pkg.tier_key = 'good' and line.code = 'patriot'$$,
+  'new row for relation "roof_estimate_packages" violates check constraint "roof_estimate_packages_product_snapshot_check"',
+  'a package cannot carry a line id without its names'
 );
 
 insert into public.company_catalog_prices(company_id, product_id, supplier, unit_cost_cents, effective_from, source)
