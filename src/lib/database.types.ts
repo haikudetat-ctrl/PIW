@@ -4826,13 +4826,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "roof_estimate_packages_product_line_id_fkey"
-            columns: ["product_line_id"]
-            isOneToOne: false
-            referencedRelation: "catalog_product_lines"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "roof_estimate_packages_company_id_estimate_id_fkey"
             columns: ["company_id", "estimate_id"]
             isOneToOne: false
@@ -4845,6 +4838,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "roof_pricing_rate_cards"
             referencedColumns: ["company_id", "id"]
+          },
+          {
+            foreignKeyName: "roof_estimate_packages_product_line_id_fkey"
+            columns: ["product_line_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_product_lines"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -5185,18 +5185,18 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "roof_pricing_tiers_product_line_id_fkey"
-            columns: ["product_line_id"]
-            isOneToOne: false
-            referencedRelation: "catalog_product_lines"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "roof_pricing_tiers_company_id_rate_card_id_fkey"
             columns: ["company_id", "rate_card_id"]
             isOneToOne: false
             referencedRelation: "roof_pricing_rate_cards"
             referencedColumns: ["company_id", "id"]
+          },
+          {
+            foreignKeyName: "roof_pricing_tiers_product_line_id_fkey"
+            columns: ["product_line_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_product_lines"
+            referencedColumns: ["id"]
           },
         ]
       }
