@@ -39,9 +39,9 @@ const {data: rateCard, error: cardError} = await client
   .single();
 if (cardError || !rateCard) throw new Error(`Failed to upsert All Season rate card: ${cardError?.message ?? "missing row"}`);
 
-// All Season installs CertainTeed. Each tier sells one shingle line from the
-// catalog; warranty copy stays at what every CertainTeed install carries until
-// All Season's ShingleMaster credential confirms which SureStart PLUS tier applies.
+// All Season installs CertainTeed as a SELECT ShingleMaster, which lets it
+// register Landmark-series roofs for SureStart PLUS 5-Star coverage. Patriot
+// stays on standard SureStart until CertainTeed confirms its PLUS eligibility.
 const {data: lines, error: linesError} = await client
   .from("catalog_product_lines")
   .select("id, code, catalog_manufacturers!inner(code)")
@@ -52,8 +52,8 @@ const lineId = (code) => lines.find((line) => line.code === code).id;
 
 const tiers = [
   {tier_key:"good",display_order:1,internal_scope_code:"complete_system_v1",product_line_id:lineId("patriot"),customer_name:"CertainTeed Patriot",customer_description:"A complete CertainTeed roof system with a dual-layer, wood-shake-look shingle.",warranty_summary:"CertainTeed lifetime limited warranty with 10-year SureStart protection.",differentiators:["Dual-layer architectural shingle","CertainTeed starter and ridge for 130 mph wind rating","10-year SureStart protection"],low_cents_per_square:80_000,high_cents_per_square:97_500},
-  {tier_key:"better",display_order:2,internal_scope_code:"recommended_system_v1",product_line_id:lineId("landmark"),customer_name:"CertainTeed Landmark",customer_description:"CertainTeed's best-selling architectural shingle, installed as a full Integrity Roof System.",warranty_summary:"CertainTeed lifetime limited warranty with 10-year SureStart; SureStart PLUS extended coverage where eligible.",differentiators:["Integrity Roof System components","WinterGuard ice and water protection","Enhanced dimensional appearance"],low_cents_per_square:95_000,high_cents_per_square:120_000},
-  {tier_key:"best",display_order:3,internal_scope_code:"signature_system_v1",product_line_id:lineId("landmark_pro"),customer_name:"CertainTeed Landmark PRO",customer_description:"CertainTeed's heavier Landmark PRO shingle with Max Def colour and impact resistance.",warranty_summary:"CertainTeed lifetime limited warranty with 10-year SureStart and extended algae protection.",differentiators:["Heavier dual-layer shingle","Max Def colour blends","UL 2218 Class 3 impact rating"],low_cents_per_square:125_000,high_cents_per_square:165_000},
+  {tier_key:"better",display_order:2,internal_scope_code:"recommended_system_v1",product_line_id:lineId("landmark"),customer_name:"CertainTeed Landmark",customer_description:"CertainTeed's best-selling architectural shingle, installed as a full Integrity Roof System.",warranty_summary:"SureStart PLUS 5-Star: 50 years non-prorated material and labor, plus 25 years of CertainTeed-backed workmanship coverage.",differentiators:["Installed by a CertainTeed SELECT ShingleMaster","Integrity Roof System with WinterGuard ice and water protection","Enhanced dimensional appearance"],low_cents_per_square:95_000,high_cents_per_square:120_000},
+  {tier_key:"best",display_order:3,internal_scope_code:"signature_system_v1",product_line_id:lineId("landmark_pro"),customer_name:"CertainTeed Landmark PRO",customer_description:"CertainTeed's heavier Landmark PRO shingle with Max Def colour and impact resistance.",warranty_summary:"SureStart PLUS 5-Star: 50 years non-prorated material and labor, plus 25 years of CertainTeed-backed workmanship coverage.",differentiators:["Heavier dual-layer shingle","Max Def colour blends","UL 2218 Class 3 impact rating"],low_cents_per_square:125_000,high_cents_per_square:165_000},
 ].map((tier) => ({...tier, company_id: companyId, rate_card_id: rateCard.id}));
 
 const {error: tierError} = await client
