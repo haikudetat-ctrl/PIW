@@ -58,7 +58,7 @@ const { default: DashboardPage } = await import("./page");
 
 test("shows new leads, pipeline totals, and a link to the pipeline board", async () => {
   render(await DashboardPage());
-  expect(screen.getByRole("heading", { name: "Property Intelligence Worker" })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Rake operations" })).toBeInTheDocument();
   expect(screen.getByText("Jordan Rivera")).toBeInTheDocument();
   expect(screen.getByText("View pipeline board")).toBeInTheDocument();
   expect(screen.getByText("2 items awaiting review")).toBeInTheDocument();

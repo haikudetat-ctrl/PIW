@@ -1,3 +1,4 @@
+import { RakeLogo } from "@/components/brand/rake-logo";
 import { ForgotPasswordForm } from "../login/login-form";
 
 export default function ForgotPasswordPage() {
@@ -5,9 +6,7 @@ export default function ForgotPasswordPage() {
     <main className="flex min-h-screen items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <p className="text-xs font-semibold tracking-widest text-accent uppercase">
-            Property Intelligence Worker
-          </p>
+          <RakeLogo className="mx-auto h-5 w-auto text-ink" />
           <h1 className="mt-2 text-2xl font-bold text-ink">Recover your password</h1>
           <p className="mt-1 text-sm text-ink-subtle">
             We’ll email you a secure recovery link.

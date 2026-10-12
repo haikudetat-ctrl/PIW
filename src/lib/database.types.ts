@@ -260,6 +260,178 @@ export type Database = {
           },
         ]
       }
+      catalog_manufacturers: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          name: string
+          website: string | null
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          name: string
+          website?: string | null
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          name?: string
+          website?: string | null
+        }
+        Relationships: []
+      }
+      catalog_product_lines: {
+        Row: {
+          category: string
+          code: string
+          created_at: string
+          description: string
+          id: string
+          manufacturer_id: string
+          market_tier: string | null
+          name: string
+          source_notes: string
+          specs: Json
+          status: string
+          updated_at: string
+          verified_on: string
+          warranty: Json
+        }
+        Insert: {
+          category: string
+          code: string
+          created_at?: string
+          description: string
+          id?: string
+          manufacturer_id: string
+          market_tier?: string | null
+          name: string
+          source_notes: string
+          specs?: Json
+          status?: string
+          updated_at?: string
+          verified_on: string
+          warranty?: Json
+        }
+        Update: {
+          category?: string
+          code?: string
+          created_at?: string
+          description?: string
+          id?: string
+          manufacturer_id?: string
+          market_tier?: string | null
+          name?: string
+          source_notes?: string
+          specs?: Json
+          status?: string
+          updated_at?: string
+          verified_on?: string
+          warranty?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "catalog_product_lines_manufacturer_id_fkey"
+            columns: ["manufacturer_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_manufacturers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      catalog_products: {
+        Row: {
+          coverage_quantity: number
+          coverage_unit: string
+          created_at: string
+          id: string
+          product_line_id: string
+          purchase_unit: string
+          sku: string | null
+          status: string
+          variant: string | null
+        }
+        Insert: {
+          coverage_quantity: number
+          coverage_unit: string
+          created_at?: string
+          id?: string
+          product_line_id: string
+          purchase_unit: string
+          sku?: string | null
+          status?: string
+          variant?: string | null
+        }
+        Update: {
+          coverage_quantity?: number
+          coverage_unit?: string
+          created_at?: string
+          id?: string
+          product_line_id?: string
+          purchase_unit?: string
+          sku?: string | null
+          status?: string
+          variant?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "catalog_products_product_line_id_fkey"
+            columns: ["product_line_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_product_lines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      catalog_system_components: {
+        Row: {
+          component_line_id: string
+          display_order: number
+          id: string
+          notes: string | null
+          quantity_basis: string
+          required_for_warranty: boolean
+          system_line_id: string
+        }
+        Insert: {
+          component_line_id: string
+          display_order: number
+          id?: string
+          notes?: string | null
+          quantity_basis: string
+          required_for_warranty: boolean
+          system_line_id: string
+        }
+        Update: {
+          component_line_id?: string
+          display_order?: number
+          id?: string
+          notes?: string | null
+          quantity_basis?: string
+          required_for_warranty?: boolean
+          system_line_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "catalog_system_components_component_line_id_fkey"
+            columns: ["component_line_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_product_lines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "catalog_system_components_system_line_id_fkey"
+            columns: ["system_line_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_product_lines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       companies: {
         Row: {
           created_at: string
@@ -277,6 +449,57 @@ export type Database = {
           name?: string
         }
         Relationships: []
+      }
+      company_catalog_prices: {
+        Row: {
+          company_id: string
+          created_at: string
+          effective_from: string
+          effective_until: string | null
+          id: string
+          product_id: string
+          source: string
+          supplier: string
+          unit_cost_cents: number
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          effective_from: string
+          effective_until?: string | null
+          id?: string
+          product_id: string
+          source: string
+          supplier: string
+          unit_cost_cents: number
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          effective_from?: string
+          effective_until?: string | null
+          id?: string
+          product_id?: string
+          source?: string
+          supplier?: string
+          unit_cost_cents?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_catalog_prices_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_catalog_prices_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_products"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       company_integrations: {
         Row: {
@@ -4546,8 +4769,11 @@ export type Database = {
           high_cents_per_square: number
           id: string
           low_cents_per_square: number
+          manufacturer_name: string | null
           measured_roof_squares: number
           pricing_version: string
+          product_line_id: string | null
+          product_line_name: string | null
           range_high_cents: number
           range_low_cents: number
           rate_card_id: string
@@ -4565,8 +4791,11 @@ export type Database = {
           high_cents_per_square: number
           id?: string
           low_cents_per_square: number
+          manufacturer_name?: string | null
           measured_roof_squares: number
           pricing_version: string
+          product_line_id?: string | null
+          product_line_name?: string | null
           range_high_cents: number
           range_low_cents: number
           rate_card_id: string
@@ -4584,8 +4813,11 @@ export type Database = {
           high_cents_per_square?: number
           id?: string
           low_cents_per_square?: number
+          manufacturer_name?: string | null
           measured_roof_squares?: number
           pricing_version?: string
+          product_line_id?: string | null
+          product_line_name?: string | null
           range_high_cents?: number
           range_low_cents?: number
           rate_card_id?: string
@@ -4593,6 +4825,13 @@ export type Database = {
           warranty_summary?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "roof_estimate_packages_product_line_id_fkey"
+            columns: ["product_line_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_product_lines"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "roof_estimate_packages_company_id_estimate_id_fkey"
             columns: ["company_id", "estimate_id"]
@@ -4909,6 +5148,7 @@ export type Database = {
           id: string
           internal_scope_code: string
           low_cents_per_square: number
+          product_line_id: string | null
           rate_card_id: string
           tier_key: string
           warranty_summary: string
@@ -4923,6 +5163,7 @@ export type Database = {
           id?: string
           internal_scope_code: string
           low_cents_per_square: number
+          product_line_id?: string | null
           rate_card_id: string
           tier_key: string
           warranty_summary: string
@@ -4937,11 +5178,19 @@ export type Database = {
           id?: string
           internal_scope_code?: string
           low_cents_per_square?: number
+          product_line_id?: string | null
           rate_card_id?: string
           tier_key?: string
           warranty_summary?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "roof_pricing_tiers_product_line_id_fkey"
+            columns: ["product_line_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_product_lines"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "roof_pricing_tiers_company_id_rate_card_id_fkey"
             columns: ["company_id", "rate_card_id"]
@@ -5954,8 +6203,11 @@ export type Database = {
           high_cents_per_square: number
           id: string
           low_cents_per_square: number
+          manufacturer_name: string | null
           measured_roof_squares: number
           pricing_version: string
+          product_line_id: string | null
+          product_line_name: string | null
           range_high_cents: number
           range_low_cents: number
           rate_card_id: string
@@ -6347,8 +6599,11 @@ export type Database = {
           high_cents_per_square: number
           id: string
           low_cents_per_square: number
+          manufacturer_name: string | null
           measured_roof_squares: number
           pricing_version: string
+          product_line_id: string | null
+          product_line_name: string | null
           range_high_cents: number
           range_low_cents: number
           rate_card_id: string

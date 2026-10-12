@@ -56,7 +56,7 @@ export default async function RoofEstimateResultPage({
   const service = createServiceClient();
   const { data: estimate } = await service
     .from("roof_estimates")
-    .select("id, company_id, status, range_low_cents, range_high_cents, roof_squares, roof_insight_id, updated_at, failure_reason, lead_id, property_id, pricing_version, assumptions, roof_estimate_packages(tier_key, display_order, measured_roof_squares, low_cents_per_square, high_cents_per_square, range_low_cents, range_high_cents, customer_name, customer_description, warranty_summary, differentiators, pricing_version, calculated_at)")
+    .select("id, company_id, status, range_low_cents, range_high_cents, roof_squares, roof_insight_id, updated_at, failure_reason, lead_id, property_id, pricing_version, assumptions, roof_estimate_packages(tier_key, display_order, measured_roof_squares, low_cents_per_square, high_cents_per_square, range_low_cents, range_high_cents, customer_name, customer_description, warranty_summary, differentiators, pricing_version, calculated_at, manufacturer_name, product_line_name)")
     .eq("public_token", token)
     .maybeSingle();
   if (!estimate) notFound();
@@ -116,6 +116,8 @@ export default async function RoofEstimateResultPage({
     differentiators:item.differentiators,
     lowCentsPerSquare:item.low_cents_per_square,
     highCentsPerSquare:item.high_cents_per_square,
+    manufacturerName:item.manufacturer_name,
+    productLineName:item.product_line_name,
     recommended:item.tier_key === "better",
     measuredRoofSquares:Number(item.measured_roof_squares),
     rangeLowCents:item.range_low_cents,
