@@ -336,10 +336,13 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
   // The homeowner estimate pages use the minimal white style throughout.
   const quiet = pathname?.startsWith("/roof-estimate") ?? false;
   const quietClass = quiet ? " privacy-quiet" : "";
+  const showPrivacyChoices = pathname === "/privacy"
+    || pathname === "/roof-estimate" || Boolean(pathname?.startsWith("/roof-estimate/"))
+    || pathname === "/campaigns" || Boolean(pathname?.startsWith("/campaigns/"));
 
   return (
     <PrivacyConsentContext.Provider value={value}>
-      {status !== "saved" ? (
+      {showPrivacyChoices && status !== "saved" ? (
         <PrivacyConsentBanner
           error={error}
           saving={saving}
@@ -357,21 +360,21 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
           quiet={quiet}
         />
       ) : null}
-      {gpcDefaultActive && !dialogOpen ? (
+      {showPrivacyChoices && gpcDefaultActive && !dialogOpen ? (
         <p className={`privacy-consent-gpc-notice${quietClass}`} role="status">
           Global Privacy Control was detected, so Advertising remains off while it is active.
         </p>
       ) : null}
-      <button
+      {showPrivacyChoices ? <button
         type="button"
         className={`privacy-consent-reopen${quietClass}`}
         aria-haspopup="dialog"
         onClick={openPreferences}
       >
         Privacy choices
-      </button>
+      </button> : null}
       {children}
-      {dialogOpen ? (
+      {showPrivacyChoices && dialogOpen ? (
         <div className={`privacy-consent-dialog-backdrop${quietClass}`}>
           <div
             ref={dialogRef}
