@@ -6802,14 +6802,8 @@ export type Database = {
         Args: { p_company_id: string }
         Returns: Json
       }
-      report_funnel: {
-        Args: { p_from: string; p_to: string }
-        Returns: Json
-      }
-      report_jobs: {
-        Args: { p_from: string; p_to: string }
-        Returns: Json
-      }
+      report_funnel: { Args: { p_from: string; p_to: string }; Returns: Json }
+      report_jobs: { Args: { p_from: string; p_to: string }; Returns: Json }
       report_measurements: { Args: never; Returns: Json }
       request_roof_consultation: {
         Args: {
