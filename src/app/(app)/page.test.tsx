@@ -91,6 +91,9 @@ beforeEach(() => {
     },
   ]);
   tables.set("jn_contacts", [{ jnid: "c-9", display_name: "Yleana Contreras" }]);
+  tables.set("sms_messages", [
+    { id: "s1", body: "Can you come Tuesday after 4?", created_at: "2026-10-13T12:00:00.000Z", from_e164: "+16095550101", lead_id: "lead-1", leads: { name: "Ana Rivera" } },
+  ]);
   counts.set("leads", 3);
   counts.set("jn_jobs", 29);
   counts.set("review_tasks", 2);
@@ -124,6 +127,9 @@ test("My day shows who to call, what is due and what sold", async () => {
   expect(within(sold).getByRole("link", { name: "Yleana Contreras" })).toHaveAttribute("href", "/jobs/jn-9");
   expect(screen.getByRole("link", { name: "2 awaiting review" })).toHaveAttribute("href", "/review");
   expect(screen.getByText("No appointments booked for today.")).toBeInTheDocument();
+  const replies = screen.getByRole("region", { name: "Replies" });
+  expect(within(replies).getByRole("link", { name: "Ana Rivera" })).toHaveAttribute("href", "/leads/lead-1#conversation");
+  expect(within(replies).getByText("Can you come Tuesday after 4?")).toBeInTheDocument();
 
   // Test and verification leads stay off the home screen.
   expect(leadFilters).toContainEqual(["is_test", false]);

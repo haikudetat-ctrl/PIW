@@ -67,6 +67,11 @@ const serverEnvSchema = z
     TWILIO_API_KEY_SID: optionalString,
     TWILIO_API_KEY_SECRET: optionalString,
     TWILIO_VERIFY_SERVICE_SID: optionalString,
+    // Two-way texting: sends with the API key above, checks webhook
+    // signatures with the account's auth token.
+    SMS_ENABLED: optionalTrackingFlag,
+    TWILIO_ACCOUNT_SID: optionalString,
+    TWILIO_AUTH_TOKEN: optionalString,
     INTEGRATIONS_LEADCONDUIT_ROOFING_RECEIVER_ENABLED: booleanString,
     INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_RECEIVER_ENABLED: booleanString,
     INTEGRATIONS_LEADMASTER_ENABLED: booleanString,
@@ -188,6 +193,21 @@ const serverEnvSchema = z
         code: "custom",
         path: ["TWILIO_VERIFY_ENABLED"],
         message: "Twilio Verify requires API credentials, a service SID, and assessment signing",
+      });
+    }
+    if (
+      value.SMS_ENABLED
+      && (
+        !value.TWILIO_ACCOUNT_SID
+        || !value.TWILIO_AUTH_TOKEN
+        || !value.TWILIO_API_KEY_SID
+        || !value.TWILIO_API_KEY_SECRET
+      )
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["SMS_ENABLED"],
+        message: "Texting requires the Twilio account SID, auth token and API key",
       });
     }
     const readIntegrations = [

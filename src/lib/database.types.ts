@@ -609,6 +609,47 @@ export type Database = {
           },
         ]
       }
+      company_sms_settings: {
+        Row: {
+          company_id: string
+          created_at: string
+          enabled: boolean
+          from_e164: string
+          messaging_service_sid: string
+          quiet_end_hour: number
+          quiet_start_hour: number
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          enabled?: boolean
+          from_e164: string
+          messaging_service_sid: string
+          quiet_end_hour?: number
+          quiet_start_hour?: number
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          enabled?: boolean
+          from_e164?: string
+          messaging_service_sid?: string
+          quiet_end_hour?: number
+          quiet_start_hour?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_sms_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       consultation_requests: {
         Row: {
           assessment_id: string
@@ -5560,6 +5601,75 @@ export type Database = {
           },
         ]
       }
+      sms_messages: {
+        Row: {
+          body: string
+          company_id: string
+          created_at: string
+          direction: string
+          error_code: string | null
+          from_e164: string
+          id: string
+          lead_id: string | null
+          provider_sid: string | null
+          read_at: string | null
+          segments: number | null
+          sent_by: string | null
+          status: string
+          status_updated_at: string
+          to_e164: string
+        }
+        Insert: {
+          body: string
+          company_id: string
+          created_at?: string
+          direction: string
+          error_code?: string | null
+          from_e164: string
+          id?: string
+          lead_id?: string | null
+          provider_sid?: string | null
+          read_at?: string | null
+          segments?: number | null
+          sent_by?: string | null
+          status: string
+          status_updated_at?: string
+          to_e164: string
+        }
+        Update: {
+          body?: string
+          company_id?: string
+          created_at?: string
+          direction?: string
+          error_code?: string | null
+          from_e164?: string
+          id?: string
+          lead_id?: string | null
+          provider_sid?: string | null
+          read_at?: string | null
+          segments?: number | null
+          sent_by?: string | null
+          status?: string
+          status_updated_at?: string
+          to_e164?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sms_messages_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sms_messages_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       source_costs: {
         Row: {
           amount: number
@@ -6740,6 +6850,7 @@ export type Database = {
           result_viewed_at: string
         }[]
       }
+      mark_sms_read: { Args: { p_lead_id: string }; Returns: number }
       match_customer_by_contact: {
         Args: { p_company_id: string; p_email: string; p_phone: string }
         Returns: Record<string, unknown>

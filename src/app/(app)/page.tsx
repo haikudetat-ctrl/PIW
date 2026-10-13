@@ -85,6 +85,7 @@ export default async function MyDayPage() {
     { count: reviewCount },
     { count: stuckCount },
     { data: latestSync },
+    { data: replies },
   ] = await Promise.all([
     supabase.rpc("get_my_access"),
     supabase
@@ -132,6 +133,13 @@ export default async function MyDayPage() {
       .neq("status", "complete")
       .lt("started_at", stuckSince),
     supabase.from("jn_jobs").select("projected_at").order("projected_at", { ascending: false }).limit(1),
+    supabase
+      .from("sms_messages")
+      .select("id, body, created_at, from_e164, lead_id, leads(name)")
+      .eq("direction", "inbound")
+      .is("read_at", null)
+      .order("created_at", { ascending: false })
+      .limit(5),
   ]);
 
   // Second round: details for the rows found above.
@@ -387,6 +395,37 @@ export default async function MyDayPage() {
               </ul>
             </Card>
           ) : null}
+
+          <Card title="Replies" right={`${(replies ?? []).length} unread`}>
+            {(replies ?? []).length > 0 ? (
+              <ul className="flex flex-col">
+                {(replies ?? []).map((reply) => {
+                  const lead = Array.isArray(reply.leads) ? reply.leads[0] : reply.leads;
+                  return (
+                    <li key={reply.id} className="border-b border-border py-2 last:border-b-0">
+                      <div className="flex items-baseline justify-between gap-2">
+                        {reply.lead_id ? (
+                          <Link
+                            href={`/leads/${reply.lead_id}#conversation`}
+                            className="inline-flex items-center gap-1.5 text-[13px] font-medium text-ink hover:text-tint"
+                          >
+                            <span aria-hidden className="size-1.5 rounded-full bg-tint" />
+                            {lead?.name ?? "Lead"}
+                          </Link>
+                        ) : (
+                          <span className="text-[13px] font-medium text-ink">{reply.from_e164}</span>
+                        )}
+                        <span className="shrink-0 text-xs text-ink-subtle">{formatWaiting(reply.created_at, now)} ago</span>
+                      </div>
+                      <p className="truncate text-xs text-ink-muted">{reply.body}</p>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className="text-[13px] text-ink-subtle">No unread texts.</p>
+            )}
+          </Card>
 
           <Card title="Today" right={`${(appointments ?? []).length} appointments`}>
             {(appointments ?? []).length > 0 ? (
