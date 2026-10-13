@@ -27,7 +27,7 @@ What roof-quote has that PIW does not:
 | File records (`/files`) | ❌ excluded | **Step 1** |
 | Roofr PDF → measured squares, pitch, waste | ❌ | **Step 1** |
 | Census (field fill rates per sync) | ❌ | Step 3, with the Quality dashboard that reads it |
-| Quote workspace + PDF | ❌ (Figma proposal builder designed) | Step 2 |
+| Quote workspace + PDF | ✅ proposal builder + PDF on the lead | Step 2 |
 | Accuracy / production / revenue / quality dashboards | partial | Step 3 |
 
 Unique roof-quote data and what happens to it:
@@ -66,6 +66,26 @@ following the Figma proposal builder: Good / Better / Best from the CertainTeed
 catalog, measurements from Google Solar or Roofr, add-ons from adjustments, and a
 PDF. The kanban pipeline stays the home view; roof-quote's
 `/dashboard/pipeline/[jnid]` detail folds into the lead workspace.
+
+Built:
+
+- `proposals`, `proposal_options`, `proposal_add_ons`: a versioned snapshot per
+  lead. Drafts autosave; once sent, triggers freeze pricing and a change is a
+  new version (older sent versions are voided when a newer one is sent).
+- Draft defaults: the active rate card's tiers (CertainTeed product line copied
+  from the catalog) at the middle of each range, adjustments as unchecked
+  add-ons, and the measurement from a single matched Roofr report (JobNimbus job
+  with the lead's street + ZIP), else the ready Google Solar estimate, else
+  squares the rep types in.
+- Send marks the proposal sent and moves an open lead to **Proposal sent** with
+  the same stage RPC and audit entry as the kanban.
+- Signed-in PDF at `/api/proposals/[id]/pdf`, tenant-named and "Powered by
+  Rake".
+
+Deferred from the Figma frame, because PIW has no data or integration for them
+yet: internal margin, financing (monthly price), e-signature, deposit, and
+sending to the homeowner by SMS/email (the customer "Choose your roof" page
+arrives with the homeowner portal in Step 5).
 
 ### Step 3 — Reports
 

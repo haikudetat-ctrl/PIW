@@ -286,3 +286,51 @@ test("fails safely when property evidence cannot be loaded", async () => {
     }),
   ).rejects.toThrow("Failed to load property profile");
 });
+
+test("lists the lead's proposals and links each to its builder", async () => {
+  database.results.set(
+    "proposals",
+    result([
+      {
+        id: "40000000-0000-4000-8000-000000000002",
+        version: 2,
+        status: "draft",
+        roof_squares: 29.6,
+        recommended_tier: "better",
+        sent_at: null,
+        updated_at: "2026-10-13T15:00:00Z",
+      },
+      {
+        id: "40000000-0000-4000-8000-000000000001",
+        version: 1,
+        status: "sent",
+        roof_squares: 28.4,
+        recommended_tier: "best",
+        sent_at: "2026-10-12T15:00:00Z",
+        updated_at: "2026-10-12T15:00:00Z",
+      },
+    ]),
+  );
+
+  render(
+    await LeadWorkspacePage({
+      params: Promise.resolve({ leadId: LEAD_ID }),
+    }),
+  );
+
+  const proposals = screen.getByRole("region", { name: "Proposals" });
+  expect(proposals).toHaveTextContent("Version 2");
+  expect(proposals).toHaveTextContent("29.6 sq · Better recommended");
+  expect(screen.getByRole("link", { name: /Version 1/ })).toHaveAttribute(
+    "href",
+    `/leads/${LEAD_ID}/proposals/40000000-0000-4000-8000-000000000001`,
+  );
+  // An open draft is finished before another is started.
+  expect(screen.queryByRole("button", { name: "New proposal" })).not.toBeInTheDocument();
+  expect(
+    database.queries.find((query) => query.table === "proposals")?.filters,
+  ).toEqual([
+    ["company_id", COMPANY_ID],
+    ["lead_id", LEAD_ID],
+  ]);
+});
