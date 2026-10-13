@@ -1925,6 +1925,47 @@ export type Database = {
           },
         ]
       }
+      jobnimbus_census: {
+        Row: {
+          captured_at: string
+          company_id: string
+          contact_field_counts: Json
+          contacts: number
+          id: string
+          job_field_counts: Json
+          jobs: number
+          unmapped_statuses: Json
+        }
+        Insert: {
+          captured_at?: string
+          company_id: string
+          contact_field_counts: Json
+          contacts: number
+          id?: string
+          job_field_counts: Json
+          jobs: number
+          unmapped_statuses?: Json
+        }
+        Update: {
+          captured_at?: string
+          company_id?: string
+          contact_field_counts?: Json
+          contacts?: number
+          id?: string
+          job_field_counts?: Json
+          jobs?: number
+          unmapped_statuses?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jobnimbus_census_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       jobnimbus_contacts: {
         Row: {
           company_id: string
@@ -6248,6 +6289,10 @@ export type Database = {
           token_rotated_at: string
         }[]
       }
+      capture_jobnimbus_census: {
+        Args: { p_company_id: string }
+        Returns: string
+      }
       change_lead_stage: {
         Args: {
           p_changed_by: string
@@ -6757,6 +6802,9 @@ export type Database = {
         Args: { p_company_id: string }
         Returns: Json
       }
+      report_funnel: { Args: { p_from: string; p_to: string }; Returns: Json }
+      report_jobs: { Args: { p_from: string; p_to: string }; Returns: Json }
+      report_measurements: { Args: never; Returns: Json }
       request_roof_consultation: {
         Args: {
           p_assessment_id: string

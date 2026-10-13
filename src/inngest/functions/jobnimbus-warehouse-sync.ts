@@ -54,6 +54,18 @@ export const jobNimbusWarehouseSync = inngest.createFunction(
       } catch {
         failures.push(`${companyId}:roofr-reports`);
       }
+      // Census of field fill rates and unmapped statuses for Reports › Data
+      // quality, taken after every sync so a regression shows within the hour.
+      try {
+        await step.run(`census-${companyId}`, async () => {
+          const { error } = await createServiceClient().rpc("capture_jobnimbus_census", {
+            p_company_id: companyId,
+          });
+          if (error) throw new Error("JobNimbus census capture failed");
+        });
+      } catch {
+        failures.push(`${companyId}:census`);
+      }
     }
     return { companies: companies.length, failures };
   },
