@@ -56,6 +56,7 @@ const PATHS = {
   ),
   list: <path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01" />,
   check: <path d="m5 12.5 4.5 4.5L19 7.5" />,
+  chart: <path d="M4 20h16M7 16v-4M12 16V8M17 16v-6" />,
   send: <path d="M21 3 10 14m0 0L3 10l18-7-7 18-4-7z" />,
   shield: (
     <>

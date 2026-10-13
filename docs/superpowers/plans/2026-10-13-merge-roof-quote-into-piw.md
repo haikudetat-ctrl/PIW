@@ -26,9 +26,9 @@ What roof-quote has that PIW does not:
 | Reconcile (detect deletes / drift) | ✅ daily full scan fails on count mismatch | Keep |
 | File records (`/files`) | ❌ excluded | **Step 1** |
 | Roofr PDF → measured squares, pitch, waste | ❌ | **Step 1** |
-| Census (field fill rates per sync) | ❌ | Step 3, with the Quality dashboard that reads it |
+| Census (field fill rates per sync) | ✅ after every warehouse sync | Step 3 |
 | Quote workspace + PDF | ✅ proposal builder + PDF on the lead | Step 2 |
-| Accuracy / production / revenue / quality dashboards | partial | Step 3 |
+| Accuracy / production / revenue / quality dashboards | ✅ PIW Reports | Step 3 |
 
 Unique roof-quote data and what happens to it:
 
@@ -91,6 +91,23 @@ arrives with the homeowner portal in Step 5).
 
 Accuracy (Google Solar vs Roofr), production, revenue and quality dashboards move
 into PIW Reports. Census moves here with the Quality view that reads it.
+
+Built: **Reports** in the sidebar, following the Figma "Reports — Funnel" frame,
+with tabs Funnel · Revenue · Reps · Production · Accuracy · Data quality.
+
+- **Funnel** reads the customer journey, so PIW leads and JobNimbus jobs count as
+  one customer: customers who came in during the period, by the furthest stage
+  reached, time between stages, and first-touch lead sources.
+- **Revenue / Reps / Production** read JobNimbus jobs created in the period and
+  the journey stages they reached: revenue by month and shingle line, reps by
+  close rate and revenue, territory with Roofr coverage, job mixes.
+- **Accuracy** pairs a lead's Google Solar estimate with the Roofr report on the
+  same customer's JobNimbus job. It reports nothing until pairs exist.
+- **Data quality** shows the JobNimbus census (field fill rates against the
+  previous census, statuses with no stage) and recent sync runs.
+
+Not built from the Figma frame: speed-to-lead and costs (no speed-to-lead events
+or source costs recorded yet) and "Why we lost" (no lost-reason field yet).
 
 ### Step 4 — One domain, retire roof-quote
 
