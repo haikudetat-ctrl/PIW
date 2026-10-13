@@ -150,7 +150,7 @@ export default async function PipelinePage({
               day: "numeric",
               year: "numeric",
               timeZone: "America/New_York",
-            })}, synced hourly. JobNimbus cards open the job in JobNimbus.`
+            })}, synced hourly.`
           : "JobNimbus jobs are unavailable right now; showing Rake leads only."}
       </p>
 

@@ -42,7 +42,7 @@ test("job cards fall back to the job number and treat a zero total as none", () 
       valueCents: null,
       squares: 19.43,
       ageLabel: "3h",
-      href: "https://app.jobnimbus.com/job/abc%2F1",
+      href: "/jobs/abc%2F1",
     },
   ]);
 });

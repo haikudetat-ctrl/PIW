@@ -116,7 +116,7 @@ test("board shows JobNimbus jobs read-only next to the leads", async () => {
   const proposal = screen.getByRole("region", { name: "Proposal Sent" });
   expect(within(proposal).getByRole("link", { name: "Mike Martella" })).toHaveAttribute(
     "href",
-    "https://app.jobnimbus.com/job/jn-1",
+    "/jobs/jn-1",
   );
   expect(within(proposal).getByText("JobNimbus · Quoted")).toBeInTheDocument();
   expect(within(proposal).getByText("24.1 sq · Roofr")).toBeInTheDocument();
@@ -138,7 +138,7 @@ test("list view asks for one stage of JobNimbus jobs and counts the rest", async
   render(await PipelinePage({ searchParams: Promise.resolve({ view: "list", stage: "won" }) }));
 
   expect(rpc.calls).toEqual([["pipeline_jobnimbus", { p_limit: 200, p_stage: "won" }]]);
-  expect(screen.getByRole("link", { name: "Job #3681" })).toHaveAttribute("href", "https://app.jobnimbus.com/job/jn-2");
+  expect(screen.getByRole("link", { name: "Job #3681" })).toHaveAttribute("href", "/jobs/jn-2");
   expect(screen.getByText("+94 older JobNimbus jobs not shown")).toBeInTheDocument();
 });
 
