@@ -209,11 +209,11 @@ The exact migration timestamp is generated with the Supabase CLI at execution ti
 - Modify: src/inngest/functions/context-dialer-slack-sender.ts and its test
 - Modify: src/modules/leads/jobnimbus-pipeline.ts and its test if linkage needs it
 - Create: src/modules/jobnimbus/enrichment-summary.ts and its test
-- Modify: existing Reports data-quality view (resolve exact file using rg at execution)
-- Create: browser/integration checks using the repository's established test harness
+- Modify: src/app/(app)/reports/quality/page.tsx
+- Create: src/integration/jobnimbus-dialer-access.integration.test.ts
 
 **Interfaces**
-- loadJobNimbusDialerContext(client, input: { companyId: string; leadId: string })
+- In src/modules/jobnimbus/enrichment-summary.ts, loadJobNimbusDialerContext(client, input: { companyId: string; leadId: string })
   returns same-company linked job identities, original status/rep, Roofr evidence
   and enrichment outcome; no association yields null.
 - loadJobNimbusEnrichmentSummary(client, companyId) returns activation/backfill interval
