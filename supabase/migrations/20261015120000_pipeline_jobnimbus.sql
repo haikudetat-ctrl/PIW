@@ -59,7 +59,7 @@ as $$
       job.sales_rep_name,
       nullif(concat_ws(', ', nullif(btrim(job.address_line1), ''), nullif(btrim(job.city), '')), '') as address,
       contact.display_name,
-      coalesce(job.approved_total, job.estimate_total) as value,
+      coalesce(nullif(job.approved_total, 0), job.estimate_total) as value,
       coalesce(job.status_changed_at, job.jn_updated_at, job.jn_created_at) as activity_at,
       case
         when status_map.stage in ('appointment_set', 'appointment_no_show') then 'appointment_set'
