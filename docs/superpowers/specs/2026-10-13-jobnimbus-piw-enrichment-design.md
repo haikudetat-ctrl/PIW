@@ -2,7 +2,7 @@
 
 Date: 2026-10-13
 Repository: haikudetat-ctrl/PIW
-Status: design for review; implementation and production backfill have not run.
+Status: design approved; ActiveProspect backfill exclusion added at user direction. Implementation and production backfill have not run.
 
 ## Agreed outcome
 
@@ -127,6 +127,31 @@ Context Dialer must identify JobNimbus origin and link to the job. Preserve
 JobNimbus status/rep and display unavailable data honestly. The pipeline
 board and customer journey must count the linked customer/lead once.
 Maintain company-scoped access for the lead, job, imagery and every output.
+
+## Backfill ActiveProspect exclusion
+
+User requirement added after design approval: the 30-day JobNimbus backfill
+must not send Context Dialer notifications or lead submissions to ActiveProspect.
+
+Persist intake origin (backfill or ongoing) on the job bridge and pipeline run;
+it must survive retries, event replay and later changes to source attribution.
+Every backfill run can prepare PIW Context Dialer context and the existing
+configured internal handoff, but cannot create ActiveProspect delivery rows or
+lead/distribution.requested events targeting either activeprospect_existing
+or activeprospect_secondary. Do not relabel imports as Meta70/Meta30 to reuse
+the live-lead distribution path.
+
+Enforce exclusion in durable delivery creation and claim/recovery eligibility,
+not only the initial dispatcher. A mistakenly queued backfill delivery must
+not make an external HTTP submission on retry or recovery. Preserve provenance
+per triggering run/delivery: linking a backfill job to an existing PIW lead
+must not suppress a legitimate delivery from that lead's original live intake.
+The backfill must not modify, replay or cancel that original delivery.
+
+Acceptance evidence requires zero newly generated backfill ActiveProspect
+deliveries, zero backfill distribution events and zero ActiveProspect client
+calls, covering both destinations, retries, sweeps and attribution changes.
+Existing live Meta distribution regression tests must continue to pass.
 
 ## Controls and operational evidence
 
