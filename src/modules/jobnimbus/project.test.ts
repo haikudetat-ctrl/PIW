@@ -4,6 +4,7 @@ import {
   JobNimbusProjectionDataError,
   projectJobNimbusContact,
   projectJobNimbusEstimate,
+  projectJobNimbusFile,
   projectJobNimbusJob,
   runJobNimbusProjection,
   type JobNimbusProjectionStore,
@@ -131,6 +132,46 @@ describe("projectJobNimbusEstimate", () => {
     expect(row).toMatchObject({
       related_job_jnid: "job-1", estimate_total: 12_000, approved_total: 11_500, source: "sumoquote",
     });
+  });
+});
+
+describe("projectJobNimbusFile", () => {
+  it("projects only file metadata and the related job, never download details", () => {
+    expect(projectJobNimbusFile({
+      companyId: "company-1",
+      payload: {
+        jnid: "file-1",
+        filename: "Roofr Report.pdf",
+        content_type: "application/pdf",
+        size: 4096,
+        pages: "12",
+        related: [{ id: "estimate-1", type: "estimate" }, { id: "job-related", type: "job" }],
+        date_created: 1_700_000_000,
+        date_updated: 1_700_000_060,
+        signed_download_url: "must-not-project.example.test",
+      },
+      projectedAt: "2026-10-13T12:00:00.000Z",
+    })).toEqual({
+      company_id: "company-1",
+      jnid: "file-1",
+      filename: "Roofr Report.pdf",
+      content_type: "application/pdf",
+      size: 4096,
+      pages: 12,
+      related_job_jnid: "job-related",
+      jn_created_at: "2023-11-14T22:13:20.000Z",
+      jn_updated_at: "2023-11-14T22:14:20.000Z",
+      projected_at: "2026-10-13T12:00:00.000Z",
+    });
+  });
+
+  it("nulls malformed sizes, page counts and relations instead of coercing them", () => {
+    const row = projectJobNimbusFile({
+      companyId: "company-1",
+      payload: { jnid: "file-2", size: -1, pages: 1.5, related: [{ id: { malformed: true }, type: "job" }] },
+      projectedAt: "2026-10-13T12:00:00.000Z",
+    });
+    expect(row).toMatchObject({ size: null, pages: null, related_job_jnid: null });
   });
 });
 

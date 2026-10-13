@@ -8,6 +8,11 @@ import {
   type ProjectableRecordType,
 } from "./project";
 import {
+  createSupabaseRoofrReportStore,
+  extractRoofrText,
+  type RoofrReportDependencies,
+} from "./roofr-reports";
+import {
   createSupabaseJobNimbusSyncStore,
   resolveJobNimbusCredential,
   runJobNimbusSync,
@@ -15,8 +20,9 @@ import {
 } from "./sync";
 
 // Contacts first so a job's primary contact is already projected when the
-// job lands. Files, tasks and work orders are not needed for the journey.
-export const WAREHOUSE_RECORD_TYPES: readonly ProjectableRecordType[] = ["contact", "job", "estimate"];
+// job lands. Files follow jobs so Roofr reports can be read the same run;
+// tasks and work orders are not needed.
+export const WAREHOUSE_RECORD_TYPES: readonly ProjectableRecordType[] = ["contact", "job", "estimate", "file"];
 
 // A full scan doubles as the reconciliation pass: it re-reads everything and
 // fails the run when the count does not match JobNimbus's own total.
@@ -83,5 +89,17 @@ export function createWarehouseDependencies(
       if (error || !data) throw new Error("JobNimbus integration listing failed", { cause: error });
       return data.map((row) => row.company_id);
     },
+  };
+}
+
+export function createRoofrReportDependencies(
+  database: SupabaseClient<Database>,
+  environment: Record<string, string | undefined>,
+): RoofrReportDependencies {
+  return {
+    store: createSupabaseRoofrReportStore(database),
+    createClient: (apiKey) => new JobNimbusClient({ apiKey }),
+    resolveCredential: (envKeyName) => resolveJobNimbusCredential(envKeyName, environment),
+    extractText: extractRoofrText,
   };
 }
