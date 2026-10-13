@@ -2149,7 +2149,7 @@ export type Database = {
           {
             foreignKeyName: "jobnimbus_roofr_reports_company_id_file_jnid_fkey"
             columns: ["company_id", "file_jnid"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "jn_files"
             referencedColumns: ["company_id", "jnid"]
           },
@@ -4227,6 +4227,207 @@ export type Database = {
           },
         ]
       }
+      proposal_add_ons: {
+        Row: {
+          adjustment_code: string | null
+          calculation_kind: string
+          company_id: string
+          display_order: number
+          explanation: string | null
+          id: string
+          included: boolean
+          label: string
+          proposal_id: string
+          quantity: number
+          unit_value: number
+        }
+        Insert: {
+          adjustment_code?: string | null
+          calculation_kind: string
+          company_id: string
+          display_order: number
+          explanation?: string | null
+          id?: string
+          included?: boolean
+          label: string
+          proposal_id: string
+          quantity?: number
+          unit_value: number
+        }
+        Update: {
+          adjustment_code?: string | null
+          calculation_kind?: string
+          company_id?: string
+          display_order?: number
+          explanation?: string | null
+          id?: string
+          included?: boolean
+          label?: string
+          proposal_id?: string
+          quantity?: number
+          unit_value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "proposal_add_ons_company_id_proposal_id_fkey"
+            columns: ["company_id", "proposal_id"]
+            isOneToOne: false
+            referencedRelation: "proposals"
+            referencedColumns: ["company_id", "id"]
+          },
+        ]
+      }
+      proposal_options: {
+        Row: {
+          company_id: string
+          customer_description: string
+          customer_name: string
+          differentiators: Json
+          display_order: number
+          manufacturer_name: string | null
+          price_per_square_cents: number
+          product_line_id: string | null
+          product_line_name: string | null
+          proposal_id: string
+          tier_key: string
+          warranty_summary: string
+        }
+        Insert: {
+          company_id: string
+          customer_description: string
+          customer_name: string
+          differentiators?: Json
+          display_order: number
+          manufacturer_name?: string | null
+          price_per_square_cents: number
+          product_line_id?: string | null
+          product_line_name?: string | null
+          proposal_id: string
+          tier_key: string
+          warranty_summary: string
+        }
+        Update: {
+          company_id?: string
+          customer_description?: string
+          customer_name?: string
+          differentiators?: Json
+          display_order?: number
+          manufacturer_name?: string | null
+          price_per_square_cents?: number
+          product_line_id?: string | null
+          product_line_name?: string | null
+          proposal_id?: string
+          tier_key?: string
+          warranty_summary?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "proposal_options_company_id_proposal_id_fkey"
+            columns: ["company_id", "proposal_id"]
+            isOneToOne: false
+            referencedRelation: "proposals"
+            referencedColumns: ["company_id", "id"]
+          },
+          {
+            foreignKeyName: "proposal_options_product_line_id_fkey"
+            columns: ["product_line_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_product_lines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      proposals: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          layers_to_remove: number | null
+          lead_id: string
+          measurement_ref: string | null
+          measurement_source: string
+          notes: string | null
+          pitch_12: number | null
+          pricing_version: string
+          rate_card_id: string
+          recommended_tier: string
+          roof_squares: number
+          sent_at: string | null
+          status: string
+          stories: number | null
+          updated_at: string
+          valid_until: string
+          version: number
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          layers_to_remove?: number | null
+          lead_id: string
+          measurement_ref?: string | null
+          measurement_source: string
+          notes?: string | null
+          pitch_12?: number | null
+          pricing_version: string
+          rate_card_id: string
+          recommended_tier?: string
+          roof_squares: number
+          sent_at?: string | null
+          status?: string
+          stories?: number | null
+          updated_at?: string
+          valid_until: string
+          version: number
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          layers_to_remove?: number | null
+          lead_id?: string
+          measurement_ref?: string | null
+          measurement_source?: string
+          notes?: string | null
+          pitch_12?: number | null
+          pricing_version?: string
+          rate_card_id?: string
+          recommended_tier?: string
+          roof_squares?: number
+          sent_at?: string | null
+          status?: string
+          stories?: number | null
+          updated_at?: string
+          valid_until?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "proposals_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proposals_company_id_lead_id_fkey"
+            columns: ["company_id", "lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["company_id", "id"]
+          },
+          {
+            foreignKeyName: "proposals_company_id_rate_card_id_fkey"
+            columns: ["company_id", "rate_card_id"]
+            isOneToOne: false
+            referencedRelation: "roof_pricing_rate_cards"
+            referencedColumns: ["company_id", "id"]
+          },
+        ]
+      }
       provider_cost_entries: {
         Row: {
           actual_cost_micros: number | null
@@ -5807,7 +6008,7 @@ export type Database = {
           {
             foreignKeyName: "jobnimbus_roofr_reports_company_id_file_jnid_fkey"
             columns: ["company_id", "file_jnid"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "jn_files"
             referencedColumns: ["company_id", "jnid"]
           },

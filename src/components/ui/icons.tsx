@@ -56,6 +56,14 @@ const PATHS = {
   ),
   list: <path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01" />,
   check: <path d="m5 12.5 4.5 4.5L19 7.5" />,
+  send: <path d="M21 3 10 14m0 0L3 10l18-7-7 18-4-7z" />,
+  shield: (
+    <>
+      <path d="M12 3 4.5 6v6c0 4.5 3.2 8 7.5 9 4.3-1 7.5-4.5 7.5-9V6L12 3z" />
+      <path d="m9 12 2 2 4-4" />
+    </>
+  ),
+  sparkle: <path d="m12 3.5 1.8 6.7 6.7 1.8-6.7 1.8-1.8 6.7-1.8-6.7L3.5 12l6.7-1.8L12 3.5z" />,
   signOut: <path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 8l-4 4 4 4M6 12h10" />,
 } satisfies Record<string, ReactNode>;
 

@@ -4,6 +4,7 @@ import { createServerClient } from "@/lib/supabase/server";
 import { buildActivityTimeline } from "@/modules/leads/activity-timeline";
 import { InteractionList } from "./interaction-list";
 import { ParcelMap, type ParcelMapCandidate } from "./parcel-map";
+import { ProposalsCard } from "./proposals/proposals-card";
 import { TaskList } from "./task-list";
 import { Card } from "@/components/ui/card";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
@@ -72,6 +73,7 @@ export default async function LeadWorkspacePage({
     { data: structure, error: structureError },
     { data: estimate, error: estimateError },
     { data: deliveries, error: deliveriesError },
+    { data: proposals, error: proposalsError },
   ] = await Promise.all([
     supabase
       .from("lead_stage_history")
@@ -133,9 +135,15 @@ export default async function LeadWorkspacePage({
       .eq("company_id", companyId)
       .eq("lead_id", leadId)
       .order("channel"),
+    supabase
+      .from("proposals")
+      .select("id, version, status, roof_squares, recommended_tier, sent_at, updated_at")
+      .eq("company_id", companyId)
+      .eq("lead_id", leadId)
+      .order("version", { ascending: false }),
   ]);
 
-  if (stageHistoryError || interactionsError || tasksError) {
+  if (stageHistoryError || interactionsError || tasksError || proposalsError) {
     throw new Error("Failed to load lead workspace");
   }
   if (addressError || parcelError || structureError || estimateError || deliveriesError) {
@@ -251,6 +259,12 @@ export default async function LeadWorkspacePage({
             </p>
           </Card>
         ) : null}
+
+        <ProposalsCard
+          leadId={leadId}
+          proposals={proposals ?? []}
+          needsSquares={estimate?.status !== "ready"}
+        />
 
         <Card
           title="Property profile"
