@@ -36,6 +36,8 @@ export default async function PipelinePage({
     supabase
       .from("leads")
       .select("id, name, submitted_address, stage, created_at")
+      // Test and verification leads stay in the database but off the board.
+      .eq("is_test", false)
       .order("created_at", { ascending: false }),
     supabase
       .from("roof_estimates")

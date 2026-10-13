@@ -17,10 +17,11 @@ export default async function DashboardPage() {
     { data: stuckRuns },
     { count: reviewCount },
   ] = await Promise.all([
-    supabase.from("leads").select("stage"),
+    supabase.from("leads").select("stage").eq("is_test", false),
     supabase
       .from("leads")
       .select("id, name, submitted_address, created_at")
+      .eq("is_test", false)
       .eq("stage", "new")
       .order("created_at", { ascending: false })
       .limit(5),

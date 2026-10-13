@@ -2,13 +2,19 @@ import { render, screen, within } from "@testing-library/react";
 import { beforeEach, expect, test, vi } from "vitest";
 
 const tables = vi.hoisted(() => new Map<string, unknown[]>());
+const filters = vi.hoisted(() => new Map<string, Array<[string, unknown]>>());
 
 vi.mock("@/lib/supabase/server", () => ({
   createServerClient: vi.fn(async () => ({
     from(table: string) {
+      const tableFilters: Array<[string, unknown]> = [];
+      filters.set(table, tableFilters);
       const builder = {
         select: () => builder,
-        eq: () => builder,
+        eq: (column: string, value: unknown) => {
+          tableFilters.push([column, value]);
+          return builder;
+        },
         order: () => builder,
         then: (resolve: (value: { data: unknown[]; error: null }) => unknown) =>
           Promise.resolve({ data: tables.get(table) ?? [], error: null }).then(resolve),
@@ -59,6 +65,7 @@ test("board shows open stage columns with estimate, next step and a collapsed cl
 
   expect(screen.getByText("$14.2k–$21.3k", { selector: "p" })).toBeInTheDocument();
   expect(screen.getByText("Past their due time")).toBeInTheDocument();
+  expect(filters.get("leads")).toContainEqual(["is_test", false]);
 });
 
 test("list view filters by stage", async () => {
