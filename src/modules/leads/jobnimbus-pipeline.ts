@@ -2,8 +2,9 @@ import { z } from "zod";
 import { leadStages, type LeadStage } from "@/modules/leads/change-lead-stage";
 import { formatAge } from "@/modules/leads/pipeline-view";
 
-// JobNimbus is the system of record for its jobs, so the board links out to
-// the job there instead of offering stage moves.
+// JobNimbus is the system of record for its jobs: the board opens Rake's
+// read-only job page, which links on to the job in JobNimbus, and offers no
+// stage moves.
 export const JOBNIMBUS_JOB_URL = "https://app.jobnimbus.com/job/";
 
 const stage = z.enum(leadStages);
@@ -61,7 +62,7 @@ export function buildJobCards(payload: JobnimbusPipeline, now: Date): JobCard[] 
     valueCents: positiveCents(job.value),
     squares: job.roofr_squares,
     ageLabel: job.activity_at ? formatAge(job.activity_at, now) : null,
-    href: `${JOBNIMBUS_JOB_URL}${encodeURIComponent(job.jnid)}`,
+    href: `/jobs/${encodeURIComponent(job.jnid)}`,
   }));
 }
 

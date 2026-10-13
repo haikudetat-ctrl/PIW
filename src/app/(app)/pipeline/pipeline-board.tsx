@@ -52,19 +52,17 @@ function LeadCard({ card }: { card: PipelineCard }) {
   );
 }
 
-// Read-only: JobNimbus owns the job, so the card opens it there.
+// Read-only: JobNimbus owns the job, so the card has no stage menu.
 function JobnimbusCard({ job }: { job: JobCard }) {
   return (
     <li className="relative flex flex-col gap-2 rounded-2xl border border-border bg-surface p-3 transition hover:shadow-raised">
       <div className="min-w-0">
-        <a
+        <Link
           href={job.href}
-          target="_blank"
-          rel="noreferrer"
           className="text-sm font-medium text-ink after:absolute after:inset-0 after:rounded-2xl"
         >
           {job.title}
-        </a>
+        </Link>
         {job.address ? <p className="truncate text-xs text-ink-subtle">{job.address}</p> : null}
       </div>
       <div>

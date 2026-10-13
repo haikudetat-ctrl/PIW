@@ -81,14 +81,9 @@ export function PipelineList({
             {jobs.map((job) => (
               <tr key={job.jnid} className="border-b border-border last:border-b-0 hover:bg-fill-hover/60">
                 <td className="px-4 py-2.5">
-                  <a
-                    href={job.href}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-[13px] font-medium text-ink hover:text-tint"
-                  >
+                  <Link href={job.href} className="text-[13px] font-medium text-ink hover:text-tint">
                     {job.title}
-                  </a>
+                  </Link>
                   {job.address ? <p className="max-w-72 truncate text-xs text-ink-subtle">{job.address}</p> : null}
                   <JobnimbusTag status={job.status} />
                 </td>
