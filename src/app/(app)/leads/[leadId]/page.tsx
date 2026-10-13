@@ -2,13 +2,15 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createServerClient } from "@/lib/supabase/server";
 import { buildActivityTimeline } from "@/modules/leads/activity-timeline";
+import { Conversation } from "./conversation";
+import { loadConversation } from "./conversation-data";
 import { InteractionList } from "./interaction-list";
 import { ParcelMap, type ParcelMapCandidate } from "./parcel-map";
 import { ProposalsCard } from "./proposals/proposals-card";
 import { TaskList } from "./task-list";
 import { Card } from "@/components/ui/card";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
-import { primaryButtonClasses } from "@/components/ui/form";
+import { primaryButtonClasses, secondaryButtonClasses } from "@/components/ui/form";
 import { Icon } from "@/components/ui/icons";
 import { formatCurrency, formatDateTime, formatSource, humanize, sentenceCase } from "@/lib/format";
 
@@ -150,6 +152,8 @@ export default async function LeadWorkspacePage({
     throw new Error("Failed to load property profile");
   }
 
+  const conversation = await loadConversation(supabase, { id: lead.id, name: lead.name, company_id: companyId });
+
   const timeline = buildActivityTimeline(stageHistory ?? [], interactions ?? []);
   const mapCandidates: ParcelMapCandidate[] = [];
   if (parcel?.geometry) {
@@ -209,10 +213,16 @@ export default async function LeadWorkspacePage({
               </span>
             </div>
           </div>
-          <Link href={`/leads/${lead.id}/dialer`} className={primaryButtonClasses}>
-            <Icon name="phone" size={14} />
-            Open Context Dialer
-          </Link>
+          <div className="flex items-center gap-2">
+            <a href="#conversation" className={secondaryButtonClasses}>
+              <Icon name="mail" size={14} />
+              Text
+            </a>
+            <Link href={`/leads/${lead.id}/dialer`} className={primaryButtonClasses}>
+              <Icon name="phone" size={14} />
+              Open Context Dialer
+            </Link>
+          </div>
         </div>
 
         {estimate ? (
@@ -259,6 +269,8 @@ export default async function LeadWorkspacePage({
             </p>
           </Card>
         ) : null}
+
+        <Conversation leadId={leadId} {...conversation} />
 
         <ProposalsCard
           leadId={leadId}

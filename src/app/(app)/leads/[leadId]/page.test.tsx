@@ -69,6 +69,20 @@ vi.mock("./parcel-map", () => ({
   ),
 }));
 
+vi.mock("./conversation-data", () => ({
+  loadConversation: vi.fn(async () => ({
+    messages: [
+      { id: "m1", direction: "outbound", body: "Hi Jordan, your estimate is ready.", status: "delivered", error_code: null, created_at: "2026-07-29T14:00:00.000Z" },
+      { id: "m2", direction: "inbound", body: "Can someone come look?", status: "received", error_code: null, created_at: "2026-07-29T14:05:00.000Z" },
+    ],
+    to: "(609) 555-0101",
+    consent: "SMS consent on file",
+    blockedReason: null,
+    fields: { first_name: "Jordan", rep_name: "Chris", company_name: "All Season" },
+  })),
+}));
+vi.mock("./sms-actions", () => ({ sendSms: vi.fn() }));
+
 const { default: LeadWorkspacePage } = await import("./page");
 
 beforeEach(() => {
@@ -333,4 +347,16 @@ test("lists the lead's proposals and links each to its builder", async () => {
     ["company_id", COMPANY_ID],
     ["lead_id", LEAD_ID],
   ]);
+});
+
+test("shows the text conversation with consent and a composer", async () => {
+  render(await LeadWorkspacePage({ params: Promise.resolve({ leadId: LEAD_ID }) }));
+
+  const conversation = screen.getByRole("region", { name: "Conversation" });
+  expect(conversation).toHaveTextContent("SMS consent on file");
+  expect(conversation).toHaveTextContent("Hi Jordan, your estimate is ready.");
+  expect(conversation).toHaveTextContent("Delivered");
+  expect(conversation).toHaveTextContent("Can someone come look?");
+  expect(conversation).toHaveTextContent("SMS to (609) 555-0101");
+  expect(screen.getByRole("link", { name: "Text" })).toHaveAttribute("href", "#conversation");
 });
