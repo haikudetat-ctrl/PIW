@@ -6,7 +6,7 @@ import {
   usePrivacyConsent,
 } from "./privacy-consent-provider";
 
-const navigation = vi.hoisted(() => ({pathname: "/" as string | null}));
+const navigation = vi.hoisted(() => ({pathname: "/privacy" as string | null}));
 vi.mock("next/navigation", () => ({usePathname: () => navigation.pathname}));
 
 const rejectedConsent: VerifiedConsent = {
@@ -38,6 +38,7 @@ function AuthorizationProbe() {
 }
 
 afterEach(() => {
+  navigation.pathname = "/privacy";
   vi.unstubAllGlobals();
   Object.defineProperty(navigator, "globalPrivacyControl", {
     value: undefined,
@@ -46,6 +47,20 @@ afterEach(() => {
 });
 
 describe("PrivacyConsentProvider", () => {
+  test.each(["/", "/login", "/pipeline", "/leads/new", "/forgot-password", "/roof-estimate-internal"])("hides privacy UI on internal route %s", (pathname) => {
+    navigation.pathname = pathname;
+    render(<PrivacyConsentProvider initialConsent={null}><Probe /></PrivacyConsentProvider>);
+    expect(screen.queryByRole("region", {name: "Privacy choices"})).toBeNull();
+    expect(screen.queryByRole("button", {name: "Privacy choices"})).toBeNull();
+    expect(screen.getByTestId("preferences")).toBeVisible();
+  });
+
+  test.each(["/campaigns", "/campaigns/spring", "/roof-estimate", "/roof-estimate/p/token"])("keeps privacy choices on marketing route %s", (pathname) => {
+    navigation.pathname = pathname;
+    render(<PrivacyConsentProvider initialConsent={null}><Probe /></PrivacyConsentProvider>);
+    expect(screen.getByRole("region", {name: "Privacy choices"})).toBeVisible();
+    expect(screen.getByRole("button", {name: "Privacy choices"})).toBeVisible();
+  });
   test("offers equally accessible accept, reject, and customize actions", () => {
     render(<PrivacyConsentProvider initialConsent={null}><div /></PrivacyConsentProvider>);
 

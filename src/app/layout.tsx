@@ -33,8 +33,22 @@ const bebasNeue = Bebas_Neue({
 });
 
 export const metadata: Metadata = {
-  title: "Rake",
-  description: "New Jersey residential roofing intelligence",
+  metadataBase: new URL("https://rake.2-stack.com"),
+  title: "Rake | Property Intelligence Worker",
+  description: "Property intelligence and roofing operations for the Rake team.",
+  openGraph: {
+    type: "website",
+    siteName: "Rake",
+    title: "Rake | Property Intelligence Worker",
+    description: "Property intelligence and roofing operations for the Rake team.",
+    images: [{url: "/api/share-image", width: 1200, height: 630, alt: "Rake — Property Intelligence Worker"}],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Rake | Property Intelligence Worker",
+    description: "Property intelligence and roofing operations for the Rake team.",
+    images: ["/api/share-image"],
+  },
 };
 
 export default async function RootLayout({
