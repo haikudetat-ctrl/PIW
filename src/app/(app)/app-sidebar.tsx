@@ -54,7 +54,7 @@ export function AppSidebar({
 }) {
   const pathname = usePathname();
   const items: NavItem[] = [
-    { href: "/", label: "Dashboard", icon: "home" },
+    { href: "/", label: "My day", icon: "home" },
     { href: "/pipeline", label: "Pipeline", icon: "pipeline" },
     { href: "/reports", label: "Reports", icon: "chart" },
     { href: "/review", label: "Review", icon: "review", count: reviewCount },
