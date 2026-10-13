@@ -5,6 +5,18 @@ const leadQueries = vi.hoisted(() => [] as Array<{ columns: string; filters: Arr
 
 vi.mock("@/lib/supabase/server", () => ({
   createServerClient: vi.fn(async () => ({
+    rpc: vi.fn(async () => ({
+      data: {
+        since: "2026-04-16T00:00:00.000Z",
+        stages: [
+          { stage: "new", jobs: 492, value: 84900 },
+          { stage: "won", jobs: 95, value: 1354800.33 },
+        ],
+        jobs: [],
+        linked_leads: [],
+      },
+      error: null,
+    })),
     from: vi.fn((table: string) => {
       if (table === "leads") {
         const query = { columns: "", filters: [] as Array<[string, unknown]> };
@@ -67,6 +79,10 @@ test("shows new leads, pipeline totals, and a link to the pipeline board", async
   expect(screen.getByRole("heading", { name: "Rake operations" })).toBeInTheDocument();
   expect(screen.getByText("Jordan Rivera")).toBeInTheDocument();
   expect(screen.getByText("View pipeline board")).toBeInTheDocument();
+  // JobNimbus jobs count alongside Rake leads.
+  expect(screen.getByText("589")).toBeInTheDocument();
+  expect(screen.getByText("587 from JobNimbus")).toBeInTheDocument();
+  expect(screen.getByText("493")).toBeInTheDocument();
   expect(screen.getByText("2 items awaiting review")).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Open review queue" })).toHaveAttribute(
     "href",

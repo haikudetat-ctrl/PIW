@@ -2,8 +2,9 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { humanize } from "@/lib/format";
 import type { LeadStage } from "@/modules/leads/change-lead-stage";
+import type { JobCard } from "@/modules/leads/jobnimbus-pipeline";
 import { CLOSED_STAGES, OPEN_STAGES, type PipelineCard } from "@/modules/leads/pipeline-view";
-import { EstimateText, NextStepText, StageMenu } from "./pipeline-parts";
+import { EstimateText, JobValueText, JobnimbusTag, NextStepText, StageMenu } from "./pipeline-parts";
 
 export type ListFilter = "open" | LeadStage;
 
@@ -14,7 +15,18 @@ function stageTone(stage: LeadStage) {
   return "neutral" as const;
 }
 
-export function PipelineList({ cards, filter }: { cards: PipelineCard[]; filter: ListFilter }) {
+export function PipelineList({
+  cards,
+  filter,
+  jobs = [],
+  moreJobs = 0,
+}: {
+  cards: PipelineCard[];
+  filter: ListFilter;
+  jobs?: JobCard[];
+  // JobNimbus jobs in this filter beyond the ones listed.
+  moreJobs?: number;
+}) {
   const filters: ListFilter[] = ["open", ...OPEN_STAGES, ...CLOSED_STAGES];
   return (
     <div className="flex flex-col gap-3">
@@ -55,6 +67,7 @@ export function PipelineList({ cards, filter }: { cards: PipelineCard[]; filter:
                     {card.name}
                   </Link>
                   <p className="max-w-72 truncate text-xs text-ink-subtle">{card.address}</p>
+                  {card.jobnimbusStatus ? <JobnimbusTag status={card.jobnimbusStatus} /> : null}
                 </td>
                 <td className="px-3 py-2.5">
                   <Badge tone={stageTone(card.stage)}>{humanize(card.stage)}</Badge>
@@ -65,7 +78,37 @@ export function PipelineList({ cards, filter }: { cards: PipelineCard[]; filter:
                 <td className="px-3 py-2.5"><StageMenu leadId={card.id} stage={card.stage} /></td>
               </tr>
             ))}
-            {cards.length === 0 ? (
+            {jobs.map((job) => (
+              <tr key={job.jnid} className="border-b border-border last:border-b-0 hover:bg-fill-hover/60">
+                <td className="px-4 py-2.5">
+                  <a
+                    href={job.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[13px] font-medium text-ink hover:text-tint"
+                  >
+                    {job.title}
+                  </a>
+                  {job.address ? <p className="max-w-72 truncate text-xs text-ink-subtle">{job.address}</p> : null}
+                  <JobnimbusTag status={job.status} />
+                </td>
+                <td className="px-3 py-2.5">
+                  <Badge tone={stageTone(job.stage)}>{humanize(job.stage)}</Badge>
+                </td>
+                <td className="px-3 py-2.5"><JobValueText job={job} /></td>
+                <td className="max-w-64 truncate px-3 py-2.5 text-xs text-ink-subtle">{job.rep ?? "No rep assigned"}</td>
+                <td className="px-3 py-2.5 text-[13px] text-ink-subtle">{job.ageLabel ?? "—"}</td>
+                <td className="px-3 py-2.5" />
+              </tr>
+            ))}
+            {moreJobs > 0 ? (
+              <tr>
+                <td colSpan={6} className="px-4 py-3 text-center text-xs text-ink-subtle">
+                  +{moreJobs.toLocaleString()} older JobNimbus jobs not shown
+                </td>
+              </tr>
+            ) : null}
+            {cards.length === 0 && jobs.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-4 py-8 text-center text-[13px] text-ink-subtle">
                   No leads match this filter
