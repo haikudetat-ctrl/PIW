@@ -53,6 +53,8 @@ export type PipelineCard = {
   estimate: CardEstimate;
   nextStep: { title: string; due: NextStepDue; dueAt: string | null } | null;
   ageLabel: string;
+  // Set when the lead's customer also has a JobNimbus job.
+  jobnimbusStatus: string | null;
 };
 
 function dayKey(date: Date): string {
@@ -118,6 +120,7 @@ export function buildPipelineCards(
   estimates: PipelineEstimateRow[],
   tasks: PipelineTaskRow[],
   now: Date,
+  jobnimbusStatuses: ReadonlyMap<string, string> = new Map(),
 ): PipelineCard[] {
   const estimateByLead = new Map<string, PipelineEstimateRow>();
   for (const row of estimates) {
@@ -146,6 +149,7 @@ export function buildPipelineCards(
         ? { title: next.title, due: classifyDue(next.due_at, now), dueAt: next.due_at }
         : null,
       ageLabel: formatAge(lead.created_at, now),
+      jobnimbusStatus: jobnimbusStatuses.get(lead.id) ?? null,
     };
   });
 }

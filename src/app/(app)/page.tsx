@@ -4,6 +4,7 @@ import { stuckSinceIso, summarizePipelineTotals } from "@/modules/dashboard/pipe
 import { Card } from "@/components/ui/card";
 import { StatTile } from "@/components/ui/stat-tile";
 import { humanize } from "@/lib/format";
+import { jobStageTotals, jobnimbusPipelineSchema } from "@/modules/leads/jobnimbus-pipeline";
 import { FoundationDiagnostics } from "./foundation-diagnostics";
 
 const STUCK_THRESHOLD_MINUTES = 15;
@@ -16,6 +17,7 @@ export default async function DashboardPage() {
     { data: newLeads },
     { data: stuckRuns },
     { count: reviewCount },
+    { data: jobnimbusData },
   ] = await Promise.all([
     supabase.from("leads").select("stage").eq("is_test", false),
     supabase
@@ -34,9 +36,19 @@ export default async function DashboardPage() {
       .from("review_tasks")
       .select("id", { count: "exact", head: true })
       .eq("status", "open"),
+    // Stage counts only; the board lists the jobs themselves.
+    supabase.rpc("pipeline_jobnimbus", { p_limit: 0 }),
   ]);
 
   const pipelineTotals = summarizePipelineTotals(leadRows ?? []);
+  const jobnimbus = jobnimbusPipelineSchema.safeParse(jobnimbusData);
+  let jobnimbusJobs = 0;
+  if (jobnimbus.success) {
+    for (const [stage, totals] of Object.entries(jobStageTotals(jobnimbus.data))) {
+      pipelineTotals[stage as keyof typeof pipelineTotals] += totals.jobs;
+      jobnimbusJobs += totals.jobs;
+    }
+  }
   const totalLeads = Object.values(pipelineTotals).reduce((sum, n) => sum + n, 0);
   const maxStageCount = Math.max(1, ...Object.values(pipelineTotals));
   const reviewOpen = reviewCount ?? 0;
@@ -55,7 +67,11 @@ export default async function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <StatTile value={totalLeads} label="Total leads" />
+        <StatTile
+          value={totalLeads.toLocaleString()}
+          label="Total leads"
+          detail={jobnimbus.success ? `${jobnimbusJobs.toLocaleString()} from JobNimbus` : undefined}
+        />
         <StatTile
           value={(newLeads ?? []).length}
           label="New leads"
@@ -104,9 +120,12 @@ export default async function DashboardPage() {
             </Link>
           }
         >
+          {jobnimbus.success ? (
+            <p className="mb-3 text-xs text-ink-subtle">Rake leads plus JobNimbus jobs active in the last 6 months</p>
+          ) : null}
           <dl className="flex flex-col gap-2.5">
             {Object.entries(pipelineTotals).map(([stage, count]) => (
-              <div key={stage} className="grid grid-cols-[7rem_1fr_1.5rem] items-center gap-3">
+              <div key={stage} className="grid grid-cols-[7rem_1fr_2.5rem] items-center gap-3">
                 <dt className="text-sm text-ink-muted">{humanize(stage)}</dt>
                 <div className="h-1.5 rounded-full bg-surface-muted">
                   <div
@@ -114,7 +133,7 @@ export default async function DashboardPage() {
                     style={{ width: `${(count / maxStageCount) * 100}%` }}
                   />
                 </div>
-                <dd className="text-right text-sm font-semibold text-ink">{count}</dd>
+                <dd className="text-right text-sm font-semibold text-ink">{count.toLocaleString()}</dd>
               </div>
             ))}
           </dl>

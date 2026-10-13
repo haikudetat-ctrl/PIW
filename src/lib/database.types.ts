@@ -6748,6 +6748,10 @@ export type Database = {
         Args: { p_address: string }
         Returns: string
       }
+      pipeline_jobnimbus: {
+        Args: { p_limit?: number; p_since?: string; p_stage?: string }
+        Returns: Json
+      }
       platform_health: { Args: never; Returns: Json }
       record_integration_event: {
         Args: {

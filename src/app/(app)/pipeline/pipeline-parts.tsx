@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Icon } from "@/components/ui/icons";
 import { humanize } from "@/lib/format";
 import { leadStages, type LeadStage } from "@/modules/leads/change-lead-stage";
+import type { JobCard } from "@/modules/leads/jobnimbus-pipeline";
 import {
   formatCompactCurrency,
   type CardEstimate,
@@ -114,5 +115,29 @@ export function ViewSwitcher({ view }: { view: "board" | "list" }) {
         </Link>
       ))}
     </nav>
+  );
+}
+
+export function JobnimbusTag({ status }: { status: string | null }) {
+  return (
+    <span className="inline-flex max-w-full items-center gap-1 truncate rounded-full bg-info-bg px-2 py-0.5 text-[11px] font-medium text-info">
+      JobNimbus{status ? ` · ${status}` : ""}
+    </span>
+  );
+}
+
+export function JobValueText({ job }: { job: JobCard }) {
+  if (job.valueCents === null && job.squares === null) {
+    return <span className="text-[13px] text-ink-subtle">No total yet</span>;
+  }
+  return (
+    <span className="inline-flex items-baseline gap-1.5">
+      {job.valueCents !== null ? (
+        <span className="text-[13px] font-medium text-ink">{formatCompactCurrency(job.valueCents)}</span>
+      ) : null}
+      {job.squares !== null ? (
+        <span className="text-xs text-ink-subtle">{job.squares.toFixed(1)} sq · Roofr</span>
+      ) : null}
+    </span>
   );
 }
