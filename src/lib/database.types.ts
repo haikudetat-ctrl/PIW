@@ -2149,7 +2149,7 @@ export type Database = {
           {
             foreignKeyName: "jobnimbus_roofr_reports_company_id_file_jnid_fkey"
             columns: ["company_id", "file_jnid"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "jn_files"
             referencedColumns: ["company_id", "jnid"]
           },
@@ -6008,7 +6008,7 @@ export type Database = {
           {
             foreignKeyName: "jobnimbus_roofr_reports_company_id_file_jnid_fkey"
             columns: ["company_id", "file_jnid"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "jn_files"
             referencedColumns: ["company_id", "jnid"]
           },
