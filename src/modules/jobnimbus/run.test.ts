@@ -26,6 +26,6 @@ describe("chooseSyncMode", () => {
 
 describe("WAREHOUSE_RECORD_TYPES", () => {
   it("syncs contacts before jobs so primary contacts are present first", () => {
-    expect(WAREHOUSE_RECORD_TYPES).toEqual(["contact", "job", "estimate"]);
+    expect(WAREHOUSE_RECORD_TYPES).toEqual(["contact", "job", "estimate", "file"]);
   });
 });

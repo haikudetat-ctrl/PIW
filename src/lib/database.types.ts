@@ -1655,6 +1655,53 @@ export type Database = {
           },
         ]
       }
+      jn_files: {
+        Row: {
+          company_id: string
+          content_type: string | null
+          filename: string | null
+          jn_created_at: string | null
+          jn_updated_at: string | null
+          jnid: string
+          pages: number | null
+          projected_at: string
+          related_job_jnid: string | null
+          size: number | null
+        }
+        Insert: {
+          company_id: string
+          content_type?: string | null
+          filename?: string | null
+          jn_created_at?: string | null
+          jn_updated_at?: string | null
+          jnid: string
+          pages?: number | null
+          projected_at?: string
+          related_job_jnid?: string | null
+          size?: number | null
+        }
+        Update: {
+          company_id?: string
+          content_type?: string | null
+          filename?: string | null
+          jn_created_at?: string | null
+          jn_updated_at?: string | null
+          jnid?: string
+          pages?: number | null
+          projected_at?: string
+          related_job_jnid?: string | null
+          size?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jn_files_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       jn_jobs: {
         Row: {
           address_line1: string | null
@@ -2034,6 +2081,77 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      jobnimbus_roofr_reports: {
+        Row: {
+          api_calls: number
+          area_weighted_pitch_12: number | null
+          company_id: string
+          facets: number | null
+          file_jnid: string
+          flat_squares: number | null
+          job_jnid: string
+          max_pitch_12: number | null
+          outcome: string
+          pitch_area: Json
+          predominant_pitch_12: number | null
+          processed_at: string
+          rate_limit_response_count: number
+          total_squares: number | null
+          transient_error_count: number
+          two_layer_squares: number | null
+          two_story_squares: number | null
+          waste_ladder: Json
+        }
+        Insert: {
+          api_calls?: number
+          area_weighted_pitch_12?: number | null
+          company_id: string
+          facets?: number | null
+          file_jnid: string
+          flat_squares?: number | null
+          job_jnid: string
+          max_pitch_12?: number | null
+          outcome: string
+          pitch_area?: Json
+          predominant_pitch_12?: number | null
+          processed_at?: string
+          rate_limit_response_count?: number
+          total_squares?: number | null
+          transient_error_count?: number
+          two_layer_squares?: number | null
+          two_story_squares?: number | null
+          waste_ladder?: Json
+        }
+        Update: {
+          api_calls?: number
+          area_weighted_pitch_12?: number | null
+          company_id?: string
+          facets?: number | null
+          file_jnid?: string
+          flat_squares?: number | null
+          job_jnid?: string
+          max_pitch_12?: number | null
+          outcome?: string
+          pitch_area?: Json
+          predominant_pitch_12?: number | null
+          processed_at?: string
+          rate_limit_response_count?: number
+          total_squares?: number | null
+          transient_error_count?: number
+          two_layer_squares?: number | null
+          two_story_squares?: number | null
+          waste_ladder?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jobnimbus_roofr_reports_company_id_file_jnid_fkey"
+            columns: ["company_id", "file_jnid"]
+            isOneToOne: false
+            referencedRelation: "jn_files"
+            referencedColumns: ["company_id", "jnid"]
           },
         ]
       }
@@ -5666,6 +5784,35 @@ export type Database = {
       }
     }
     Views: {
+      jobnimbus_job_roof_measurements: {
+        Row: {
+          area_weighted_pitch_12: number | null
+          company_id: string | null
+          facets: number | null
+          file_jnid: string | null
+          filename: string | null
+          flat_squares: number | null
+          job_jnid: string | null
+          max_pitch_12: number | null
+          pitch_area: Json | null
+          predominant_pitch_12: number | null
+          processed_at: string | null
+          report_created_at: string | null
+          total_squares: number | null
+          two_layer_squares: number | null
+          two_story_squares: number | null
+          waste_ladder: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jobnimbus_roofr_reports_company_id_file_jnid_fkey"
+            columns: ["company_id", "file_jnid"]
+            isOneToOne: false
+            referencedRelation: "jn_files"
+            referencedColumns: ["company_id", "jnid"]
+          },
+        ]
+      }
       jobnimbus_reengagement_blind_spots: {
         Row: {
           appointment_at: string | null

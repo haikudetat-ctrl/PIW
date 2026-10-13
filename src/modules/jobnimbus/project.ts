@@ -6,17 +6,19 @@ import type { JobNimbusRecordType } from "./client";
 const DEFAULT_PAGE_SIZE = 500;
 const NUMERIC_12_2_MAX_CENTS = BigInt("999999999999");
 const NUMERIC_12_2_MAX = 9_999_999_999.99;
+const POSTGRES_INTEGER_MAX = 2_147_483_647;
 const MIN_PORTABLE_EPOCH_SECONDS = -62_135_596_800;
 const MAX_PORTABLE_EPOCH_SECONDS = 253_402_300_799;
 
 type JsonObject = Record<string, unknown>;
 
-export type ProjectableRecordType = "job" | "contact" | "estimate";
+export type ProjectableRecordType = "job" | "contact" | "estimate" | "file";
 
 export type JobNimbusJobRow = Database["public"]["Tables"]["jn_jobs"]["Insert"] & { company_id: string; jnid: string };
 export type JobNimbusContactRow = Database["public"]["Tables"]["jn_contacts"]["Insert"] & { company_id: string; jnid: string };
 export type JobNimbusEstimateRow = Database["public"]["Tables"]["jn_estimates"]["Insert"] & { company_id: string; jnid: string };
-export type JobNimbusProjectionRow = JobNimbusJobRow | JobNimbusContactRow | JobNimbusEstimateRow;
+export type JobNimbusFileRow = Database["public"]["Tables"]["jn_files"]["Insert"] & { company_id: string; jnid: string };
+export type JobNimbusProjectionRow = JobNimbusJobRow | JobNimbusContactRow | JobNimbusEstimateRow | JobNimbusFileRow;
 
 export class JobNimbusProjectionDataError extends Error {
   constructor(message = "JobNimbus projection encountered invalid raw data") {
@@ -121,6 +123,28 @@ export function projectJobNimbusEstimate(input: {
   };
 }
 
+// Only metadata is projected. Download URLs and other payload fields stay in
+// the raw landing zone; report bytes are fetched on demand by file jnid.
+export function projectJobNimbusFile(input: {
+  companyId: string;
+  payload: JsonObject;
+  projectedAt: string;
+}): JobNimbusFileRow {
+  const { payload } = input;
+  return {
+    company_id: input.companyId,
+    jnid: requiredJnid(payload.jnid),
+    filename: text(payload.filename),
+    content_type: text(payload.content_type),
+    size: nonnegativeInteger(payload.size),
+    pages: nonnegativeInteger(payload.pages, POSTGRES_INTEGER_MAX),
+    related_job_jnid: relatedJobJnid(payload.related),
+    jn_created_at: epochSecondsToIso(payload.date_created),
+    jn_updated_at: epochSecondsToIso(payload.date_updated),
+    projected_at: input.projectedAt,
+  };
+}
+
 export type StoredRawRecord = {
   company_id: string;
   jnid: string;
@@ -143,6 +167,7 @@ const PROJECTION_TABLES = {
   job: "jn_jobs",
   contact: "jn_contacts",
   estimate: "jn_estimates",
+  file: "jn_files",
 } as const;
 
 export function createSupabaseJobNimbusProjectionStore(
@@ -184,7 +209,7 @@ export function createSupabaseJobNimbusProjectionStore(
 }
 
 export function isProjectableRecordType(value: JobNimbusRecordType): value is ProjectableRecordType {
-  return value === "job" || value === "contact" || value === "estimate";
+  return value === "job" || value === "contact" || value === "estimate" || value === "file";
 }
 
 // Rebuilds a projection table from the raw landing zone. Re-running is safe
@@ -221,6 +246,7 @@ export async function runJobNimbusProjection(
       const common = { companyId: input.companyId, payload: record.payload, projectedAt };
       if (input.recordType === "job") return projectJobNimbusJob({ ...common, fieldMap });
       if (input.recordType === "contact") return projectJobNimbusContact(common);
+      if (input.recordType === "file") return projectJobNimbusFile(common);
       return projectJobNimbusEstimate(common);
     });
     await dependencies.store.upsertRows(input.recordType, rows);
@@ -277,6 +303,13 @@ function decimalTextToMoney(value: string): number | null {
   if (fraction.length > 2 && fraction[2] >= "5") cents += BigInt(1);
   if (cents > NUMERIC_12_2_MAX_CENTS) return null;
   return Number(sign === "-" ? -cents : cents) / 100;
+}
+
+function nonnegativeInteger(value: unknown, maximum = Number.MAX_SAFE_INTEGER): number | null {
+  const number = typeof value === "number"
+    ? value
+    : typeof value === "string" && value.trim().length > 0 ? Number(value) : Number.NaN;
+  return Number.isSafeInteger(number) && number >= 0 && number <= maximum ? number : null;
 }
 
 function firstMoney(...values: unknown[]): number | null {

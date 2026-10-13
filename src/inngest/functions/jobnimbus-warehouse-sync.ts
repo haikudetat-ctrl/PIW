@@ -4,9 +4,11 @@ import { parseServerEnv } from "@/lib/env/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import {
   WAREHOUSE_RECORD_TYPES,
+  createRoofrReportDependencies,
   createWarehouseDependencies,
   syncCompanyRecordType,
 } from "@/modules/jobnimbus/run";
+import { runRoofrReports } from "@/modules/jobnimbus/roofr-reports";
 
 export const jobNimbusWarehouseSync = inngest.createFunction(
   {
@@ -40,6 +42,17 @@ export const jobNimbusWarehouseSync = inngest.createFunction(
           // failure is already recorded in jobnimbus_sync_runs.
           failures.push(`${companyId}:${recordType}`);
         }
+      }
+      // Roofr reports read the files just synced. Same serial function, so
+      // JobNimbus still sees one client at a time.
+      try {
+        await step.run(`roofr-reports-${companyId}`, () =>
+          runRoofrReports(
+            { companyId },
+            createRoofrReportDependencies(createServiceClient(), process.env),
+          ));
+      } catch {
+        failures.push(`${companyId}:roofr-reports`);
       }
     }
     return { companies: companies.length, failures };
