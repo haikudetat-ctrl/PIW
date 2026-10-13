@@ -17,6 +17,7 @@
 - Select by job creation date, not last update; include every job status, record archived jobs explicitly, and retain pending work after the window ages.
 - JobNimbus remains the source of job status.
 - No fabricated consent or automatic homeowner outreach for imported runs.
+- The 30-day backfill must generate zero ActiveProspect submissions or notifications at either activeprospect_existing or activeprospect_secondary, including retries/recovery; preserve existing live intake deliveries.
 - Preserve existing web intake, rep notes, completed quotes, provider enablement, rate limits and cost budgets.
 - Internal enrichment requires a server-created bridge association; a source label alone is insufficient.
 - Reuse property measurements while retaining distinct job associations and measurement provenance.
@@ -75,6 +76,8 @@ The exact migration timestamp is generated with the Supabase CLI at execution ti
 - [ ] Implement jobnimbus_enrichment_settings and jobnimbus_enrichment_jobs, with unique
   (company_id, job_jnid), explicit archived flag, source timestamps, retry scheduling,
   sanitized outcome, PIW foreign keys and snapshot of original job status/rep.
+  Persist intake_origin = backfill for job creation before activatedAt and ongoing
+  otherwise; copy it to the pipeline run. Never infer origin later from mutable source labels.
   Lock intake per company/job in one transaction. Link an explicit existing job identity;
   otherwise reuse only an unambiguous normalized contact plus property match.
   Record identity conflict without assigning a wrong existing lead.
@@ -234,7 +237,44 @@ The exact migration timestamp is generated with the Supabase CLI at execution ti
   Perform the React best-practices review if multiple TSX components changed.
   Commit feat: show JobNimbus context and enrichment progress.
 
-## Task 6: End-to-end verification and controlled production activation
+## Task 6: Exclude backfill from both ActiveProspect destinations
+
+**Files**
+- Modify: src/modules/leads/lead-distribution-repository.ts
+- Modify: src/modules/leads/send-lead-distribution-delivery.ts
+- Modify: src/modules/leads/send-lead-distribution-delivery.test.ts
+- Modify: src/inngest/functions/lead-distribution-sweeper.test.ts
+- Create: src/integration/jobnimbus-backfill-distribution.integration.test.ts
+- Extend: supabase/tests/jobnimbus-enrichment.test.sql
+- Create: CLI-generated jobnimbus_backfill_distribution_exclusion migration
+
+**Interfaces**
+- Intake origin from Task 1 belongs to the triggering run, not solely the lead.
+- Distribution creation, claim_lead_distribution_delivery and
+  list_pending_lead_distribution_deliveries verify durable triggering-run provenance.
+  A backfill-origin ActiveProspect delivery cannot be created, claimed or returned
+  for recovery at either destination. Existing live delivery provenance remains valid.
+
+- [ ] Write integration/database tests named backfill_creates_no_distribution,
+  primary_and_secondary_backfill_claim_blocked, recovery_does_not_publish_backfill,
+  attribution_change_cannot_unsuppress, and linked_live_lead_delivery_preserved.
+  Assert no lead/distribution.requested events or ActiveProspect delivery rows arise
+  from backfill; mock client.send and assert zero calls for both destinations,
+  including a deliberately poisoned queued backfill delivery, replay and sweep.
+  An existing eligible live Meta delivery on a reused lead still sends exactly once.
+- [ ] Run npm run test:run -- src/modules/leads/send-lead-distribution-delivery.test.ts
+  src/inngest/functions/lead-distribution-sweeper.test.ts and the new integration/database
+  tests. Expect new backfill guards to fail before implementation.
+- [ ] Implement persisted provenance at delivery creation and claim/recovery boundaries.
+  Do not use Meta labels for imported runs. Add application defense before external
+  HTTP submission; a forged/replayed event cannot override durable origin.
+  Suppressed records must leave the retry loop with a recorded exclusion outcome
+  using the repository's governed delivery status model; never mark them sent.
+  Preserve original live delivery records when backfill links to an existing PIW lead.
+- [ ] Run distribution, backfill and existing live Meta regression tests.
+  Commit fix: exclude JobNimbus backfill from ActiveProspect distribution.
+
+## Task 7: End-to-end verification and controlled production activation
 
 **Files**
 - Create: src/integration/jobnimbus-enrichment-flow.integration.test.ts
@@ -248,7 +288,8 @@ The exact migration timestamp is generated with the Supabase CLI at execution ti
 
 - [ ] Add end-to-end tests for a newly synced job and an exact-boundary backfill job:
   atomic intake -> outbox -> address validation -> roof measurement -> pricing ->
-  linked dialer output. Assert zero estimate_deliveries and unchanged consent rows.
+  linked dialer output. Assert zero estimate_deliveries, unchanged consent rows, zero backfill
+  ActiveProspect delivery rows/events and zero ActiveProspect client calls.
   Add failed publication/replay, source-data correction and cross-company access cases.
 - [ ] Run npm run verify with Node 24 and local Supabase; expect all checks to pass.
   If environment lacks a required runtime or network access, provision the authorized
@@ -260,8 +301,8 @@ The exact migration timestamp is generated with the Supabase CLI at execution ti
   provider budget, Inngest registration and existing internal handoff settings.
   Write a concrete read-only eligibility report using the proposed activation interval.
 - [ ] Activate per-company fixed timestamps and process a small bounded live batch.
-  Confirm one lead/run/job association, usable Context Dialer, correct costs and no
-  homeowner-delivery records. Enable the backlog and ongoing hourly dispatch only after
+  Confirm one lead/run/job association, usable Context Dialer, correct costs, no homeowner-delivery records, and no backfill ActiveProspect
+  requests/deliveries at either destination, including after a recovery sweep. Enable the backlog and ongoing hourly dispatch only after
   this observed path works; preserve the original activation timestamps.
 - [ ] Record eligible/queued/completed/review/retry/failure counts and actual remaining
   backlog. Verify at least one newly created/synced job completes after activation.
