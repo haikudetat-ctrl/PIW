@@ -1,15 +1,13 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { PRODUCTION_AUTH_CONFIRM_URL } from "@/lib/auth/urls";
 import { createServerClient } from "@/lib/supabase/server";
 import {
   loginInputSchema,
   passwordUpdateSchema,
   recoveryEmailSchema,
 } from "./schema";
-
-const PRODUCTION_AUTH_CONFIRM_URL =
-  "https://piw-sepia.vercel.app/auth/confirm?next=/reset-password";
 
 export type PasswordResetRequestDependencies = {
   resetPasswordForEmail: (
