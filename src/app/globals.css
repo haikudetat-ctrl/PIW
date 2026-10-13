@@ -106,44 +106,48 @@
   --font-mono: var(--font-geist-mono);
 }
 
-body {
-  background: var(--color-page);
-  color: var(--color-ink);
-  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
-}
+/* Base layer, so utility classes (text-white, mt-2, …) win over these resets.
+   Unlayered rules beat every Tailwind utility in v4. */
+@layer base {
+  body {
+    background: var(--color-page);
+    color: var(--color-ink);
+    font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  }
 
-/* Baseline element resets so unstyled semantic markup (h1-h3, ul, dl, form
-   controls) doesn't fight the utility classes applied throughout the app. */
-h1,
-h2,
-h3,
-h4,
-p,
-dl,
-dd,
-ul {
-  margin: 0;
-}
+  /* Baseline element resets so unstyled semantic markup (h1-h3, ul, dl, form
+     controls) doesn't fight the utility classes applied throughout the app. */
+  h1,
+  h2,
+  h3,
+  h4,
+  p,
+  dl,
+  dd,
+  ul {
+    margin: 0;
+  }
 
-ul {
-  list-style: none;
-  padding: 0;
-}
+  ul {
+    list-style: none;
+    padding: 0;
+  }
 
-input,
-select,
-textarea {
-  font: inherit;
-  color: inherit;
-}
+  input,
+  select,
+  textarea {
+    font: inherit;
+    color: inherit;
+  }
 
-button {
-  font: inherit;
-  cursor: pointer;
-}
+  button {
+    font: inherit;
+    cursor: pointer;
+  }
 
-a {
-  color: inherit;
+  a {
+    color: inherit;
+  }
 }
 
 .campaign-estimate-page {
