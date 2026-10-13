@@ -5,9 +5,11 @@ import {usePrivacyConsent} from "@/components/privacy/privacy-consent-provider";
 
 const mocks = vi.hoisted(() => ({
   cookies: vi.fn(),
+  pathname: "/",
 }));
 
 vi.mock("next/headers", () => ({cookies: mocks.cookies}));
+vi.mock("next/navigation", () => ({usePathname: () => mocks.pathname}));
 vi.mock("next/font/google", () => ({
   Bebas_Neue: () => ({variable: "font-bebas"}),
   Geist: () => ({variable: "font-geist"}),
@@ -30,6 +32,7 @@ function Probe() {
 beforeEach(() => {
   process.env.PRIVACY_CONSENT_SIGNING_SECRET = signingSecret;
   mocks.cookies.mockReset();
+  mocks.pathname = "/";
 });
 
 afterEach(() => {
@@ -68,7 +71,8 @@ describe("RootLayout privacy consent", () => {
     expect(screen.queryByRole("button", {name: "Accept all"})).not.toBeInTheDocument();
   });
 
-  test("fails closed when the cookie signature is invalid", async () => {
+  test.each(["/", "/login", "/campaigns/spring"])("fails closed when the cookie signature is invalid on %s", async (pathname) => {
+    mocks.pathname = pathname;
     mocks.cookies.mockResolvedValue({
       get: () => ({value: "not-a-valid-signed-cookie"}),
     });
@@ -78,7 +82,12 @@ describe("RootLayout privacy consent", () => {
     expect(screen.getByTestId("layout-consent")).toHaveTextContent(
       'unset:{"necessary":true,"analytics":false,"advertising":false}',
     );
-    expect(screen.getByRole("button", {name: "Reject nonessential"})).toBeVisible();
+    if (pathname === "/campaigns/spring") {
+      expect(screen.getByRole("button", {name: "Reject nonessential"})).toBeVisible();
+    } else {
+      expect(screen.queryByRole("region", {name: "Privacy choices"})).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", {name: "Privacy choices"})).not.toBeInTheDocument();
+    }
   });
 
   test("fails closed without a signing secret", async () => {
