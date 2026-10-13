@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { canUseCrm, parseMyAccess } from "@/lib/auth/access";
+import { canUseCrm, hasRole, parseMyAccess } from "@/lib/auth/access";
 import { createServerClient } from "@/lib/supabase/server";
 import { AppSidebar } from "./app-sidebar";
 import { SidebarSignOutButton, SignOutButton } from "./sign-out-button";
@@ -55,9 +55,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     );
   }
 
-  const [{ count: unreadNotifications }, { count: reviewCount }] = await Promise.all([
+  const [{ count: unreadNotifications }, { count: reviewCount }, { data: companies }] = await Promise.all([
     supabase.from("notifications").select("id", { count: "exact", head: true }).is("read_at", null),
     supabase.from("review_tasks").select("id", { count: "exact", head: true }).eq("status", "open"),
+    supabase.rpc("list_my_companies"),
   ]);
 
   return (
@@ -67,6 +68,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         roleLabel={ROLE_LABELS[access.role]}
         reviewCount={reviewCount ?? 0}
         unreadNotifications={unreadNotifications ?? 0}
+        companies={(companies ?? []).map((company) => ({
+          id: company.id,
+          name: company.name,
+          isCurrent: company.is_current,
+        }))}
+        showSettings={hasRole(access, "company_admin")}
         footer={<SidebarSignOutButton />}
       />
       {/* Pages render their own <main>. */}

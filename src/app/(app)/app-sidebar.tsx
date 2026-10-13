@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { Icon, type IconName } from "@/components/ui/icons";
 import { formatNotificationBadge } from "@/modules/notifications/badge";
+import { CompanySwitcher, type SidebarCompany } from "./company-switcher";
 
 type NavItem = { href: string; label: string; icon: IconName; count?: number; ariaLabel?: string };
 
@@ -39,12 +40,16 @@ export function AppSidebar({
   roleLabel,
   reviewCount,
   unreadNotifications,
+  companies = [],
+  showSettings = false,
   footer,
 }: {
   displayName: string;
   roleLabel: string;
   reviewCount: number;
   unreadNotifications: number;
+  companies?: SidebarCompany[];
+  showSettings?: boolean;
   footer: ReactNode;
 }) {
   const pathname = usePathname();
@@ -75,7 +80,7 @@ export function AppSidebar({
         <div className="flex items-center gap-2.5 px-1.5 pb-4">
           <div className="min-w-0">
             <RakeLogo className="h-3.5 w-auto text-ink" />
-            <p className="mt-1.5 truncate text-xs text-ink-subtle">New Jersey residential roofing</p>
+            <CompanySwitcher companies={companies} />
           </div>
         </div>
         <Link
@@ -89,7 +94,12 @@ export function AppSidebar({
             <NavLink key={item.href} item={item} pathname={pathname} />
           ))}
         </nav>
-        <div className="mt-auto flex items-center gap-2.5 px-1.5 pt-3">
+        {showSettings ? (
+          <div className="mt-auto pt-3">
+            <NavLink item={{ href: "/settings", label: "Settings", icon: "settings" }} pathname={pathname} />
+          </div>
+        ) : null}
+        <div className={`${showSettings ? "" : "mt-auto "}flex items-center gap-2.5 px-1.5 pt-3`}>
           <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-fill-selected text-[11px] font-medium text-tint">
             {initials}
           </span>

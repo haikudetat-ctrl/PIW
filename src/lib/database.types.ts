@@ -6503,6 +6503,10 @@ export type Database = {
           allowed: boolean
         }[]
       }
+      create_company: {
+        Args: { p_jobnimbus_env_key: string; p_name: string }
+        Returns: string
+      }
       create_property_preview: {
         Args: {
           p_address_mode: string
@@ -6662,6 +6666,28 @@ export type Database = {
         Args: { p_company_id: string }
         Returns: number
       }
+      list_company_members: {
+        Args: never
+        Returns: {
+          confirmed: boolean
+          display_name: string
+          email: string
+          invited_at: string
+          is_active: boolean
+          last_sign_in_at: string
+          open_tasks: number
+          role: string
+          user_id: string
+        }[]
+      }
+      list_my_companies: {
+        Args: never
+        Returns: {
+          id: string
+          is_current: boolean
+          name: string
+        }[]
+      }
       list_pending_lead_distribution_deliveries: {
         Args: { p_company_id: string; p_limit: number; p_now: string }
         Returns: {
@@ -6722,6 +6748,7 @@ export type Database = {
         Args: { p_address: string }
         Returns: string
       }
+      platform_health: { Args: never; Returns: Json }
       record_integration_event: {
         Args: {
           p_company_id: string
@@ -7206,6 +7233,14 @@ export type Database = {
           property_id: string
           public_token: string
         }[]
+      }
+      switch_active_company: {
+        Args: { p_company_id: string }
+        Returns: undefined
+      }
+      update_company_member: {
+        Args: { p_is_active: boolean; p_role: string; p_user_id: string }
+        Returns: undefined
       }
       upsert_leadconduit_event_batch: {
         Args: {
