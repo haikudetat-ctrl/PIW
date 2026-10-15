@@ -2,7 +2,7 @@ import "server-only";
 import { inngest } from "@/inngest/client";
 import { parseServerEnv } from "@/lib/env/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { listJourneyCompanies, refreshCustomerJourney } from "@/modules/journey/refresh";
+import { listJourneyCompanies, queueJobNimbusRebookTasks, refreshCustomerJourney } from "@/modules/journey/refresh";
 
 export const customerJourneyRefresh = inngest.createFunction(
   {
@@ -21,6 +21,7 @@ export const customerJourneyRefresh = inngest.createFunction(
     for (const companyId of companies) {
       try {
         await step.run(`refresh-${companyId}`, () => refreshCustomerJourney(createServiceClient(), companyId));
+        await step.run(`rebook-no-shows-${companyId}`, () => queueJobNimbusRebookTasks(createServiceClient(), companyId));
       } catch {
         failures.push(companyId);
       }

@@ -5,6 +5,12 @@ import { createServiceClient } from "@/lib/supabase/service";
 import type { LeadConduitEventBatch } from "@/modules/access-route/contracts";
 import { getLeadConduitFlowBinding, type LeadConduitFlowBinding } from "@/modules/access-route/leadconduit-config";
 import {
+  intakeLeadConduitLead,
+  toLeadConduitLeadIntake,
+  type LeadConduitLeadIntake,
+  type LeadConduitLeadIntakeOutcome,
+} from "@/modules/access-route/leadconduit-lead-intake";
+import {
   LEADCONDUIT_CHECKPOINTS,
   classifyLeadConduitShadow,
   parseLeadConduitShadowPayload,
@@ -17,6 +23,7 @@ const MAX_BODY_BYTES = 65_536;
 export type LeadConduitShadowRouteDependencies = {
   getBinding(flow: string): LeadConduitFlowBinding | null;
   persist(input: LeadConduitEventBatch): Promise<number>;
+  intakeLead(input: LeadConduitLeadIntake): Promise<LeadConduitLeadIntakeOutcome>;
   now(): Date;
   reportOutcome(input: LeadConduitReceiptTelemetry): void;
 };
@@ -24,9 +31,17 @@ export type LeadConduitShadowRouteDependencies = {
 export type LeadConduitReceiptTelemetry = {
   flow: "roofing" | "roofing-virtual-quote" | "unknown";
   status: 200 | 400 | 401 | 413 | 503;
-  outcome: "success" | "disabled" | "unauthorized" | "invalid_payload" | "payload_too_large" | "persistence";
+  outcome:
+    | "success"
+    | "disabled"
+    | "unauthorized"
+    | "invalid_payload"
+    | "payload_too_large"
+    | "persistence"
+    | "lead_intake";
   candidateCategoryCount?: number;
   isTest?: boolean;
+  leadIntake?: LeadConduitLeadIntakeOutcome;
 };
 
 type LeadConduitShadowRouteResult = {
@@ -109,7 +124,7 @@ export async function handleLeadConduitShadowRequest(
   const report = (
     result: LeadConduitShadowRouteResult,
     outcome: LeadConduitReceiptTelemetry["outcome"],
-    details: Pick<LeadConduitReceiptTelemetry, "candidateCategoryCount" | "isTest"> = {},
+    details: Pick<LeadConduitReceiptTelemetry, "candidateCategoryCount" | "isTest" | "leadIntake"> = {},
   ) => {
     try {
       dependencies.reportOutcome({
@@ -189,9 +204,28 @@ export async function handleLeadConduitShadowRequest(
     });
   }
 
+  // Delivered leads become Rake leads. The event is already stored, so a retry
+  // is safe: intake is idempotent on the LeadConduit lead ID.
+  let leadIntake: LeadConduitLeadIntakeOutcome | undefined;
+  if (binding.leadIntakeEnabled && parsed.value.checkpoint === "delivered") {
+    const intake = toLeadConduitLeadIntake(binding, parsed.value);
+    if (!intake) {
+      leadIntake = "incomplete_contact";
+    } else {
+      try {
+        leadIntake = await dependencies.intakeLead(intake);
+      } catch {
+        return report({ status: 503, body: { outcome: "retry", category: "lead_intake" } }, "lead_intake", {
+          isTest: parsed.value.is_test,
+        });
+      }
+    }
+  }
+
   return report({ status: 200, body: { outcome: "success" } }, "success", {
     candidateCategoryCount: categories.length,
     isTest: parsed.value.is_test,
+    ...(leadIntake ? { leadIntake } : {}),
   });
 }
 
@@ -206,6 +240,7 @@ export async function POST(
   const result = await handleLeadConduitShadowRequest(request, flow, {
     getBinding: (candidateFlow) => getLeadConduitFlowBinding(candidateFlow, environment),
     persist: async (input) => new SupabaseAccessRouteRepository(createServiceClient()).upsertLeadConduitEvents(input),
+    intakeLead: (input) => intakeLeadConduitLead(createServiceClient(), input),
     now: () => new Date(),
     reportOutcome: (telemetry) => {
       console.info("leadconduit_shadow_receipt", {

@@ -13,6 +13,7 @@ export type LeadConduitFlowBinding = {
   flowId: string;
   flowName: "Roofing" | "Roofing Virtual Quote";
   receiptEnabled: boolean;
+  leadIntakeEnabled: boolean;
   tokens: ReadonlyArray<{ value: string; validUntil: string | null }>;
 };
 
@@ -22,6 +23,7 @@ export type LeadConduitReceiptEnvironment = Pick<ServerEnv,
   | "LEADCONDUIT_VIRTUAL_QUOTE_FLOW_ID"
   | "INTEGRATIONS_LEADCONDUIT_ROOFING_RECEIVER_ENABLED"
   | "INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_RECEIVER_ENABLED"
+  | "INTEGRATIONS_LEADCONDUIT_LEAD_INTAKE_ENABLED"
   | "LEADCONDUIT_ROOFING_WEBHOOK_TOKEN"
   | "LEADCONDUIT_ROOFING_WEBHOOK_TOKEN_NEXT"
   | "LEADCONDUIT_ROOFING_WEBHOOK_TOKEN_NEXT_EXPIRES_AT"
@@ -58,6 +60,7 @@ export function getLeadConduitFlowBinding(
       flowId: environment.LEADCONDUIT_ROOFING_FLOW_ID,
       flowName: "Roofing",
       receiptEnabled: environment.INTEGRATIONS_LEADCONDUIT_ROOFING_RECEIVER_ENABLED,
+      leadIntakeEnabled: environment.INTEGRATIONS_LEADCONDUIT_LEAD_INTAKE_ENABLED,
       tokens: configuredTokens(
         environment.LEADCONDUIT_ROOFING_WEBHOOK_TOKEN,
         environment.LEADCONDUIT_ROOFING_WEBHOOK_TOKEN_NEXT,
@@ -77,6 +80,7 @@ export function getLeadConduitFlowBinding(
       flowId: environment.LEADCONDUIT_VIRTUAL_QUOTE_FLOW_ID,
       flowName: "Roofing Virtual Quote",
       receiptEnabled: environment.INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_RECEIVER_ENABLED,
+      leadIntakeEnabled: environment.INTEGRATIONS_LEADCONDUIT_LEAD_INTAKE_ENABLED,
       tokens: configuredTokens(
         environment.LEADCONDUIT_VIRTUAL_QUOTE_WEBHOOK_TOKEN,
         environment.LEADCONDUIT_VIRTUAL_QUOTE_WEBHOOK_TOKEN_NEXT,

@@ -107,6 +107,35 @@ every outbound submission. For leads from other sources it is absent; send
 **Rollback:** disable only the PIW recipients in LeadConduit, or set the
 receiver flag to `false` and redeploy. Leave every other step unchanged.
 
+## Taking delivered leads into Rake (replacing BookingBot)
+
+With `INTEGRATIONS_LEADCONDUIT_LEAD_INTAKE_ENABLED=true`, every `delivered`
+checkpoint also becomes a Rake lead, so the call center works new leads from
+Rake instead of BookingBot or the Gmail list. Each new lead gets a "Call new
+lead now" task and a notification. Intake runs only at `delivered`; leads a
+filter stopped stay in the recovery queue.
+
+Intake never creates a second lead for the same person. In order, it reuses:
+
+1. the Rake lead named by `piw_lead_id` (map it in the `delivered` body for
+   leads Rake sent out);
+2. the lead already taken in for this LeadConduit lead ID (replays);
+3. a lead in the same company with the same phone (last ten digits) or email
+   from the last 30 days, which covers the same person arriving through both
+   flows.
+
+The `delivered` body must carry `lead.name`, `lead.phone`, `lead.email` and
+`lead.submitted_address`; a lead missing any of them is recorded but not
+taken in (telemetry `leadIntake: "incomplete_contact"`). If intake fails the
+receiver answers 503 `lead_intake` after storing the checkpoint, and a retry
+is safe.
+
+Turn it on after the checkpoints are live: set the flag, redeploy, run Test
+Flow with a synthetic `is_test: true` lead and confirm the test lead and its
+call task in Rake (test leads stay hidden from the pipeline). Then retire the
+BookingBot recipient and the Gmail list in LeadConduit; only the owner makes
+those edits. **Rollback:** set the flag to `false` and redeploy.
+
 ## Retention (approved 2026-09-29)
 
 Intake rows hold homeowner contact details for every lead, including leads

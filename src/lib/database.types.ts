@@ -5894,6 +5894,7 @@ export type Database = {
           due_at: string | null
           id: string
           lead_id: string
+          source_key: string | null
           status: Database["public"]["Enums"]["task_status"]
           title: string
           updated_at: string
@@ -5908,6 +5909,7 @@ export type Database = {
           due_at?: string | null
           id?: string
           lead_id: string
+          source_key?: string | null
           status?: Database["public"]["Enums"]["task_status"]
           title: string
           updated_at?: string
@@ -5922,6 +5924,7 @@ export type Database = {
           due_at?: string | null
           id?: string
           lead_id?: string
+          source_key?: string | null
           status?: Database["public"]["Enums"]["task_status"]
           title?: string
           updated_at?: string
@@ -6748,6 +6751,29 @@ export type Database = {
         Returns: string
       }
       has_company_role: { Args: { p_minimum: string }; Returns: boolean }
+      intake_leadconduit_lead: {
+        Args: {
+          p_company_id: string
+          p_correlation_id: string
+          p_email: string
+          p_email_normalized: string
+          p_flow_id: string
+          p_flow_name: string
+          p_is_test: boolean
+          p_leadconduit_lead_id: string
+          p_name: string
+          p_phone: string
+          p_phone_e164: string
+          p_piw_lead_id: string
+          p_source_name: string
+          p_submitted_address: string
+          p_trustedform_url: string
+        }
+        Returns: {
+          lead_id: string
+          outcome: string
+        }[]
+      }
       is_assigned_jobnimbus_rep: {
         Args: { p_company_id: string; p_sales_rep_jnid: string }
         Returns: boolean
@@ -6864,6 +6890,10 @@ export type Database = {
         Returns: Json
       }
       platform_health: { Args: never; Returns: Json }
+      queue_jobnimbus_rebook_tasks: {
+        Args: { p_company_id: string; p_lookback?: string }
+        Returns: number
+      }
       record_integration_event: {
         Args: {
           p_company_id: string

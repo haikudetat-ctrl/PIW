@@ -15,6 +15,7 @@ const binding: LeadConduitFlowBinding = {
   flowId: "trusted-roofing-flow",
   flowName: "Roofing",
   receiptEnabled: false,
+  leadIntakeEnabled: false,
   tokens: [],
 };
 

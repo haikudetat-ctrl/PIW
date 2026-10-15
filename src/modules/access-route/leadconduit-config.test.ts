@@ -28,6 +28,7 @@ test("binds Roofing receipt to its server company, flow, and active token", () =
     flowId: "6377949a81800d03d54119b5",
     flowName: "Roofing",
     receiptEnabled: true,
+    leadIntakeEnabled: false,
     tokens: [{ value: "roofing-token", validUntil: null }],
   });
 });

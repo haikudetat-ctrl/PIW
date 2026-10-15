@@ -95,11 +95,11 @@ describe.runIf(runIntegration)("LeadConduit shadow receipt local persistence", (
 
     const bindings: Record<string, LeadConduitFlowBinding> = {
       roofing: {
-        slug: "roofing", companyId: companyA, flowId: flowA, flowName: "Roofing", receiptEnabled: true,
+        slug: "roofing", companyId: companyA, flowId: flowA, flowName: "Roofing", receiptEnabled: true, leadIntakeEnabled: false,
         tokens: [{ value: tokenA, validUntil: null }],
       },
       "roofing-virtual-quote": {
-        slug: "roofing-virtual-quote", companyId: companyB, flowId: flowB, flowName: "Roofing Virtual Quote", receiptEnabled: true,
+        slug: "roofing-virtual-quote", companyId: companyB, flowId: flowB, flowName: "Roofing Virtual Quote", receiptEnabled: true, leadIntakeEnabled: false,
         tokens: [{ value: tokenB, validUntil: null }],
       },
     };
@@ -130,6 +130,7 @@ describe.runIf(runIntegration)("LeadConduit shadow receipt local persistence", (
         persist: (input: Parameters<SupabaseAccessRouteRepository["upsertLeadConduitEvents"]>[0]) => (
           input.companyId === companyA ? repositoryA.upsertLeadConduitEvents(input) : repositoryB.upsertLeadConduitEvents(input)
         ),
+        intakeLead: async () => { throw new Error("lead intake is disabled in this test"); },
         now: () => new Date("2026-08-12T16:01:00.000Z"),
         reportOutcome: () => undefined,
       };

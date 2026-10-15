@@ -4,6 +4,7 @@ import { createServerClient } from "@/lib/supabase/server";
 import { buildActivityTimeline } from "@/modules/leads/activity-timeline";
 import { Conversation } from "./conversation";
 import { loadConversation } from "./conversation-data";
+import { AppointmentList } from "./appointment-list";
 import { InteractionList } from "./interaction-list";
 import { ParcelMap, type ParcelMapCandidate } from "./parcel-map";
 import { ProposalsCard } from "./proposals/proposals-card";
@@ -76,6 +77,8 @@ export default async function LeadWorkspacePage({
     { data: estimate, error: estimateError },
     { data: deliveries, error: deliveriesError },
     { data: proposals, error: proposalsError },
+    { data: appointments, error: appointmentsError },
+    { data: reps, error: repsError },
   ] = await Promise.all([
     supabase
       .from("lead_stage_history")
@@ -143,9 +146,21 @@ export default async function LeadWorkspacePage({
       .eq("company_id", companyId)
       .eq("lead_id", leadId)
       .order("version", { ascending: false }),
+    supabase
+      .from("appointments")
+      .select("id, scheduled_at, duration_minutes, status, notes, reps(name)")
+      .eq("company_id", companyId)
+      .eq("lead_id", leadId)
+      .order("scheduled_at", { ascending: false }),
+    supabase
+      .from("reps")
+      .select("id, name")
+      .eq("company_id", companyId)
+      .eq("is_active", true)
+      .order("name"),
   ]);
 
-  if (stageHistoryError || interactionsError || tasksError || proposalsError) {
+  if (stageHistoryError || interactionsError || tasksError || proposalsError || appointmentsError || repsError) {
     throw new Error("Failed to load lead workspace");
   }
   if (addressError || parcelError || structureError || estimateError || deliveriesError) {
@@ -404,6 +419,7 @@ export default async function LeadWorkspacePage({
       </div>
 
       <aside aria-label="Lead activity" className="flex min-w-0 flex-col gap-5 xl:sticky xl:top-6">
+        <AppointmentList leadId={leadId} appointments={appointments ?? []} reps={reps ?? []} />
         <TaskList leadId={leadId} tasks={tasks ?? []} />
         <InteractionList leadId={leadId} interactions={interactions ?? []} />
         <Card title="Activity" ariaLabel="Activity">

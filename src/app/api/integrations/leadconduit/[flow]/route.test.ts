@@ -18,6 +18,7 @@ function binding(overrides: Partial<LeadConduitFlowBinding> = {}): LeadConduitFl
     flowId: "synthetic-roofing-flow",
     flowName: "Roofing",
     receiptEnabled: true,
+    leadIntakeEnabled: false,
     tokens: [{ value: ACTIVE_TOKEN, validUntil: null }],
     ...overrides,
   };
@@ -128,6 +129,7 @@ function makeDependencies(overrides: Partial<LeadConduitShadowRouteDependencies>
       for (const row of input.rows) rowsByEventId.set(row.event_id, row);
       return input.rows.length;
     },
+    intakeLead: async () => "created",
     now: () => NOW,
     reportOutcome: () => undefined,
     ...overrides,
@@ -451,5 +453,96 @@ describe("LeadConduit journey checkpoint receipt", () => {
     await handle(payload({ checkpoint: "delivered", corelogic: undefined }), dependencies);
 
     expect(dependencies.rowsByEventId.size).toBe(3);
+  });
+});
+
+describe("LeadConduit delivered lead intake", () => {
+  const delivered = (overrides: Record<string, unknown> = {}) =>
+    payload({ checkpoint: "delivered", corelogic: undefined, ...overrides });
+
+  function intakeDependencies(
+    intakeLead: LeadConduitShadowRouteDependencies["intakeLead"] = async () => "created",
+  ) {
+    const intakes: Parameters<LeadConduitShadowRouteDependencies["intakeLead"]>[0][] = [];
+    const telemetry: Parameters<LeadConduitShadowRouteDependencies["reportOutcome"]>[0][] = [];
+    const dependencies = makeDependencies({
+      getBinding: () => binding({ leadIntakeEnabled: true }),
+      intakeLead: async (input) => {
+        intakes.push(input);
+        return intakeLead(input);
+      },
+      reportOutcome: (input) => telemetry.push(input),
+    });
+    return { dependencies, intakes, telemetry };
+  }
+
+  it("takes a delivered lead into Rake after storing the checkpoint", async () => {
+    const { dependencies, intakes, telemetry } = intakeDependencies();
+    const { result, persisted } = await handle(
+      delivered({ piw_lead_id: "40000000-0000-4000-8000-000000000001" }),
+      dependencies,
+    );
+
+    expect(result).toEqual({ status: 200, body: { outcome: "success" } });
+    expect(persisted).toHaveLength(1);
+    expect(intakes).toEqual([{
+      companyId: COMPANY_ID,
+      flowId: "synthetic-roofing-flow",
+      flowName: "Roofing",
+      leadConduitLeadId: "synthetic-lead-101",
+      piwLeadId: "40000000-0000-4000-8000-000000000001",
+      name: "Synthetic Homeowner",
+      phone: "+1 609 555 0101",
+      phoneE164: "+16095550101",
+      email: "synthetic@example.invalid",
+      emailNormalized: "synthetic@example.invalid",
+      submittedAddress: "101 Synthetic Way",
+      sourceName: "Synthetic Source",
+      trustedformUrl: "https://example.invalid/synthetic-certificate",
+      isTest: true,
+    }]);
+    expect(telemetry[0]).toMatchObject({ outcome: "success", leadIntake: "created" });
+  });
+
+  it.each(["intake", "after_corelogic"])("does not take in a lead at the %s checkpoint", async (checkpoint) => {
+    const { dependencies, intakes } = intakeDependencies();
+    const body = checkpoint === "intake" ? payload({ checkpoint, corelogic: undefined }) : payload();
+    const { result } = await handle(body, dependencies);
+
+    expect(result.status).toBe(200);
+    expect(intakes).toEqual([]);
+  });
+
+  it("does not take in leads while intake is switched off", async () => {
+    const dependencies = makeDependencies({
+      intakeLead: async () => {
+        throw new Error("intake must not run");
+      },
+    });
+    const { result } = await handle(delivered(), dependencies);
+
+    expect(result).toEqual({ status: 200, body: { outcome: "success" } });
+  });
+
+  it("leaves a delivered lead without contact details in LeadConduit", async () => {
+    const { dependencies, intakes, telemetry } = intakeDependencies();
+    const { result } = await handle(
+      delivered({ lead: { name: "Synthetic Homeowner", phone: "+1 609 555 0101", email: null, submitted_address: "101 Synthetic Way" } }),
+      dependencies,
+    );
+
+    expect(result).toEqual({ status: 200, body: { outcome: "success" } });
+    expect(intakes).toEqual([]);
+    expect(telemetry[0]).toMatchObject({ leadIntake: "incomplete_contact" });
+  });
+
+  it("asks LeadConduit to retry when intake fails, without leaking the error", async () => {
+    const { dependencies } = intakeDependencies(async () => {
+      throw new Error("synthetic database failure with synthetic@example.invalid");
+    });
+    const { result, persisted } = await handle(delivered(), dependencies);
+
+    expect(result).toEqual({ status: 503, body: { outcome: "retry", category: "lead_intake" } });
+    expect(persisted).toHaveLength(1);
   });
 });

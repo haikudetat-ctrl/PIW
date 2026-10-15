@@ -82,6 +82,7 @@ vi.mock("./conversation-data", () => ({
   })),
 }));
 vi.mock("./sms-actions", () => ({ sendSms: vi.fn() }));
+vi.mock("../../appointments/actions", () => ({ bookAppointment: vi.fn(), setAppointmentStatus: vi.fn() }));
 
 const { default: LeadWorkspacePage } = await import("./page");
 
@@ -359,4 +360,44 @@ test("shows the text conversation with consent and a composer", async () => {
   expect(conversation).toHaveTextContent("Can someone come look?");
   expect(conversation).toHaveTextContent("SMS to (609) 555-0101");
   expect(screen.getByRole("link", { name: "Text" })).toHaveAttribute("href", "#conversation");
+});
+
+test("shows booked inspections with their outcomes and a booking form", async () => {
+  database.results.set(
+    "appointments",
+    result([
+      {
+        id: "50000000-0000-4000-8000-000000000002",
+        scheduled_at: "2026-10-20T18:30:00.000Z",
+        duration_minutes: 60,
+        status: "scheduled",
+        notes: "Side gate",
+        reps: { name: "Dana Rep" },
+      },
+      {
+        id: "50000000-0000-4000-8000-000000000001",
+        scheduled_at: "2026-10-14T14:00:00.000Z",
+        duration_minutes: null,
+        status: "no_show",
+        notes: null,
+        reps: null,
+      },
+    ]),
+  );
+  database.results.set("reps", result([{ id: "60000000-0000-4000-8000-000000000001", name: "Dana Rep" }]));
+
+  render(await LeadWorkspacePage({ params: Promise.resolve({ leadId: LEAD_ID }) }));
+
+  const inspections = screen.getByRole("region", { name: "Inspections" });
+  expect(inspections).toHaveTextContent("Tue, Oct 20, 2:30 PM");
+  expect(inspections).toHaveTextContent("Dana Rep · 60 min · Side gate");
+  expect(inspections).toHaveTextContent("No Show");
+  expect(inspections).toHaveTextContent("No rep assigned");
+  // Only the open appointment offers outcomes.
+  expect(screen.getAllByRole("button", { name: "No-show" })).toHaveLength(1);
+  expect(screen.getByRole("button", { name: "Book inspection" })).toBeInTheDocument();
+  expect(screen.getByRole("option", { name: "Dana Rep" })).toBeInTheDocument();
+  expect(
+    database.queries.find((query) => query.table === "appointments")?.filters,
+  ).toEqual([["company_id", COMPANY_ID], ["lead_id", LEAD_ID]]);
 });

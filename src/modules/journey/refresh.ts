@@ -46,3 +46,14 @@ export async function refreshCustomerJourney(
   if (error) throw new Error("Customer journey refresh failed", { cause: error });
   return parseJourneyRefreshResult(data);
 }
+
+// JobNimbus no-shows on customers that have a Rake lead reopen a rebook task
+// on that lead. Run after refreshCustomerJourney so new no-shows are matched.
+export async function queueJobNimbusRebookTasks(
+  database: SupabaseClient<Database>,
+  companyId: string,
+): Promise<number> {
+  const { data, error } = await database.rpc("queue_jobnimbus_rebook_tasks", { p_company_id: companyId });
+  if (error) throw new Error("JobNimbus rebook task queueing failed", { cause: error });
+  return typeof data === "number" ? data : 0;
+}

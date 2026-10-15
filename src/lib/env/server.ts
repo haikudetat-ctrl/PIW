@@ -74,6 +74,8 @@ const serverEnvSchema = z
     TWILIO_AUTH_TOKEN: optionalString,
     INTEGRATIONS_LEADCONDUIT_ROOFING_RECEIVER_ENABLED: booleanString,
     INTEGRATIONS_LEADCONDUIT_VIRTUAL_QUOTE_RECEIVER_ENABLED: booleanString,
+    // Turns `delivered` checkpoints into Rake leads with a call task.
+    INTEGRATIONS_LEADCONDUIT_LEAD_INTAKE_ENABLED: booleanString,
     INTEGRATIONS_LEADMASTER_ENABLED: booleanString,
     INTEGRATIONS_JOBNIMBUS_ENABLED: booleanString,
     INTEGRATIONS_JOBNIMBUS_CANARY_ENABLED: booleanString,
