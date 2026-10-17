@@ -9,12 +9,18 @@ export default function LoginPage() {
           <RakeLogo className="mx-auto h-5 w-auto text-ink" />
           <h1 className="mt-2 text-2xl font-bold text-ink">Sign in</h1>
           <p className="mt-1 text-sm text-ink-subtle">
-            New Jersey residential roofing
+            Roofing operations
           </p>
         </div>
         <div className="rounded-lg border border-border bg-surface p-6">
           <LoginForm />
         </div>
+        <p className="mt-6 text-center text-sm text-ink-subtle">
+          New to Rake?{" "}
+          <a href="https://2-stack.com/rake" className="font-medium text-accent hover:underline">
+            See what it does
+          </a>
+        </p>
       </div>
     </main>
   );
