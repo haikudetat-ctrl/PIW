@@ -29,9 +29,15 @@ describe("privacy notice", () => {
   test("states mobile and SMS consent sharing restrictions", () => {
     render(<PrivacyPage />);
 
-    expect(screen.getByText(/mobile information.*not shared.*marketing or promotional/i)).toBeVisible();
-    expect(screen.getByText(/text messaging originator opt-in data and consent.*not shared with any third parties/i)).toBeVisible();
-    expect(screen.getByText(/Meta.*hashed email.*not phone/i)).toBeVisible();
+    expect(screen.getByText((content) => content.replace(/\\s+/g, " ").toLowerCase().includes(
+      "mobile information will not be shared with third parties or affiliates for their marketing or promotional purposes.",
+    ))).toBeVisible();
+    expect(screen.getByText((content) => content.replace(/\\s+/g, " ").toLowerCase().includes(
+      "text messaging originator opt-in data and consent will not be shared with any third parties.",
+    ))).toBeVisible();
+    expect(screen.getByText((content) => content.replace(/\\s+/g, " ").toLowerCase().includes(
+      "meta may receive hashed email and limited browser attribution, but not your phone number or sms consent.",
+    ))).toBeVisible();
   });
 
   test("is available without authentication", () => {
