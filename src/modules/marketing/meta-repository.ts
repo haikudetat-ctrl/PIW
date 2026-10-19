@@ -44,7 +44,6 @@ const deliveryRowsSchema = z.array(deliveryRowSchema).max(1);
 const pendingRowsSchema = z.array(z.object({ id: z.uuid() }).strict()).max(50);
 const contactRowSchema = z.object({
   email: z.string().min(1),
-  phone: z.string().min(1),
   client_ip_address: z.string().nullable(),
   client_user_agent: z.string().nullable(),
   fbp: z.string().nullable(),
