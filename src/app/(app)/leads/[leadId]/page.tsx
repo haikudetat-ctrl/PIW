@@ -7,6 +7,7 @@ import { loadConversation } from "./conversation-data";
 import { InteractionList } from "./interaction-list";
 import { ParcelMap, type ParcelMapCandidate } from "./parcel-map";
 import { ProposalsCard } from "./proposals/proposals-card";
+import { ConsultationCard, type LeadConsultation } from "./consultation-card";
 import { TaskList } from "./task-list";
 import { Card } from "@/components/ui/card";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
@@ -65,6 +66,18 @@ export default async function LeadWorkspacePage({
 
   const companyId = lead.company_id;
   const propertyId = lead.property_id;
+  // Video consultations load on their own so a slow or failed read never blocks the workspace.
+  const [{ data: consultationRows }, { data: bookingSettings }] = await Promise.all([
+    supabase
+      .from("appointments")
+      .select("id, status, scheduled_at, meeting_url, calendar_sync_status, rep_id, customer_notes")
+      .eq("company_id", companyId)
+      .eq("lead_id", leadId)
+      .eq("meeting_type", "virtual")
+      .order("scheduled_at", { ascending: false })
+      .limit(5),
+    supabase.from("booking_settings").select("is_enabled, timezone").eq("company_id", companyId).maybeSingle(),
+  ]);
   const noProperty = Promise.resolve({ data: null, error: null });
   const [
     { data: stageHistory, error: stageHistoryError },
@@ -276,6 +289,13 @@ export default async function LeadWorkspacePage({
           leadId={leadId}
           proposals={proposals ?? []}
           needsSquares={estimate?.status !== "ready"}
+        />
+
+        <ConsultationCard
+          leadId={leadId}
+          consultations={(consultationRows ?? []) as LeadConsultation[]}
+          timezone={bookingSettings?.timezone ?? "America/New_York"}
+          bookingEnabled={Boolean(bookingSettings?.is_enabled)}
         />
 
         <Card

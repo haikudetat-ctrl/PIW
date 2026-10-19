@@ -67,7 +67,7 @@ export class SupabaseRepIntroSenderRepository implements RepIntroSenderRepositor
   async loadContext(appointmentId: string, repId: string): Promise<RepIntroContext> {
     const { data: appointment, error: appointmentError } = await this.client
       .from("appointments")
-      .select("id, company_id, lead_id, rep_id, scheduled_at")
+      .select("id, company_id, lead_id, rep_id, scheduled_at, meeting_type")
       .eq("id", appointmentId)
       .eq("rep_id", repId)
       .in("status", ["scheduled", "confirmed"])
@@ -100,6 +100,7 @@ export class SupabaseRepIntroSenderRepository implements RepIntroSenderRepositor
       repBio: rep.bio,
       repCredentials: rep.credentials,
       repCommunityConnection: rep.community_connection,
+      meetingType: appointment.meeting_type === "virtual" ? "virtual" : appointment.meeting_type === "in_person" ? "in_person" : null,
     };
   }
 

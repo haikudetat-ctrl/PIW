@@ -48,6 +48,28 @@ const serverEnvSchema = z
       (value) => value === "" ? undefined : value,
       z.email().optional(),
     ),
+    // Virtual consultation self-booking. Links are HMAC-signed with their own
+    // secret; Google Calendar access is a Workspace service account acting
+    // as the delegated user (domain-wide delegation, calendar.events scope).
+    VIRTUAL_BOOKING_ENABLED: optionalTrackingFlag,
+    BOOKING_LINK_SIGNING_SECRET: z.preprocess(
+      (value) => value === "" ? undefined : value,
+      z.string().optional().refine(
+        (value) => value === undefined || Buffer.byteLength(value, "utf8") >= 32,
+        "Booking link signing secret must be at least 32 bytes",
+      ),
+    ),
+    GOOGLE_CALENDAR_SERVICE_ACCOUNT_JSON: optionalString,
+    GOOGLE_CALENDAR_DELEGATED_USER: z.preprocess(
+      (value) => value === "" ? undefined : value,
+      z.email().optional(),
+    ),
+    // Customer-facing sender for booking confirmations and reminders. Must be
+    // a Resend-verified address on the tenant's domain.
+    BOOKING_FROM_EMAIL: z.preprocess(
+      (value) => value === "" ? undefined : value,
+      z.email().optional(),
+    ),
     PAID_PROVIDERS_ENABLED: booleanString,
     ROOF_ASSESSMENT_ENABLED: booleanString,
     ROOF_ASSESSMENT_PROPERTY_PREFETCH_ENABLED: booleanString,
@@ -170,6 +192,20 @@ const serverEnvSchema = z
         code: "custom",
         path: ["PROPERTY_PREVIEW_ENABLED"],
         message: "Property previews require a Turnstile secret, roof assessments, and paid providers",
+      });
+    }
+    if (
+      value.VIRTUAL_BOOKING_ENABLED
+      && (
+        !value.BOOKING_LINK_SIGNING_SECRET
+        || !value.GOOGLE_CALENDAR_SERVICE_ACCOUNT_JSON
+        || !value.GOOGLE_CALENDAR_DELEGATED_USER
+      )
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["VIRTUAL_BOOKING_ENABLED"],
+        message: "Virtual booking requires a link signing secret and Google Calendar service account access",
       });
     }
     if (value.ROOF_ASSESSMENT_ENABLED && !value.ROOF_ASSESSMENT_SIGNING_SECRET) {

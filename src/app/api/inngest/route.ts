@@ -30,6 +30,12 @@ import {leadDistributionSweeper} from "@/inngest/functions/lead-distribution-swe
 import { jobNimbusWarehouseSync } from "@/inngest/functions/jobnimbus-warehouse-sync";
 import { leadConduitContactRetention } from "@/inngest/functions/leadconduit-contact-retention";
 import { customerJourneyRefresh } from "@/inngest/functions/customer-journey-refresh";
+import {
+  bookingMaintenance,
+  virtualConsultationCalendarSync,
+  virtualConsultationEmails,
+  virtualConsultationReminders,
+} from "@/inngest/functions/virtual-consultation-worker";
 
 export const maxDuration = 300;
 
@@ -62,5 +68,9 @@ export const { GET, POST, PUT } = serve({
     jobNimbusWarehouseSync,
     leadConduitContactRetention,
     customerJourneyRefresh,
+    virtualConsultationCalendarSync,
+    virtualConsultationEmails,
+    virtualConsultationReminders,
+    bookingMaintenance,
   ],
 });

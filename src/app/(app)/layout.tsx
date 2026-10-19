@@ -55,10 +55,22 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     );
   }
 
-  const [{ count: unreadNotifications }, { count: reviewCount }, { data: companies }] = await Promise.all([
+  const [
+    { count: unreadNotifications },
+    { count: reviewCount },
+    { data: companies },
+    { count: consultationsNeedingRep },
+  ] = await Promise.all([
     supabase.from("notifications").select("id", { count: "exact", head: true }).is("read_at", null),
     supabase.from("review_tasks").select("id", { count: "exact", head: true }).eq("status", "open"),
     supabase.rpc("list_my_companies"),
+    supabase
+      .from("appointments")
+      .select("id", { count: "exact", head: true })
+      .eq("meeting_type", "virtual")
+      .in("status", ["scheduled", "confirmed"])
+      .is("rep_id", null)
+      .gte("scheduled_at", new Date().toISOString()),
   ]);
 
   return (
@@ -68,6 +80,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         roleLabel={ROLE_LABELS[access.role]}
         reviewCount={reviewCount ?? 0}
         unreadNotifications={unreadNotifications ?? 0}
+        consultationsNeedingRep={consultationsNeedingRep ?? 0}
         companies={(companies ?? []).map((company) => ({
           id: company.id,
           name: company.name,

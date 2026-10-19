@@ -14,6 +14,7 @@ const PUBLIC_PATHS = [
   "/forgot-password",
   "/reset-password",
   "/roof-estimate",
+  "/book",
   "/privacy",
 ];
 const PUBLIC_ASSET_PATHS = new Set([

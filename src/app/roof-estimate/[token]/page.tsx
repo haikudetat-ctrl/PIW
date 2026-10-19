@@ -5,6 +5,7 @@ import { roofEstimateBrand } from "@/config/roof-estimate-brand";
 import { getRoofAssessmentContext } from "@/config/roof-assessment";
 import { roofAssessmentProgressSchema, roofAssessmentResponsesSchema } from "@/domain/roof-assessment";
 import { parseServerEnv } from "@/lib/env/server";
+import { isVirtualBookingAvailable } from "@/modules/booking/booking-runtime";
 import { createServiceClient } from "@/lib/supabase/service";
 import { AssessmentExperience } from "./assessment-experience";
 import { AssessmentQuestionnaire } from "./assessment-questionnaire";
@@ -201,6 +202,7 @@ export default async function RoofEstimateResultPage({
           responses={completedAssessmentResponses.data}
           calculation={calculation}
           context={getRoofAssessmentContext(assessment?.presentation_key ?? lead?.campaign)}
+          videoBooking={await isVirtualBookingAvailable(service, estimate.company_id).catch(() => false)}
         />
       </>
     );

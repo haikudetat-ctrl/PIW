@@ -40,6 +40,7 @@ export function AppSidebar({
   roleLabel,
   reviewCount,
   unreadNotifications,
+  consultationsNeedingRep = 0,
   companies = [],
   showSettings = false,
   footer,
@@ -48,6 +49,7 @@ export function AppSidebar({
   roleLabel: string;
   reviewCount: number;
   unreadNotifications: number;
+  consultationsNeedingRep?: number;
   companies?: SidebarCompany[];
   showSettings?: boolean;
   footer: ReactNode;
@@ -56,6 +58,15 @@ export function AppSidebar({
   const items: NavItem[] = [
     { href: "/", label: "My day", icon: "home" },
     { href: "/pipeline", label: "Pipeline", icon: "pipeline" },
+    {
+      href: "/appointments",
+      label: "Consultations",
+      icon: "video",
+      count: consultationsNeedingRep,
+      ariaLabel: consultationsNeedingRep
+        ? `Consultations, ${consultationsNeedingRep} need a rep`
+        : undefined,
+    },
     { href: "/reports", label: "Reports", icon: "chart" },
     { href: "/review", label: "Review", icon: "review", count: reviewCount },
     { href: "/access-route", label: "Access Route", icon: "route" },

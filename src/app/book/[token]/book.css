@@ -1,0 +1,151 @@
+/* Booking picker. Extends the quiet estimate language: white page, greys,
+   hairline rules, pill buttons. Days scroll sideways on phones; times sit in
+   a two- or three-column grid so a thumb never has to aim for a tiny target. */
+
+.book-body { margin: 2.5rem 0 auto; padding-bottom: 3rem; }
+
+.book-kicker {
+  color: var(--quiet-grey);
+  font-size: 0.8125rem;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}
+
+.book-section-label {
+  margin-top: 2.25rem;
+  color: var(--quiet-grey);
+  font-size: 0.8125rem;
+  font-weight: 400;
+}
+
+.book-days {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0.75rem -1rem 0;
+  padding: 0 1rem 0.25rem;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+
+.book-days::-webkit-scrollbar { display: none; }
+
+.book-day {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 0.125rem;
+  justify-items: center;
+  width: 3.75rem;
+  padding: 0.625rem 0;
+  border: 1px solid var(--quiet-rule);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--quiet-ink);
+  font: inherit;
+  cursor: pointer;
+  scroll-snap-align: start;
+  transition: border-color 150ms ease, background 150ms ease, color 150ms ease;
+}
+
+.book-day span:first-child { color: var(--quiet-grey); font-size: 0.75rem; }
+.book-day span:last-child { font-size: 1.125rem; font-weight: 400; }
+.book-day:hover:not(:disabled) { border-color: var(--quiet-ink); }
+.book-day[aria-checked="true"] { border-color: var(--quiet-ink); background: var(--quiet-ink); color: #fff; }
+.book-day[aria-checked="true"] span:first-child { color: rgb(255 255 255 / 0.7); }
+.book-day:disabled { cursor: default; opacity: 0.35; }
+
+.book-slots {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+@media (min-width: 480px) {
+  .book-slots { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+.book-slot {
+  min-height: 3rem;
+  border: 1px solid var(--quiet-rule);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--quiet-ink);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: border-color 150ms ease, background 150ms ease, color 150ms ease;
+}
+
+.book-slot:hover { border-color: var(--quiet-ink); }
+.book-slot[aria-checked="true"] { border-color: var(--quiet-ink); background: var(--quiet-ink); color: #fff; }
+
+.book-day:focus-visible,
+.book-slot:focus-visible { outline: 1px solid var(--quiet-ink); outline-offset: 3px; }
+
+.book-confirm {
+  display: grid;
+  gap: 1.25rem;
+  margin-top: 2.25rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--quiet-rule);
+}
+
+.book-chosen { color: var(--quiet-ink); font-size: 1.25rem; font-weight: 300; line-height: 1.35; }
+
+.book-textarea {
+  min-height: 5.5rem;
+  padding: 0.5rem 0;
+  border: 0;
+  border-bottom: 1px solid var(--quiet-rule);
+  border-radius: 0;
+  background: transparent;
+  color: var(--quiet-ink);
+  font: inherit;
+  font-size: 1rem;
+  resize: vertical;
+  outline: none;
+}
+
+.book-textarea:focus { border-bottom-color: var(--quiet-ink); }
+
+.book-link {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--quiet-grey);
+  font: inherit;
+  font-size: 0.875rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.book-link:hover { color: var(--quiet-ink); }
+
+.book-actions { display: grid; gap: 0.75rem; margin-top: 2rem; }
+
+.book-facts {
+  margin: 2rem 0 0;
+  border-top: 1px solid var(--quiet-rule);
+}
+
+.book-facts div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.875rem 0;
+  border-bottom: 1px solid var(--quiet-rule);
+  font-size: 0.9375rem;
+}
+
+.book-facts dt { color: var(--quiet-grey); font-weight: 400; }
+.book-facts dd { margin: 0; color: var(--quiet-ink); text-align: right; overflow-wrap: anywhere; }
+
+.book-error { margin-top: 1.25rem; color: #9f1d1d; font-size: 0.875rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .book-day, .book-slot { transition: none; }
+}

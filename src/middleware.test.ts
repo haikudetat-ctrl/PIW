@@ -15,6 +15,12 @@ describe("public authentication routes", () => {
 
   test("keeps the operational dashboard protected", () => {
     expect(isPublicPath("/leads")).toBe(false);
+    expect(isPublicPath("/appointments")).toBe(false);
+  });
+
+  test("lets homeowners open their booking link without signing in", () => {
+    expect(isPublicPath("/book/link.signature")).toBe(true);
+    expect(isPublicPath("/bookings")).toBe(false);
   });
 });
 
