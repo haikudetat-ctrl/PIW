@@ -26,6 +26,14 @@ describe("privacy notice", () => {
     );
   });
 
+  test("states mobile and SMS consent sharing restrictions", () => {
+    render(<PrivacyPage />);
+
+    expect(screen.getByText(/mobile information.*not shared.*marketing or promotional/i)).toBeVisible();
+    expect(screen.getByText(/text message originator opt-in data and consent.*not shared with any third parties/i)).toBeVisible();
+    expect(screen.getByText(/Meta.*hashed email.*not phone/i)).toBeVisible();
+  });
+
   test("is available without authentication", () => {
     expect(isPublicPath("/privacy")).toBe(true);
   });
