@@ -51,7 +51,23 @@ const serverEnvSchema = z
     // Virtual consultation self-booking. Links are HMAC-signed with their own
     // secret; Google Calendar access is a Workspace service account acting
     // as the delegated user (domain-wide delegation, calendar.events scope).
+    // Prefer keyless: the service account email plus a workload identity
+    // provider that trusts Vercel OIDC. The JSON key is the fallback for
+    // organizations that allow service account keys.
     VIRTUAL_BOOKING_ENABLED: optionalTrackingFlag,
+    GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL: z.preprocess(
+      (value) => value === "" ? undefined : value,
+      z.email().optional(),
+    ),
+    GOOGLE_WORKLOAD_IDENTITY_PROVIDER: z.preprocess(
+      (value) => value === "" ? undefined : value,
+      z.string()
+        .regex(
+          /^projects\/\d+\/locations\/global\/workloadIdentityPools\/[a-z0-9-]{4,32}\/providers\/[a-z0-9-]{4,32}$/,
+          "Use the full provider resource name: projects/<number>/locations/global/workloadIdentityPools/<pool>/providers/<provider>",
+        )
+        .optional(),
+    ),
     BOOKING_LINK_SIGNING_SECRET: z.preprocess(
       (value) => value === "" ? undefined : value,
       z.string().optional().refine(
@@ -194,18 +210,26 @@ const serverEnvSchema = z
         message: "Property previews require a Turnstile secret, roof assessments, and paid providers",
       });
     }
+    const keylessGoogle = Boolean(value.GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL && value.GOOGLE_WORKLOAD_IDENTITY_PROVIDER);
     if (
       value.VIRTUAL_BOOKING_ENABLED
       && (
         !value.BOOKING_LINK_SIGNING_SECRET
-        || !value.GOOGLE_CALENDAR_SERVICE_ACCOUNT_JSON
         || !value.GOOGLE_CALENDAR_DELEGATED_USER
+        || (!keylessGoogle && !value.GOOGLE_CALENDAR_SERVICE_ACCOUNT_JSON)
       )
     ) {
       context.addIssue({
         code: "custom",
         path: ["VIRTUAL_BOOKING_ENABLED"],
-        message: "Virtual booking requires a link signing secret and Google Calendar service account access",
+        message: "Virtual booking requires a link signing secret, a delegated user, and either workload identity or a service account key",
+      });
+    }
+    if (Boolean(value.GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL) !== Boolean(value.GOOGLE_WORKLOAD_IDENTITY_PROVIDER)) {
+      context.addIssue({
+        code: "custom",
+        path: ["GOOGLE_WORKLOAD_IDENTITY_PROVIDER"],
+        message: "Keyless Google access needs both the service account email and the workload identity provider",
       });
     }
     if (value.ROOF_ASSESSMENT_ENABLED && !value.ROOF_ASSESSMENT_SIGNING_SECRET) {

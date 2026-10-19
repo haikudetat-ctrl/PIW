@@ -1,17 +1,14 @@
 import "server-only";
-import {createSign} from "node:crypto";
 import {z} from "zod";
+import type {AccessTokenSource} from "./google-auth";
 import type {TimeInterval} from "./slots";
 import {wallTimeToInstant} from "./zoned-time";
 
-// Google Calendar over plain fetch. A Workspace service account with
-// domain-wide delegation signs a JWT as the delegated user (the owner of the
-// shared consultations calendar), which is what lets Google attach a Meet
-// link and email invites. No SDK: two endpoints, one scope.
+// Google Calendar over plain fetch, acting as the delegated Workspace user
+// (the owner of the shared consultations calendar), which is what lets Google
+// attach a Meet link and email invites. Authentication lives in google-auth.ts.
 
-const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const CALENDAR_API = "https://www.googleapis.com/calendar/v3";
-export const CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.events";
 const REQUEST_TIMEOUT_MS = 10_000;
 
 type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
@@ -19,87 +16,6 @@ type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 export class GoogleCalendarError extends Error {
   constructor(message: string, readonly status: number) {
     super(message);
-  }
-}
-
-const serviceAccountSchema = z.object({
-  type: z.literal("service_account"),
-  client_email: z.email(),
-  private_key: z.string().includes("PRIVATE KEY"),
-});
-
-export type GoogleServiceAccount = {clientEmail: string; privateKey: string};
-
-export function parseServiceAccountJson(json: string): GoogleServiceAccount {
-  let raw: unknown;
-  try {
-    raw = JSON.parse(json);
-  } catch {
-    throw new Error("Google Calendar service account JSON is not valid JSON");
-  }
-  const parsed = serviceAccountSchema.safeParse(raw);
-  if (!parsed.success) throw new Error("Google Calendar service account JSON is missing fields");
-  return {clientEmail: parsed.data.client_email, privateKey: parsed.data.private_key};
-}
-
-function base64UrlJson(value: unknown) {
-  return Buffer.from(JSON.stringify(value), "utf8").toString("base64url");
-}
-
-export function buildServiceAccountAssertion(
-  account: GoogleServiceAccount,
-  subject: string,
-  issuedAtSeconds: number,
-  scope = CALENDAR_SCOPE,
-) {
-  const unsigned = `${base64UrlJson({alg: "RS256", typ: "JWT"})}.${base64UrlJson({
-    iss: account.clientEmail,
-    sub: subject,
-    scope,
-    aud: TOKEN_URL,
-    iat: issuedAtSeconds,
-    exp: issuedAtSeconds + 3600,
-  })}`;
-  const signature = createSign("RSA-SHA256").update(unsigned).sign(account.privateKey, "base64url");
-  return `${unsigned}.${signature}`;
-}
-
-const tokenResponseSchema = z.object({
-  access_token: z.string().min(1),
-  expires_in: z.number().int().positive(),
-});
-
-export type AccessTokenSource = {getToken(): Promise<string>};
-
-export class GoogleAccessTokenProvider implements AccessTokenSource {
-  private cached: {token: string; expiresAt: number} | null = null;
-
-  constructor(
-    private readonly account: GoogleServiceAccount,
-    private readonly subject: string,
-    private readonly fetchImpl: FetchLike = fetch,
-    private readonly now: () => number = Date.now,
-  ) {}
-
-  async getToken() {
-    if (this.cached && this.cached.expiresAt - 60_000 > this.now()) return this.cached.token;
-    const assertion = buildServiceAccountAssertion(this.account, this.subject, Math.floor(this.now() / 1000));
-    const response = await this.fetchImpl(TOKEN_URL, {
-      method: "POST",
-      headers: {"content-type": "application/x-www-form-urlencoded"},
-      body: new URLSearchParams({
-        grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
-        assertion,
-      }).toString(),
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    });
-    if (!response.ok) {
-      throw new GoogleCalendarError(`Google token exchange failed with ${response.status}`, response.status);
-    }
-    const parsed = tokenResponseSchema.safeParse(await response.json());
-    if (!parsed.success) throw new GoogleCalendarError("Google token response was malformed", 502);
-    this.cached = {token: parsed.data.access_token, expiresAt: this.now() + parsed.data.expires_in * 1000};
-    return parsed.data.access_token;
   }
 }
 

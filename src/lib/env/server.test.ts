@@ -69,3 +69,42 @@ describe("parseServerEnv property preview", () => {
     expect(parseServerEnv(enabledPreview).PROPERTY_PREVIEW_ENABLED).toBe(true);
   });
 });
+
+describe("parseServerEnv virtual booking", () => {
+  const keyless = {
+    ...base,
+    VIRTUAL_BOOKING_ENABLED: "true",
+    BOOKING_LINK_SIGNING_SECRET: "b".repeat(32),
+    GOOGLE_CALENDAR_DELEGATED_USER: "scheduling@allseason.example",
+    GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL: "booking@project.iam.gserviceaccount.com",
+    GOOGLE_WORKLOAD_IDENTITY_PROVIDER: "projects/123456789012/locations/global/workloadIdentityPools/vercel/providers/vercel",
+  };
+
+  test("accepts keyless Google access without a service account key", () => {
+    expect(parseServerEnv(keyless).VIRTUAL_BOOKING_ENABLED).toBe(true);
+  });
+
+  test("accepts a service account key instead", () => {
+    expect(parseServerEnv({
+      ...keyless,
+      GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL: undefined,
+      GOOGLE_WORKLOAD_IDENTITY_PROVIDER: undefined,
+      GOOGLE_CALENDAR_SERVICE_ACCOUNT_JSON: "{}",
+    }).VIRTUAL_BOOKING_ENABLED).toBe(true);
+  });
+
+  test("rejects enabled booking with no Google credential", () => {
+    expect(() => parseServerEnv({...keyless, GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL: undefined, GOOGLE_WORKLOAD_IDENTITY_PROVIDER: undefined}))
+      .toThrow("either workload identity or a service account key");
+  });
+
+  test("rejects half of the keyless pair", () => {
+    expect(() => parseServerEnv({...keyless, GOOGLE_WORKLOAD_IDENTITY_PROVIDER: undefined, GOOGLE_CALENDAR_SERVICE_ACCOUNT_JSON: "{}"}))
+      .toThrow("needs both the service account email and the workload identity provider");
+  });
+
+  test("rejects a provider ID that is not the full resource name", () => {
+    expect(() => parseServerEnv({...keyless, GOOGLE_WORKLOAD_IDENTITY_PROVIDER: "vercel"}))
+      .toThrow("Use the full provider resource name");
+  });
+});
