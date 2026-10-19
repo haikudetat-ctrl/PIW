@@ -3,7 +3,6 @@ import {createServiceClient} from "@/lib/supabase/service";
 import {noStore} from "@/modules/booking/booking-http";
 import {ensureBookingUrl, isVirtualBookingAvailable, resolveBookingConfiguration} from "@/modules/booking/booking-runtime";
 import {handleEstimateBookingLink} from "@/modules/booking/estimate-booking-link";
-import {SupabaseAssessmentResultRepository} from "@/modules/roof-assessment/request-consultation";
 
 type RouteContext = {params: Promise<{token: string}>};
 
@@ -14,7 +13,16 @@ export async function POST(_request: NextRequest, context: RouteContext) {
   const client = createServiceClient();
   return handleEstimateBookingLink({
     token,
-    repository: new SupabaseAssessmentResultRepository(client),
+    repository: {
+      async findLeadByEstimateToken(value) {
+        const {data, error} = await client.from("roof_estimates")
+          .select("company_id, lead_id")
+          .eq("public_token", value)
+          .maybeSingle();
+        if (error) throw new Error("Failed to load the estimate");
+        return data?.lead_id ? {companyId: data.company_id, leadId: data.lead_id} : null;
+      },
+    },
     available: (companyId) => isVirtualBookingAvailable(client, companyId),
     ensureUrl: ({companyId, leadId}) => ensureBookingUrl({
       client,

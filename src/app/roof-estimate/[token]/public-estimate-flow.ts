@@ -124,3 +124,73 @@ export function getAssessmentCalculationState({
 export function getAssessmentResultRange(state: CalculationState) {
   return state.status === "ready" ? state : null;
 }
+
+/** Package rows as selected with an estimate (`roof_estimate_packages(...)`). */
+export type EstimatePackageRow = {
+  tier_key: string;
+  display_order: number;
+  measured_roof_squares: number | string;
+  low_cents_per_square: number;
+  high_cents_per_square: number;
+  range_low_cents: number;
+  range_high_cents: number;
+  customer_name: string;
+  customer_description: string;
+  warranty_summary: string;
+  differentiators: unknown;
+  pricing_version: string;
+  calculated_at: string;
+  manufacturer_name: string | null;
+  product_line_name: string | null;
+};
+
+export function toPublicPackages(rows: readonly EstimatePackageRow[] | null | undefined) {
+  return (rows ?? []).map((item) => ({
+    tierKey: item.tier_key,
+    displayOrder: item.display_order,
+    customerName: item.customer_name,
+    customerDescription: item.customer_description,
+    warrantySummary: item.warranty_summary,
+    differentiators: item.differentiators,
+    lowCentsPerSquare: item.low_cents_per_square,
+    highCentsPerSquare: item.high_cents_per_square,
+    manufacturerName: item.manufacturer_name,
+    productLineName: item.product_line_name,
+    recommended: item.tier_key === "better",
+    measuredRoofSquares: Number(item.measured_roof_squares),
+    rangeLowCents: item.range_low_cents,
+    rangeHighCents: item.range_high_cents,
+    pricingVersion: item.pricing_version,
+    generatedAt: item.calculated_at,
+  }));
+}
+
+export type QuietEstimateState =
+  | {kind: "ready"; lowCents: number; highCents: number; roofSquares: number}
+  | {kind: "review"}
+  | {kind: "received"};
+
+const TERMINAL_PIPELINE_STATUSES = ["complete", "partial", "review_required", "failed"];
+
+/**
+ * The price-first result: still pricing, a price, a specialist review, or a
+ * request with no instant range. Shared by the estimate page and the quote chat.
+ */
+export function quietEstimateState({estimateStatus, pipelineStatus, calculation}: {
+  estimateStatus: string;
+  pipelineStatus: string | null;
+  calculation: CalculationState;
+}): {pending: boolean; state: QuietEstimateState} {
+  const pipelineTerminal = pipelineStatus !== null && TERMINAL_PIPELINE_STATUSES.includes(pipelineStatus);
+  const pending = estimateStatus === "pending" && !pipelineTerminal;
+  const manualReview = estimateStatus === "review_required"
+    || (estimateStatus === "pending" && pipelineStatus === "review_required");
+  if (manualReview) return {pending, state: {kind: "review"}};
+  if (calculation.status === "ready") {
+    return {
+      pending,
+      state: {kind: "ready", lowCents: calculation.lowCents, highCents: calculation.highCents, roofSquares: calculation.roofSquares},
+    };
+  }
+  return {pending, state: {kind: "received"}};
+}
