@@ -1,4 +1,5 @@
 import "server-only";
+import {createHash} from "node:crypto";
 import type {SupabaseClient} from "@supabase/supabase-js";
 import type {DomainEvent} from "@/domain/events";
 import {inngest} from "@/inngest/client";
@@ -10,7 +11,15 @@ import {SupabaseOutboxRepository} from "@/modules/events/supabase-outbox-reposit
 import {findVerifiedPublicHost} from "@/modules/property-preview/supabase-preview-repository";
 import {bookingPageUrl, signBookingLink, verifyBookingLink} from "./booking-link-token";
 import type {BookingDependencies} from "./booking-service";
-import {GoogleAccessTokenProvider, GoogleCalendarClient, parseServiceAccountJson} from "./google-calendar";
+import {getVercelOidcTokenSync} from "@vercel/oidc";
+import {
+  GoogleAccessTokenProvider,
+  KeyFileSigner,
+  parseServiceAccountJson,
+  WorkloadIdentitySigner,
+  type AssertionSigner,
+} from "./google-auth";
+import {GoogleCalendarClient} from "./google-calendar";
 import {SupabaseBookingRepository} from "./supabase-booking-repository";
 
 // Composition root for virtual consultation booking. Returns null when the
@@ -25,19 +34,64 @@ export type BookingRuntimeConfiguration = {
   appBaseUrl: string | null;
 };
 
+export type GoogleCredentialSettings =
+  | {mode: "workload_identity"; serviceAccountEmail: string; provider: string; delegatedUser: string}
+  | {mode: "key_file"; serviceAccountJson: string; delegatedUser: string};
+
+/** Keyless wins when it is configured; the JSON key is the fallback. */
+export function selectGoogleCredentials(environment: {
+  GOOGLE_CALENDAR_DELEGATED_USER?: string;
+  GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL?: string;
+  GOOGLE_WORKLOAD_IDENTITY_PROVIDER?: string;
+  GOOGLE_CALENDAR_SERVICE_ACCOUNT_JSON?: string;
+}): GoogleCredentialSettings | null {
+  const delegatedUser = environment.GOOGLE_CALENDAR_DELEGATED_USER;
+  if (!delegatedUser) return null;
+  if (environment.GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL && environment.GOOGLE_WORKLOAD_IDENTITY_PROVIDER) {
+    return {
+      mode: "workload_identity",
+      serviceAccountEmail: environment.GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL,
+      provider: environment.GOOGLE_WORKLOAD_IDENTITY_PROVIDER,
+      delegatedUser,
+    };
+  }
+  if (environment.GOOGLE_CALENDAR_SERVICE_ACCOUNT_JSON) {
+    return {mode: "key_file", serviceAccountJson: environment.GOOGLE_CALENDAR_SERVICE_ACCOUNT_JSON, delegatedUser};
+  }
+  return null;
+}
+
+// One calendar client per warm instance, so the hour-long delegated access
+// token is reused across requests instead of re-signed on every page view.
+let cachedCalendar: {key: string; client: GoogleCalendarClient} | null = null;
+
+function calendarFor(credentials: GoogleCredentialSettings): GoogleCalendarClient {
+  const key = credentials.mode === "workload_identity"
+    ? `wif:${credentials.serviceAccountEmail}:${credentials.provider}:${credentials.delegatedUser}`
+    : `key:${createHash("sha256").update(credentials.serviceAccountJson).digest("hex")}:${credentials.delegatedUser}`;
+  if (cachedCalendar?.key === key) return cachedCalendar.client;
+  const signer: AssertionSigner = credentials.mode === "workload_identity"
+    ? new WorkloadIdentitySigner({
+        serviceAccountEmail: credentials.serviceAccountEmail,
+        provider: credentials.provider,
+        // The request's Vercel OIDC token (VERCEL_OIDC_TOKEN when running locally via `vercel env pull`).
+        subjectToken: () => getVercelOidcTokenSync(),
+      })
+    : new KeyFileSigner(parseServiceAccountJson(credentials.serviceAccountJson));
+  const client = new GoogleCalendarClient(new GoogleAccessTokenProvider(signer, credentials.delegatedUser));
+  cachedCalendar = {key, client};
+  return client;
+}
+
 export function resolveBookingConfiguration(): BookingRuntimeConfiguration | null {
   const environment = parseServerEnv(process.env);
-  if (
-    !environment.VIRTUAL_BOOKING_ENABLED
-    || !environment.BOOKING_LINK_SIGNING_SECRET
-    || !environment.GOOGLE_CALENDAR_SERVICE_ACCOUNT_JSON
-    || !environment.GOOGLE_CALENDAR_DELEGATED_USER
-  ) {
+  const credentials = selectGoogleCredentials(environment);
+  if (!environment.VIRTUAL_BOOKING_ENABLED || !environment.BOOKING_LINK_SIGNING_SECRET || !credentials) {
     return null;
   }
-  let account;
+  let calendar: GoogleCalendarClient;
   try {
-    account = parseServiceAccountJson(environment.GOOGLE_CALENDAR_SERVICE_ACCOUNT_JSON);
+    calendar = calendarFor(credentials);
   } catch (error) {
     // A broken key file switches booking off rather than breaking the pages.
     console.error("booking_configuration_invalid", {error: error instanceof Error ? error.message : "unknown"});
@@ -46,7 +100,7 @@ export function resolveBookingConfiguration(): BookingRuntimeConfiguration | nul
   const productionUrl = environment.VERCEL_PROJECT_PRODUCTION_URL?.trim();
   return {
     signingSecret: environment.BOOKING_LINK_SIGNING_SECRET,
-    calendar: new GoogleCalendarClient(new GoogleAccessTokenProvider(account, environment.GOOGLE_CALENDAR_DELEGATED_USER)),
+    calendar,
     fromEmail: environment.BOOKING_FROM_EMAIL ?? null,
     resendApiKey: environment.RESEND_API_KEY ?? null,
     appBaseUrl: productionUrl ? (productionUrl.startsWith("http") ? productionUrl : `https://${productionUrl}`) : null,

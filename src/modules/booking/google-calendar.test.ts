@@ -1,20 +1,10 @@
-import {createVerify, generateKeyPairSync} from "node:crypto";
 import {describe, expect, test, vi} from "vitest";
 import {
-  buildServiceAccountAssertion,
   calendarEventIdFor,
-  GoogleAccessTokenProvider,
   GoogleCalendarClient,
   GoogleCalendarError,
-  parseServiceAccountJson,
   type CalendarEventInput,
 } from "./google-calendar";
-
-const {privateKey, publicKey} = generateKeyPairSync("rsa", {modulusLength: 2048});
-const account = {
-  clientEmail: "booking@piw-test.iam.gserviceaccount.com",
-  privateKey: privateKey.export({type: "pkcs8", format: "pem"}).toString(),
-};
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {status, headers: {"content-type": "application/json"}});
@@ -33,51 +23,6 @@ const input: CalendarEventInput = {
   attendees: [{email: "jordan@example.com", displayName: "Jordan Rivera"}],
   sendUpdates: "all",
 };
-
-describe("service account auth", () => {
-  test("parses a service account key file", () => {
-    const parsed = parseServiceAccountJson(JSON.stringify({
-      type: "service_account",
-      client_email: account.clientEmail,
-      private_key: account.privateKey,
-    }));
-    expect(parsed.clientEmail).toBe(account.clientEmail);
-    expect(() => parseServiceAccountJson("{")).toThrow("not valid JSON");
-    expect(() => parseServiceAccountJson(JSON.stringify({type: "authorized_user"}))).toThrow("missing fields");
-  });
-
-  test("signs an RS256 assertion for the delegated user and calendar scope", () => {
-    const assertion = buildServiceAccountAssertion(account, "scheduler@allseason.example", 1_800_000_000);
-    const [header, claims, signature] = assertion.split(".");
-    const verified = createVerify("RSA-SHA256").update(`${header}.${claims}`).verify(publicKey, signature, "base64url");
-    expect(verified).toBe(true);
-    expect(JSON.parse(Buffer.from(claims, "base64url").toString())).toEqual({
-      iss: account.clientEmail,
-      sub: "scheduler@allseason.example",
-      scope: "https://www.googleapis.com/auth/calendar.events",
-      aud: "https://oauth2.googleapis.com/token",
-      iat: 1_800_000_000,
-      exp: 1_800_003_600,
-    });
-  });
-
-  test("caches the access token until a minute before it expires", async () => {
-    let now = 1_800_000_000_000;
-    const fetchMock = vi.fn(async () => json({access_token: `token-${fetchMock.mock.calls.length}`, expires_in: 3600}));
-    const provider = new GoogleAccessTokenProvider(account, "scheduler@allseason.example", fetchMock, () => now);
-    expect(await provider.getToken()).toBe("token-1");
-    now += 58 * 60_000;
-    expect(await provider.getToken()).toBe("token-1");
-    now += 2 * 60_000;
-    expect(await provider.getToken()).toBe("token-2");
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-  });
-
-  test("surfaces a refused delegation as an error with its status", async () => {
-    const provider = new GoogleAccessTokenProvider(account, "scheduler@allseason.example", async () => json({error: "unauthorized_client"}, 401));
-    await expect(provider.getToken()).rejects.toMatchObject({status: 401});
-  });
-});
 
 describe("calendar client", () => {
   test("derives a valid, stable Google event ID from the appointment", () => {

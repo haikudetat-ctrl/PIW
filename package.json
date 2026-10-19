@@ -25,6 +25,7 @@
     "@supabase/ssr": "0.12.4",
     "@supabase/supabase-js": "2.111.0",
     "@vercel/analytics": "^2.0.1",
+    "@vercel/oidc": "^4.0.1",
     "gsap": "^3.15.0",
     "inngest": "4.13.0",
     "leaflet": "1.9.4",
