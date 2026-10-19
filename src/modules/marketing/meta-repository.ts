@@ -179,7 +179,7 @@ export class SupabaseMetaRepository {
     }
     const contactResult = await this.client
       .from("leads")
-      .select("email, phone, client_ip_address, client_user_agent, fbp, fbc")
+      .select("email, client_ip_address, client_user_agent, fbp, fbc")
       .eq("id", row.lead_id)
       .eq("company_id", row.company_id)
       .maybeSingle();
@@ -196,7 +196,6 @@ export class SupabaseMetaRepository {
         ? ALL_SEASON_SOURCE_URL
         : PIW_ASSESSMENT_SOURCE_URL,
       email: contact.data.email,
-      phone: contact.data.phone,
       clientIpAddress: contact.data.client_ip_address,
       clientUserAgent: contact.data.client_user_agent,
       fbp: contact.data.fbp,
