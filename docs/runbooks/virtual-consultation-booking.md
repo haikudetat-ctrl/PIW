@@ -44,27 +44,27 @@ rotating, and organizations that enforce
 `iam.managed.disableServiceAccountKeyCreation` (Google's secure-by-default
 policy) need no exception.
 
-Use a small Cloud project that holds nothing else. The Vercel values below are
-filled in for the PIW deployment (team `chris-bolands-projects`, project
-`piw`). Replace only `PROJECT_ID` and `PROJECT_NUMBER`, both shown on the
-Cloud project's dashboard. If the Vercel project ever moves team or is
-renamed, update the issuer, audience and principal to match.
+The commands below are filled in for the AllSeason deployment: Cloud project
+`piw-booking` (number `111810053994`), which holds nothing else, and Vercel
+team `chris-bolands-projects`, project `piw`. For another tenant or project,
+swap those values. If the Vercel project moves team or is renamed, update the
+issuer, audience and principal to match.
 
 1. **Enable the APIs.**
    ```bash
    gcloud services enable calendar-json.googleapis.com iamcredentials.googleapis.com \
-     sts.googleapis.com iam.googleapis.com --project PROJECT_ID
+     sts.googleapis.com iam.googleapis.com --project piw-booking
    ```
 2. **Create the service account.** It needs no project roles.
    ```bash
-   gcloud iam service-accounts create piw-booking --display-name "PIW booking" --project PROJECT_ID
+   gcloud iam service-accounts create piw-booking --display-name "PIW booking" --project piw-booking
    ```
 3. **Trust Vercel.** In the Vercel project's security settings, confirm OIDC
    federation is on with the **Team** issuer mode. Then:
    ```bash
-   gcloud iam workload-identity-pools create vercel --location global --project PROJECT_ID
+   gcloud iam workload-identity-pools create vercel --location global --project piw-booking
    gcloud iam workload-identity-pools providers create-oidc vercel \
-     --location global --workload-identity-pool vercel --project PROJECT_ID \
+     --location global --workload-identity-pool vercel --project piw-booking \
      --issuer-uri "https://oidc.vercel.com/chris-bolands-projects" \
      --allowed-audiences "https://vercel.com/chris-bolands-projects" \
      --attribute-mapping "google.subject=assertion.sub"
@@ -73,15 +73,15 @@ renamed, update the issuer, audience and principal to match.
    role in the setup.
    ```bash
    gcloud iam service-accounts add-iam-policy-binding \
-     piw-booking@PROJECT_ID.iam.gserviceaccount.com --project PROJECT_ID \
+     piw-booking@piw-booking.iam.gserviceaccount.com --project piw-booking \
      --role roles/iam.serviceAccountTokenCreator \
-     --member "principal://iam.googleapis.com/projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/vercel/subject/owner:chris-bolands-projects:project:piw:environment:production"
+     --member "principal://iam.googleapis.com/projects/111810053994/locations/global/workloadIdentityPools/vercel/subject/owner:chris-bolands-projects:project:piw:environment:production"
    ```
    To test in previews, add a second binding ending in `environment:preview`.
 5. **Domain-wide delegation.** Get the service account's client ID:
    ```bash
-   gcloud iam service-accounts describe piw-booking@PROJECT_ID.iam.gserviceaccount.com \
-     --project PROJECT_ID --format 'value(oauth2ClientId)'
+   gcloud iam service-accounts describe piw-booking@piw-booking.iam.gserviceaccount.com \
+     --project piw-booking --format 'value(oauth2ClientId)'
    ```
    In the Google Workspace admin console (*Security, Access and data control,
    API controls, Domain-wide delegation*), add that client ID with exactly
@@ -115,8 +115,8 @@ the two keyless variables. When both are set, keyless wins.
 | --- | --- |
 | `VIRTUAL_BOOKING_ENABLED` | Master switch. When `false`, booking pages and APIs return 404. |
 | `BOOKING_LINK_SIGNING_SECRET` | 32+ bytes. Signs links. Rotating it invalidates every outstanding link. |
-| `GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL` | Keyless: `piw-booking@PROJECT_ID.iam.gserviceaccount.com`. |
-| `GOOGLE_WORKLOAD_IDENTITY_PROVIDER` | Keyless: `projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/vercel/providers/vercel`. Set both keyless variables or neither. |
+| `GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL` | Keyless: `piw-booking@piw-booking.iam.gserviceaccount.com`. |
+| `GOOGLE_WORKLOAD_IDENTITY_PROVIDER` | Keyless: `projects/111810053994/locations/global/workloadIdentityPools/vercel/providers/vercel`. Set both keyless variables or neither. |
 | `GOOGLE_CALENDAR_SERVICE_ACCOUNT_JSON` | Fallback only: the key file, on one line. A malformed value switches booking off and logs `booking_configuration_invalid`. |
 | `GOOGLE_CALENDAR_DELEGATED_USER` | The Workspace user from step 6. |
 
