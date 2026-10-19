@@ -45,7 +45,7 @@ const deliveryRow = {
 };
 
 describe("Meta payload construction", () => {
-  test("payload contains no property or pricing data", () => {
+  test("payload contains no property, pricing, or phone data", () => {
     const payload = buildMetaCapiPayload(fixture);
     expect(payload.data[0]).toMatchObject({
       event_name: "QualifiedLead",
@@ -59,7 +59,7 @@ describe("Meta payload construction", () => {
       /submitted_address|canonical_address|roof|price|package|answer/i,
     );
     expect(payload.data[0].user_data.em[0]).toMatch(/^[a-f0-9]{64}$/);
-    expect(payload.data[0].user_data.ph[0]).toMatch(/^[a-f0-9]{64}$/);
+    expect(payload.data[0].user_data).not.toHaveProperty("ph");
     expect(payload.data[0]).not.toHaveProperty("custom_data");
   });
 
@@ -74,7 +74,6 @@ describe("Meta payload construction", () => {
 
     expect(payload.data[0].user_data).toEqual({
       em: ["b4b5b0add35b4959f546b421b30cee70dad83efbce876d4a4d927f9a085efc78"],
-      ph: ["c67d0280f6fcab534eb6ffd1e809159d9e1eac90670b2ea506aeafb71562a69f"],
     });
   });
 
@@ -147,7 +146,6 @@ describe("MetaConversionClient", () => {
     ["event time", { eventTime: "not-a-date" }],
     ["event source URL", { eventSourceUrl: "https://attacker.example/private-address" }],
     ["email", { email: "not-an-email" }],
-    ["phone", { phone: "555-0124" }],
   ])("returns a permanent sanitized failure for an invalid local %s", async (_label, override) => {
     const fetchImpl = vi.fn<typeof fetch>();
     const client = new MetaConversionClient({
