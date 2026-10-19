@@ -44,9 +44,11 @@ rotating, and organizations that enforce
 `iam.managed.disableServiceAccountKeyCreation` (Google's secure-by-default
 policy) need no exception.
 
-Use a small Cloud project that holds nothing else. Replace `PROJECT_ID`,
-`PROJECT_NUMBER`, `TEAM_SLUG` (from the Vercel team URL) and `VERCEL_PROJECT`
-(the Vercel project name, `piw`).
+Use a small Cloud project that holds nothing else. The Vercel values below are
+filled in for the PIW deployment (team `chris-bolands-projects`, project
+`piw`). Replace only `PROJECT_ID` and `PROJECT_NUMBER`, both shown on the
+Cloud project's dashboard. If the Vercel project ever moves team or is
+renamed, update the issuer, audience and principal to match.
 
 1. **Enable the APIs.**
    ```bash
@@ -63,8 +65,8 @@ Use a small Cloud project that holds nothing else. Replace `PROJECT_ID`,
    gcloud iam workload-identity-pools create vercel --location global --project PROJECT_ID
    gcloud iam workload-identity-pools providers create-oidc vercel \
      --location global --workload-identity-pool vercel --project PROJECT_ID \
-     --issuer-uri "https://oidc.vercel.com/TEAM_SLUG" \
-     --allowed-audiences "https://vercel.com/TEAM_SLUG" \
+     --issuer-uri "https://oidc.vercel.com/chris-bolands-projects" \
+     --allowed-audiences "https://vercel.com/chris-bolands-projects" \
      --attribute-mapping "google.subject=assertion.sub"
    ```
 4. **Let only PIW production sign as the service account.** This is the one
@@ -73,7 +75,7 @@ Use a small Cloud project that holds nothing else. Replace `PROJECT_ID`,
    gcloud iam service-accounts add-iam-policy-binding \
      piw-booking@PROJECT_ID.iam.gserviceaccount.com --project PROJECT_ID \
      --role roles/iam.serviceAccountTokenCreator \
-     --member "principal://iam.googleapis.com/projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/vercel/subject/owner:TEAM_SLUG:project:VERCEL_PROJECT:environment:production"
+     --member "principal://iam.googleapis.com/projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/vercel/subject/owner:chris-bolands-projects:project:piw:environment:production"
    ```
    To test in previews, add a second binding ending in `environment:preview`.
 5. **Domain-wide delegation.** Get the service account's client ID:
