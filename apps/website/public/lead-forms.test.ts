@@ -209,9 +209,9 @@ describe("embedded lead form", () => {
   });
 
   test("publishes the mobile and text-consent sharing restriction", () => {
-    expect(privacyPage).toMatch(/Mobile information.*not shared with third parties.*marketing or promotional purposes/is);
-    expect(privacyPage).toMatch(/text messaging originator opt-in data and consent.*not shared with any third parties/is);
-    expect(privacyPage).toMatch(/Meta.*hashed email.*not phone/is);
+    expect(privacyPage).toContain("Mobile information will not be shared with third parties or affiliates for their marketing or promotional purposes.");
+    expect(privacyPage).toContain("Text messaging originator opt-in data and consent will not be shared with any third parties.");
+    expect(privacyPage).toContain("Meta may receive a hashed email address, but not your phone number");
   });
 
   test.each([
