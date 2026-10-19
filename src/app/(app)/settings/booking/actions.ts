@@ -5,6 +5,7 @@ import { z } from "zod";
 import { hasRole, parseMyAccess } from "@/lib/auth/access";
 import { createServerClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { normalizeCalendarId } from "@/modules/booking/calendar-id";
 import { parseWeeklyHours, WeeklyHoursError } from "@/modules/booking/weekly-hours";
 import { addDays, wallTimeToInstant } from "@/modules/booking/zoned-time";
 
@@ -54,6 +55,16 @@ export async function saveBookingSettings(
   });
   if (!parsed.success) return { ok: false, message: "Check the highlighted values and try again." };
 
+  const googleCalendarId =
+    parsed.data.googleCalendarId === undefined ? undefined : normalizeCalendarId(parsed.data.googleCalendarId);
+  if (googleCalendarId === null) {
+    return {
+      ok: false,
+      message:
+        "That doesn't look like a Google Calendar ID. In Google Calendar, open the calendar's settings and copy the Calendar ID under Integrate calendar.",
+    };
+  }
+
   let windows;
   try {
     windows = parseWeeklyHours(formData);
@@ -73,6 +84,7 @@ export async function saveBookingSettings(
     p_company_id: access.companyId,
     p_settings: {
       ...settings,
+      googleCalendarId,
       timezone: existing?.timezone ?? "America/New_York",
       minimumNoticeMinutes: Math.round(minimumNoticeHours * 60),
     },
