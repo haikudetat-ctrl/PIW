@@ -45,6 +45,7 @@ schema and records remain available for audit and older lead workspaces.
 - [Property Identity implementation plan](docs/superpowers/plans/2026-07-29-piw-property-identity-implementation.md)
 - [Local development runbook](docs/runbooks/local-development.md)
 - [Deployment runbook](docs/runbooks/deployment.md)
+- [Virtual consultation booking runbook](docs/runbooks/virtual-consultation-booking.md)
 
 ## Local development
 

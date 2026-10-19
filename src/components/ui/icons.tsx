@@ -80,6 +80,18 @@ const PATHS = {
   ),
   sparkle: <path d="m12 3.5 1.8 6.7 6.7 1.8-6.7 1.8-1.8 6.7-1.8-6.7L3.5 12l6.7-1.8L12 3.5z" />,
   signOut: <path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 8l-4 4 4 4M6 12h10" />,
+  calendar: (
+    <>
+      <rect x="3.5" y="5" width="17" height="15.5" rx="2" />
+      <path d="M3.5 10h17M8 3v4M16 3v4" />
+    </>
+  ),
+  video: (
+    <>
+      <rect x="3" y="6.5" width="12.5" height="11" rx="2" />
+      <path d="m15.5 10.5 5.5-3v9l-5.5-3" />
+    </>
+  ),
 } satisfies Record<string, ReactNode>;
 
 export type IconName = keyof typeof PATHS;

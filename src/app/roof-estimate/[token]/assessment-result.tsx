@@ -51,6 +51,21 @@ function getProjectOutlook(responses:RoofAssessmentResponses,recommendation:Roof
   return {timing,direction,costFactors};
 }
 
+/** Sends the homeowner to their own booking page to pick a video consultation time. */
+export function VideoBookingOption({token}:{token:string}){
+  const [state,setState]=useState<"idle"|"loading"|"error">("idle");
+  async function open(){
+    setState("loading");
+    try{
+      const response=await fetch(`/api/roof-estimate/${token}/booking-link`,{method:"POST"});
+      const parsed=z.object({url:z.url()}).safeParse(await response.json().catch(()=>null));
+      if(!response.ok||!parsed.success)throw new Error("unavailable");
+      window.location.assign(parsed.data.url);
+    }catch{setState("error");}
+  }
+  return <div className="assessment-video-booking mt-5 border-t border-slate-200 pt-5"><p className="text-lg font-semibold">Rather see us face to face?</p><p className="mt-1 text-sm text-slate-600">Pick a time for a video call on Google Meet. You choose the slot, we bring the property details.</p><button type="button" onClick={open} disabled={state==="loading"} className="assessment-primary-action mt-4 w-full px-6 py-4 text-sm font-black text-white disabled:opacity-60">{state==="loading"?"Opening the calendar…":"Pick a video call time"}</button>{state==="error"?<p role="alert" className="mt-3 text-sm font-semibold text-red-700">Online booking isn&apos;t available right now. Choose a follow-up option below instead.</p>:null}<p className="mt-5 text-sm font-semibold text-slate-500">Or tell us how to follow up:</p></div>;
+}
+
 export function ConsultationPreferenceForm({token}: {token:string}) {
   const [method,setMethod]=useState<ConsultationContactMethod|null>(null);
   const [window,setWindow]=useState<ConsultationCallWindow|null>(null);
@@ -83,7 +98,7 @@ export function ConsultationPreferenceForm({token}: {token:string}) {
   </form>;
 }
 
-export function AssessmentResult({token,address,imageUrl,recommendation,responses,calculation,context,onReplay,preview=false}:{token:string;address:string;imageUrl:string;recommendation:RoofAssessmentRecommendation;responses:RoofAssessmentResponses;calculation:CalculationState;context:RoofAssessmentContext;onReplay?:()=>void;preview?:boolean}){
+export function AssessmentResult({token,address,imageUrl,recommendation,responses,calculation,context,onReplay,preview=false,videoBooking=false}:{token:string;address:string;imageUrl:string;recommendation:RoofAssessmentRecommendation;responses:RoofAssessmentResponses;calculation:CalculationState;context:RoofAssessmentContext;onReplay?:()=>void;preview?:boolean;videoBooking?:boolean}){
   const copy=getAssessmentResultCopy(recommendation); const outlook=getProjectOutlook(responses,recommendation); const range=getAssessmentResultRange(calculation); const cta=getAssessmentResultCta(recommendation,calculation);
   const packageCalculation=calculation.status==="ready"&&"packages" in calculation?calculation:null;
   const hasRenderedReadyPackageQuote=packageCalculation!==null
@@ -124,7 +139,7 @@ export function AssessmentResult({token,address,imageUrl,recommendation,response
           {packageCalculation.adjustments.length>0?<div className="assessment-adjustments mt-6"><div><p className="text-xs font-black uppercase tracking-[.14em] text-slate-500">Field-confirmed adjustments</p><p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">These are not included unless inspection confirms they apply to this property.</p></div><div className="mt-5 divide-y divide-slate-200">{packageCalculation.adjustments.map(item=><div key={item.code} className="assessment-adjustment-row"><div><p className="text-sm font-semibold text-slate-900">{item.label}</p><p className="mt-1 text-xs leading-5 text-slate-500">{item.explanation}</p></div><p className="text-sm font-bold text-slate-800">{formatAdjustmentRange(item)}</p></div>)}</div></div>:null}
         </section>:<div className="assessment-range-panel mt-8 p-6 text-white sm:p-7" aria-live="polite">{range?<><p className="text-sm font-semibold text-white/65">Preliminary project range</p><p className="mt-3 flex flex-wrap items-baseline gap-x-3 text-4xl font-semibold tracking-[-.05em] sm:text-5xl"><span>{money.format(range.lowCents/100)}</span><span className="text-2xl text-white/45">to</span><span>{money.format(range.highCents/100)}</span></p><p className="mt-4 text-xs text-white/60">Based on approximately {range.roofSquares.toFixed(1)} measured roofing squares</p></>:calculation.status==="pending"?<><p className="text-lg font-semibold">Finalizing your property calculation</p><p className="mt-2 text-sm leading-6 text-white/65">Your outlook is ready. A measured range will appear only when Google returns a trustworthy calculation.</p></>:<><p className="text-lg font-semibold">A professional is reviewing the property</p><p className="mt-2 text-sm leading-6 text-white/65">Google did not return a measurement we trust enough to price automatically. We will not invent a range.</p></>}</div>}
         <div className="mt-8 grid gap-7 sm:grid-cols-2"><div><h2 className="text-sm font-semibold text-slate-500">Recommended timing</h2><p className="mt-2 text-xl font-semibold">{outlook.timing}</p></div><div><h2 className="text-sm font-semibold text-slate-500">Likely direction</h2><p className="mt-2 text-sm leading-6 text-slate-700">{outlook.direction}</p></div><div className="sm:col-span-2 sm:border-t sm:border-slate-200 sm:pt-6"><h2 className="text-sm font-semibold text-slate-500">What may shape the project</h2><p className="mt-2 text-sm leading-6 text-slate-700">{outlook.costFactors}</p></div></div>
-        {!consultationOpen?<div className="mt-9 flex flex-col gap-3 sm:flex-row"><button type="button" onClick={()=>setConsultationOpen(true)} aria-describedby="assessment-consultation-note" className="assessment-conversion-action px-6 py-4 text-sm font-black text-white">{cta}</button>{onReplay?<button type="button" onClick={onReplay} className="px-5 py-3 text-sm font-bold text-slate-500">Replay assessment</button>:null}</div>:<div className="assessment-consultation-panel mt-9"><p className="assessment-context-kicker text-xs font-black uppercase tracking-[.14em]">Next step</p><h2 className="mt-2 text-2xl font-semibold">Choose how we should continue.</h2><p className="mt-2 text-sm leading-6 text-slate-600">{context.consultationIntro}</p><div className="mt-5"><ConsultationPreferenceForm token={token}/></div></div>}
+        {!consultationOpen?<div className="mt-9 flex flex-col gap-3 sm:flex-row"><button type="button" onClick={()=>setConsultationOpen(true)} aria-describedby="assessment-consultation-note" className="assessment-conversion-action px-6 py-4 text-sm font-black text-white">{cta}</button>{onReplay?<button type="button" onClick={onReplay} className="px-5 py-3 text-sm font-bold text-slate-500">Replay assessment</button>:null}</div>:<div className="assessment-consultation-panel mt-9"><p className="assessment-context-kicker text-xs font-black uppercase tracking-[.14em]">Next step</p><h2 className="mt-2 text-2xl font-semibold">Choose how we should continue.</h2><p className="mt-2 text-sm leading-6 text-slate-600">{context.consultationIntro}</p>{videoBooking&&!preview?<VideoBookingOption token={token}/>:null}<div className="mt-5"><ConsultationPreferenceForm token={token}/></div></div>}
         <p id="assessment-consultation-note" className="mt-4 text-xs leading-5 text-slate-500">A roofing specialist will review the property details and your priorities before recommending a scope.</p><p className="mt-5 text-xs leading-5 text-slate-500">Preliminary planning guidance only. A field inspection confirms scope, materials, and final pricing.</p>
       </div></div></section></div></main>;
 }

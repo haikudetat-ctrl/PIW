@@ -213,6 +213,57 @@ const appointmentRepAssignedSchema = z.object({
   data: appointmentRepAssignedDataSchema,
 });
 
+// Virtual consultation lifecycle. These envelopes are built inside the
+// booking functions in Postgres (see the virtual_consultation_booking
+// migration) and carry the appointment revision the change produced, so the
+// calendar sync and reminders can ignore anything stale.
+export const virtualConsultationChangedDataSchema = z.object({
+  appointmentId: uuidSchema,
+  revision: z.number().int().positive(),
+}).strict();
+export const virtualConsultationRescheduledDataSchema = virtualConsultationChangedDataSchema.extend({
+  previousScheduledAt: z.iso.datetime(),
+}).strict();
+export const virtualConsultationCancelledDataSchema = virtualConsultationChangedDataSchema.extend({
+  cancelledBy: z.enum(["customer", "staff"]),
+}).strict();
+
+function virtualConsultationEventSchema<TName extends string, TData extends z.ZodType>(
+  name: TName,
+  data: TData,
+) {
+  return z.object({
+    id: uuidSchema,
+    name: z.literal(name),
+    schemaVersion: z.literal(1),
+    correlationId: uuidSchema,
+    causationEventId: uuidSchema.optional(),
+    leadId: uuidSchema,
+    occurredAt: z.iso.datetime(),
+    idempotencyKey: z.string().min(1),
+    data,
+  });
+}
+
+const virtualConsultationBookedSchema = virtualConsultationEventSchema(
+  "appointments/virtual.booked",
+  virtualConsultationChangedDataSchema,
+);
+const virtualConsultationRescheduledSchema = virtualConsultationEventSchema(
+  "appointments/virtual.rescheduled",
+  virtualConsultationRescheduledDataSchema,
+);
+const virtualConsultationCancelledSchema = virtualConsultationEventSchema(
+  "appointments/virtual.cancelled",
+  virtualConsultationCancelledDataSchema,
+);
+
+export const virtualConsultationEventNames = [
+  "appointments/virtual.booked",
+  "appointments/virtual.rescheduled",
+  "appointments/virtual.cancelled",
+] as const;
+
 const leadDistributionRequestedSchema = z.object({
   id: uuidSchema,
   name: z.literal("lead/distribution.requested"),
@@ -233,6 +284,9 @@ export const eventEnvelopeSchema = z.discriminatedUnion("name", [
   propertyDiscoveryRequestedSchema,
   integrationEventReceivedSchema,
   appointmentRepAssignedSchema,
+  virtualConsultationBookedSchema,
+  virtualConsultationRescheduledSchema,
+  virtualConsultationCancelledSchema,
   leadDistributionRequestedSchema,
   roofAssessmentStartedSchema,
   roofAssessmentHighIntentSchema,

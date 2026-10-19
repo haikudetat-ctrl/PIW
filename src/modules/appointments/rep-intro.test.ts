@@ -30,6 +30,14 @@ describe("composeRepIntroMessage", () => {
     );
   });
 
+  test("speaks about the call, not a visit, for a virtual consultation", () => {
+    const message = composeRepIntroMessage({ ...context, meetingType: "virtual" });
+
+    expect(message.body).toContain("Ahead of your video consultation");
+    expect(message.body).toContain("joining you on the call");
+    expect(message.body).not.toContain("arrive");
+  });
+
   test("omits empty optional details without leaving empty labels", () => {
     const message = composeRepIntroMessage({
       ...context,

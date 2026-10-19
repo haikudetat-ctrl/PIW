@@ -9,7 +9,13 @@ type Item = { href: string; label: string; icon: IconName };
 export function SettingsNav({ isPlatformAdmin }: { isPlatformAdmin: boolean }) {
   const pathname = usePathname();
   const groups: { label: string; items: Item[] }[] = [
-    { label: "Company", items: [{ href: "/settings/team", label: "Team & roles", icon: "users" }] },
+    {
+      label: "Company",
+      items: [
+        { href: "/settings/team", label: "Team & roles", icon: "users" },
+        { href: "/settings/booking", label: "Video booking", icon: "video" },
+      ],
+    },
   ];
   if (isPlatformAdmin) {
     groups.push({

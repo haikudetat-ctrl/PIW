@@ -25,6 +25,9 @@ const TENANT_PUBLIC_PREFIXES = [
   "/roof-estimate",
   "/api/property-preview",
   "/api/roof-estimate",
+  // Virtual consultation booking links are sent from the tenant's domain.
+  "/book",
+  "/api/booking",
   "/privacy",
   // Static assets the public estimate pages load (fonts, campaign and brand imagery).
   "/fonts",

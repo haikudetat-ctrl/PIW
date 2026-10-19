@@ -43,6 +43,8 @@ describe("isTenantPublicPath", () => {
     "/campaigns/for-every-season/hero.webp",
     "/fonts/montserrat-700.ttf",
     "/brand/as-sun-white.svg",
+    "/book/link.signature",
+    "/api/booking/link.signature/reschedule",
   ])("serves %s on a tenant host", (pathname) => {
     expect(isTenantPublicPath(pathname)).toBe(true);
   });
@@ -60,6 +62,8 @@ describe("isTenantPublicPath", () => {
     "/api/privacy/consent/current",
     "/api/privacy",
     "/fontsx",
+    "/booking-admin",
+    "/appointments",
   ])("hides %s on a tenant host", (pathname) => {
     expect(isTenantPublicPath(pathname)).toBe(false);
   });

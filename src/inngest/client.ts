@@ -54,6 +54,40 @@ export const appointmentRepAssigned = eventType("appointments/rep.assigned", {
   schema: staticSchema<AppointmentRepAssignedData>(),
 });
 
+type VirtualConsultationBookedData = Extract<
+  DomainEvent,
+  { name: "appointments/virtual.booked" }
+>;
+type VirtualConsultationRescheduledData = Extract<
+  DomainEvent,
+  { name: "appointments/virtual.rescheduled" }
+>;
+type VirtualConsultationCancelledData = Extract<
+  DomainEvent,
+  { name: "appointments/virtual.cancelled" }
+>;
+
+export const virtualConsultationBooked = eventType("appointments/virtual.booked", {
+  schema: staticSchema<VirtualConsultationBookedData>(),
+});
+
+export const virtualConsultationRescheduled = eventType("appointments/virtual.rescheduled", {
+  schema: staticSchema<VirtualConsultationRescheduledData>(),
+});
+
+export const virtualConsultationCancelled = eventType("appointments/virtual.cancelled", {
+  schema: staticSchema<VirtualConsultationCancelledData>(),
+});
+
+/**
+ * Staff asked PIW to re-run the calendar sync for one appointment. The
+ * appointment ID sits under `data` like the domain envelopes, so the sync's
+ * per-appointment concurrency key reads the same path for every trigger.
+ */
+export const virtualConsultationSyncRequested = eventType("appointments/virtual.sync_requested", {
+  schema: staticSchema<{companyId: string; data: {appointmentId: string}}>(),
+});
+
 export const metaDeliveryRequested = eventType("marketing/meta.delivery.requested", {
   schema: staticSchema<{deliveryId: string}>(),
 });

@@ -10,6 +10,8 @@ export type RepIntroContext = {
   repBio: string | null;
   repCredentials: string | null;
   repCommunityConnection: string | null;
+  /** Virtual consultations get call copy instead of "will arrive". */
+  meetingType?: "in_person" | "virtual" | null;
 };
 
 export type ComposedRepIntro = {
@@ -35,11 +37,16 @@ export function composeRepIntroMessage(context: RepIntroContext): ComposedRepInt
       : null,
   ].filter((detail): detail is string => detail !== null);
 
+  const virtual = context.meetingType === "virtual";
   const paragraphs = [
     `Hi ${customerFirstName},`,
-    `Ahead of your scheduled visit, we'd like to introduce ${repName}, the representative who will be meeting with you.`,
+    virtual
+      ? `Ahead of your video consultation, we'd like to introduce ${repName}, who will be joining you on the call.`
+      : `Ahead of your scheduled visit, we'd like to introduce ${repName}, the representative who will be meeting with you.`,
     ...details,
-    `${repName} will arrive ready to learn about your roofing needs and answer your questions.`,
+    virtual
+      ? `${repName} will come ready to talk through your roof and answer your questions.`
+      : `${repName} will arrive ready to learn about your roofing needs and answer your questions.`,
   ];
 
   return {

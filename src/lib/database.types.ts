@@ -137,45 +137,97 @@ export type Database = {
       }
       appointments: {
         Row: {
+          attendee_email: string | null
+          booking_link_id: string | null
+          booking_source: string | null
+          calendar_event_id: string | null
+          calendar_sync_error: string | null
+          calendar_sync_status: string | null
+          calendar_synced_at: string | null
+          calendar_synced_revision: number | null
+          cancelled_at: string | null
+          cancelled_by: string | null
           company_id: string
           created_at: string
           created_by: string | null
+          customer_notes: string | null
           duration_minutes: number | null
           id: string
           lead_id: string
+          meeting_type: string | null
+          meeting_url: string | null
           notes: string | null
           rep_id: string | null
+          reschedule_count: number
+          revision: number
           scheduled_at: string
           status: Database["public"]["Enums"]["appointment_status"]
           updated_at: string
         }
         Insert: {
+          attendee_email?: string | null
+          booking_link_id?: string | null
+          booking_source?: string | null
+          calendar_event_id?: string | null
+          calendar_sync_error?: string | null
+          calendar_sync_status?: string | null
+          calendar_synced_at?: string | null
+          calendar_synced_revision?: number | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           company_id: string
           created_at?: string
           created_by?: string | null
+          customer_notes?: string | null
           duration_minutes?: number | null
           id?: string
           lead_id: string
+          meeting_type?: string | null
+          meeting_url?: string | null
           notes?: string | null
           rep_id?: string | null
+          reschedule_count?: number
+          revision?: number
           scheduled_at: string
           status?: Database["public"]["Enums"]["appointment_status"]
           updated_at?: string
         }
         Update: {
+          attendee_email?: string | null
+          booking_link_id?: string | null
+          booking_source?: string | null
+          calendar_event_id?: string | null
+          calendar_sync_error?: string | null
+          calendar_sync_status?: string | null
+          calendar_synced_at?: string | null
+          calendar_synced_revision?: number | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
           company_id?: string
           created_at?: string
           created_by?: string | null
+          customer_notes?: string | null
           duration_minutes?: number | null
           id?: string
           lead_id?: string
+          meeting_type?: string | null
+          meeting_url?: string | null
           notes?: string | null
           rep_id?: string | null
+          reschedule_count?: number
+          revision?: number
           scheduled_at?: string
           status?: Database["public"]["Enums"]["appointment_status"]
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "appointments_booking_link_id_fkey"
+            columns: ["booking_link_id"]
+            isOneToOne: false
+            referencedRelation: "booking_links"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "appointments_company_id_fkey"
             columns: ["company_id"]
@@ -256,6 +308,258 @@ export type Database = {
             columns: ["worker_run_id"]
             isOneToOne: false
             referencedRelation: "worker_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      booking_attempts: {
+        Row: {
+          action: string
+          booking_link_id: string
+          company_id: string
+          id: number
+          request_ip: unknown
+          reserved_at: string
+        }
+        Insert: {
+          action: string
+          booking_link_id: string
+          company_id: string
+          id?: never
+          request_ip: unknown
+          reserved_at?: string
+        }
+        Update: {
+          action?: string
+          booking_link_id?: string
+          company_id?: string
+          id?: never
+          request_ip?: unknown
+          reserved_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_attempts_booking_link_id_fkey"
+            columns: ["booking_link_id"]
+            isOneToOne: false
+            referencedRelation: "booking_links"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_attempts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      booking_availability_windows: {
+        Row: {
+          company_id: string
+          created_at: string
+          end_minute: number
+          id: string
+          start_minute: number
+          weekday: number
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          end_minute: number
+          id?: string
+          start_minute: number
+          weekday: number
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          end_minute?: number
+          id?: string
+          start_minute?: number
+          weekday?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_availability_windows_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "booking_settings"
+            referencedColumns: ["company_id"]
+          },
+        ]
+      }
+      booking_blackouts: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string | null
+          ends_at: string
+          id: string
+          reason: string | null
+          starts_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          ends_at: string
+          id?: string
+          reason?: string | null
+          starts_at: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          ends_at?: string
+          id?: string
+          reason?: string | null
+          starts_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_blackouts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "booking_settings"
+            referencedColumns: ["company_id"]
+          },
+          {
+            foreignKeyName: "booking_blackouts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "admin_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      booking_links: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string | null
+          expires_at: string
+          id: string
+          last_opened_at: string | null
+          lead_id: string
+          revoked_at: string | null
+          source: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          expires_at: string
+          id?: string
+          last_opened_at?: string | null
+          lead_id: string
+          revoked_at?: string | null
+          source: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string
+          id?: string
+          last_opened_at?: string | null
+          lead_id?: string
+          revoked_at?: string | null
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_links_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_links_company_id_lead_id_fkey"
+            columns: ["company_id", "lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["company_id", "id"]
+          },
+          {
+            foreignKeyName: "booking_links_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "admin_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      booking_settings: {
+        Row: {
+          booking_horizon_days: number
+          buffer_minutes: number
+          company_id: string
+          concurrent_capacity: number
+          created_at: string
+          google_calendar_id: string | null
+          is_enabled: boolean
+          meeting_duration_minutes: number
+          meeting_title: string
+          minimum_notice_minutes: number
+          send_calendar_invites: boolean
+          slot_interval_minutes: number
+          support_phone: string | null
+          timezone: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          booking_horizon_days?: number
+          buffer_minutes?: number
+          company_id: string
+          concurrent_capacity?: number
+          created_at?: string
+          google_calendar_id?: string | null
+          is_enabled?: boolean
+          meeting_duration_minutes?: number
+          meeting_title?: string
+          minimum_notice_minutes?: number
+          send_calendar_invites?: boolean
+          slot_interval_minutes?: number
+          support_phone?: string | null
+          timezone?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          booking_horizon_days?: number
+          buffer_minutes?: number
+          company_id?: string
+          concurrent_capacity?: number
+          created_at?: string
+          google_calendar_id?: string | null
+          is_enabled?: boolean
+          meeting_duration_minutes?: number
+          meeting_title?: string
+          minimum_notice_minutes?: number
+          send_calendar_invites?: boolean
+          slot_interval_minutes?: number
+          support_phone?: string | null
+          timezone?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "admin_profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -4693,6 +4997,7 @@ export type Database = {
           company_id: string
           created_at: string
           credentials: string | null
+          email: string | null
           id: string
           is_active: boolean
           name: string
@@ -4705,6 +5010,7 @@ export type Database = {
           company_id: string
           created_at?: string
           credentials?: string | null
+          email?: string | null
           id?: string
           is_active?: boolean
           name: string
@@ -4717,6 +5023,7 @@ export type Database = {
           company_id?: string
           created_at?: string
           credentials?: string | null
+          email?: string | null
           id?: string
           is_active?: boolean
           name?: string
@@ -6399,6 +6706,33 @@ export type Database = {
           token_rotated_at: string
         }[]
       }
+      book_virtual_consultation: {
+        Args: {
+          p_attendee_email: string
+          p_customer_notes: string
+          p_link_id: string
+          p_request_ip: unknown
+          p_starts_at: string
+        }
+        Returns: {
+          appointment_id: string
+          duration_minutes: number
+          event: Json
+          outcome: string
+          problem: string
+          revision: number
+          scheduled_at: string
+        }[]
+      }
+      cancel_virtual_consultation: {
+        Args: { p_link_id: string; p_request_ip: unknown }
+        Returns: {
+          appointment_id: string
+          event: Json
+          outcome: string
+          revision: number
+        }[]
+      }
       capture_jobnimbus_census: {
         Args: { p_company_id: string }
         Returns: string
@@ -6658,6 +6992,19 @@ export type Database = {
         Args: { p_attempt_id: string }
         Returns: string
       }
+      ensure_booking_link: {
+        Args: {
+          p_company_id: string
+          p_created_by: string
+          p_lead_id: string
+          p_source: string
+        }
+        Returns: {
+          expires_at: string
+          link_id: string
+          reused: boolean
+        }[]
+      }
       escalate_property_identity_review: {
         Args: {
           p_attempt: number
@@ -6864,6 +7211,7 @@ export type Database = {
         Returns: Json
       }
       platform_health: { Args: never; Returns: Json }
+      prune_booking_attempts: { Args: never; Returns: number }
       record_integration_event: {
         Args: {
           p_company_id: string
@@ -6964,6 +7312,18 @@ export type Database = {
           request_id: string
           status: string
           timezone: string
+        }[]
+      }
+      reschedule_virtual_consultation: {
+        Args: { p_link_id: string; p_request_ip: unknown; p_starts_at: string }
+        Returns: {
+          appointment_id: string
+          duration_minutes: number
+          event: Json
+          outcome: string
+          problem: string
+          revision: number
+          scheduled_at: string
         }[]
       }
       reserve_meta_assessment_delivery: {
@@ -7163,6 +7523,18 @@ export type Database = {
           token_rotated_at: string
         }[]
       }
+      save_booking_settings: {
+        Args: {
+          p_company_id: string
+          p_settings: Json
+          p_updated_by: string
+          p_windows: Json
+        }
+        Returns: {
+          is_enabled: boolean
+          updated_at: string
+        }[]
+      }
       save_property_preview_email: {
         Args: {
           p_accepted_at: string
@@ -7199,6 +7571,14 @@ export type Database = {
           responses: Json
           revision: number
           status: string
+        }[]
+      }
+      staff_cancel_virtual_consultation: {
+        Args: { p_appointment_id: string; p_company_id: string }
+        Returns: {
+          event: Json
+          outcome: string
+          revision: number
         }[]
       }
       start_or_resume_roof_assessment: {
@@ -7365,6 +7745,15 @@ export type Database = {
           p_observed_at: string
         }
         Returns: number
+      }
+      virtual_consultation_slot_problem: {
+        Args: {
+          p_company_id: string
+          p_exclude_appointment_id: string
+          p_now: string
+          p_starts_at: string
+        }
+        Returns: string
       }
     }
     Enums: {
