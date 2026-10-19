@@ -15,7 +15,6 @@ const fixture: MetaDeliverySource = {
   eventTime: "2026-09-01T12:00:00.000Z",
   eventSourceUrl: "https://allseasonroofingquote.com/form/thank-you?lead=private",
   email: " Chris@Example.COM ",
-  phone: "(732) 555-0124",
   clientIpAddress: "203.0.113.10",
   clientUserAgent: "Mozilla/5.0 Test",
   fbp: "fb.1.100.200",
