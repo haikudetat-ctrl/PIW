@@ -416,7 +416,6 @@ describe("SupabaseMetaRepository", () => {
       return {
         data: {
           email: fixture.email,
-          phone: fixture.phone,
           client_ip_address: fixture.clientIpAddress,
           client_user_agent: fixture.clientUserAgent,
           fbp: fixture.fbp,
@@ -444,7 +443,7 @@ describe("SupabaseMetaRepository", () => {
     });
     expect(order).toEqual(["claim", "contact"]);
     expect(contactQuery.select).toHaveBeenCalledWith(
-      "email, phone, client_ip_address, client_user_agent, fbp, fbc",
+      "email, client_ip_address, client_user_agent, fbp, fbc",
     );
   });
 
