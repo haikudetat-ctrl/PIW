@@ -170,7 +170,7 @@
     submit.type = 'submit';
     form.appendChild(status);
     form.appendChild(submit);
-    form.appendChild(element('p', 'as-quote-privacy', 'Your details are used only to respond to this request.'));
+    form.appendChild(element('p', 'as-quote-privacy', 'We use your contact details to respond to this request. If you allow Advertising, Meta may receive hashed email and browser data to measure results; we do not share mobile information or SMS consent for marketing.'));
 
     var success = element('div', 'as-quote-success');
     success.hidden = true;
