@@ -47,7 +47,21 @@ export default function PrivacyPage() {
             When you allow Advertising, Meta Pixel and Conversions API may be used
             to measure advertising results and avoid counting the same action twice.
             Meta technology is not used for this purpose when Advertising is off,
-            and Global Privacy Control keeps Advertising off.
+            and Global Privacy Control keeps Advertising off. Meta may receive hashed
+            email and limited browser attribution, but not your phone number or SMS
+            consent. We do not send text-messaging opt-in data or consent records to Meta.
+          </p>
+        </section>
+
+        <section aria-labelledby="messaging-heading">
+          <h2 id="messaging-heading" className="text-2xl font-bold text-slate-950">
+            Text messaging and mobile information
+          </h2>
+          <p className="mt-3">
+            We use the mobile number you submit to respond to your estimate request and send service-related texts you requested. The quote form explains that All Season may contact you about that request by text, including automated texts, and provides message frequency, message and data rate, and opt-out information.
+          </p>
+          <p className="mt-3">
+            Mobile information will not be shared with third parties or affiliates for their marketing or promotional purposes. Text messaging originator opt-in data and consent will not be shared with any third parties. Messaging service providers may receive the recipient number and message content needed to deliver texts on our behalf; they may not use that information for their own marketing or promotional purposes.
           </p>
         </section>
 
