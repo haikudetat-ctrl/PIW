@@ -33,7 +33,7 @@ const settings: CompanyBookingSettings = {
   concurrentCapacity: 1,
   googleCalendarId: "consults@group.calendar.google.com",
   sendCalendarInvites: true,
-  supportPhone: "(856) 835-6022",
+  supportPhone: "(866) 835-6022",
 };
 
 const booked: ActiveBooking = {
@@ -141,14 +141,14 @@ describe("loadBookingPage", () => {
 
   test("reports expired links and offers the support phone", async () => {
     const repo = repository({findLink: vi.fn(async () => ({id: linkId, companyId, leadId, expiresAt: "2026-10-01T00:00:00.000Z", revokedAt: null}))});
-    expect(await loadBookingPage("good-token", dependencies(repo))).toEqual({kind: "expired", supportPhone: "(856) 835-6022"});
+    expect(await loadBookingPage("good-token", dependencies(repo))).toEqual({kind: "expired", supportPhone: "(866) 835-6022"});
   });
 
   test("fails closed when the shared calendar cannot be read", async () => {
     const page = await loadBookingPage("good-token", dependencies(repository(), {
       calendar: {listBusy: vi.fn(async () => { throw new Error("403"); })},
     }));
-    expect(page).toEqual({kind: "unavailable", supportPhone: "(856) 835-6022", reason: "calendar"});
+    expect(page).toEqual({kind: "unavailable", supportPhone: "(866) 835-6022", reason: "calendar"});
   });
 
   test("is unavailable while the company has booking switched off", async () => {

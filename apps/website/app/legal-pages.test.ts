@@ -32,6 +32,6 @@ describe("public legal pages", () => {
     expect(html).toContain("Mobile information will not be shared with third parties or affiliates for their marketing or promotional purposes.");
     expect(html).toContain("Text messaging originator opt-in data and consent will not be shared with any third parties.");
     expect(html).toContain("withdraw or change your advertising choice");
-    expect(html).toContain("(856) 835-6022");
+    expect(html).toContain("(866) 835-6022");
   });
 });

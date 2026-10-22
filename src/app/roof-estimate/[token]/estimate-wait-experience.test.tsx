@@ -15,6 +15,6 @@ test("keeps manual review branded and actionable", () => {
   expect(screen.getByText(/roofing professional is checking/i)).toBeInTheDocument();
   expect(screen.getByRole("link", { name: /call/i })).toHaveAttribute(
     "href",
-    "tel:+18568356022",
+    "tel:+18668356022",
   );
 });
