@@ -18,6 +18,7 @@ const requestSchema = z.strictObject({
     "main-home",
     "main-contact",
     "main-drawer",
+    "main-chat",
     ...campaignSlugs.map((campaign) => `campaign:${campaign}` as const),
   ]),
   presentation_key: z.enum(["all-season-main", ...campaignSlugs]),
@@ -42,7 +43,8 @@ const requestSchema = z.strictObject({
 const previewResponseSchema = z.strictObject({
   previewUrl: z.url().refine((value) => {
     const url = new URL(value);
-    return url.protocol === "https:" && /^\/roof-estimate\/p\/[A-Za-z0-9_-]{43}$/.test(url.pathname);
+    // The preview page, or the quote chat for chat starts.
+    return url.protocol === "https:" && /^\/roof-estimate\/(?:p|chat)\/[A-Za-z0-9_-]{43}$/.test(url.pathname);
   }),
 });
 

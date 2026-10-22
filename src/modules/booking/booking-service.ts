@@ -183,7 +183,11 @@ async function computeSlots(
   return computeAvailableSlots({rules: settings, windows, blackouts, booked, calendarBusy, now});
 }
 
-export async function loadBookingPage(token: string, dependencies: BookingDependencies): Promise<BookingPageModel> {
+export async function loadBookingPage(
+  token: string,
+  dependencies: BookingDependencies,
+  options: {slotsWhenBooked?: boolean} = {},
+): Promise<BookingPageModel> {
   let resolved: ResolvedLink;
   try {
     resolved = await resolveLink(token, dependencies);
@@ -208,9 +212,11 @@ export async function loadBookingPage(token: string, dependencies: BookingDepend
   ]);
   if (!lead) return {kind: "invalid"};
 
-  let days: DaySlots[];
+  let days: DaySlots[] = [];
   try {
-    days = await computeSlots(resolved, dependencies, booking?.id ?? null);
+    if (!booking || options.slotsWhenBooked !== false) {
+      days = await computeSlots(resolved, dependencies, booking?.id ?? null);
+    }
   } catch (error) {
     if (!(error instanceof BookingRequestError)) throw error;
     if (!booking) return {kind: "unavailable", supportPhone: settings.supportPhone, reason: "calendar"};
@@ -228,6 +234,15 @@ export async function loadBookingPage(token: string, dependencies: BookingDepend
     days,
     booking: booking ? summarize(booking, now) : null,
   };
+}
+
+/**
+ * The booking page's model for the quote chat. Once a meeting is booked the
+ * chat links to the manage page for changes, so it skips the slot lookup (and
+ * the Google call behind it) while it waits for the Meet link.
+ */
+export function loadBookingOverview(token: string, dependencies: BookingDependencies) {
+  return loadBookingPage(token, dependencies, {slotsWhenBooked: false});
 }
 
 export async function listSlots(token: string, dependencies: BookingDependencies) {

@@ -13,7 +13,13 @@ import { AssessmentResult } from "./assessment-result";
 import { EstimateStatusRefresh } from "./estimate-status-refresh";
 import { EstimateWaitExperience } from "./estimate-wait-experience";
 import { PropertySatelliteImage } from "./property-satellite-image";
-import { getAssessmentCalculationState, getAssessmentResultCopy, selectPublicEstimateView } from "./public-estimate-flow";
+import {
+  getAssessmentCalculationState,
+  getAssessmentResultCopy,
+  quietEstimateState,
+  selectPublicEstimateView,
+  toPublicPackages,
+} from "./public-estimate-flow";
 import { QuoteLoadingView } from "./quote-loading-view";
 import { QuietEstimateView } from "./quiet-estimate-view";
 import { loadQuietBrand } from "../quiet/quiet-brand";
@@ -108,24 +114,7 @@ export default async function RoofEstimateResultPage({
   const assumptionObject=estimate.assumptions && typeof estimate.assumptions === "object" && !Array.isArray(estimate.assumptions)
     ? estimate.assumptions as Record<string, unknown>
     : {};
-  const publicPackages=(estimate.roof_estimate_packages ?? []).map((item) => ({
-    tierKey:item.tier_key,
-    displayOrder:item.display_order,
-    customerName:item.customer_name,
-    customerDescription:item.customer_description,
-    warrantySummary:item.warranty_summary,
-    differentiators:item.differentiators,
-    lowCentsPerSquare:item.low_cents_per_square,
-    highCentsPerSquare:item.high_cents_per_square,
-    manufacturerName:item.manufacturer_name,
-    productLineName:item.product_line_name,
-    recommended:item.tier_key === "better",
-    measuredRoofSquares:Number(item.measured_roof_squares),
-    rangeLowCents:item.range_low_cents,
-    rangeHighCents:item.range_high_cents,
-    pricingVersion:item.pricing_version,
-    generatedAt:item.calculated_at,
-  }));
+  const publicPackages = toPublicPackages(estimate.roof_estimate_packages);
   const calculation = getAssessmentCalculationState({
     estimateStatus: estimate.status,
     pipelineStatus: pipeline?.status ?? null,
@@ -225,16 +214,11 @@ export default async function RoofEstimateResultPage({
           token={token}
           address={address}
           brand={await loadQuietBrand()}
-          state={manualReview
-            ? {kind: "review"}
-            : ready
-              ? {
-                kind: "ready",
-                lowCents: estimate.range_low_cents!,
-                highCents: estimate.range_high_cents!,
-                roofSquares: Number(estimate.roof_squares),
-              }
-              : {kind: "received"}}
+          state={quietEstimateState({
+            estimateStatus: estimate.status,
+            pipelineStatus: pipeline?.status ?? null,
+            calculation,
+          }).state}
         />
       </>
     );

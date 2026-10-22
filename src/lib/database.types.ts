@@ -6201,6 +6201,7 @@ export type Database = {
           due_at: string | null
           id: string
           lead_id: string
+          origin: string | null
           status: Database["public"]["Enums"]["task_status"]
           title: string
           updated_at: string
@@ -6215,6 +6216,7 @@ export type Database = {
           due_at?: string | null
           id?: string
           lead_id: string
+          origin?: string | null
           status?: Database["public"]["Enums"]["task_status"]
           title: string
           updated_at?: string
@@ -6229,6 +6231,7 @@ export type Database = {
           due_at?: string | null
           id?: string
           lead_id?: string
+          origin?: string | null
           status?: Database["public"]["Enums"]["task_status"]
           title?: string
           updated_at?: string
@@ -7295,6 +7298,14 @@ export type Database = {
       report_funnel: { Args: { p_from: string; p_to: string }; Returns: Json }
       report_jobs: { Args: { p_from: string; p_to: string }; Returns: Json }
       report_measurements: { Args: never; Returns: Json }
+      request_estimate_callback: {
+        Args: { p_call_window: string; p_due_at: string; p_public_token: string }
+        Returns: {
+          call_window: string
+          created: boolean
+          task_id: string
+        }[]
+      }
       request_roof_consultation: {
         Args: {
           p_assessment_id: string
@@ -7798,6 +7809,7 @@ export type Database = {
         | "review_task_created"
         | "pipeline_stuck"
         | "pipeline_failed"
+        | "callback_requested"
       observation_method: "measured" | "calculated" | "assumed" | "reported"
       observation_status: "current" | "superseded" | "disputed" | "rejected"
       pipeline_status:
@@ -8005,6 +8017,7 @@ export const Constants = {
         "review_task_created",
         "pipeline_stuck",
         "pipeline_failed",
+        "callback_requested",
       ],
       observation_method: ["measured", "calculated", "assumed", "reported"],
       observation_status: ["current", "superseded", "disputed", "rejected"],

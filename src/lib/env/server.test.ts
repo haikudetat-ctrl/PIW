@@ -70,6 +70,23 @@ describe("parseServerEnv property preview", () => {
   });
 });
 
+describe("parseServerEnv quote chat", () => {
+  test("is off by default", () => {
+    expect(parseServerEnv(base).QUOTE_CHAT_ENABLED).toBe(false);
+  });
+
+  test("needs property previews", () => {
+    expect(() => parseServerEnv({...base, QUOTE_CHAT_ENABLED: "true"})).toThrow("enable those first");
+    expect(parseServerEnv({
+      ...enabledPrefetch,
+      ROOF_ASSESSMENT_PROPERTY_PREFETCH_ENABLED: "false",
+      PROPERTY_PREVIEW_ENABLED: "true",
+      TURNSTILE_SECRET_KEY: "turnstile-secret",
+      QUOTE_CHAT_ENABLED: "true",
+    }).QUOTE_CHAT_ENABLED).toBe(true);
+  });
+});
+
 describe("parseServerEnv virtual booking", () => {
   const keyless = {
     ...base,

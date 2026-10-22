@@ -90,4 +90,25 @@ describe("website POST /api/property-preview", () => {
     const response = await handlePropertyPreviewRequest(request(valid), vi.fn(async () => Response.json({previewUrl: "javascript:alert(1)"}, {status: 201})), secret);
     expect(response.status).toBe(502);
   });
+
+  test("forwards a chat start and returns the chat URL", async () => {
+    const chatUrl = `https://estimate.allseasonroofingquote.com/roof-estimate/chat/${"t".repeat(43)}`;
+    const forward = vi.fn(async (_payload: unknown) => Response.json({previewUrl: chatUrl}, {status: 201}));
+    const response = await handlePropertyPreviewRequest(request({
+      ...valid,
+      campaign: null,
+      entry_point: "main-chat",
+      presentation_key: "all-season-main",
+    }), forward, secret);
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toEqual({previewUrl: chatUrl});
+    expect(forward.mock.calls[0][0]).toMatchObject({entry_point: "main-chat", campaign: null});
+  });
+
+  test("rejects other paths on the estimate host", async () => {
+    const response = await handlePropertyPreviewRequest(request(valid), vi.fn(async () => Response.json({
+      previewUrl: `https://estimate.allseasonroofingquote.com/roof-estimate/other/${"t".repeat(43)}`,
+    }, {status: 201})), secret);
+    expect(response.status).toBe(502);
+  });
 });

@@ -215,7 +215,10 @@
   var config = readConfig();
   if (!config || !config.previewEnabled || !config.turnstileSiteKey) return;
   // The quote drawer (loaded later by script.js) mounts the same step.
-  window.AllSeasonAddressEntry = {mount: function (form) { mount(form, config); }};
+  window.AllSeasonAddressEntry = {
+    chatEnabled: config.chatEnabled === true,
+    mount: function (form) { mount(form, config); },
+  };
   var legacyForm = document.getElementById("leadForm");
   if (legacyForm) mount(legacyForm, config);
 })();

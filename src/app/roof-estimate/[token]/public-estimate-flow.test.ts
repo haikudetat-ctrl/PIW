@@ -1,5 +1,11 @@
 import {describe, expect, test} from "vitest";
-import {getAssessmentCalculationState, getAssessmentResultCta, getAssessmentResultRange, selectPublicEstimateView} from "./public-estimate-flow";
+import {
+  getAssessmentCalculationState,
+  getAssessmentResultCta,
+  getAssessmentResultRange,
+  quietEstimateState,
+  selectPublicEstimateView,
+} from "./public-estimate-flow";
 
 const insight = {
   id: "99999999-9999-4999-8999-999999999999",
@@ -107,5 +113,38 @@ describe("public estimate view selection", () => {
     expect(selectPublicEstimateView({assessmentEnabled: true, assessmentStatus: "in_progress"})).toBe("assessment");
     expect(selectPublicEstimateView({assessmentEnabled: true, assessmentStatus: "completed", priceFirst: true})).toBe("result");
     expect(selectPublicEstimateView({assessmentEnabled: true, assessmentStatus: "abandoned", priceFirst: true})).toBe("resume_required");
+  });
+});
+
+describe("quietEstimateState", () => {
+  const ready = {
+    status: "ready" as const,
+    source: "google" as const,
+    lowCents: 1_400_000,
+    highCents: 2_100_000,
+    roofSquares: 28,
+    generatedAt: "2026-10-19T12:00:00.000Z",
+  };
+
+  test("keeps pricing while the pipeline is still running", () => {
+    expect(quietEstimateState({estimateStatus: "pending", pipelineStatus: "running", calculation: {status: "pending"}}))
+      .toEqual({pending: true, state: {kind: "received"}});
+  });
+
+  test("shows the range once it is trusted", () => {
+    expect(quietEstimateState({estimateStatus: "ready", pipelineStatus: "complete", calculation: ready}))
+      .toEqual({pending: false, state: {kind: "ready", lowCents: 1_400_000, highCents: 2_100_000, roofSquares: 28}});
+  });
+
+  test("sends a doubtful measurement to a specialist", () => {
+    expect(quietEstimateState({estimateStatus: "review_required", pipelineStatus: "complete", calculation: ready}).state)
+      .toEqual({kind: "review"});
+    expect(quietEstimateState({estimateStatus: "pending", pipelineStatus: "review_required", calculation: {status: "review_required", reason: "low_confidence"}}))
+      .toEqual({pending: false, state: {kind: "review"}});
+  });
+
+  test("falls back to a received request when no range is trusted", () => {
+    expect(quietEstimateState({estimateStatus: "ready", pipelineStatus: "failed", calculation: {status: "review_required", reason: "low_confidence"}}))
+      .toEqual({pending: false, state: {kind: "received"}});
   });
 });

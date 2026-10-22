@@ -90,6 +90,9 @@ const serverEnvSchema = z
     ROOF_ASSESSMENT_ENABLED: booleanString,
     ROOF_ASSESSMENT_PROPERTY_PREFETCH_ENABLED: booleanString,
     PROPERTY_PREVIEW_ENABLED: booleanString,
+    // Guided quote chat on the estimate host. When off, chat previews open
+    // the classic value-first preview page instead.
+    QUOTE_CHAT_ENABLED: booleanString,
     TURNSTILE_SECRET_KEY: optionalString,
     // Hostnames the Turnstile widget may render on (the website and tenant
     // estimate hosts). A verified token from any other hostname is rejected.
@@ -208,6 +211,13 @@ const serverEnvSchema = z
         code: "custom",
         path: ["PROPERTY_PREVIEW_ENABLED"],
         message: "Property previews require a Turnstile secret, roof assessments, and paid providers",
+      });
+    }
+    if (value.QUOTE_CHAT_ENABLED && !value.PROPERTY_PREVIEW_ENABLED) {
+      context.addIssue({
+        code: "custom",
+        path: ["QUOTE_CHAT_ENABLED"],
+        message: "The quote chat runs on property previews; enable those first",
       });
     }
     const keylessGoogle = Boolean(value.GOOGLE_CALENDAR_SERVICE_ACCOUNT_EMAIL && value.GOOGLE_WORKLOAD_IDENTITY_PROVIDER);
