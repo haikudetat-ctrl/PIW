@@ -1,0 +1,246 @@
+/*
+ * Quote chat, in the quiet style of the estimate pages: white, Helvetica,
+ * greys only, hairlines. The assistant speaks in plain text with no bubble;
+ * only the homeowner's own answers sit in a soft grey pill on the right.
+ */
+
+.chat-flow { padding-top: 0; }
+
+.chat-frame {
+  display: flex;
+  flex-direction: column;
+  max-width: 36rem;
+  min-height: calc(100dvh - 1.25rem);
+  margin: 0 auto;
+}
+
+.chat-top {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.25rem 0 1rem;
+  border-bottom: 1px solid var(--quiet-rule);
+  background: #fff;
+}
+
+.chat-brand {
+  color: var(--quiet-grey);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+}
+
+.chat-call {
+  color: var(--quiet-grey);
+  font-size: 0.8125rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.chat-call:hover { color: var(--quiet-ink); }
+
+.chat-log {
+  display: grid;
+  gap: 1rem;
+  margin: 0;
+  padding: 2rem 0 0;
+  list-style: none;
+}
+
+.chat-say {
+  max-width: 32rem;
+  color: var(--quiet-ink);
+  font-size: 1.0625rem;
+  font-weight: 400;
+  line-height: 1.55;
+  white-space: pre-line;
+}
+
+/* The question waiting for an answer reads larger than the conversation above it. */
+.chat-log > .chat-say:last-child:not(.chat-working) {
+  margin-top: 0.25rem;
+  font-size: 1.375rem;
+  font-weight: 300;
+  line-height: 1.35;
+  letter-spacing: -0.005em;
+}
+
+.chat-reply {
+  justify-self: end;
+  max-width: 85%;
+  padding: 0.625rem 1rem;
+  border-radius: 1.25rem 1.25rem 0.375rem 1.25rem;
+  background: rgb(0 0 0 / 0.05);
+  color: var(--quiet-ink);
+  font-size: 1rem;
+  line-height: 1.45;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.chat-item { margin: 0.5rem 0; }
+
+.chat-roof { margin: 0; }
+
+.chat-roof-caption {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.25rem 1rem;
+  margin-top: 0.625rem;
+  color: var(--quiet-grey);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.chat-roof-caption span:first-child { color: var(--quiet-ink); }
+
+.chat-card {
+  padding: 1.25rem 0;
+  border-top: 1px solid var(--quiet-rule);
+  border-bottom: 1px solid var(--quiet-rule);
+}
+
+.chat-price { margin-top: 0; }
+
+.chat-card-line {
+  margin-top: 0.75rem;
+  color: var(--quiet-grey);
+  font-size: 0.9375rem;
+  line-height: 1.55;
+}
+
+.chat-card-fine { margin-top: 1rem; }
+
+.chat-card-action { width: 100%; margin-top: 1.25rem; }
+
+.chat-booked-time {
+  color: var(--quiet-ink);
+  font-size: 1.5rem;
+  font-weight: 200;
+  line-height: 1.25;
+}
+
+.chat-booked-time span { display: block; }
+
+.chat-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  margin-top: 1rem;
+}
+
+.chat-link {
+  display: inline-block;
+  margin-top: 1rem;
+  color: var(--quiet-ink);
+  font-size: 0.9375rem;
+  text-decoration: underline;
+  text-decoration-color: var(--quiet-rule);
+  text-underline-offset: 3px;
+}
+
+.chat-links .chat-link { margin-top: 0; }
+
+.chat-link:hover { text-decoration-color: var(--quiet-ink); }
+
+.chat-working { color: var(--quiet-grey); }
+
+.chat-dots span { animation: chat-dot 1.2s infinite both; }
+.chat-dots span:nth-child(2) { animation-delay: 0.2s; }
+.chat-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes chat-dot {
+  0%, 80%, 100% { opacity: 0.2; }
+  40% { opacity: 1; }
+}
+
+.chat-controls {
+  margin-top: 1.5rem;
+  padding-bottom: 2.5rem;
+}
+
+.chat-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.chat-chip {
+  min-height: 2.75rem;
+  padding: 0 1.125rem;
+  border: 1px solid var(--quiet-rule);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--quiet-ink);
+  font: inherit;
+  font-size: 0.9375rem;
+  cursor: pointer;
+  transition: border-color 150ms ease, background 150ms ease;
+}
+
+.chat-chip:hover:not(:disabled) { border-color: var(--quiet-ink); }
+
+.chat-chip-primary {
+  border-color: transparent;
+  background: var(--quiet-ink);
+  color: #fff;
+}
+
+.chat-chip-primary:hover:not(:disabled) { background: rgb(0 0 0 / 0.8); }
+
+.chat-chip-quiet { color: var(--quiet-grey); }
+
+.chat-chip:disabled,
+.chat-text-button:disabled { cursor: wait; opacity: 0.5; }
+
+.chat-secondary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  margin-top: 1.25rem;
+}
+
+.chat-text-button {
+  padding: 0.25rem 0;
+  border: 0;
+  background: transparent;
+  color: var(--quiet-grey);
+  font: inherit;
+  font-size: 0.875rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.chat-text-button:hover:not(:disabled) { color: var(--quiet-ink); }
+
+.chat-form { margin-top: 0; }
+
+.chat-chip:focus-visible,
+.chat-text-button:focus-visible,
+.chat-call:focus-visible,
+.chat-link:focus-visible {
+  outline: 1px solid var(--quiet-ink);
+  outline-offset: 3px;
+}
+
+.chat-end { height: 1px; }
+
+/* Until the visitor answers the privacy banner it covers the bottom of the
+   screen; leave room so the current question's controls scroll clear of it. */
+body:has(.privacy-consent-banner) .chat-controls { padding-bottom: 11rem; }
+body:has(.privacy-consent-banner) .chat-end { scroll-margin-bottom: 9rem; }
+
+@media (min-width: 640px) {
+  .chat-log { padding-top: 2.5rem; gap: 1.125rem; }
+  body:has(.privacy-consent-banner) .chat-controls { padding-bottom: 7rem; }
+  body:has(.privacy-consent-banner) .chat-end { scroll-margin-bottom: 5rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-dots span { animation: none; opacity: 1; }
+  .chat-chip { transition: none; }
+}

@@ -99,6 +99,7 @@ export async function POST(request: NextRequest) {
     expectedSecret,
     companyId,
     create: (input) => createPropertyPreview(input, {
+      chatEnabled: environment.QUOTE_CHAT_ENABLED,
       enabled: environment.PROPERTY_PREVIEW_ENABLED && Boolean(turnstileSecret && mapsKey),
       disclosureVersion: PROPERTY_PREVIEW_DISCLOSURE_VERSION,
       verifyTurnstile: ({token, remoteIp}) => verifyTurnstile({

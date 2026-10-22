@@ -81,6 +81,7 @@ describe("roof assessment campaign presentation", () => {
       "main-home": {campaign: null, presentationKey: "all-season-main"},
       "main-contact": {campaign: null, presentationKey: "all-season-main"},
       "main-drawer": {campaign: null, presentationKey: "all-season-main"},
+      "main-chat": {campaign: null, presentationKey: "all-season-main"},
       "roof-estimate": {campaign: null, presentationKey: "all-season-main"},
       "campaign:weather-report": {
         campaign: "weather-report",

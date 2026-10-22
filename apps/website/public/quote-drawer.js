@@ -187,15 +187,30 @@
 
     // Value-first flow: swap the long form for the shared address step
     // (public/address-entry.js); contact details come after the roof reveal.
+    // In chat mode the same step is the first question of a conversation that
+    // continues on the estimate host (price, then a video call or a callback).
     var addressStep = null;
+    var chatMode = Boolean(window.AllSeasonAddressEntry && window.AllSeasonAddressEntry.chatEnabled);
     if (window.AllSeasonAddressEntry) {
       var placeholder = element('form');
-      placeholder.setAttribute('data-entry-point', 'main-drawer');
+      placeholder.setAttribute('data-entry-point', chatMode ? 'main-chat' : 'main-drawer');
       placeholder.setAttribute('data-presentation-key', 'all-season-main');
       form.replaceWith(placeholder);
       window.AllSeasonAddressEntry.mount(placeholder);
       addressStep = panel.querySelector('[data-preview-address-form]');
-      panel.querySelector('.as-quote-intro').textContent = 'See your roof from above in seconds. No contact details needed to look.';
+      var intro = panel.querySelector('.as-quote-intro');
+      intro.textContent = 'See your roof from above in seconds. No contact details needed to look.';
+      // In chat mode the conversation's first message says what happens next.
+      intro.hidden = chatMode;
+      if (chatMode && addressStep) {
+        panel.classList.add('as-quote-chat');
+        launcher.setAttribute('aria-label', 'Open the roof estimate chat');
+        var conversation = element('div', 'as-chat-log');
+        conversation.setAttribute('role', 'log');
+        conversation.appendChild(element('p', 'as-chat-say', 'Hi. I can show you your roof from above, price it, and set up a video call with a specialist.'));
+        conversation.appendChild(element('p', 'as-chat-say as-chat-ask', 'What’s the address of the home?'));
+        addressStep.parentNode.insertBefore(conversation, addressStep);
+      }
     }
     root.appendChild(panel);
     root.appendChild(launcher);
@@ -208,7 +223,7 @@
       root.dataset.state = 'open';
       root.dataset.trigger = trigger;
       launcher.setAttribute('aria-expanded', 'true');
-      track('quote_form_view', {trigger: trigger});
+      track('quote_form_view', {trigger: trigger, mode: chatMode ? 'chat' : 'form'});
       if (focusFirst) {
         window.requestAnimationFrame(function () {
           var first = addressStep ? addressStep.querySelector('[data-address-search]') : name.input;

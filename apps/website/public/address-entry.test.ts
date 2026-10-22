@@ -45,6 +45,49 @@ describe("static address entry", () => {
   });
 
 
+  test("in chat mode the drawer asks for the address as a chat start", async () => {
+    const dom = page({previewEnabled: true, turnstileSiteKey: "site", chatEnabled: true});
+    Object.defineProperty(dom.window, "matchMedia", {value: () => ({matches: true})});
+    Object.defineProperty(dom.window.crypto, "randomUUID", {value: () => "11111111-1111-4111-8111-111111111111", configurable: true});
+    const fetch = vi.fn(async () => Response.json({previewUrl: previewUrl.replace("/p/", "/chat/")}, {status: 201}));
+    dom.window.fetch = fetch as typeof dom.window.fetch;
+    dom.window.eval(addressEntry);
+    dom.window.eval(quoteDrawer);
+    dom.window.document.dispatchEvent(new dom.window.Event("DOMContentLoaded"));
+    const document = dom.window.document;
+    const panel = document.querySelector(".as-quote-panel")!;
+    expect(panel.classList.contains("as-quote-chat")).toBe(true);
+    expect(panel.querySelector(".as-chat-log")?.textContent).toContain("What’s the address of the home?");
+    expect(document.querySelector(".as-quote-launcher")?.getAttribute("aria-label")).toBe("Open the roof estimate chat");
+    const step = panel.querySelector("[data-preview-address-form]")!;
+    expect(step.querySelector("[data-preview-notice]")?.textContent).toBe(propertyProcessingNotice());
+
+    // Turnstile renders asynchronously after the step mounts.
+    await new Promise((resolve) => dom.window.setTimeout(resolve, 0));
+    (step.querySelector("[data-manual-toggle]") as HTMLButtonElement).click();
+    const set = (name: string, value: string) => { (step.querySelector(`[name="${name}"]`) as HTMLInputElement).value = value; };
+    set("address_line_1", "12 Birch Street");
+    set("city", "Trenton");
+    set("postal_code", "08608");
+    step.dispatchEvent(new dom.window.Event("submit", {bubbles: true, cancelable: true}));
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
+    const call = fetch.mock.calls[0] as unknown as [string, RequestInit];
+    expect(JSON.parse(String(call[1].body))).toMatchObject({entry_point: "main-chat", campaign: null, presentation_key: "all-season-main"});
+  });
+
+  test("without the chat flag the drawer stays a plain address step", () => {
+    const dom = page({previewEnabled: true, turnstileSiteKey: "site"});
+    Object.defineProperty(dom.window, "matchMedia", {value: () => ({matches: true})});
+    Object.defineProperty(dom.window.crypto, "randomUUID", {value: () => "11111111-1111-4111-8111-111111111111", configurable: true});
+    dom.window.eval(addressEntry);
+    dom.window.eval(quoteDrawer);
+    dom.window.document.dispatchEvent(new dom.window.Event("DOMContentLoaded"));
+    const panel = dom.window.document.querySelector(".as-quote-panel")!;
+    expect(panel.querySelector(".as-chat-log")).toBeNull();
+    expect(panel.classList.contains("as-quote-chat")).toBe(false);
+    expect(panel.querySelector(".as-quote-intro")?.textContent).toBe("See your roof from above in seconds. No contact details needed to look.");
+  });
+
   test("leaves the legacy form alone when the preview flow is off", () => {
     const dom = page({previewEnabled: false, turnstileSiteKey: null});
     dom.window.eval(addressEntry);

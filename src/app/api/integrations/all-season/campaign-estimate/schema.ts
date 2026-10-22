@@ -13,6 +13,7 @@ export const entryPointSchema = z.enum([
   "main-home",
   "main-contact",
   "main-drawer",
+  "main-chat",
   ...canonicalCampaignSlugs.map((campaign) => `campaign:${campaign}` as const),
 ]);
 

@@ -26,4 +26,5 @@ export const notificationTypeSchema = z.enum([
   "review_task_created",
   "pipeline_stuck",
   "pipeline_failed",
+  "callback_requested",
 ]);

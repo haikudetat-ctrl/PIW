@@ -20,6 +20,7 @@ export type AssessmentEntryPoint =
   | "main-home"
   | "main-contact"
   | "main-drawer"
+  | "main-chat"
   | "roof-estimate"
   | `campaign:${CampaignSlug}`;
 
@@ -38,6 +39,7 @@ export const roofAssessmentEntryContexts = {
   "main-home": {campaign: null, presentationKey: "all-season-main"},
   "main-contact": {campaign: null, presentationKey: "all-season-main"},
   "main-drawer": {campaign: null, presentationKey: "all-season-main"},
+  "main-chat": {campaign: null, presentationKey: "all-season-main"},
   "roof-estimate": {campaign: null, presentationKey: "all-season-main"},
   "campaign:weather-report": {campaign: "weather-report", presentationKey: "weather-report"},
   "campaign:seasonal-shield": {campaign: "seasonal-shield", presentationKey: "seasonal-shield"},
