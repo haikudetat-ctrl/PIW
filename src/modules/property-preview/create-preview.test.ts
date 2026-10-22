@@ -53,6 +53,20 @@ function dependencies(overrides: Partial<CreatePreviewDependencies> = {}) {
 }
 
 describe("createPropertyPreview", () => {
+  test("continues a chat start in the quote chat only while the chat is on", async () => {
+    const chat = input({campaign: null, entryPoint: "main-chat", presentationKey: "all-season-main"});
+    await expect(createPropertyPreview(chat, dependencies({chatEnabled: true}))).resolves.toEqual({
+      kind: "created",
+      previewUrl: `https://estimate.allseasonroofingquote.com/roof-estimate/chat/${"t".repeat(43)}`,
+    });
+    await expect(createPropertyPreview(chat, dependencies({chatEnabled: false}))).resolves.toMatchObject({
+      previewUrl: `https://estimate.allseasonroofingquote.com/roof-estimate/p/${"t".repeat(43)}`,
+    });
+    await expect(createPropertyPreview(input(), dependencies({chatEnabled: true}))).resolves.toMatchObject({
+      previewUrl: `https://estimate.allseasonroofingquote.com/roof-estimate/p/${"t".repeat(43)}`,
+    });
+  });
+
   test("creates a Google preview, resolves the place, and requests a measurement", async () => {
     const deps = dependencies();
     await expect(createPropertyPreview(input(), deps)).resolves.toEqual({

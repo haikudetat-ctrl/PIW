@@ -71,9 +71,16 @@ export type CreatePreviewDependencies = {
     signal: AbortSignal;
   }): Promise<unknown>;
   requestMeasurement(input: {companyId: string; previewId: string}): Promise<void>;
+  /** Previews started in the website's quote chat continue in the chat when it is on. */
+  chatEnabled?: boolean;
   now?: () => Date;
   createTimeoutSignal?: (timeoutMs: number) => AbortSignal;
 };
+
+/** Where the homeowner continues: the quote chat for chat starts (when on), otherwise the preview page. */
+export function previewPath(token: string, entryPoint: string, chatEnabled: boolean) {
+  return entryPoint === "main-chat" && chatEnabled ? `/roof-estimate/chat/${token}` : `/roof-estimate/p/${token}`;
+}
 
 const PLACE_DETAILS_BUDGET_MS = 2_500;
 
@@ -117,7 +124,7 @@ export async function createPropertyPreview(
   });
   if (created.rateLimited) return {kind: "rate_limited"};
 
-  const previewUrl = `https://${host}/roof-estimate/p/${token}`;
+  const previewUrl = `https://${host}${previewPath(token, input.entryPoint, dependencies.chatEnabled ?? false)}`;
   const scope = {companyId: input.companyId, previewId: created.previewId};
   const unavailable = () => dependencies.repository.setMeasurementStatus({...scope, status: "unavailable"}).catch(() => undefined);
 

@@ -9,10 +9,9 @@ const money = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 0,
 });
 
-export type QuietEstimateState =
-  | {kind: "ready"; lowCents: number; highCents: number; roofSquares: number}
-  | {kind: "review"}
-  | {kind: "received"};
+import type { QuietEstimateState } from "./public-estimate-flow";
+
+export type { QuietEstimateState };
 
 // Price-first result for homeowners who came through the value-first preview,
 // in the same white, thin-type, hairline style as the preview itself.

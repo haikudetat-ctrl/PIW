@@ -14,7 +14,6 @@ const source: MetaDeliverySource = {
   eventTime: "2026-09-01T12:00:00.000Z",
   eventSourceUrl: "https://allseasonroofingquote.com/",
   email: "alex@example.com",
-  phone: "+1 609 555 0100",
   clientIpAddress: "203.0.113.10",
   clientUserAgent: "Mozilla/5.0",
   fbp: "fb.1.1.1.1",

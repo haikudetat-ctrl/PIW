@@ -22,12 +22,18 @@ function staticRuntimeConfig(): StaticRuntimeConfig {
 type QuoteRuntimeConfig = {
   previewEnabled: boolean;
   turnstileSiteKey: string | null;
+  /** The quote drawer opens as a chat that continues on the estimate host. */
+  chatEnabled: boolean;
 };
 
-function quoteRuntimeConfig(): QuoteRuntimeConfig {
-  const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim() || null;
-  const previewEnabled = process.env.NEXT_PUBLIC_PROPERTY_PREVIEW_ENABLED === "true" && turnstileSiteKey !== null;
-  return {previewEnabled, turnstileSiteKey: previewEnabled ? turnstileSiteKey : null};
+export function quoteRuntimeConfig(environment: NodeJS.ProcessEnv = process.env): QuoteRuntimeConfig {
+  const turnstileSiteKey = environment.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim() || null;
+  const previewEnabled = environment.NEXT_PUBLIC_PROPERTY_PREVIEW_ENABLED === "true" && turnstileSiteKey !== null;
+  return {
+    previewEnabled,
+    turnstileSiteKey: previewEnabled ? turnstileSiteKey : null,
+    chatEnabled: previewEnabled && environment.NEXT_PUBLIC_QUOTE_CHAT_ENABLED === "true",
+  };
 }
 
 function inlineJson(value: unknown) {

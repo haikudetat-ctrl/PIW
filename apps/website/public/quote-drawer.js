@@ -3,7 +3,7 @@
 
   var API_URL = '/api/campaign-estimate';
   // Keep in sync with apps/website/lib/tcpa-notice.ts.
-  var TCPA_NOTICE = 'By clicking “{submitLabel},” you authorize All Season Solar to review this address using property records, maps, and imagery to prepare your estimate, and you agree that All Season Solar may contact you about this request by call, text, or email at the number and email you provided, including by autodialed calls, prerecorded or artificial voice messages, and automated texts. Consent is not required to purchase. Message frequency varies. Message and data rates may apply. Reply STOP to opt out.';
+  var TCPA_NOTICE = 'By clicking “{submitLabel},” you authorize All Season Solar to review this address using property records, maps, and imagery to prepare your estimate, and you agree that All Season Solar may contact you about this request by call, text, or email at the number and email you provided, including by autodialed calls, prerecorded or artificial voice messages, and automated texts. Consent is not required to purchase. Message frequency varies. Message and data rates may apply. Reply STOP to opt out. Mobile information will not be shared with third parties or affiliates for marketing or promotional purposes. Text messaging originator opt-in data and consent will not be shared with any third parties.';
   var DISMISSED_KEY = 'all-season-quote-drawer-dismissed-v1';
   var DISMISS_FOR_MS = 7 * 24 * 60 * 60 * 1000;
   var root;
@@ -170,7 +170,7 @@
     submit.type = 'submit';
     form.appendChild(status);
     form.appendChild(submit);
-    form.appendChild(element('p', 'as-quote-privacy', 'Your details are used only to respond to this request.'));
+    form.appendChild(element('p', 'as-quote-privacy', 'We use your contact details to respond to this request. If you allow Advertising, Meta may receive hashed email and browser data to measure results; we do not share mobile information or SMS consent for marketing.'));
 
     var success = element('div', 'as-quote-success');
     success.hidden = true;
@@ -187,15 +187,30 @@
 
     // Value-first flow: swap the long form for the shared address step
     // (public/address-entry.js); contact details come after the roof reveal.
+    // In chat mode the same step is the first question of a conversation that
+    // continues on the estimate host (price, then a video call or a callback).
     var addressStep = null;
+    var chatMode = Boolean(window.AllSeasonAddressEntry && window.AllSeasonAddressEntry.chatEnabled);
     if (window.AllSeasonAddressEntry) {
       var placeholder = element('form');
-      placeholder.setAttribute('data-entry-point', 'main-drawer');
+      placeholder.setAttribute('data-entry-point', chatMode ? 'main-chat' : 'main-drawer');
       placeholder.setAttribute('data-presentation-key', 'all-season-main');
       form.replaceWith(placeholder);
       window.AllSeasonAddressEntry.mount(placeholder);
       addressStep = panel.querySelector('[data-preview-address-form]');
-      panel.querySelector('.as-quote-intro').textContent = 'See your roof from above in seconds. No contact details needed to look.';
+      var intro = panel.querySelector('.as-quote-intro');
+      intro.textContent = 'See your roof from above in seconds. No contact details needed to look.';
+      // In chat mode the conversation's first message says what happens next.
+      intro.hidden = chatMode;
+      if (chatMode && addressStep) {
+        panel.classList.add('as-quote-chat');
+        launcher.setAttribute('aria-label', 'Open the roof estimate chat');
+        var conversation = element('div', 'as-chat-log');
+        conversation.setAttribute('role', 'log');
+        conversation.appendChild(element('p', 'as-chat-say', 'Hi. I can show you your roof from above, price it, and set up a video call with a specialist.'));
+        conversation.appendChild(element('p', 'as-chat-say as-chat-ask', 'What’s the address of the home?'));
+        addressStep.parentNode.insertBefore(conversation, addressStep);
+      }
     }
     root.appendChild(panel);
     root.appendChild(launcher);
@@ -208,7 +223,7 @@
       root.dataset.state = 'open';
       root.dataset.trigger = trigger;
       launcher.setAttribute('aria-expanded', 'true');
-      track('quote_form_view', {trigger: trigger});
+      track('quote_form_view', {trigger: trigger, mode: chatMode ? 'chat' : 'form'});
       if (focusFirst) {
         window.requestAnimationFrame(function () {
           var first = addressStep ? addressStep.querySelector('[data-address-search]') : name.input;

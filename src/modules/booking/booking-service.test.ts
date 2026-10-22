@@ -4,6 +4,7 @@ import {
   BookingRequestError,
   bookConsultation,
   cancelConsultation,
+  loadBookingOverview,
   loadBookingPage,
   maskEmail,
   rescheduleConsultation,
@@ -114,6 +115,22 @@ describe("loadBookingPage", () => {
     expect(page.kind).toBe("booked");
     if (page.kind !== "booked") return;
     expect(page.booking).toMatchObject({meetingUrl: booked.meetingUrl, calendarReady: true, canChange: true});
+  });
+
+  test("the chat's overview skips the calendar once a meeting is booked", async () => {
+    const listBusy = vi.fn(async () => []);
+    const page = await loadBookingOverview("good-token", dependencies(
+      repository({findActiveBooking: vi.fn(async () => booked)}),
+      {calendar: {listBusy}},
+    ));
+    expect(page.kind === "booked" && page.booking).toMatchObject({meetingUrl: booked.meetingUrl});
+    expect(page.kind === "booked" && page.days).toEqual([]);
+    expect(listBusy).not.toHaveBeenCalled();
+  });
+
+  test("the chat's overview still lists times before anything is booked", async () => {
+    const page = await loadBookingOverview("good-token", dependencies());
+    expect(page.kind === "open" && page.days.some((day) => day.slots.length > 0)).toBe(true);
   });
 
   test("withholds the Meet link until the calendar sync succeeds", async () => {
