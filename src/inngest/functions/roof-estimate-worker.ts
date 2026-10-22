@@ -114,9 +114,15 @@ export interface RoofEstimateWorkerRepository {
     companyId: string;
     reusable: ReusableRoofEstimate;
   }): Promise<FinalizedRoofEstimate>;
+  /**
+   * With propertyId, a cached insight held by another property row for the same
+   * address (e.g. the one a property preview created) is moved to this property,
+   * as a fresh measurement's upsert would, so pricing can use it.
+   */
   findCachedInsight(input: {
     companyId: string;
     normalizedAddress: string;
+    propertyId?: string;
   }): Promise<RoofInsightRecord | null>;
   beginProviderRequest(input: {
     pipelineRunId: string;
@@ -259,6 +265,7 @@ export async function runRoofEstimate(
   let insightRecord = await repository.findCachedInsight({
     companyId: scope.companyId,
     normalizedAddress,
+    propertyId: event.propertyId,
   });
   if (insightRecord) {
     await repository.markProviderCacheHit({
@@ -533,7 +540,7 @@ export class SupabaseRoofEstimateWorkerRepository
     return this.loadFinalizedEstimate(input.companyId, input.estimateId);
   }
 
-  async findCachedInsight(input: { companyId: string; normalizedAddress: string }) {
+  async findCachedInsight(input: { companyId: string; normalizedAddress: string; propertyId?: string }) {
     const { data, error } = await this.client
       .from("roof_insights")
       .select("*")
@@ -544,6 +551,17 @@ export class SupabaseRoofEstimateWorkerRepository
       .maybeSingle();
     if (error) throw new Error("Failed to read roof-insight cache");
     if (!data) return null;
+    // A property preview measures the roof against its own property row, and the
+    // lead it converts into gets a new one. Pricing requires the insight and the
+    // estimate to share a property, so move the insight here before using it.
+    if (input.propertyId && data.property_id !== input.propertyId) {
+      const { error: moveError } = await this.client
+        .from("roof_insights")
+        .update({ property_id: input.propertyId, updated_at: new Date().toISOString() })
+        .eq("id", data.id)
+        .eq("company_id", input.companyId);
+      if (moveError) throw new Error(`Failed to attach cached roof insight to property: ${moveError.message}`);
+    }
     const insight = googleSolarInsightSchema.parse(
       data.lookup_status === "success"
         ? {

@@ -119,6 +119,11 @@ describe("runRoofEstimate", () => {
     });
     expect(repo.markProviderCacheHit).toHaveBeenCalledOnce();
     expect(repo.reserveSolarCall).not.toHaveBeenCalled();
+    // The cache lookup carries this estimate's property so an insight measured
+    // for a property preview is re-attached before pricing.
+    expect(repo.findCachedInsight).toHaveBeenCalledWith(
+      expect.objectContaining({ companyId: "company-1", propertyId: event.propertyId }),
+    );
     expect(repo.queueDeliveries).toHaveBeenCalledWith(
       expect.objectContaining({
         status: "ready",
