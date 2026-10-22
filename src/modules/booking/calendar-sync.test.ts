@@ -22,7 +22,7 @@ const appointment: SyncAppointment = {
     timezone: "America/New_York",
     meetingTitle: "Virtual roof consultation",
     sendCalendarInvites: true,
-    supportPhone: "(856) 835-6022",
+    supportPhone: "(866) 835-6022",
   },
   brandName: "AllSeason Solar & Roofing",
 };

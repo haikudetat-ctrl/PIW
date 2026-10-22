@@ -9,7 +9,7 @@ const model: OpenModel = {
   kind: "open",
   firstName: "Jordan",
   inviteEmail: "j•••@example.com",
-  supportPhone: "(856) 835-6022",
+  supportPhone: "(866) 835-6022",
   meetingTitle: "Virtual roof consultation",
   durationMinutes: 30,
   timezone: "America/New_York",

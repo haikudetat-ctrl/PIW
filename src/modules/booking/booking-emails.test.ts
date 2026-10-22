@@ -11,7 +11,7 @@ const context: BookingEmailContext = {
   durationMinutes: 30,
   meetingUrl: "https://meet.google.com/abc-defg-hij",
   manageUrl: "https://estimate.example.com/book/token",
-  supportPhone: "(856) 835-6022",
+  supportPhone: "(866) 835-6022",
   repName: null,
 };
 
@@ -40,7 +40,7 @@ describe("composeBookingEmail", () => {
     expect(email.text).toContain("Tuesday, October 20 at 10:00 AM EDT");
     expect(email.text).toContain("Join on Google Meet: https://meet.google.com/abc-defg-hij");
     expect(email.text).toContain("https://estimate.example.com/book/token");
-    expect(email.text).toContain("(856) 835-6022");
+    expect(email.text).toContain("(866) 835-6022");
   });
 
   test("points to the calendar invite while the Meet link is still being created", () => {
