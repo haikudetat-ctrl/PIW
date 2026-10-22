@@ -3,7 +3,6 @@ import { z } from "zod";
 import {
   hashMetaValue,
   normalizeMetaEmail,
-  normalizeMetaPhone,
   type MetaDeliverySource,
 } from "./meta-events";
 
@@ -33,7 +32,6 @@ export type MetaDeliveryResult = {
 
 type MetaUserData = {
   em: [string];
-  ph: [string];
   client_ip_address?: string;
   client_user_agent?: string;
   fbp?: string;
@@ -94,7 +92,6 @@ export function buildMetaCapiPayload(source: MetaDeliverySource): MetaCapiPayloa
   const fbc = optionalUserValue(source.fbc);
   const userData: MetaUserData = {
     em: [hashMetaValue(normalizeMetaEmail(source.email))],
-    ph: [hashMetaValue(normalizeMetaPhone(source.phone, "US"))],
     ...(clientIpAddress ? { client_ip_address: clientIpAddress } : {}),
     ...(clientUserAgent ? { client_user_agent: clientUserAgent } : {}),
     ...(fbp ? { fbp } : {}),

@@ -9,6 +9,7 @@ import { tcpaNoticeText } from "../lib/tcpa-notice";
 const script = readFileSync(path.join(__dirname, "script.js"), "utf8");
 const quoteDrawer = readFileSync(path.join(__dirname, "quote-drawer.js"), "utf8");
 const homepage = readFileSync(path.join(__dirname, "index.html"), "utf8");
+const privacyPage = readFileSync(path.join(__dirname, "privacy.html"), "utf8");
 const contactPage = readFileSync(path.join(__dirname, "contact.html"), "utf8");
 
 const estimateUrl = "https://piw.example/roof-estimate/continue/safe_token";
@@ -205,6 +206,12 @@ describe("embedded lead form", () => {
 
     expect(form.querySelectorAll('input[type="checkbox"]')).toHaveLength(0);
     expect(form.querySelector(".consent")?.textContent).toBe(`${tcpaNoticeText(submitLabel)} Privacy Policy`);
+  });
+
+  test("publishes the mobile and text-consent sharing restriction", () => {
+    expect(privacyPage).toContain("Mobile information will not be shared with third parties or affiliates for their marketing or promotional purposes.");
+    expect(privacyPage).toContain("Text messaging originator opt-in data and consent will not be shared with any third parties.");
+    expect(privacyPage).toContain("Meta may receive a hashed email address, but not your phone number");
   });
 
   test.each([

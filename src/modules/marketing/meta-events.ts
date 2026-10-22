@@ -22,7 +22,6 @@ export type MetaDeliverySource = {
   eventTime: string;
   eventSourceUrl: string;
   email: string;
-  phone: string;
   clientIpAddress: string | null;
   clientUserAgent: string | null;
   fbp: string | null;

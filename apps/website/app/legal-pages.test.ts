@@ -27,8 +27,10 @@ describe("public legal pages", () => {
     expect(html).toContain("Lead");
     expect(html).toContain("QualifiedLead");
     expect(html).toContain("AssessmentCompleted");
-    expect(html).toContain("hashed email address and phone number");
-    expect(html).toContain("We do not send your property address, property imagery, assessment answers, roof measurements, quote amounts, or package selections");
+    expect(html).toContain("hashed email address, but not your phone number");
+    expect(html).toContain("We do not send your phone number, text-messaging opt-in data, consent records");
+    expect(html).toContain("Mobile information will not be shared with third parties or affiliates for their marketing or promotional purposes.");
+    expect(html).toContain("Text messaging originator opt-in data and consent will not be shared with any third parties.");
     expect(html).toContain("withdraw or change your advertising choice");
     expect(html).toContain("(856) 835-6022");
   });
