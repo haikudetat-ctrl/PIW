@@ -13,7 +13,9 @@ import {
   previewContactSchema,
   type ConvertiblePreview,
 } from "@/modules/property-preview/convert-preview";
+import { priceConvertedLead } from "@/modules/property-preview/price-at-conversion";
 import { resolvePreviewScope } from "@/modules/property-preview/request-scope";
+import { createSupabaseConversionPricing } from "@/modules/property-preview/supabase-conversion-pricing";
 import { resolvePublicHost } from "@/modules/tenancy/public-host";
 import { createSupabasePublicHostLookup } from "@/modules/tenancy/supabase-public-host-lookup";
 
@@ -34,6 +36,8 @@ export async function handlePreviewConversionRequest(
     advertisingAllowed(request: NextRequest): Promise<boolean>;
     process(input: AllSeasonCampaignEstimateInput): Promise<NextResponse>;
     finalize(input: {companyId: string; tokenHash: string; submissionId: string}): Promise<void>;
+    /** Prices the new estimate before responding, when fast booking is on. */
+    priceNow?(submissionId: string): Promise<unknown>;
     now?: () => Date;
   },
 ) {
@@ -76,6 +80,14 @@ export async function handlePreviewConversionRequest(
       // bookkeeping failed, so the homeowner still continues to the price.
       console.error("property_preview_finalize_failed", {message: error instanceof Error ? error.message : "unknown"});
     }
+    if (dependencies.priceNow) {
+      try {
+        await dependencies.priceNow(contact.data.submission_id);
+      } catch (error) {
+        // The estimate worker prices it shortly anyway; the homeowner still continues.
+        console.error("property_preview_pricing_failed", {message: error instanceof Error ? error.message : "unknown"});
+      }
+    }
   }
   return response;
 }
@@ -100,8 +112,9 @@ export async function POST(request: NextRequest, {params}: {params: Promise<{tok
 
   const service = createServiceClient();
   const lookup = createSupabasePublicHostLookup(service);
+  const companyId = environment.ALL_SEASON_INTAKE_COMPANY_ID;
   return handlePreviewConversionRequest(request, token, {
-    companyId: environment.ALL_SEASON_INTAKE_COMPANY_ID,
+    companyId,
     resolveCompany: async (host) => (await resolvePublicHost(host, lookup))?.companyId ?? null,
     async loadPreview({companyId, tokenHash}) {
       const {data, error} = await service
@@ -125,5 +138,12 @@ export async function POST(request: NextRequest, {params}: {params: Promise<{tok
       });
       if (error) throw new Error("Failed to finalize property preview conversion");
     },
+    priceNow: environment.QUOTE_FAST_BOOKING_ENABLED
+      ? async (submissionId) => {
+        const leadId = await intake.findLeadId?.(submissionId);
+        if (!leadId) return;
+        await priceConvertedLead({companyId, leadId}, createSupabaseConversionPricing(service));
+      }
+      : undefined,
   });
 }

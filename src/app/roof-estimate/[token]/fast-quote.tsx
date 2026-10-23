@@ -25,7 +25,7 @@ import {
 } from "./assessment-questions";
 import {browserFastQuoteApi, type AssessmentSnapshot, type FastQuoteApi} from "./fast-quote-api";
 import type {QuietEstimateState} from "./public-estimate-flow";
-import {QuietHeader} from "../quiet/quiet-header";
+import {PropertySatelliteImage} from "./property-satellite-image";
 import "../quiet/quiet.css";
 import "./fast-quote.css";
 
@@ -127,11 +127,24 @@ function toggle(selected: readonly string[] | undefined, value: string, exclusiv
 const HEADING_ID = "fast-quote-heading";
 const YES_NO: AssessmentOption[] = [{value: "yes", label: "Yes"}, {value: "no", label: "No"}];
 
-function Screen({brand, alert, children}: {brand: FastQuoteBrand; alert: string | null; children: ReactNode}) {
+function Screen({brand, alert, wide = false, children}: {
+  brand: FastQuoteBrand;
+  alert: string | null;
+  wide?: boolean;
+  children: ReactNode;
+}) {
   return (
     <main className="quiet-flow fq-flow">
-      <div className="quiet-frame">
-        <QuietHeader brandName={brand.name} logoUrl={brand.logoUrl} />
+      <div className={wide ? "quiet-frame fq-frame-wide" : "quiet-frame"}>
+        <header className="quiet-header fq-header">
+          {brand.logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={brand.logoUrl} alt={brand.name} className="quiet-logo" />
+          ) : (
+            <span>{brand.name.toUpperCase()}</span>
+          )}
+          <a href={brand.phoneHref} className="fq-header-call">{brand.phoneDisplay}</a>
+        </header>
         <section className="quiet-body fq-body">
           {children}
           {alert ? <p role="alert" className="quiet-alert fq-alert">{alert}</p> : null}
@@ -211,6 +224,7 @@ export function FastQuote({
   holdMs = 15_000,
   pollMs = 1_500,
   latePollMs = 4_000,
+  imageSrc,
 }: {
   token: string;
   address: string;
@@ -223,6 +237,8 @@ export function FastQuote({
   holdMs?: number;
   pollMs?: number;
   latePollMs?: number;
+  /** The aerial beside the ranges; defaults to the estimate's own image route. */
+  imageSrc?: string;
 }) {
   const [stage, setStageState] = useState<Stage>(animate ? {name: "phases"} : {name: "quote"});
   const [summary, setSummary] = useState<Summary>(initial);
@@ -562,63 +578,77 @@ export function FastQuote({
             ? "Google didn’t return a measurement we trust enough to price automatically. A specialist can go over it with you on a call."
             : "We couldn’t create a reliable instant range. A specialist can review the property with you on a call.";
       return (
-        <Screen brand={brand} alert={alert}>
-          <p className="quiet-step">Preliminary estimate</p>
-          <Title>{headline}</Title>
-          <p className="quiet-address fq-address">{address}</p>
-          {summary.pending ? (
-            <div className="quiet-progress quiet-progress-indeterminate" aria-hidden="true"><span /></div>
-          ) : tiers ? (
-            <ol className="fq-tiers" aria-label="Your three options">
-              {tiers.map((tier) => (
-                <li key={tier.tierKey} className="fq-tier" data-recommended={tier.recommended}>
-                  <div className="fq-tier-head">
-                    <span className="fq-tier-key">{tier.tierKey} · {tier.customerName}</span>
-                    {/* AllSeason's Better tier is itself named "Recommended"; don't say it twice. */}
-                    {tier.recommended && !/recommended/i.test(tier.customerName)
-                      ? <span className="fq-tier-badge">Recommended</span>
-                      : null}
-                  </div>
-                  <p className="fq-tier-price">{range(tier.rangeLowCents, tier.rangeHighCents)}</p>
-                  <p className="fq-tier-detail">{tier.warrantySummary}</p>
-                </li>
-              ))}
-            </ol>
-          ) : ready ? (
-            <p className="quiet-price">
-              {money.format(ready.lowCents / 100)} <span>to</span> {money.format(ready.highCents / 100)}
-            </p>
-          ) : null}
-          <p className="quiet-lede">{lede}</p>
+        <Screen brand={brand} alert={alert} wide>
+          <div className="fq-quote">
+            <figure className="fq-aerial-figure">
+              <div className="quiet-aerial fq-aerial">
+                <PropertySatelliteImage src={imageSrc ?? `/api/roof-estimate/${token}/house-image`} address={address} />
+              </div>
+              <figcaption className="quiet-caption fq-caption">
+                <span className="fq-caption-address">{address}</span>
+                <span translate="no">Satellite imagery from Google Maps</span>
+              </figcaption>
+            </figure>
+            <div className="fq-quote-copy">
+              <p className="quiet-step">Preliminary estimate</p>
+              <Title>{headline}</Title>
+              {summary.pending ? (
+                <div className="quiet-progress quiet-progress-indeterminate" aria-hidden="true"><span /></div>
+              ) : tiers ? (
+                <ol className="fq-tiers" aria-label="Your three options">
+                  {tiers.map((tier) => (
+                    <li key={tier.tierKey} className="fq-tier" data-recommended={tier.recommended}>
+                      <div className="fq-tier-head">
+                        <span className="fq-tier-key">{tier.tierKey} · {tier.customerName}</span>
+                        {/* AllSeason's Better tier is itself named "Recommended"; don't say it twice. */}
+                        {tier.recommended && !/recommended/i.test(tier.customerName)
+                          ? <span className="fq-tier-badge">Recommended</span>
+                          : null}
+                      </div>
+                      <p className="fq-tier-price">{range(tier.rangeLowCents, tier.rangeHighCents)}</p>
+                      <p className="fq-tier-detail">{tier.warrantySummary}</p>
+                    </li>
+                  ))}
+                </ol>
+              ) : ready ? (
+                <p className="quiet-price">
+                  {money.format(ready.lowCents / 100)} <span>to</span> {money.format(ready.highCents / 100)}
+                </p>
+              ) : null}
+              {/* With the tiers, the roof size moves into the fine print to keep booking close. */}
+              {tiers ? null : <p className="quiet-lede">{lede}</p>}
 
-          {booked && booking ? (
-            <div className="fq-section">
-              <p className="quiet-step">Your video call</p>
-              <p className="fq-booked-time">{formatMeetingTime(booked.startsAt, booking.model.timezone)}</p>
-              <button type="button" className="quiet-secondary quiet-cta" onClick={() => setStage({name: "booked"})}>
-                {remaining.length > 0 ? "See your call and finish getting ready" : "See your call details"}
-              </button>
+              {booked && booking ? (
+                <div className="fq-section">
+                  <p className="quiet-step">Your video call</p>
+                  <p className="fq-booked-time">{formatMeetingTime(booked.startsAt, booking.model.timezone)}</p>
+                  <button type="button" className="quiet-secondary quiet-cta" onClick={() => setStage({name: "booked"})}>
+                    {remaining.length > 0 ? "See your call and finish getting ready" : "See your call details"}
+                  </button>
+                </div>
+              ) : canBook ? (
+                <>
+                  <button type="button" className="quiet-submit quiet-cta" onClick={startBooking}>
+                    Pick a video call time
+                  </button>
+                  <p className="fq-cta-note">
+                    {booking?.model.durationMinutes ?? 30} minutes on Google Meet with a specialist. No home visit needed.
+                  </p>
+                </>
+              ) : (
+                <button type="button" className="quiet-submit quiet-cta" onClick={() => setStage({name: "callback"})}>
+                  Have a specialist call me
+                </button>
+              )}
+              <a href={brand.phoneHref} className="quiet-back quiet-inline-link fq-call">Or call {brand.phoneDisplay}</a>
+              {ready ? (
+                <p className="quiet-notice quiet-fine">
+                  {tiers ? `${lede} ` : null}
+                  Preliminary sales estimate only. Decking, tear-off layers, access, permits, and field conditions can change the final proposal.
+                </p>
+              ) : null}
             </div>
-          ) : canBook ? (
-            <>
-              <button type="button" className="quiet-submit quiet-cta" onClick={startBooking}>
-                Pick a video call time
-              </button>
-              <p className="fq-cta-note">
-                {booking?.model.durationMinutes ?? 30} minutes on Google Meet with a specialist. No home visit needed.
-              </p>
-            </>
-          ) : (
-            <button type="button" className="quiet-submit quiet-cta" onClick={() => setStage({name: "callback"})}>
-              Have a specialist call me
-            </button>
-          )}
-          <a href={brand.phoneHref} className="quiet-back quiet-inline-link fq-call">Or call {brand.phoneDisplay}</a>
-          {ready ? (
-            <p className="quiet-notice quiet-fine">
-              Preliminary sales estimate only. Decking, tear-off layers, access, permits, and field conditions can change the final proposal.
-            </p>
-          ) : null}
+          </div>
         </Screen>
       );
     }

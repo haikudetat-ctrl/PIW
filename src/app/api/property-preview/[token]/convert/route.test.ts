@@ -87,6 +87,28 @@ describe("POST /api/property-preview/[token]/convert", () => {
     expect(response.status).toBe(202);
   });
 
+  test("prices the estimate before responding when fast booking is on", async () => {
+    const order: string[] = [];
+    const priceNow = vi.fn<(submissionId: string) => Promise<void>>(async () => { order.push("price"); });
+    const d = deps({finalize: vi.fn(async () => { order.push("finalize"); }), priceNow});
+    const response = await handlePreviewConversionRequest(request(contact), token, d);
+    expect(response.status).toBe(202);
+    expect(priceNow).toHaveBeenCalledWith(contact.submission_id);
+    expect(order).toEqual(["finalize", "price"]);
+  });
+
+  test("never prices a rejected lead, and a pricing failure keeps the continuation", async () => {
+    const priceNow = vi.fn(async () => undefined);
+    const rejected = deps({process: vi.fn(async () => NextResponse.json({error: "x"}, {status: 409})), priceNow});
+    await handlePreviewConversionRequest(request(contact), token, rejected);
+    expect(priceNow).not.toHaveBeenCalled();
+
+    const failing = deps({priceNow: vi.fn(async () => { throw new Error("db"); })});
+    const response = await handlePreviewConversionRequest(request(contact), token, failing);
+    expect(response.status).toBe(202);
+    await expect(response.json()).resolves.toMatchObject({continuationPath: "/roof-estimate/continue/abc"});
+  });
+
   test("rejects invalid contact details without touching the intake", async () => {
     const d = deps();
     const response = await handlePreviewConversionRequest(request({...contact, address: "spoofed"}), token, d);

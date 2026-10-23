@@ -22,7 +22,7 @@ import { findVerifiedPublicHost } from "@/modules/property-preview/supabase-prev
 
 const SOLAR_MONTHLY_CALL_LIMIT = 9_500;
 
-type RoofEstimateEvent = {
+export type RoofEstimateEvent = {
   id: string;
   pipelineRunId: string;
   correlationId: string;
@@ -967,38 +967,46 @@ export const roofEstimateWorker = inngest.createFunction(
   },
 );
 
+/**
+ * The roof-estimate input from a persisted `property/discovery_requested`
+ * envelope (the outbox payload), or null when `raw` is not one.
+ */
+export function parseRoofEstimateEnvelope(raw: unknown): RoofEstimateEvent | null {
+  if (
+    !raw ||
+    typeof raw !== "object" ||
+    !("pipelineRunId" in raw) ||
+    !("correlationId" in raw) ||
+    !("data" in raw)
+  ) return null;
+  const envelope = raw as {
+    id: string;
+    pipelineRunId: string;
+    correlationId: string;
+    leadId: string;
+    propertyId: string;
+    data: unknown;
+  };
+  const data = propertyDiscoveryRequestedDataSchema.parse(envelope.data);
+  return {
+    id: envelope.id,
+    pipelineRunId: envelope.pipelineRunId,
+    correlationId: envelope.correlationId,
+    leadId: envelope.leadId,
+    propertyId: envelope.propertyId,
+    canonicalAddress: data.canonicalAddress,
+    latitude: data.latitude,
+    longitude: data.longitude,
+    attempt: data.attempt,
+  };
+}
+
 async function resolveRoofEstimateEvent(
   inngestEventId: string,
   raw: unknown,
 ): Promise<RoofEstimateEvent> {
-  if (
-    raw &&
-    typeof raw === "object" &&
-    "pipelineRunId" in raw &&
-    "correlationId" in raw &&
-    "data" in raw
-  ) {
-    const envelope = raw as {
-      id: string;
-      pipelineRunId: string;
-      correlationId: string;
-      leadId: string;
-      propertyId: string;
-      data: unknown;
-    };
-    const data = propertyDiscoveryRequestedDataSchema.parse(envelope.data);
-    return {
-      id: envelope.id,
-      pipelineRunId: envelope.pipelineRunId,
-      correlationId: envelope.correlationId,
-      leadId: envelope.leadId,
-      propertyId: envelope.propertyId,
-      canonicalAddress: data.canonicalAddress,
-      latitude: data.latitude,
-      longitude: data.longitude,
-      attempt: data.attempt,
-    };
-  }
+  const fromEnvelope = parseRoofEstimateEnvelope(raw);
+  if (fromEnvelope) return fromEnvelope;
 
   const data = propertyDiscoveryRequestedDataSchema.parse(raw);
   const client = createServiceClient();
