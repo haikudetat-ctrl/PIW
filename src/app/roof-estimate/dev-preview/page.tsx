@@ -1,7 +1,7 @@
 import {notFound} from "next/navigation";
 import {PreviewSandbox, type SandboxScreen} from "./preview-sandbox";
 
-const SCREENS: SandboxScreen[] = ["preview", "address", "loading", "price", "review", "chat"];
+const SCREENS: SandboxScreen[] = ["preview", "address", "loading", "price", "review", "chat", "fast", "fast-pending"];
 
 export default async function PreviewSandboxPage({searchParams}: {searchParams: Promise<{screen?: string}>}) {
   if (process.env.NODE_ENV !== "development") notFound();

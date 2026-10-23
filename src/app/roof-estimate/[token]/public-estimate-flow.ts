@@ -10,6 +10,7 @@ export function selectPublicEstimateView({
   assessmentStatus,
   priceFirst = false,
   refineRequested = false,
+  fastQuote = false,
 }: {
   assessmentEnabled: boolean;
   assessmentStatus: "in_progress" | "abandoned" | "completed" | null;
@@ -18,7 +19,12 @@ export function selectPublicEstimateView({
   // the remaining questions only when they ask to refine it.
   priceFirst?: boolean;
   refineRequested?: boolean;
+  // Fast booking: value-first leads always land on their price and booking,
+  // whatever happened to the assessment. Its questions come after the booking,
+  // so an unfinished (or timed-out) assessment must not hide the price.
+  fastQuote?: boolean;
 }) {
+  if (fastQuote && priceFirst && assessmentEnabled) return "fast_quote" as const;
   if (assessmentStatus === "abandoned") return "resume_required" as const;
   if (!assessmentEnabled) return "legacy" as const;
   if (assessmentStatus === "completed") return "result" as const;
@@ -165,8 +171,20 @@ export function toPublicPackages(rows: readonly EstimatePackageRow[] | null | un
   }));
 }
 
+/** One Good/Better/Best option as the fast quote shows it. */
+export type QuotePackage = {
+  tierKey: string;
+  customerName: string;
+  warrantySummary: string;
+  rangeLowCents: number;
+  rangeHighCents: number;
+  recommended: boolean;
+};
+
 export type QuietEstimateState =
-  | {kind: "ready"; lowCents: number; highCents: number; roofSquares: number}
+  // `packages` is the three tiers when the estimate was priced with them; the
+  // low/high range always matches the Better tier.
+  | {kind: "ready"; lowCents: number; highCents: number; roofSquares: number; packages?: QuotePackage[]}
   | {kind: "review"}
   | {kind: "received"};
 
@@ -187,10 +205,34 @@ export function quietEstimateState({estimateStatus, pipelineStatus, calculation}
     || (estimateStatus === "pending" && pipelineStatus === "review_required");
   if (manualReview) return {pending, state: {kind: "review"}};
   if (calculation.status === "ready") {
+    const packages = "packages" in calculation
+      ? calculation.packages.map((item) => ({
+        tierKey: item.tierKey,
+        customerName: item.customerName,
+        warrantySummary: item.warrantySummary,
+        rangeLowCents: item.rangeLowCents,
+        rangeHighCents: item.rangeHighCents,
+        recommended: item.recommended,
+      }))
+      : null;
     return {
       pending,
-      state: {kind: "ready", lowCents: calculation.lowCents, highCents: calculation.highCents, roofSquares: calculation.roofSquares},
+      state: {
+        kind: "ready",
+        lowCents: calculation.lowCents,
+        highCents: calculation.highCents,
+        roofSquares: calculation.roofSquares,
+        ...(packages ? {packages} : {}),
+      },
     };
   }
   return {pending, state: {kind: "received"}};
+}
+
+const JUST_CONVERTED_MS = 15 * 60_000;
+
+/** True for the first few minutes after a lead's contact details went in. */
+export function justConverted(createdAt: string | null | undefined, now = Date.now()) {
+  const created = createdAt ? Date.parse(createdAt) : Number.NaN;
+  return Number.isFinite(created) && now - created >= 0 && now - created < JUST_CONVERTED_MS;
 }

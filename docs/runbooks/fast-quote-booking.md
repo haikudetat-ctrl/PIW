@@ -1,0 +1,46 @@
+# Fast quote booking
+
+Value-first leads (address → roof → 3 taps → contact) used to reach booking only after a second loading screen, nine more questions and a results page. With `QUOTE_FAST_BOOKING_ENABLED` on, the estimate page they land on after contact becomes:
+
+1. **Phases.** Four progress lines at 0.25s each (about 1s). If the price is still being calculated, the last line holds until it lands, for at most 15s.
+2. **Quote.** Good / Better / Best ranges (a single range when the estimate has no tiers), then **Pick a video call time**. Review and no-range estimates still offer booking. If the price outlasts the hold, the screen says it is on its way, offers booking, and swaps the price in when it arrives.
+3. **"Do you own this home?"** Owners, buyers and property managers go to the calendar. "No" offers a callback instead (`request_estimate_callback`, same task as the quote chat). The answer is saved to the assessment right away (`save_roof_assessment_ownership`).
+4. **Booking.** Day → time → confirm, on the virtual consultation engine (same endpoints as the quote chat). No online booking → callback.
+5. **"Help us speed up your meeting."** The remaining assessment questions (usually 5), one per screen, saved in the assessment's order. Answers the homeowner already gave (the preview's timeline, the ownership gate) are confirmed silently. Skippable at any point.
+
+Only value-first leads are affected (`property_previews.converted_lead_id` is set). Vendor and legacy leads keep the existing assessment journey. With the flag off, nothing changes.
+
+It also fixes a gap in the price-first view: an assessment untouched for 24 hours is marked abandoned, which used to turn the estimate link into "Your secure assessment link has expired". With fast booking, value-first leads always see their price; an abandoned assessment only hides the follow-up questions.
+
+## Turn it on
+
+1. Apply the migration `20261023120000_roof_assessment_ownership_answer.sql` (adds one function; nothing calls it until the flag is on).
+2. On a **piw** preview deployment, set `QUOTE_FAST_BOOKING_ENABLED=true` and run one value-first quote end to end with a test address: book a time, answer the questions, then cancel the booking from the invite. Repeat once answering "No" to ownership and confirm the callback task appears.
+3. Set `QUOTE_FAST_BOOKING_ENABLED=true` on **piw** production and redeploy.
+
+Rollback: set the flag to `false` and redeploy. The function can stay.
+
+## Look at it locally
+
+`/roof-estimate/dev-preview?screen=fast` (price ready) and `?screen=fast-pending` (price lands after 6s) in `next dev`, with stubbed endpoints.
+
+## Watch
+
+```sql
+-- Value-first leads since launch: booked, and finished the follow-up questions.
+select
+  count(*) as leads,
+  count(*) filter (where a.responses ? 'ownership') as answered_ownership,
+  count(*) filter (where a.responses->>'ownership' = 'not_owner') as not_owner,
+  count(appt.id) as booked,
+  count(*) filter (where a.status = 'completed') as finished_questions
+from public.property_previews p
+join public.leads l on l.id = p.converted_lead_id
+join public.roof_estimates e on e.lead_id = l.id
+left join public.roof_assessments a on a.estimate_id = e.id
+left join lateral (
+  select ap.id from public.appointments ap
+  where ap.lead_id = l.id and ap.meeting_type = 'virtual' limit 1
+) appt on true
+where l.created_at >= '<launch date>';
+```

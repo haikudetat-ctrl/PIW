@@ -7560,6 +7560,27 @@ export type Database = {
           preview_id: string
         }[]
       }
+      save_roof_assessment_ownership: {
+        Args: {
+          p_assessment_id: string
+          p_company_id: string
+          p_expected_revision: number
+          p_high_intent: boolean
+          p_ownership: string
+          p_scores: Json
+        }
+        Returns: {
+          applied: boolean
+          current_step: number
+          id: string
+          last_answered_at: string
+          property_revealed_at: string
+          recommendation: string
+          responses: Json
+          revision: number
+          status: string
+        }[]
+      }
       save_roof_assessment_progress: {
         Args: {
           p_assessment_id: string

@@ -93,6 +93,9 @@ const serverEnvSchema = z
     // Guided quote chat on the estimate host. When off, chat previews open
     // the classic value-first preview page instead.
     QUOTE_CHAT_ENABLED: booleanString,
+    // Value-first leads see their price in about a second and can book a video
+    // call straight from it; the remaining questions move after the booking.
+    QUOTE_FAST_BOOKING_ENABLED: booleanString,
     TURNSTILE_SECRET_KEY: optionalString,
     // Hostnames the Turnstile widget may render on (the website and tenant
     // estimate hosts). A verified token from any other hostname is rejected.
@@ -211,6 +214,13 @@ const serverEnvSchema = z
         code: "custom",
         path: ["PROPERTY_PREVIEW_ENABLED"],
         message: "Property previews require a Turnstile secret, roof assessments, and paid providers",
+      });
+    }
+    if (value.QUOTE_FAST_BOOKING_ENABLED && !value.PROPERTY_PREVIEW_ENABLED) {
+      context.addIssue({
+        code: "custom",
+        path: ["QUOTE_FAST_BOOKING_ENABLED"],
+        message: "Fast booking runs on property previews; enable those first",
       });
     }
     if (value.QUOTE_CHAT_ENABLED && !value.PROPERTY_PREVIEW_ENABLED) {

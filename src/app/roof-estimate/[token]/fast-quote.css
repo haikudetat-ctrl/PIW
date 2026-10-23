@@ -1,0 +1,126 @@
+/* Fast quote: the quiet flow's white page, hairlines and thin type, tuned for
+   a price-then-book screen that has to work one-handed on a phone. */
+.fq-body { padding: 2rem 0 2.5rem; }
+
+@media (min-width: 640px) {
+  .fq-body { padding: 3rem 0; }
+}
+
+.fq-heading:focus { outline: none; }
+
+.fq-address { color: var(--quiet-grey); font-size: 0.9375rem; }
+
+/* Good / Better / Best as three hairline rows; Better carries a quiet badge. */
+.fq-tiers {
+  margin: 1.5rem 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--quiet-rule);
+}
+
+.fq-tier {
+  display: grid;
+  gap: 0.125rem;
+  padding: 0.875rem 0;
+  border-bottom: 1px solid var(--quiet-rule);
+}
+
+.fq-tier-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.fq-tier-key {
+  color: var(--quiet-grey);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.fq-tier-badge {
+  padding: 0.125rem 0.5rem;
+  border: 1px solid var(--quiet-ink);
+  border-radius: 999px;
+  color: var(--quiet-ink);
+  font-size: 0.6875rem;
+  letter-spacing: 0.02em;
+}
+
+.fq-tier-price {
+  margin-top: 0.25rem;
+  color: var(--quiet-ink);
+  font-size: clamp(1.375rem, 5.5vw, 1.75rem);
+  font-weight: 200;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.fq-tier[data-recommended="true"] .fq-tier-price { color: #000; font-weight: 300; }
+
+.fq-tier-detail {
+  color: var(--quiet-grey);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.fq-cta-note {
+  margin-top: 0.625rem;
+  color: var(--quiet-grey);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.fq-call { display: block; margin-top: 1.25rem; text-align: center; }
+
+.fq-section {
+  margin-top: 2.25rem;
+  padding-top: 1.75rem;
+  border-top: 1px solid var(--quiet-rule);
+}
+
+.fq-subheading {
+  color: var(--quiet-ink);
+  font-size: 1.25rem;
+  font-weight: 300;
+  letter-spacing: -0.01em;
+}
+
+.fq-booked-time {
+  margin-top: 0.5rem;
+  color: var(--quiet-ink);
+  font-size: 1.125rem;
+  font-weight: 300;
+}
+
+.fq-links { display: flex; flex-wrap: wrap; gap: 1.5rem; margin-top: 1.25rem; }
+
+.fq-link {
+  color: var(--quiet-ink);
+  font-size: 0.875rem;
+  text-decoration: underline;
+  text-decoration-color: var(--quiet-rule);
+  text-underline-offset: 3px;
+}
+
+.fq-actions { display: flex; flex-wrap: wrap; column-gap: 1.5rem; }
+
+.fq-option-quiet { color: var(--quiet-grey); }
+
+/* Multi-select rows: a check appears on the right when picked. */
+.fq-check { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.fq-check::after { content: ""; color: var(--quiet-ink); font-size: 0.9375rem; }
+.fq-check[aria-pressed="true"] { color: #000; }
+.fq-check[aria-pressed="true"]::after { content: "✓"; }
+
+.fq-follow-up {
+  margin-top: 2rem;
+  color: var(--quiet-ink);
+  font-size: 1.0625rem;
+}
+
+.fq-alert { margin-top: 1.5rem; }
+
+.fq-flow .quiet-option:disabled { cursor: wait; opacity: 0.6; }

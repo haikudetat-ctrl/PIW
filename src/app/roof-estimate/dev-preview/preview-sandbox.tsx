@@ -11,8 +11,11 @@ import {QuietAddressStep} from "../quiet-address-step";
 import {QuoteChat} from "../chat/[token]/quote-chat";
 import type {ChatApi} from "../chat/[token]/chat-api";
 import type {DaySlots} from "@/modules/booking/slots";
+import {roofAssessmentQuestionSteps} from "@/domain/roof-assessment";
+import {FastQuote} from "../[token]/fast-quote";
+import type {AssessmentSnapshot, FastQuoteApi} from "../[token]/fast-quote-api";
 
-export type SandboxScreen = "preview" | "address" | "loading" | "price" | "review" | "chat";
+export type SandboxScreen = "preview" | "address" | "loading" | "price" | "review" | "chat" | "fast" | "fast-pending";
 
 const ESTIMATE_TOKEN = "dev-estimate";
 const BRAND = {
@@ -141,13 +144,76 @@ const SANDBOX_CHAT_API: ChatApi = {
   },
 };
 
+// AllSeason's live tier names and per-square rates, on a 28-square roof.
+const SANDBOX_TIERS = [
+  {tierKey: "good", customerName: "Complete System", warrantySummary: "Enhanced manufacturer protection.", rangeLowCents: 2_240_000, rangeHighCents: 2_730_000, recommended: false},
+  {tierKey: "better", customerName: "Recommended", warrantySummary: "Extended non-prorated material and workmanship coverage.", rangeLowCents: 2_660_000, rangeHighCents: 3_360_000, recommended: true},
+  {tierKey: "best", customerName: "Signature System", warrantySummary: "Extended workmanship coverage with premium detailing.", rangeLowCents: 3_500_000, rangeHighCents: 4_620_000, recommended: false},
+];
+const SANDBOX_READY = {
+  pending: false,
+  state: {kind: "ready" as const, lowCents: 2_660_000, highCents: 3_360_000, roofSquares: 28, packages: SANDBOX_TIERS},
+};
+
+// Development-only assessment with the server's ordering rules, seeded the way
+// a value-first conversion leaves it.
+function sandboxFastApi(pricingDelayMs: number): FastQuoteApi {
+  const assessment: AssessmentSnapshot = {
+    revision: 1,
+    status: "in_progress",
+    currentStep: 2,
+    responses: {reason: "roof_age", roofAge: "15_20", timeline: "this_season"},
+  };
+  const startedAt = Date.now();
+  const copy = () => ({...assessment, responses: {...assessment.responses}});
+  return {
+    loadEstimate: async () => ({
+      ...(Date.now() - startedAt < pricingDelayMs ? {pending: true, state: {kind: "received" as const}} : SANDBOX_READY),
+      address: VIEW.address.display,
+    }),
+    bookingLink: SANDBOX_CHAT_API.bookingLink,
+    bookingOverview: SANDBOX_CHAT_API.bookingOverview,
+    book: SANDBOX_CHAT_API.book,
+    requestCallback: SANDBOX_CHAT_API.requestCallback,
+    saveOwnership: async (_token, ownership) => {
+      assessment.responses = {...assessment.responses, ownership};
+      assessment.revision += 1;
+      return true;
+    },
+    loadAssessment: async () => copy(),
+    saveAnswer: async (_token, {questionId, responsePatch, complete}) => {
+      await pause(250);
+      const index = roofAssessmentQuestionSteps.findIndex((step) => step.id === questionId);
+      assessment.responses = {...assessment.responses, ...responsePatch};
+      assessment.currentStep = Math.max(assessment.currentStep, index + 1);
+      assessment.revision += 1;
+      if (complete) assessment.status = "completed";
+      return {kind: "saved", assessment: copy()};
+    },
+  };
+}
+
 export function PreviewSandbox({screen = "preview"}: {screen?: SandboxScreen}) {
   // Install the stub once, before the flow's first request.
   useState(() => {
     if (typeof window !== "undefined") installSandboxFetch();
   });
 
+  const [fastApi] = useState(() => sandboxFastApi(screen === "fast-pending" ? 6_000 : 0));
   const address = VIEW.address.display;
+  if (screen === "fast" || screen === "fast-pending") {
+    return (
+      <FastQuote
+        token={ESTIMATE_TOKEN}
+        address={address}
+        brand={BRAND}
+        initial={screen === "fast" ? SANDBOX_READY : {pending: true, state: {kind: "received"}}}
+        animate
+        bookingAvailable
+        api={fastApi}
+      />
+    );
+  }
   if (screen === "address") {
     return <QuietAddressStep brandName={BRAND.name} logoUrl={BRAND.logoUrl} turnstileSiteKey="1x00000000000000000000AA" />;
   }
