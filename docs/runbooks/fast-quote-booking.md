@@ -20,7 +20,7 @@ It also fixes a gap in the price-first view: an assessment untouched for 24 hour
 
 ## Turn it on
 
-1. Apply the migration `20261023120000_roof_assessment_ownership_answer.sql` (adds one function; nothing calls it until the flag is on).
+1. Apply the migration `20261023124120_roof_assessment_ownership_answer.sql` (adds one function; nothing calls it until the flag is on).
 2. On a **piw** preview deployment, set `QUOTE_FAST_BOOKING_ENABLED=true` and run one value-first quote end to end with a test address: book a time, answer the questions, then cancel the booking from the invite. Repeat once answering "No" to ownership and confirm the callback task appears.
 3. Set `QUOTE_FAST_BOOKING_ENABLED=true` on **piw** production and redeploy.
 
