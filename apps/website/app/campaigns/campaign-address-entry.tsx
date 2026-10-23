@@ -87,7 +87,7 @@ export function CampaignAddressEntry({campaign, turnstileSiteKey}: {campaign: Ca
       <header>
         <span className="campaign-form-label">A clear first step</span>
         <h2>{campaign.formTitle}</h2>
-        <p>See your roof from above in seconds. No contact details needed to look.</p>
+        <p>Enter the address to see your roof and your price.</p>
       </header>
       <fieldset disabled={pending}>
         <legend className="campaign-sr-only">Property address</legend>

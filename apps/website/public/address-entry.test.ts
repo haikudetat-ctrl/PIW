@@ -85,7 +85,7 @@ describe("static address entry", () => {
     const panel = dom.window.document.querySelector(".as-quote-panel")!;
     expect(panel.querySelector(".as-chat-log")).toBeNull();
     expect(panel.classList.contains("as-quote-chat")).toBe(false);
-    expect(panel.querySelector(".as-quote-intro")?.textContent).toBe("See your roof from above in seconds. No contact details needed to look.");
+    expect(panel.querySelector(".as-quote-intro")?.textContent).toBe("Enter the address to see your roof and your price.");
   });
 
   test("leaves the legacy form alone when the preview flow is off", () => {

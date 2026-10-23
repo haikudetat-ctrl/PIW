@@ -194,6 +194,57 @@ describe("preview contact step", () => {
   });
 });
 
+describe("fast booking: straight from the address to contact", () => {
+  const straightAerial = vi.fn(async () => ({kind: "ready" as const, objectUrl: "blob:aerial"}));
+  function renderStraight() {
+    straightAerial.mockClear();
+    return render(
+      <PreviewExperience
+        token={token}
+        initialView={baseView}
+        context={context}
+        brandName="All Season Solar"
+        privacyUrl="https://allseasonroofingquote.com/privacy.html"
+        aerialLoader={straightAerial}
+        straightToContact
+      />,
+    );
+  }
+
+  test("opens on contact and consent, with no analysis, reveal or questions", async () => {
+    trackConversion.mockClear();
+    renderStraight();
+    expect(screen.getByRole("heading", {name: "Where should we send your price?"})).toBeTruthy();
+    expect(screen.getByTestId("preview-contact-notice").textContent).toContain("By clicking “Unlock my price,”");
+    expect(screen.queryByText("Analyzing your property.")).toBeNull();
+    expect(screen.queryByText("Here’s your roof.")).toBeNull();
+    expect(screen.getByRole("link", {name: "Use a different address"}).getAttribute("href")).toBe("/roof-estimate");
+    expect(straightAerial).not.toHaveBeenCalled();
+  });
+
+  test("still sends Meta the started event once, records the contact step, and not a reveal", async () => {
+    trackConversion.mockClear();
+    renderStraight();
+    await waitFor(() => expect(trackConversion).toHaveBeenCalledTimes(1));
+    expect(trackConversion.mock.calls[0][0]).toMatchObject({name: "RoofPreviewStarted", eventId: baseView.metaEventId});
+    await waitFor(() => expect(calls("/progress")).toHaveLength(1));
+    expect(JSON.parse(String(calls("/progress")[0][1].body))).toEqual({step: "contact_viewed"});
+  });
+
+  test("converts straight to the price", async () => {
+    fetchMock.mockImplementation(async (url: string) => String(url).includes("/convert")
+      ? Response.json({accepted: true, continuationPath: "/roof-estimate/continue/abc", metaEvent: null}, {status: 202})
+      : new Response(null, {status: 204}));
+    renderStraight();
+    fireEvent.change(screen.getByLabelText("Full name"), {target: {value: "Alex Rivera"}});
+    fireEvent.change(screen.getByLabelText("Email"), {target: {value: "alex@example.com"}});
+    fireEvent.change(screen.getByLabelText("Mobile phone"), {target: {value: "201-555-0100"}});
+    fireEvent.click(screen.getByRole("button", {name: "Unlock my price"}));
+    await waitFor(() => expect(assign).toHaveBeenCalledWith("/roof-estimate/continue/abc"));
+    expect(calls("/answers")).toHaveLength(0);
+  });
+});
+
 describe("email me this", () => {
   test("saves the report email under its own notice", async () => {
     renderPreview();

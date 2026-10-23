@@ -19,7 +19,7 @@ export function QuietAddressStep({
         <section className="quiet-body">
           <p className="quiet-step">Free roof preview</p>
           <h1 className="quiet-question">Where is the roof?</h1>
-          <p className="quiet-lede">Enter the New Jersey address. You’ll see the roof from above in seconds.</p>
+          <p className="quiet-lede">Enter the New Jersey address to see your roof and your price.</p>
           <PreviewAddressForm turnstileSiteKey={turnstileSiteKey} brandName={brandName} />
         </section>
       </div>

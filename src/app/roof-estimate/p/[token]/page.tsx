@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { getRoofAssessmentContext } from "@/config/roof-assessment";
+import { parseServerEnv } from "@/lib/env/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { loadPreviewView } from "@/modules/property-preview/preview-read-model";
 import { hashPreviewToken, isPreviewTokenShape } from "@/modules/property-preview/preview-token";
@@ -16,6 +17,15 @@ export const dynamic = "force-dynamic";
 export const metadata = {
   robots: {index: false, follow: false},
 };
+
+// Fast booking goes from the address straight to contact and consent.
+function straightToContact() {
+  try {
+    return parseServerEnv(process.env).QUOTE_FAST_BOOKING_ENABLED;
+  } catch {
+    return false;
+  }
+}
 
 export default async function PropertyPreviewPage({params}: {params: Promise<{token: string}>}) {
   const {token} = await params;
@@ -55,6 +65,7 @@ export default async function PropertyPreviewPage({params}: {params: Promise<{to
       brandName={tenant.brand.displayName}
       logoUrl={tenant.brand.logoUrl}
       privacyUrl={tenant.brand.privacyUrl}
+      straightToContact={straightToContact()}
     />
   );
 }

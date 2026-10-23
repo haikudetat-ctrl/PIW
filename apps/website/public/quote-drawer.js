@@ -199,7 +199,7 @@
       window.AllSeasonAddressEntry.mount(placeholder);
       addressStep = panel.querySelector('[data-preview-address-form]');
       var intro = panel.querySelector('.as-quote-intro');
-      intro.textContent = 'See your roof from above in seconds. No contact details needed to look.';
+      intro.textContent = 'Enter the address to see your roof and your price.';
       // In chat mode the conversation's first message says what happens next.
       intro.hidden = chatMode;
       if (chatMode && addressStep) {
