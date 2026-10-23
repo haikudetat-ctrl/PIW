@@ -7,8 +7,10 @@ import {
 } from "@/domain/roof-assessment";
 import type {
   AssessmentCompletion,
+  AssessmentOwnershipAnswer,
   AssessmentProgressPatch,
   PersistedAssessment,
+  PublicAssessmentOwnershipRepository,
   PublicAssessmentRepository,
   PublicEstimateContext,
 } from "./public-assessment";
@@ -54,7 +56,7 @@ function persistedAssessment(row: {
 const assessmentSelection =
   "id, revision, status, current_step, property_revealed_at, last_answered_at, responses, recommendation";
 
-export class SupabasePublicAssessmentRepository implements PublicAssessmentRepository {
+export class SupabasePublicAssessmentRepository implements PublicAssessmentRepository, PublicAssessmentOwnershipRepository {
   constructor(private readonly service: ServiceClient = createServiceClient()) {}
 
   async findEstimateByToken(token: string): Promise<PublicEstimateContext | null> {
@@ -130,6 +132,22 @@ export class SupabasePublicAssessmentRepository implements PublicAssessmentRepos
       p_high_intent: patch.signals.highIntent,
     });
     if (error || !data || data.length !== 1) throw new Error("Assessment progress persistence failed");
+    return {assessment: persistedAssessment(data[0]), applied: data[0].applied};
+  }
+
+  async saveOwnership(
+    assessmentId: string,
+    answer: AssessmentOwnershipAnswer,
+  ) {
+    const {data, error} = await this.service.rpc("save_roof_assessment_ownership", {
+      p_company_id: answer.companyId,
+      p_assessment_id: assessmentId,
+      p_expected_revision: answer.expectedRevision,
+      p_ownership: answer.ownership,
+      p_scores: answer.signals.scores as unknown as Json,
+      p_high_intent: answer.signals.highIntent,
+    });
+    if (error || !data || data.length !== 1) throw new Error("Assessment ownership persistence failed");
     return {assessment: persistedAssessment(data[0]), applied: data[0].applied};
   }
 

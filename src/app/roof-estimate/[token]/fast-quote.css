@@ -1,0 +1,270 @@
+/* Fast quote: the quiet flow's hairlines and thin type, in a muted version of
+   the AllSeason website palette (navy #07345d, blue #0c67a8, lime #82d326,
+   ink #102b43, slate #526778, paper #f8fafb, line #d6e1e7). Each colour keeps
+   its hue and loses most of its saturation, so the screens read as AllSeason
+   without competing with the price. */
+.quiet-flow.fq-flow {
+  --quiet-ink: #1b3245;        /* ink, softened */
+  --quiet-grey: #5a6d7c;       /* slate, 5.2:1 on paper */
+  --quiet-rule: #d9e2e8;       /* line */
+  --fq-faint: #9aa9b4;         /* upcoming steps */
+  --fq-paper: #f6f8f9;         /* paper */
+  --fq-card: #ffffff;
+  --fq-tint: #f1f5f7;          /* hover and quiet surfaces */
+  --fq-accent: #36688a;        /* blue, desaturated; links, labels, focus */
+  --fq-accent-soft: #e4edf3;
+  --fq-lime: #6f9a43;          /* lime, desaturated; progress, checks, Better */
+  --fq-lime-soft: #eef4e6;
+  --fq-cta: #213d55;           /* navy, desaturated; primary action */
+  --fq-cta-hover: #19324a;
+  background: var(--fq-paper);
+}
+
+.fq-flow .fq-frame-wide { max-width: 68rem; }
+
+.fq-body { padding: 2rem 0 2.5rem; }
+
+@media (min-width: 640px) {
+  .fq-body { padding: 3rem 0; }
+}
+
+/* Header: logo left, the phone number right. */
+.fq-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.fq-header-call {
+  color: var(--quiet-grey);
+  font-size: 0.8125rem;
+  letter-spacing: 0.02em;
+  text-decoration: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.fq-header-call:hover { color: var(--fq-accent); }
+
+/* Step labels borrow the website's eyebrow: small, tracked, blue. */
+.fq-flow .quiet-step {
+  color: var(--fq-accent);
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.fq-heading:focus { outline: none; }
+
+/* Buttons and rows. */
+.fq-flow .quiet-submit { background: var(--fq-cta); }
+.fq-flow .quiet-submit:hover:not(:disabled) { background: var(--fq-cta-hover); }
+.fq-flow .quiet-secondary { background: var(--fq-card); border-color: var(--quiet-rule); }
+.fq-flow .quiet-secondary:hover:not(:disabled) { border-color: var(--fq-accent); color: var(--fq-accent); }
+.fq-flow .quiet-option { transition: color 150ms ease, background 150ms ease; }
+.fq-flow .quiet-option:hover:not(:disabled) { color: var(--fq-accent); }
+.fq-flow .quiet-back:hover { color: var(--fq-accent); }
+.fq-flow .quiet-option:disabled { cursor: wait; opacity: 0.6; }
+
+.fq-flow .quiet-option:focus-visible,
+.fq-flow .quiet-submit:focus-visible,
+.fq-flow .quiet-secondary:focus-visible,
+.fq-flow .quiet-back:focus-visible,
+.fq-flow a:focus-visible {
+  outline: 2px solid var(--fq-accent);
+  outline-offset: 3px;
+}
+
+/* Progress: upcoming steps faint, finished steps marked in lime. */
+.fq-flow .quiet-stage { color: var(--fq-faint); }
+.fq-flow .quiet-stage[data-complete="true"] { color: var(--quiet-grey); }
+.fq-flow .quiet-stage[data-complete="true"] span:last-child { color: var(--fq-lime); }
+.fq-flow .quiet-stage[data-active="true"] { color: var(--quiet-ink); }
+.fq-flow .quiet-progress span { background: var(--fq-lime); }
+
+/* Quote: the aerial beside the ranges on wide screens, above them on phones. */
+.fq-quote { display: grid; gap: 1.75rem; }
+
+@media (min-width: 900px) {
+  .fq-quote {
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+    align-items: start;
+    gap: 3.5rem;
+  }
+  .fq-aerial-figure { position: sticky; top: 2rem; }
+}
+
+.fq-aerial-figure { margin: 0; }
+
+.fq-flow .fq-aerial {
+  aspect-ratio: 2 / 1;
+  border: 0;
+  border-radius: 14px;
+  background: var(--fq-tint);
+}
+
+@media (min-width: 900px) {
+  .fq-flow .fq-aerial { aspect-ratio: 4 / 3; }
+}
+
+.fq-caption { flex-wrap: nowrap; }
+.fq-caption > span:last-child { flex: 0 0 auto; }
+.fq-caption-address { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.fq-flow .fq-aerial .campaign-property-media-state,
+.fq-flow .fq-aerial .estimate-map-skeleton { background: var(--fq-tint); }
+
+.fq-quote-copy .quiet-question { margin-top: 0.5rem; font-size: clamp(1.75rem, 5.5vw, 2.375rem); }
+
+/* Good / Better / Best as one white card; Better carries a lime marker. */
+.fq-tiers {
+  margin: 1.5rem 0 0;
+  padding: 0;
+  list-style: none;
+  overflow: hidden;
+  border: 1px solid var(--quiet-rule);
+  border-radius: 14px;
+  background: var(--fq-card);
+}
+
+.fq-tier {
+  position: relative;
+  display: grid;
+  gap: 0.125rem;
+  padding: 0.875rem 1.125rem;
+}
+
+.fq-tier + .fq-tier { border-top: 1px solid var(--quiet-rule); }
+
+.fq-tier[data-recommended="true"] { background: var(--fq-lime-soft); }
+
+.fq-tier[data-recommended="true"]::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--fq-lime);
+}
+
+.fq-tier-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.fq-tier-key {
+  color: var(--quiet-grey);
+  font-size: 0.6875rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.fq-tier[data-recommended="true"] .fq-tier-key { color: #4d7330; }
+
+.fq-tier-badge {
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  background: var(--fq-lime-soft);
+  color: #4d7330;
+  font-size: 0.6875rem;
+  letter-spacing: 0.02em;
+}
+
+.fq-tier-price {
+  margin-top: 0.125rem;
+  color: var(--quiet-ink);
+  font-size: clamp(1.375rem, 5.5vw, 1.625rem);
+  font-weight: 300;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.fq-tier[data-recommended="true"] .fq-tier-price { font-weight: 400; }
+
+.fq-tier-detail {
+  color: var(--quiet-grey);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.fq-flow .quiet-price { color: var(--quiet-ink); }
+
+.fq-cta-note {
+  margin-top: 0.625rem;
+  color: var(--quiet-grey);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.fq-call { display: block; margin-top: 1rem; text-align: center; }
+
+.fq-section {
+  margin-top: 2.25rem;
+  padding-top: 1.75rem;
+  border-top: 1px solid var(--quiet-rule);
+}
+
+.fq-subheading {
+  color: var(--quiet-ink);
+  font-size: 1.25rem;
+  font-weight: 300;
+  letter-spacing: -0.01em;
+}
+
+.fq-booked-time {
+  margin-top: 0.5rem;
+  color: var(--quiet-ink);
+  font-size: 1.125rem;
+  font-weight: 300;
+}
+
+.fq-links { display: flex; flex-wrap: wrap; gap: 1.5rem; margin-top: 1.25rem; }
+
+.fq-link {
+  color: var(--fq-accent);
+  font-size: 0.875rem;
+  text-decoration: underline;
+  text-decoration-color: var(--fq-accent-soft);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+.fq-link:hover { text-decoration-color: var(--fq-accent); }
+
+.fq-actions { display: flex; flex-wrap: wrap; column-gap: 1.5rem; }
+
+.fq-option-quiet { color: var(--quiet-grey); }
+
+/* Multi-select rows: a lime check on the right when picked. */
+.fq-check { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.fq-check::after { content: ""; color: var(--fq-lime); font-size: 0.9375rem; }
+.fq-flow .fq-check[aria-pressed="true"] { color: var(--quiet-ink); }
+.fq-check[aria-pressed="true"]::after { content: "✓"; }
+
+.fq-follow-up {
+  margin-top: 2rem;
+  color: var(--quiet-ink);
+  font-size: 1.0625rem;
+}
+
+.fq-alert { margin-top: 1.5rem; color: #8a4b2a; }
+
+/* Phones: keep the photo, the three prices and the booking button within
+   roughly one screen. */
+@media (max-width: 639px) {
+  .fq-body { padding: 1.25rem 0 2rem; }
+  .fq-quote { gap: 1.25rem; }
+  .fq-flow .fq-aerial { aspect-ratio: 16 / 7; border-radius: 12px; }
+  .fq-caption { font-size: 0.6875rem; }
+  .fq-tiers { margin-top: 1rem; }
+  .fq-tier { padding: 0.75rem 1rem; }
+  .fq-tier-price { font-size: 1.3125rem; }
+  .fq-tier-detail { font-size: 0.75rem; }
+  .fq-quote-copy .quiet-cta { margin-top: 1.25rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fq-flow .quiet-option { transition: none; }
+}

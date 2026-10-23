@@ -87,6 +87,23 @@ describe("parseServerEnv quote chat", () => {
   });
 });
 
+describe("parseServerEnv fast quote booking", () => {
+  test("is off by default", () => {
+    expect(parseServerEnv(base).QUOTE_FAST_BOOKING_ENABLED).toBe(false);
+  });
+
+  test("needs property previews", () => {
+    expect(() => parseServerEnv({...base, QUOTE_FAST_BOOKING_ENABLED: "true"})).toThrow("enable those first");
+    expect(parseServerEnv({
+      ...enabledPrefetch,
+      ROOF_ASSESSMENT_PROPERTY_PREFETCH_ENABLED: "false",
+      PROPERTY_PREVIEW_ENABLED: "true",
+      TURNSTILE_SECRET_KEY: "turnstile-secret",
+      QUOTE_FAST_BOOKING_ENABLED: "true",
+    }).QUOTE_FAST_BOOKING_ENABLED).toBe(true);
+  });
+});
+
 describe("parseServerEnv virtual booking", () => {
   const keyless = {
     ...base,

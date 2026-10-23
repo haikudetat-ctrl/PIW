@@ -3,6 +3,7 @@ import {
   getAssessmentCalculationState,
   getAssessmentResultCta,
   getAssessmentResultRange,
+  justConverted,
   quietEstimateState,
   selectPublicEstimateView,
 } from "./public-estimate-flow";
@@ -114,6 +115,22 @@ describe("public estimate view selection", () => {
     expect(selectPublicEstimateView({assessmentEnabled: true, assessmentStatus: "completed", priceFirst: true})).toBe("result");
     expect(selectPublicEstimateView({assessmentEnabled: true, assessmentStatus: "abandoned", priceFirst: true})).toBe("resume_required");
   });
+
+  test("with fast booking, value-first leads always land on their price", () => {
+    for (const assessmentStatus of ["in_progress", "completed", "abandoned", null] as const) {
+      expect(selectPublicEstimateView({assessmentEnabled: true, assessmentStatus, priceFirst: true, fastQuote: true}))
+        .toBe("fast_quote");
+    }
+    expect(selectPublicEstimateView({
+      assessmentEnabled: true, assessmentStatus: "in_progress", priceFirst: true, refineRequested: true, fastQuote: true,
+    })).toBe("fast_quote");
+  });
+
+  test("fast booking leaves other leads and the rollback path alone", () => {
+    expect(selectPublicEstimateView({assessmentEnabled: true, assessmentStatus: "in_progress", fastQuote: true})).toBe("assessment");
+    expect(selectPublicEstimateView({assessmentEnabled: true, assessmentStatus: "abandoned", fastQuote: true})).toBe("resume_required");
+    expect(selectPublicEstimateView({assessmentEnabled: false, assessmentStatus: null, priceFirst: true, fastQuote: true})).toBe("legacy");
+  });
 });
 
 describe("quietEstimateState", () => {
@@ -136,6 +153,28 @@ describe("quietEstimateState", () => {
       .toEqual({pending: false, state: {kind: "ready", lowCents: 1_400_000, highCents: 2_100_000, roofSquares: 28}});
   });
 
+  test("carries the three tiers when the estimate has them", () => {
+    const tier = (tierKey: string, low: number, high: number, recommended = false) => ({
+      tierKey, displayOrder: 1, customerName: `${tierKey} system`, customerDescription: "", warrantySummary: `${tierKey} warranty`,
+      differentiators: [], lowCentsPerSquare: 1, highCentsPerSquare: 2, recommended, measuredRoofSquares: 28,
+      rangeLowCents: low, rangeHighCents: high, pricingVersion: "v1", generatedAt: "2026-10-19T12:00:00.000Z",
+    });
+    const packaged = {
+      ...ready,
+      pricingVersion: "v1",
+      packages: [tier("good", 1_200_000, 1_600_000), tier("better", 1_400_000, 2_100_000, true), tier("best", 1_900_000, 2_600_000)],
+      adjustments: [],
+    };
+    expect(quietEstimateState({estimateStatus: "ready", pipelineStatus: "complete", calculation: packaged}).state).toEqual({
+      kind: "ready", lowCents: 1_400_000, highCents: 2_100_000, roofSquares: 28,
+      packages: [
+        {tierKey: "good", customerName: "good system", warrantySummary: "good warranty", rangeLowCents: 1_200_000, rangeHighCents: 1_600_000, recommended: false},
+        {tierKey: "better", customerName: "better system", warrantySummary: "better warranty", rangeLowCents: 1_400_000, rangeHighCents: 2_100_000, recommended: true},
+        {tierKey: "best", customerName: "best system", warrantySummary: "best warranty", rangeLowCents: 1_900_000, rangeHighCents: 2_600_000, recommended: false},
+      ],
+    });
+  });
+
   test("sends a doubtful measurement to a specialist", () => {
     expect(quietEstimateState({estimateStatus: "review_required", pipelineStatus: "complete", calculation: ready}).state)
       .toEqual({kind: "review"});
@@ -146,5 +185,19 @@ describe("quietEstimateState", () => {
   test("falls back to a received request when no range is trusted", () => {
     expect(quietEstimateState({estimateStatus: "ready", pipelineStatus: "failed", calculation: {status: "review_required", reason: "low_confidence"}}))
       .toEqual({pending: false, state: {kind: "received"}});
+  });
+});
+
+describe("justConverted", () => {
+  const now = Date.parse("2026-10-23T15:00:00.000Z");
+  test("is true for 15 minutes after contact details went in", () => {
+    expect(justConverted("2026-10-23T14:59:00.000Z", now)).toBe(true);
+    expect(justConverted("2026-10-23T14:45:01.000Z", now)).toBe(true);
+    expect(justConverted("2026-10-23T14:44:59.000Z", now)).toBe(false);
+  });
+  test("is false without a usable timestamp", () => {
+    expect(justConverted(null, now)).toBe(false);
+    expect(justConverted("not a date", now)).toBe(false);
+    expect(justConverted("2026-10-23T15:05:00.000Z", now)).toBe(false);
   });
 });

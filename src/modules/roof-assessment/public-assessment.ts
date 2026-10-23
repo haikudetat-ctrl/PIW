@@ -5,6 +5,7 @@ import {
   ROOF_ASSESSMENT_VERSION,
   roofAssessmentProgressSchema,
   roofAssessmentQuestionIds,
+  roofAssessmentResponsesBaseSchema,
   roofAssessmentQuestionSteps,
   roofAssessmentResponsesSchema,
   type RoofAssessmentRecommendation,
@@ -64,6 +65,24 @@ export type PublicAssessmentRepository = {
   complete(
     assessmentId: string,
     completion: AssessmentCompletion,
+  ): Promise<{assessment: PersistedAssessment; applied: boolean}>;
+};
+
+export type AssessmentOwnershipAnswer = {
+  companyId: string;
+  expectedRevision: number;
+  ownership: RoofAssessmentResponses["ownership"];
+  signals: RoofAssessmentProgressSignals;
+};
+
+/** Saving the early ownership answer needs only these, plus its own write. */
+export type PublicAssessmentOwnershipRepository = Pick<
+  PublicAssessmentRepository,
+  "findEstimateByToken" | "findOrCreateAssessment"
+> & {
+  saveOwnership(
+    assessmentId: string,
+    answer: AssessmentOwnershipAnswer,
   ): Promise<{assessment: PersistedAssessment; applied: boolean}>;
 };
 
@@ -234,4 +253,46 @@ export async function completePublicAssessment(
     throw new PublicAssessmentError("Assessment was updated elsewhere", 409, state);
   }
   return state;
+}
+
+const ownershipInputSchema = z.object({
+  ownership: roofAssessmentResponsesBaseSchema.shape.ownership,
+}).strict();
+
+const OWNERSHIP_SAVE_ATTEMPTS = 2;
+
+/**
+ * Saves "Do you own this home?" ahead of the assessment's order, from the
+ * fast-booking gate before the calendar. It does not move the step pointer:
+ * the remaining questions still run in order and the last one confirms this
+ * answer. A completed assessment keeps the answer it already has.
+ */
+export async function savePublicAssessmentOwnership(
+  token: string,
+  input: unknown,
+  repository: PublicAssessmentOwnershipRepository,
+) {
+  const parsed = ownershipInputSchema.safeParse(input);
+  if (!parsed.success) throw new PublicAssessmentError("Invalid ownership answer", 400);
+  const context = await repository.findEstimateByToken(token);
+  if (!context) throw new PublicAssessmentError("Estimate not found", 404);
+
+  for (let attempt = 0; attempt < OWNERSHIP_SAVE_ATTEMPTS; attempt += 1) {
+    const assessment = await repository.findOrCreateAssessment(context);
+    if (assessment.status === "completed") return publicState(token, context, assessment);
+    if (assessment.status !== "in_progress") {
+      throw new PublicAssessmentError("Assessment is no longer open", 409, publicState(token, context, assessment));
+    }
+    if (assessment.responses.ownership === parsed.data.ownership) {
+      return publicState(token, context, assessment);
+    }
+    const saved = await repository.saveOwnership(assessment.id, {
+      companyId: context.companyId,
+      expectedRevision: assessment.revision,
+      ownership: parsed.data.ownership,
+      signals: calculateProgressSignals({...assessment.responses, ownership: parsed.data.ownership}),
+    });
+    if (saved.applied) return publicState(token, context, saved.assessment);
+  }
+  throw new PublicAssessmentError("Assessment was updated elsewhere", 409);
 }

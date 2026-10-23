@@ -12,10 +12,12 @@ import { AssessmentQuestionnaire } from "./assessment-questionnaire";
 import { AssessmentResult } from "./assessment-result";
 import { EstimateStatusRefresh } from "./estimate-status-refresh";
 import { EstimateWaitExperience } from "./estimate-wait-experience";
+import { FastQuote } from "./fast-quote";
 import { PropertySatelliteImage } from "./property-satellite-image";
 import {
   getAssessmentCalculationState,
   getAssessmentResultCopy,
+  justConverted,
   quietEstimateState,
   selectPublicEstimateView,
   toPublicPackages,
@@ -83,7 +85,7 @@ export default async function RoofEstimateResultPage({
       .maybeSingle(),
     service
       .from("leads")
-      .select("submitted_address, campaign")
+      .select("submitted_address, campaign, created_at")
       .eq("id", estimate.lead_id)
       .maybeSingle(),
     service
@@ -138,15 +140,32 @@ export default async function RoofEstimateResultPage({
     "replacement_may_make_sense",
   ]).safeParse(assessment?.recommendation);
   const completedAssessmentResponses = roofAssessmentResponsesSchema.safeParse(assessment?.responses);
+  const environment = parseServerEnv(process.env);
   const view = selectPublicEstimateView({
-    assessmentEnabled: parseServerEnv(process.env).ROOF_ASSESSMENT_ENABLED,
+    assessmentEnabled: environment.ROOF_ASSESSMENT_ENABLED,
     assessmentStatus: assessmentStatus.success ? assessmentStatus.data : null,
     priceFirst: Boolean(previewOrigin),
     refineRequested,
+    fastQuote: environment.QUOTE_FAST_BOOKING_ENABLED,
   });
   const assessmentCopy = view === "result" && assessmentRecommendation.success
     ? getAssessmentResultCopy(assessmentRecommendation.data)
     : null;
+
+  if (view === "fast_quote") {
+    return (
+      <FastQuote
+        token={token}
+        address={address}
+        brand={await loadQuietBrand()}
+        initial={quietEstimateState({estimateStatus: estimate.status, pipelineStatus: pipeline?.status ?? null, calculation})}
+        // The progress phases play right after contact details go in, not when
+        // the homeowner reopens the estimate later from a text or email.
+        animate={pending || justConverted(lead?.created_at)}
+        bookingAvailable={await isVirtualBookingAvailable(service, estimate.company_id).catch(() => false)}
+      />
+    );
+  }
 
   if (view === "resume_required") {
     return <ResumeRequiredView />;
