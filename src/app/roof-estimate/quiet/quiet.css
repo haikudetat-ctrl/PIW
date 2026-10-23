@@ -1,14 +1,30 @@
-/* Preview questionnaire: white page, thin Helvetica, greys only, hairline dividers. */
+/* The estimate flow (address, contact, quote, booking): thin Helvetica,
+   hairline dividers, and a muted version of the AllSeason website palette
+   (navy #07345d, blue #0c67a8, lime #82d326, ink #102b43, slate #526778,
+   paper #f8fafb, line #d6e1e7). Each colour keeps its hue and loses most of
+   its saturation, so the screens read as AllSeason without competing with the
+   content. */
 .quiet-flow {
-  --quiet-ink: rgb(0 0 0 / 0.7);
-  --quiet-grey: rgb(0 0 0 / 0.45);
-  --quiet-rule: rgb(0 0 0 / 0.3);
+  --quiet-ink: #1b3245;        /* ink, softened */
+  --quiet-grey: #5a6d7c;       /* slate, 5.2:1 on paper */
+  --quiet-rule: #d9e2e8;       /* line */
+  --quiet-faint: #9aa9b4;      /* upcoming steps */
+  --quiet-paper: #f6f8f9;      /* paper */
+  --quiet-card: #ffffff;
+  --quiet-tint: #f1f5f7;       /* hover and image backgrounds */
+  --quiet-accent: #36688a;     /* blue, desaturated: labels, links, focus */
+  --quiet-accent-soft: #e4edf3;
+  --quiet-lime: #6f9a43;       /* lime, desaturated: progress, checks, Better */
+  --quiet-lime-ink: #4d7330;   /* lime text on light backgrounds */
+  --quiet-lime-soft: #eef4e6;
+  --quiet-cta: #213d55;        /* navy, desaturated: the primary action */
+  --quiet-cta-hover: #19324a;
   min-height: 100dvh;
   width: 100%;
   max-width: 100%;
   overflow-x: hidden;
   padding: 1.25rem 1rem;
-  background: #fff;
+  background: var(--quiet-paper);
   color: var(--quiet-ink);
   font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -82,7 +98,7 @@
   transition: color 150ms ease;
 }
 
-.quiet-option:hover { color: #000; }
+.quiet-option:hover:not(:disabled) { color: var(--quiet-accent); }
 
 .quiet-form { display: grid; gap: 1.5rem; margin-top: 2.25rem; }
 
@@ -123,7 +139,7 @@
   padding: 0 1.5rem;
   border: 0;
   border-radius: 999px;
-  background: var(--quiet-ink);
+  background: var(--quiet-cta);
   color: #fff;
   font: inherit;
   font-size: 1rem;
@@ -132,7 +148,7 @@
   transition: background 150ms ease;
 }
 
-.quiet-submit:hover:not(:disabled) { background: rgb(0 0 0 / 0.8); }
+.quiet-submit:hover:not(:disabled) { background: var(--quiet-cta-hover); }
 .quiet-submit:disabled { cursor: wait; opacity: 0.6; }
 
 .quiet-back {
@@ -168,7 +184,7 @@
   margin: 0;
   aspect-ratio: 4 / 3;
   overflow: hidden;
-  background: #fff;
+  background: var(--quiet-tint);
   border: 1px solid var(--quiet-rule);
 }
 
@@ -255,7 +271,7 @@
   gap: 1rem;
   padding: 0.875rem 0;
   border-bottom: 1px solid var(--quiet-rule);
-  color: rgb(0 0 0 / 0.3);
+  color: var(--quiet-faint);
   font-size: 0.9375rem;
   font-weight: 400;
   transition: color 300ms ease;
@@ -274,7 +290,7 @@
 .quiet-progress span {
   display: block;
   height: 100%;
-  background: var(--quiet-ink);
+  background: var(--quiet-lime);
   transition: width 600ms ease;
 }
 
@@ -315,7 +331,7 @@
   padding: 0;
   list-style: none;
   border: 1px solid var(--quiet-rule);
-  background: #fff;
+  background: var(--quiet-card);
 }
 
 .quiet-suggestions li + li { border-top: 1px solid var(--quiet-rule); }
@@ -325,7 +341,7 @@
   width: 100%;
   padding: 0.875rem 1rem;
   border: 0;
-  background: #fff;
+  background: var(--quiet-card);
   color: var(--quiet-ink);
   font: inherit;
   font-size: 0.9375rem;
@@ -334,7 +350,7 @@
 }
 
 .quiet-suggestion:hover,
-.quiet-suggestion:focus-visible { background: rgb(0 0 0 / 0.03); outline: none; }
+.quiet-suggestion:focus-visible { background: var(--quiet-tint); outline: none; }
 
 /* Estimate result: price in thin type, image caption, fine print. */
 .quiet-price {
@@ -364,7 +380,7 @@
 
 /* The satellite image's loading and unavailable states, restyled for white. */
 .quiet-aerial .campaign-property-media-state,
-.quiet-aerial .estimate-map-skeleton { background: #fff; }
+.quiet-aerial .estimate-map-skeleton { background: var(--quiet-tint); }
 
 .quiet-aerial .campaign-property-media-message,
 .quiet-aerial .campaign-property-loading-label {
@@ -384,7 +400,7 @@
 
 .quiet-aerial .campaign-property-media-link {
   border-radius: 999px;
-  background: var(--quiet-ink);
+  background: var(--quiet-cta);
   color: #fff;
 }
 
@@ -411,3 +427,37 @@
 
 .quiet-search { position: relative; }
 .quiet-search .quiet-input { width: 100%; box-sizing: border-box; }
+
+/* Palette accents shared by every step. Step labels borrow the website's
+   eyebrow (small, tracked, blue); links and focus use the muted blue; done
+   and progress use the muted lime; the primary action is the muted navy. */
+.quiet-step {
+  color: var(--quiet-accent);
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.quiet-back:hover { color: var(--quiet-accent); }
+.quiet-notice a { color: var(--quiet-accent); }
+.quiet-input:focus { border-bottom-color: var(--quiet-accent); }
+
+.quiet-option:focus-visible,
+.quiet-submit:focus-visible,
+.quiet-secondary:focus-visible,
+.quiet-back:focus-visible,
+.quiet-flow a:focus-visible {
+  outline: 2px solid var(--quiet-accent);
+  outline-offset: 3px;
+}
+
+.quiet-secondary { background: var(--quiet-card); }
+.quiet-secondary:hover:not(:disabled) { border-color: var(--quiet-accent); color: var(--quiet-accent); }
+
+.quiet-stage[data-complete="true"] span:last-child { color: var(--quiet-lime); }
+
+.quiet-flow .quiet-aerial {
+  border: 0;
+  border-radius: 14px;
+  background: var(--quiet-tint);
+}

@@ -15,7 +15,7 @@ import {roofAssessmentQuestionSteps} from "@/domain/roof-assessment";
 import {FastQuote} from "../[token]/fast-quote";
 import type {AssessmentSnapshot, FastQuoteApi} from "../[token]/fast-quote-api";
 
-export type SandboxScreen = "preview" | "address" | "loading" | "price" | "review" | "chat" | "fast" | "fast-pending";
+export type SandboxScreen = "preview" | "address" | "loading" | "price" | "review" | "chat" | "fast" | "fast-pending" | "contact";
 
 const ESTIMATE_TOKEN = "dev-estimate";
 const BRAND = {
@@ -243,6 +243,7 @@ export function PreviewSandbox({screen = "preview"}: {screen?: SandboxScreen}) {
   }
   return (
     <PreviewExperience
+      straightToContact={screen === "contact"}
       token={TOKEN}
       initialView={VIEW}
       context={getRoofAssessmentContext(VIEW.presentationKey)}

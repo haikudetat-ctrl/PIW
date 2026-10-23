@@ -138,6 +138,7 @@ export function PreviewExperience({
   privacyUrl,
   initialStage = "loading",
   aerialLoader = loadAssessmentAerial,
+  straightToContact = false,
 }: {
   token: string;
   initialView: PreviewView;
@@ -147,9 +148,15 @@ export function PreviewExperience({
   privacyUrl: string;
   initialStage?: Stage;
   aerialLoader?: typeof loadAssessmentAerial;
+  /**
+   * Fast booking: skip the roof analysis, the reveal and the three questions,
+   * and go from the address straight to contact and consent. The aerial and
+   * the price appear together on the estimate page after that.
+   */
+  straightToContact?: boolean;
 }) {
   const imageUrl = `/api/property-preview/${token}/house-image`;
-  const [stage, setStage] = useState<Stage>(initialStage);
+  const [stage, setStage] = useState<Stage>(straightToContact ? "contact" : initialStage);
   const [view, setView] = useState(initialView);
   const [answered, setAnswered] = useState<Set<QuestionKey>>(() => new Set(initialView.answered));
   const remaining = QUESTIONS.filter((question) => !answered.has(question.key));
@@ -171,22 +178,24 @@ export function PreviewExperience({
   const {trackConversion} = useMetaPixel();
 
   useEffect(() => {
-    if (stage === "reveal" && !revealSent.current) {
+    // Meta's earliest intent signal: the homeowner is looking at their own roof
+    // or, without the reveal, has an address in and is on the contact step. The
+    // "revealed" funnel step is only recorded when the reveal was shown.
+    if ((stage === "reveal" || (straightToContact && stage === "contact")) && !revealSent.current) {
       revealSent.current = true;
-      beacon(token, "revealed");
-      // The homeowner is looking at their own roof: Meta's earliest intent signal.
+      if (stage === "reveal") beacon(token, "revealed");
       trackConversion({name: "RoofPreviewStarted", eventId: view.metaEventId, issuedAt: new Date().toISOString()});
     }
     if (stage === "contact" && !contactSent.current) {
       contactSent.current = true;
       beacon(token, "contact_viewed");
     }
-  }, [stage, token, trackConversion, view.metaEventId]);
+  }, [stage, straightToContact, token, trackConversion, view.metaEventId]);
 
   // The Solar measurement usually lands within seconds of the preview being
   // created; keep the reveal current without making the homeowner wait.
   useEffect(() => {
-    if (view.roof.state !== "pending") return;
+    if (straightToContact || view.roof.state !== "pending") return;
     let polls = 0;
     let active = true;
     const timer = window.setInterval(async () => {
@@ -204,7 +213,7 @@ export function PreviewExperience({
       active = false;
       window.clearInterval(timer);
     };
-  }, [token, view.roof.state]);
+  }, [straightToContact, token, view.roof.state]);
 
   function startQuestions() {
     const keys = remaining.map((question) => question.key);
@@ -348,9 +357,15 @@ export function PreviewExperience({
                 {submitting ? "Unlocking your price…" : PREVIEW_CONTACT_SUBMIT_LABEL}
               </button>
             </form>
-            <button type="button" onClick={back} className="quiet-back">
-              Back
-            </button>
+            {straightToContact ? (
+              <Link href="/roof-estimate" className="quiet-back quiet-inline-link">
+                Use a different address
+              </Link>
+            ) : (
+              <button type="button" onClick={back} className="quiet-back">
+                Back
+              </button>
+            )}
           </section>
         </div>
       </main>
