@@ -50,7 +50,7 @@
 .book-day span:first-child { color: var(--quiet-grey); font-size: 0.75rem; }
 .book-day span:last-child { font-size: 1.125rem; font-weight: 400; }
 .book-day:hover:not(:disabled) { border-color: var(--quiet-ink); }
-.book-day[aria-checked="true"] { border-color: var(--quiet-cta); background: var(--quiet-cta); color: #fff; }
+.book-day[aria-checked="true"] { border-color: var(--quiet-navy); background: var(--quiet-navy); color: #fff; }
 .book-day[aria-checked="true"] span:first-child { color: rgb(255 255 255 / 0.7); }
 .book-day:disabled { cursor: default; opacity: 0.35; }
 
@@ -79,7 +79,7 @@
 }
 
 .book-slot:hover { border-color: var(--quiet-ink); }
-.book-slot[aria-checked="true"] { border-color: var(--quiet-cta); background: var(--quiet-cta); color: #fff; }
+.book-slot[aria-checked="true"] { border-color: var(--quiet-accent); background: var(--quiet-accent-soft); color: var(--quiet-navy); font-weight: 600; }
 
 .book-day:focus-visible,
 .book-slot:focus-visible { outline: 1px solid var(--quiet-ink); outline-offset: 3px; }

@@ -51,6 +51,8 @@ const httpsUrl = z.url().refine((value) => value.startsWith("https://"), "Must b
 export const publicBrandSchema = z.strictObject({
   displayName: z.string().trim().min(1).max(120),
   logoUrl: httpsUrl.optional(),
+  /** The logo drawn on the navy header; without it the header shows `logoUrl` in white. */
+  logoOnDarkUrl: httpsUrl.optional(),
   privacyUrl: httpsUrl,
   termsUrl: httpsUrl.optional(),
   accentColor: z.string().regex(/^#[0-9a-f]{6}$/i).optional(),

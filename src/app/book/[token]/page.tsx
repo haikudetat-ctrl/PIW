@@ -22,9 +22,10 @@ export const metadata: Metadata = {
   referrer: "no-referrer",
 };
 
-function Notice({brandName, logoUrl, title, body, phone}: {
+function Notice({brandName, logoUrl, logoOnDarkUrl, title, body, phone}: {
   brandName: string;
   logoUrl?: string;
+  logoOnDarkUrl?: string;
   title: string;
   body: string;
   phone: string | null;
@@ -32,7 +33,7 @@ function Notice({brandName, logoUrl, title, body, phone}: {
   return (
     <main className="quiet-flow">
       <div className="quiet-frame">
-        <QuietHeader brandName={brandName} logoUrl={logoUrl} />
+        <QuietHeader brandName={brandName} logoUrl={logoUrl} logoOnDarkUrl={logoOnDarkUrl} />
         <section className="quiet-body">
           <h1 className="quiet-question">{title}</h1>
           <p className="quiet-lede">{body}</p>
@@ -64,6 +65,7 @@ export default async function BookingPage({params}: {params: Promise<{token: str
   if (tenant && tenant.companyId !== link.companyId) notFound();
   const brandName = tenant?.brand.displayName ?? await loadBrandName(client, link.companyId);
   const logoUrl = tenant?.brand.logoUrl;
+  const logoOnDarkUrl = tenant?.brand.logoOnDarkUrl;
 
   const model = await loadBookingPage(token, dependencies);
   switch (model.kind) {
@@ -74,6 +76,7 @@ export default async function BookingPage({params}: {params: Promise<{token: str
         <Notice
           brandName={brandName}
           logoUrl={logoUrl}
+          logoOnDarkUrl={logoOnDarkUrl}
           title="This booking link has expired."
           body="Give us a call and we'll find a time that works, or ask us to send you a fresh link."
           phone={model.supportPhone}
@@ -84,6 +87,7 @@ export default async function BookingPage({params}: {params: Promise<{token: str
         <Notice
           brandName={brandName}
           logoUrl={logoUrl}
+          logoOnDarkUrl={logoOnDarkUrl}
           title="Online booking is paused right now."
           body="We can still set up your video consultation. Give us a call and we'll pick a time together."
           phone={model.supportPhone}
@@ -93,7 +97,7 @@ export default async function BookingPage({params}: {params: Promise<{token: str
       return (
         <main className="quiet-flow">
           <div className="quiet-frame">
-            <QuietHeader brandName={brandName} logoUrl={logoUrl} />
+            <QuietHeader brandName={brandName} logoUrl={logoUrl} logoOnDarkUrl={logoOnDarkUrl} />
             <BookingExperience token={token} brandName={brandName} model={model} />
           </div>
         </main>

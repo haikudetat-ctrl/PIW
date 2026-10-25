@@ -17,7 +17,7 @@ async function previewAddressStep() {
     (await headers()).get("host"),
     createSupabasePublicHostLookup(createServiceClient()),
   ).catch(() => null);
-  return tenant ? {siteKey, brandName: tenant.brand.displayName, logoUrl: tenant.brand.logoUrl} : null;
+  return tenant ? {siteKey, brandName: tenant.brand.displayName, logoUrl: tenant.brand.logoUrl, logoOnDarkUrl: tenant.brand.logoOnDarkUrl} : null;
 }
 
 export default async function PublicRoofEstimatePage() {
@@ -27,6 +27,7 @@ export default async function PublicRoofEstimatePage() {
       <QuietAddressStep
         brandName={preview.brandName}
         logoUrl={preview.logoUrl}
+        logoOnDarkUrl={preview.logoOnDarkUrl}
         turnstileSiteKey={preview.siteKey}
       />
     );

@@ -214,11 +214,14 @@ describe("fast booking: straight from the address to contact", () => {
   test("opens on contact and consent, with no analysis, reveal or questions", async () => {
     trackConversion.mockClear();
     renderStraight();
-    expect(screen.getByRole("heading", {name: "Where should we send your price?"})).toBeTruthy();
+    expect(screen.getByRole("heading", {name: "See your price, then talk it through with a person."})).toBeTruthy();
+    expect(screen.getByText("Your price shows on the next screen.")).toBeTruthy();
+    expect(screen.getByText(baseView.address.display)).toBeTruthy();
     expect(screen.getByTestId("preview-contact-notice").textContent).toContain("By clicking “Unlock my price,”");
     expect(screen.queryByText("Analyzing your property.")).toBeNull();
     expect(screen.queryByText("Here’s your roof.")).toBeNull();
-    expect(screen.getByRole("link", {name: "Use a different address"}).getAttribute("href")).toBe("/roof-estimate");
+    expect(screen.getByRole("link", {name: /^Change\s*address$/}).getAttribute("href")).toBe("/roof-estimate");
+    expect(screen.queryByRole("button", {name: "Back"})).toBeNull();
     expect(straightAerial).not.toHaveBeenCalled();
   });
 

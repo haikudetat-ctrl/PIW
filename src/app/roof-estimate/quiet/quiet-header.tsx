@@ -1,13 +1,29 @@
-/** Header for the quiet preview screens: the tenant's logo, or its name when it has none. */
-export function QuietHeader({brandName, logoUrl}: {brandName: string; logoUrl?: string}) {
+import type {ReactNode} from "react";
+
+/**
+ * Navy header for the estimate screens. It shows the tenant's on-dark logo;
+ * without one, its regular logo drawn in white; without a logo, its name.
+ * `children` sit on the right (the fast quote's phone number).
+ */
+export function QuietHeader({brandName, logoUrl, logoOnDarkUrl, className, children}: {
+  brandName: string;
+  logoUrl?: string;
+  logoOnDarkUrl?: string;
+  className?: string;
+  children?: ReactNode;
+}) {
   return (
-    <header className="quiet-header">
-      {logoUrl ? (
+    <header className={className ? `quiet-header ${className}` : "quiet-header"}>
+      {logoOnDarkUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={logoUrl} alt={brandName} className="quiet-logo" />
+        <img src={logoOnDarkUrl} alt={brandName} className="quiet-logo" />
+      ) : logoUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={logoUrl} alt={brandName} className="quiet-logo quiet-logo-mono" />
       ) : (
-        brandName.toUpperCase()
+        <span className="quiet-brand-name">{brandName.toUpperCase()}</span>
       )}
+      {children}
     </header>
   );
 }

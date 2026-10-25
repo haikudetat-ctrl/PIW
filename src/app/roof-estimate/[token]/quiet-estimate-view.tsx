@@ -35,7 +35,7 @@ export function QuietEstimateView({
   return (
     <main className="quiet-flow">
       <div className="quiet-frame quiet-frame-wide">
-        <QuietHeader brandName={brand.name} logoUrl={brand.logoUrl} />
+        <QuietHeader brandName={brand.name} logoUrl={brand.logoUrl} logoOnDarkUrl={brand.logoOnDarkUrl} />
         <section className="quiet-body quiet-reveal">
           <figure className="quiet-aerial-figure">
             <div className="quiet-aerial">

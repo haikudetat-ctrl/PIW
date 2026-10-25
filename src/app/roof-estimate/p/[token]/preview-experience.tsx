@@ -52,6 +52,24 @@ function beacon(token: string, step: "revealed" | "contact_viewed") {
   }).catch(() => undefined);
 }
 
+function VideoIcon() {
+  return (
+    <svg className="quiet-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="6.5" width="12.5" height="11" rx="2" />
+      <path d="M15.5 10.5 21 7.5v9l-5.5-3" />
+    </svg>
+  );
+}
+
+function PinIcon() {
+  return (
+    <svg className="quiet-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 21s-6.5-5.6-6.5-11A6.5 6.5 0 0 1 18.5 10c0 5.4-6.5 11-6.5 11z" />
+      <circle cx="12" cy="10" r="2.3" />
+    </svg>
+  );
+}
+
 function RoofSummary({roof}: {roof: PreviewView["roof"]}) {
   if (roof.state === "ready") {
     return (
@@ -135,6 +153,7 @@ export function PreviewExperience({
   context,
   brandName,
   logoUrl,
+  logoOnDarkUrl,
   privacyUrl,
   initialStage = "loading",
   aerialLoader = loadAssessmentAerial,
@@ -145,6 +164,7 @@ export function PreviewExperience({
   context: RoofAssessmentContext;
   brandName: string;
   logoUrl?: string;
+  logoOnDarkUrl?: string;
   privacyUrl: string;
   initialStage?: Stage;
   aerialLoader?: typeof loadAssessmentAerial;
@@ -286,12 +306,12 @@ export function PreviewExperience({
         imageObjectUrl={aerial.objectUrl}
         stages={context.loadingStages}
         onReady={() => setStage("reveal")}
-        quiet={{brandName, logoUrl}}
+        quiet={{brandName, logoUrl, logoOnDarkUrl}}
       />
     );
   }
 
-  const quietHeader = <QuietHeader brandName={brandName} logoUrl={logoUrl} />;
+  const quietHeader = <QuietHeader brandName={brandName} logoUrl={logoUrl} logoOnDarkUrl={logoOnDarkUrl} />;
 
   if (stage === "question") {
     const question = QUESTIONS.find((item) => item.key === flow[questionIndex])!;
@@ -331,22 +351,46 @@ export function PreviewExperience({
         <div className="quiet-frame">
           {quietHeader}
           <section className="quiet-body">
-            <h1 className="quiet-question">Where should we send your price?</h1>
-            <p className="quiet-lede">
-              Your Good, Better and Best options for {view.address.display} are one step away.
-            </p>
+            {straightToContact ? (
+              <>
+                <div className="quiet-steps" aria-hidden="true">
+                  <span data-state="done" />
+                  <span data-state="current" />
+                </div>
+                <h1 className="quiet-question">See your price, then talk it through with a person.</h1>
+                <p className="quiet-contact-note">
+                  <VideoIcon />
+                  <span>
+                    <strong>Your price shows on the next screen.</strong> Then pick a time for a short video call
+                    with our New Jersey team. No house visit to start.
+                  </span>
+                </p>
+                <div className="quiet-address-chip">
+                  <PinIcon />
+                  <span className="quiet-address-chip-text">{view.address.display}</span>
+                  <Link href="/roof-estimate" className="quiet-address-chip-link">Change<span className="sr-only"> address</span></Link>
+                </div>
+              </>
+            ) : (
+              <>
+                <h1 className="quiet-question">Where should we send your price?</h1>
+                <p className="quiet-lede">
+                  Your Good, Better and Best options for {view.address.display} are one step away.
+                </p>
+              </>
+            )}
             <form onSubmit={submitContact} className="quiet-form" noValidate>
               <label className="quiet-field">
                 Full name
                 <input name="name" autoComplete="name" required minLength={2} className="quiet-input" />
               </label>
               <label className="quiet-field">
-                Email
-                <input name="email" type="email" inputMode="email" autoComplete="email" required className="quiet-input" />
-              </label>
-              <label className="quiet-field">
                 Mobile phone
                 <input name="phone" type="tel" inputMode="tel" autoComplete="tel" required minLength={7} className="quiet-input" />
+              </label>
+              <label className="quiet-field">
+                Email
+                <input name="email" type="email" inputMode="email" autoComplete="email" required className="quiet-input" />
               </label>
               <p data-testid="preview-contact-notice" className="quiet-notice">
                 {contactOnlyNotice(brandName)}{" "}
@@ -357,11 +401,7 @@ export function PreviewExperience({
                 {submitting ? "Unlocking your price…" : PREVIEW_CONTACT_SUBMIT_LABEL}
               </button>
             </form>
-            {straightToContact ? (
-              <Link href="/roof-estimate" className="quiet-back quiet-inline-link">
-                Use a different address
-              </Link>
-            ) : (
+            {straightToContact ? null : (
               <button type="button" onClick={back} className="quiet-back">
                 Back
               </button>

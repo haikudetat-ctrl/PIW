@@ -1,24 +1,29 @@
-/* The estimate flow (address, contact, quote, booking): thin Helvetica,
-   hairline dividers, and a muted version of the AllSeason website palette
-   (navy #07345d, blue #0c67a8, lime #82d326, ink #102b43, slate #526778,
-   paper #f8fafb, line #d6e1e7). Each colour keeps its hue and loses most of
-   its saturation, so the screens read as AllSeason without competing with the
-   content. */
+/* The estimate flow (address, contact, quote, booking) in the AllSeason
+   website palette at full strength, "navy-led": navy carries the header and
+   the price card, lime is the action colour, and everything else stays light
+   so the eye goes price, then button. Lime only ever fills or marks; text on
+   it is navy (6.8:1), and lime-coloured text uses the darker lime ink. */
 .quiet-flow {
-  --quiet-ink: #1b3245;        /* ink, softened */
-  --quiet-grey: #5a6d7c;       /* slate, 5.2:1 on paper */
-  --quiet-rule: #d9e2e8;       /* line */
-  --quiet-faint: #9aa9b4;      /* upcoming steps */
-  --quiet-paper: #f6f8f9;      /* paper */
+  --quiet-ink: #102b43;        /* ink */
+  --quiet-grey: #526778;       /* slate, 5.9:1 on white */
+  --quiet-rule: #d6e1e7;       /* line */
+  --quiet-field: #c5d4de;      /* input and option borders */
+  --quiet-faint: #8597a5;      /* upcoming steps (decorative) */
+  --quiet-paper: #f8fafb;      /* paper */
   --quiet-card: #ffffff;
-  --quiet-tint: #f1f5f7;       /* hover and image backgrounds */
-  --quiet-accent: #36688a;     /* blue, desaturated: labels, links, focus */
-  --quiet-accent-soft: #e4edf3;
-  --quiet-lime: #6f9a43;       /* lime, desaturated: progress, checks, Better */
-  --quiet-lime-ink: #4d7330;   /* lime text on light backgrounds */
-  --quiet-lime-soft: #eef4e6;
-  --quiet-cta: #213d55;        /* navy, desaturated: the primary action */
-  --quiet-cta-hover: #19324a;
+  --quiet-tint: #eef3f7;       /* image backgrounds */
+  --quiet-accent: #0c67a8;     /* blue: labels, links, focus, selection */
+  --quiet-accent-soft: #e3eef7;
+  --quiet-lime: #82d326;       /* lime: progress, markers, the action fill */
+  --quiet-lime-ink: #3d6b0f;   /* lime text on light backgrounds */
+  --quiet-lime-soft: #ebf8da;
+  --quiet-navy: #07345d;       /* header, price card, headings */
+  --quiet-navy-raised: #0e4677;/* the recommended row on the navy card */
+  --quiet-navy-line: #24527c;  /* dividers on navy */
+  --quiet-navy-text: #b8c9d8;  /* secondary text on navy, 7.5:1 */
+  --quiet-cta: #82d326;        /* the primary action: lime... */
+  --quiet-cta-hover: #74c11c;
+  --quiet-cta-ink: #07345d;    /* ...with navy text */
   min-height: 100dvh;
   width: 100%;
   max-width: 100%;
@@ -42,14 +47,32 @@
   max-width: 36rem;
 }
 
+/* Navy header bar, full bleed: the shadow paints the bar out to the screen
+   edges and the clip keeps it to the header's own height. */
 .quiet-header {
-  padding-bottom: 1rem;
-  border-bottom: 1px solid var(--quiet-rule);
-  color: var(--quiet-grey);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 4rem;
+  margin-top: -1.25rem;
+  padding: 0.625rem 0;
+  background: var(--quiet-navy);
+  box-shadow: 0 0 0 100vmax var(--quiet-navy);
+  clip-path: inset(0 -100vmax);
+  color: #fff;
   font-size: 0.75rem;
-  font-weight: 400;
+  font-weight: 600;
   letter-spacing: 0.08em;
 }
+
+@media (min-width: 640px) {
+  .quiet-header { margin-top: -2rem; }
+}
+
+.quiet-header a { color: var(--quiet-navy-text); }
+.quiet-header a:hover { color: #fff; }
+.quiet-flow .quiet-header a:focus-visible { outline-color: #fff; }
 
 .quiet-body { margin: auto 0; padding: 3rem 0; }
 
@@ -61,11 +84,11 @@
 
 .quiet-question {
   margin-top: 0.75rem;
-  color: var(--quiet-ink);
-  font-size: clamp(1.875rem, 6vw, 2.5rem);
-  font-weight: 200;
-  letter-spacing: -0.01em;
-  line-height: 1.15;
+  color: var(--quiet-navy);
+  font-size: clamp(1.625rem, 5.5vw, 2.125rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.18;
   text-wrap: balance;
 }
 
@@ -78,51 +101,55 @@
 }
 
 .quiet-options {
-  margin-top: 2.25rem;
-  border-top: 1px solid var(--quiet-rule);
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 2rem;
 }
 
 .quiet-option {
   display: block;
   width: 100%;
-  min-height: 3.5rem;
-  padding: 1rem 0;
-  border-bottom: 1px solid var(--quiet-rule);
-  background: transparent;
+  min-height: 3.25rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--quiet-field);
+  border-radius: 10px;
+  background: var(--quiet-card);
   color: var(--quiet-ink);
   font: inherit;
-  font-size: 1.0625rem;
-  font-weight: 400;
+  font-size: 1rem;
+  font-weight: 500;
   text-align: left;
   cursor: pointer;
-  transition: color 150ms ease;
+  transition: border-color 150ms ease, background 150ms ease;
 }
 
-.quiet-option:hover:not(:disabled) { color: var(--quiet-accent); }
+.quiet-option:hover:not(:disabled) { border-color: var(--quiet-accent); }
 
-.quiet-form { display: grid; gap: 1.5rem; margin-top: 2.25rem; }
+.quiet-form { display: grid; gap: 1rem; margin-top: 1.75rem; }
 
 .quiet-field {
   display: grid;
-  gap: 0.25rem;
-  color: var(--quiet-grey);
+  gap: 0.375rem;
+  color: var(--quiet-ink);
   font-size: 0.8125rem;
-  font-weight: 400;
+  font-weight: 500;
 }
 
+/* Boxed fields at 16px so phones don't zoom in on focus. */
 .quiet-input {
-  min-height: 2.75rem;
-  border: 0;
-  border-bottom: 1px solid var(--quiet-rule);
-  border-radius: 0;
-  background: transparent;
+  min-height: 3.25rem;
+  padding: 0 0.875rem;
+  border: 1px solid var(--quiet-field);
+  border-radius: 10px;
+  background: var(--quiet-card);
   color: var(--quiet-ink);
   font: inherit;
-  font-size: 1.0625rem;
+  font-size: 1rem;
+  font-weight: 400;
   outline: none;
 }
 
-.quiet-input:focus { border-bottom-color: var(--quiet-ink); }
+.quiet-input:focus { border-color: var(--quiet-accent); box-shadow: 0 0 0 3px var(--quiet-accent-soft); }
 
 .quiet-notice {
   color: var(--quiet-grey);
@@ -135,15 +162,15 @@
 .quiet-alert { color: var(--quiet-ink); font-size: 0.875rem; font-weight: 500; }
 
 .quiet-submit {
-  min-height: 3.25rem;
+  min-height: 3.5rem;
   padding: 0 1.5rem;
   border: 0;
-  border-radius: 999px;
+  border-radius: 12px;
   background: var(--quiet-cta);
-  color: #fff;
+  color: var(--quiet-cta-ink);
   font: inherit;
   font-size: 1rem;
-  font-weight: 400;
+  font-weight: 700;
   cursor: pointer;
   transition: background 150ms ease;
 }
@@ -242,10 +269,10 @@
 .quiet-email-status { margin-top: 1.75rem; color: var(--quiet-grey); font-size: 0.875rem; }
 
 .quiet-secondary {
-  min-height: 3rem;
+  min-height: 3.25rem;
   padding: 0 1.5rem;
-  border: 1px solid var(--quiet-rule);
-  border-radius: 999px;
+  border: 1px solid var(--quiet-field);
+  border-radius: 12px;
   background: transparent;
   color: var(--quiet-ink);
   font: inherit;
@@ -281,7 +308,8 @@
 .quiet-stage[data-active="true"] { color: var(--quiet-ink); }
 
 .quiet-progress {
-  height: 1px;
+  height: 3px;
+  border-radius: 2px;
   margin-top: 2rem;
   overflow: hidden;
   background: var(--quiet-rule);
@@ -303,6 +331,18 @@
 @media (min-width: 640px) {
   .quiet-logo { height: 1.125rem; }
 }
+
+/* In the navy header: the full logo at a readable size. A wide wordmark is
+   capped by width instead. Without an on-dark logo, the regular one is
+   drawn in white. */
+.quiet-header .quiet-logo {
+  height: 2.75rem;
+  max-width: min(62%, 10rem);
+  object-fit: contain;
+  object-position: left center;
+}
+
+.quiet-logo-mono { filter: brightness(0) invert(1); }
 
 /* Shared helpers for the address step and the estimate pages. */
 .quiet-link-button {
@@ -330,7 +370,9 @@
   margin: 0.25rem 0 0;
   padding: 0;
   list-style: none;
-  border: 1px solid var(--quiet-rule);
+  overflow: hidden;
+  border: 1px solid var(--quiet-field);
+  border-radius: 10px;
   background: var(--quiet-card);
 }
 
@@ -355,9 +397,9 @@
 /* Estimate result: price in thin type, image caption, fine print. */
 .quiet-price {
   margin-top: 1.5rem;
-  color: var(--quiet-ink);
+  color: var(--quiet-navy);
   font-size: clamp(2rem, 6vw, 3rem);
-  font-weight: 200;
+  font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.1;
 }
@@ -399,9 +441,10 @@
 }
 
 .quiet-aerial .campaign-property-media-link {
-  border-radius: 999px;
+  border-radius: 12px;
   background: var(--quiet-cta);
-  color: #fff;
+  color: var(--quiet-cta-ink);
+  font-weight: 700;
 }
 
 /* Indeterminate 1px progress while the measurement finishes. */
@@ -434,13 +477,13 @@
 .quiet-step {
   color: var(--quiet-accent);
   font-size: 0.75rem;
+  font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
 .quiet-back:hover { color: var(--quiet-accent); }
 .quiet-notice a { color: var(--quiet-accent); }
-.quiet-input:focus { border-bottom-color: var(--quiet-accent); }
 
 .quiet-option:focus-visible,
 .quiet-submit:focus-visible,
@@ -451,13 +494,80 @@
   outline-offset: 3px;
 }
 
-.quiet-secondary { background: var(--quiet-card); }
+.quiet-secondary { background: var(--quiet-card); font-weight: 500; }
 .quiet-secondary:hover:not(:disabled) { border-color: var(--quiet-accent); color: var(--quiet-accent); }
 
-.quiet-stage[data-complete="true"] span:last-child { color: var(--quiet-lime); }
+.quiet-stage[data-complete="true"] span:last-child { color: var(--quiet-lime-ink); }
 
 .quiet-flow .quiet-aerial {
   border: 0;
   border-radius: 14px;
   background: var(--quiet-tint);
 }
+
+/* Contact step with fast booking: two-step progress, what happens next, and
+   the address carried over from the first step. */
+.quiet-steps { display: flex; gap: 0.375rem; }
+
+.quiet-steps span {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--quiet-rule);
+}
+
+.quiet-steps span[data-state="done"] { background: var(--quiet-lime); }
+.quiet-steps span[data-state="current"] { background: var(--quiet-navy); }
+
+.quiet-steps + .quiet-question { margin-top: 1rem; }
+
+.quiet-icon { flex: none; }
+
+.quiet-contact-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+  padding: 0.875rem 1rem;
+  border-radius: 12px;
+  background: var(--quiet-accent-soft);
+  color: #2c4a63;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.quiet-contact-note .quiet-icon { margin-top: 0.0625rem; color: var(--quiet-accent); }
+.quiet-contact-note strong { color: var(--quiet-navy); font-weight: 600; }
+
+.quiet-address-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--quiet-rule);
+  border-radius: 12px;
+  background: var(--quiet-card);
+  font-size: 0.875rem;
+}
+
+.quiet-address-chip .quiet-icon { color: var(--quiet-accent); }
+
+.quiet-address-chip-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--quiet-ink);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quiet-address-chip-link {
+  flex: none;
+  color: var(--quiet-accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.quiet-address-chip-link:hover { text-decoration: underline; text-underline-offset: 3px; }

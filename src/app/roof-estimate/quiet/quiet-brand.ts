@@ -8,6 +8,7 @@ import { createSupabasePublicHostLookup } from "@/modules/tenancy/supabase-publi
 export type QuietBrand = {
   name: string;
   logoUrl?: string;
+  logoOnDarkUrl?: string;
   phoneDisplay: string;
   phoneHref: string;
 };
@@ -28,7 +29,12 @@ export async function loadQuietBrand(): Promise<QuietBrand> {
       createSupabasePublicHostLookup(createServiceClient()),
     );
     if (!tenant) return fallback;
-    return {...fallback, name: tenant.brand.displayName, logoUrl: tenant.brand.logoUrl};
+    return {
+      ...fallback,
+      name: tenant.brand.displayName,
+      logoUrl: tenant.brand.logoUrl,
+      logoOnDarkUrl: tenant.brand.logoOnDarkUrl,
+    };
   } catch {
     return fallback;
   }

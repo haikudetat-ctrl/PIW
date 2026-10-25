@@ -45,7 +45,7 @@ export default async function PropertyPreviewPage({params}: {params: Promise<{to
     return (
       <main className="quiet-flow">
         <div className="quiet-frame">
-          <QuietHeader brandName={tenant.brand.displayName} logoUrl={tenant.brand.logoUrl} />
+          <QuietHeader brandName={tenant.brand.displayName} logoUrl={tenant.brand.logoUrl} logoOnDarkUrl={tenant.brand.logoOnDarkUrl} />
           <section className="quiet-body">
             <h1 className="quiet-question">Your price is on its way.</h1>
             <p className="quiet-lede">
@@ -64,6 +64,7 @@ export default async function PropertyPreviewPage({params}: {params: Promise<{to
       context={getRoofAssessmentContext(view.campaign ?? view.presentationKey)}
       brandName={tenant.brand.displayName}
       logoUrl={tenant.brand.logoUrl}
+      logoOnDarkUrl={tenant.brand.logoOnDarkUrl}
       privacyUrl={tenant.brand.privacyUrl}
       straightToContact={straightToContact()}
     />
