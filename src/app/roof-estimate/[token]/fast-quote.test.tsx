@@ -118,17 +118,14 @@ function renderQuote(api: FastQuoteApi, props: Partial<Parameters<typeof FastQuo
 
 const tap = (name: string | RegExp) => fireEvent.click(screen.getByRole("button", {name}));
 const heading = () => screen.getByRole("heading", {level: 1}).textContent;
+const pressed = (name: string | RegExp) => screen.getByRole("button", {name}).getAttribute("aria-pressed");
 
 async function bookACall() {
   await screen.findByRole("heading", {name: "Your estimate is ready."});
-  tap("Pick a video call time");
-  await screen.findByRole("heading", {name: "Do you own this home?"});
-  tap("Yes, this is my home");
-  await screen.findByRole("heading", {name: "Pick a day."});
-  tap("Monday, October 26");
+  tap("Yes, I own it");
+  await screen.findByRole("button", {name: "Monday, October 26"});
   tap("10:30 AM");
-  await screen.findByRole("heading", {name: "Monday, October 26 at 10:30 AM EDT"});
-  tap("Book it");
+  tap("Confirm Mon, Oct 26 at 10:30 AM");
   await screen.findByText("You’re booked");
 }
 
@@ -137,23 +134,26 @@ afterEach(() => {
 });
 
 describe("fast quote", () => {
-  test("runs the four phases, then shows Good, Better and Best with the booking button", async () => {
+  test("runs the four phases, then shows the price card with booking on the same screen", async () => {
     const {api} = fakeApi();
     renderQuote(api);
     expect(heading()).toBe("Preparing your estimate.");
     expect(screen.getByRole("status")).toHaveTextContent("Confirming your address");
 
     await screen.findByRole("heading", {name: "Your estimate is ready."});
+    expect(document.querySelector(".fq-card-range")?.textContent).toBe("$12,000 to $26,000");
     const options = screen.getByRole("list", {name: "Your three options"});
     const rows = within(options).getAllByRole("listitem");
     expect(rows.map((row) => row.textContent)).toEqual([
-      "good · Landmark system$12,000 to $16,000SureStart PLUS warranty",
-      "better · Landmark Pro systemRecommended$14,000 to $21,000Landmark Pro warranty",
-      "best · Presidential system$19,000 to $26,000Integrity warranty",
+      "Good · Landmark system$12,000 to $16,000SureStart PLUS warranty",
+      "Better · Landmark Pro systemRecommended$14,000 to $21,000Landmark Pro warranty",
+      "Best · Presidential system$19,000 to $26,000Integrity warranty",
     ]);
-    expect(screen.getByText(/28\.0 roofing squares/)).toBeInTheDocument();
-    expect(screen.getByRole("button", {name: "Pick a video call time"})).toBeInTheDocument();
-    expect(screen.getByText(/30 minutes on Google Meet/)).toBeInTheDocument();
+    expect(screen.getByText(/About 28\.0 roofing squares/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", {level: 2, name: "Lock it in on a 30-minute video call"})).toBeInTheDocument();
+    expect(screen.getByRole("group", {name: "Do you own this home?"})).toBeInTheDocument();
+    // The calendar waits for the ownership answer.
+    expect(screen.queryByRole("group", {name: "Pick a day"})).toBeNull();
     expect(screen.getByRole("link", {name: "Or call (866) 835-6022"})).toHaveAttribute("href", brand.phoneHref);
     // Booking times are loaded while the phases run.
     expect(api.bookingLink).toHaveBeenCalledWith(token);
@@ -172,7 +172,7 @@ describe("fast quote", () => {
     const {api} = fakeApi({loadEstimate: vi.fn(async () => asSummary(late ? ready : pending))});
     renderQuote(api, {initial: pending, holdMs: 5, latePollMs: 20});
     await screen.findByRole("heading", {name: "Your estimate is almost ready."});
-    expect(screen.getByRole("button", {name: "Pick a video call time"})).toBeInTheDocument();
+    expect(screen.getByRole("button", {name: "Yes, I own it"})).toBeInTheDocument();
     late = true;
     await screen.findByRole("heading", {name: "Your estimate is ready."});
   });
@@ -201,13 +201,24 @@ describe("fast quote", () => {
     const {api} = fakeApi();
     renderQuote(api, {animate: false, initial: {pending: false, state: {kind: "review"}}});
     expect(heading()).toBe("A specialist will confirm your roof.");
-    expect(screen.getByRole("button", {name: "Pick a video call time"})).toBeInTheDocument();
+    expect(screen.getByRole("button", {name: "Yes, I own it"})).toBeInTheDocument();
   });
 
-  test("asks about ownership, then books a video call in a few taps", async () => {
+  test("asks about ownership, then books a video call without leaving the price", async () => {
     const {api} = fakeApi();
     renderQuote(api);
-    await bookACall();
+    await screen.findByRole("heading", {name: "Your estimate is ready."});
+    tap("Yes, I own it");
+    expect(pressed("Yes, I own it")).toBe("true");
+    // The first open day is picked; the confirm button waits for a time.
+    expect(await screen.findByRole("button", {name: "Monday, October 26"})).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", {name: "Pick a time to confirm"})).toBeDisabled();
+    expect(screen.getByText(/We’ll send the Google Meet invite to j•••@example\.com/)).toBeInTheDocument();
+    tap("10:30 AM");
+    expect(pressed("10:30 AM")).toBe("true");
+    tap("Confirm Mon, Oct 26 at 10:30 AM");
+    await screen.findByText("You’re booked");
+
     expect(api.saveOwnership).toHaveBeenCalledWith(token, "owner");
     expect(api.book).toHaveBeenCalledWith(bookingToken, {startsAt: "2026-10-26T14:30:00.000Z"});
     expect(heading()).toBe("Monday, October 26 at 10:30 AM EDT");
@@ -217,13 +228,34 @@ describe("fast quote", () => {
     expect(screen.getByRole("button", {name: "Answer 5 quick questions"})).toBeInTheDocument();
   });
 
-  test("sends a renter to a call instead of the calendar", async () => {
+  test("sends the invite to a different email when asked", async () => {
+    const {api} = fakeApi();
+    renderQuote(api, {animate: false});
+    tap("Yes, I own it");
+    await screen.findByRole("button", {name: "Monday, October 26"});
+    tap("10:00 AM");
+    tap("Use a different email");
+    fireEvent.change(screen.getByLabelText("Email for the invite"), {target: {value: "sam@example.com"}});
+    tap("Confirm Mon, Oct 26 at 10:00 AM");
+    await screen.findByText("You’re booked");
+    expect(api.book).toHaveBeenCalledWith(bookingToken, {startsAt: "2026-10-26T14:00:00.000Z", attendeeEmail: "sam@example.com"});
+  });
+
+  test("opens the calendar straight away when ownership was answered on an earlier visit", async () => {
+    const {api} = fakeApi({}, fakeAssessment({responses: {reason: "roof_age", roofAge: "15_20", timeline: "this_season", ownership: "buying"}}));
+    renderQuote(api, {animate: false});
+    expect(await screen.findByRole("button", {name: "Monday, October 26"})).toBeInTheDocument();
+    expect(pressed("I'm buying it")).toBe("true");
+    expect(api.saveOwnership).not.toHaveBeenCalled();
+  });
+
+  test("offers a renter a call instead of the calendar, on the same screen", async () => {
     const {api} = fakeApi();
     renderQuote(api);
     await screen.findByRole("heading", {name: "Your estimate is ready."});
-    tap("Pick a video call time");
     tap("No");
-    await screen.findByRole("heading", {name: "Let’s start with a call."});
+    expect(await screen.findByText(/The owner signs off on a roof project/)).toBeInTheDocument();
+    expect(screen.queryByRole("group", {name: "Pick a day"})).toBeNull();
     expect(api.saveOwnership).toHaveBeenCalledWith(token, "not_owner");
     tap("Morning (9 to 12)");
     await screen.findByRole("heading", {name: "We’ll call you in the morning."});
@@ -232,14 +264,22 @@ describe("fast quote", () => {
   });
 
   test("lets buyers and property managers book", async () => {
-    for (const label of ["I'm buying it", "I manage it for someone"]) {
+    for (const label of ["I'm buying it", "I manage it"]) {
       const {api} = fakeApi();
       const view = renderQuote(api, {animate: false});
-      tap("Pick a video call time");
       tap(label);
-      await screen.findByRole("heading", {name: "Pick a day."});
+      await screen.findByRole("button", {name: "Monday, October 26"});
       view.unmount();
     }
+  });
+
+  test("offers a call on the same screen when there are no open times", async () => {
+    const {api} = fakeApi({bookingOverview: vi.fn(async () => ({...openModel, days: [{date: "2026-10-27" as const, weekday: 2, slots: []}]}))});
+    renderQuote(api, {animate: false});
+    expect(await screen.findByRole("heading", {level: 2, name: "Talk it through with a specialist"})).toBeInTheDocument();
+    expect(screen.queryByRole("group", {name: "Do you own this home?"})).toBeNull();
+    tap("Evening (5 to 8)");
+    await screen.findByRole("heading", {name: "We’ll call you in the early evening."});
   });
 
   test("asks the remaining questions after booking, in order, and finishes the assessment", async () => {
@@ -301,36 +341,43 @@ describe("fast quote", () => {
     expect(screen.queryByRole("heading", {name: "Help us speed up your meeting"})).toBeNull();
   });
 
-  test("returns to the open days when the time was just taken", async () => {
+  test("stays on the price with fresh times when the time was just taken", async () => {
     const {api} = fakeApi({book: vi.fn(async () => ({kind: "taken" as const}))});
     renderQuote(api, {animate: false});
-    tap("Pick a video call time");
-    tap("Yes, this is my home");
-    await screen.findByRole("heading", {name: "Pick a day."});
-    tap("Monday, October 26");
+    tap("Yes, I own it");
+    await screen.findByRole("button", {name: "Monday, October 26"});
     tap("10:00 AM");
-    tap("Book it");
+    tap("Confirm Mon, Oct 26 at 10:00 AM");
     await screen.findByRole("alert");
     expect(screen.getByRole("alert")).toHaveTextContent("That time was just taken");
-    expect(heading()).toBe("Pick a day.");
+    expect(heading()).toBe("Your estimate is ready.");
+    expect(screen.getByRole("button", {name: "Pick a time to confirm"})).toBeDisabled();
   });
 
   test("offers a callback when online booking is off", async () => {
     const {api} = fakeApi();
     renderQuote(api, {animate: false, bookingAvailable: false});
-    expect(screen.queryByRole("button", {name: "Pick a video call time"})).toBeNull();
-    tap("Have a specialist call me");
+    expect(screen.queryByRole("group", {name: "Do you own this home?"})).toBeNull();
+    expect(screen.getByRole("heading", {level: 2, name: "Talk it through with a specialist"})).toBeInTheDocument();
     tap("As soon as possible");
     await screen.findByRole("heading", {name: "We’ll call you as soon as possible during business hours."});
     expect(api.bookingLink).not.toHaveBeenCalled();
   });
 
-  test("shows an existing booking instead of the booking button", async () => {
+  test("shows an existing booking instead of the calendar", async () => {
     const {api} = fakeApi({bookingOverview: vi.fn(async () => ({...openModel, kind: "booked" as const, booking: booked}))});
     renderQuote(api, {animate: false});
     expect(await screen.findByText("Monday, October 26 at 10:30 AM EDT")).toBeInTheDocument();
-    expect(screen.queryByRole("button", {name: "Pick a video call time"})).toBeNull();
+    expect(screen.queryByRole("group", {name: "Do you own this home?"})).toBeNull();
     tap("See your call and finish getting ready");
     expect(heading()).toBe("Monday, October 26 at 10:30 AM EDT");
+  });
+
+  test("lets the homeowner leave without booking", async () => {
+    const {api} = fakeApi();
+    renderQuote(api, {animate: false});
+    tap("Not ready to book yet?");
+    expect(heading()).toBe("No problem.");
+    expect(api.book).not.toHaveBeenCalled();
   });
 });

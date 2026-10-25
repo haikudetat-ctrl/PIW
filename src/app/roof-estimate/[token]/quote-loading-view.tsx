@@ -21,7 +21,7 @@ export function QuoteLoadingView({
   return (
     <main className="quiet-flow">
       <div className="quiet-frame">
-        <QuietHeader brandName={brand.name} logoUrl={brand.logoUrl} />
+        <QuietHeader brandName={brand.name} logoUrl={brand.logoUrl} logoOnDarkUrl={brand.logoOnDarkUrl} />
         <section className="quiet-body" aria-live="polite">
           <p className="quiet-step">Measurement in progress</p>
           <h1 className="quiet-question">Preparing your estimate.</h1>

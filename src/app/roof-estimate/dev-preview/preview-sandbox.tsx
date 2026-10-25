@@ -21,6 +21,7 @@ const ESTIMATE_TOKEN = "dev-estimate";
 const BRAND = {
   name: "All Season Solar",
   logoUrl: "/brand/all-season-mark.svg",
+  logoOnDarkUrl: "/brand/all-season-logo-on-dark.svg",
   phoneDisplay: "(866) 835-6022",
   phoneHref: "tel:+18668356022",
 };
@@ -215,7 +216,7 @@ export function PreviewSandbox({screen = "preview"}: {screen?: SandboxScreen}) {
     );
   }
   if (screen === "address") {
-    return <QuietAddressStep brandName={BRAND.name} logoUrl={BRAND.logoUrl} turnstileSiteKey="1x00000000000000000000AA" />;
+    return <QuietAddressStep brandName={BRAND.name} logoUrl={BRAND.logoUrl} logoOnDarkUrl={BRAND.logoOnDarkUrl} turnstileSiteKey="1x00000000000000000000AA" />;
   }
   if (screen === "loading") return <QuoteLoadingView brand={BRAND} address={address} />;
   if (screen === "chat") {
@@ -248,7 +249,8 @@ export function PreviewSandbox({screen = "preview"}: {screen?: SandboxScreen}) {
       initialView={VIEW}
       context={getRoofAssessmentContext(VIEW.presentationKey)}
       brandName={BRAND.name}
-      logoUrl="/brand/all-season-mark.svg"
+      logoUrl={BRAND.logoUrl}
+      logoOnDarkUrl={BRAND.logoOnDarkUrl}
       privacyUrl="#privacy"
       aerialLoader={async ({signal}) =>
         createPreviewAerialLoader("ready")({imageSrc: AERIAL_FIXTURE, signal})}

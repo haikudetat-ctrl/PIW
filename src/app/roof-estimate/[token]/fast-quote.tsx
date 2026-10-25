@@ -28,22 +28,20 @@ import type {QuietEstimateState} from "./public-estimate-flow";
 import {PropertySatelliteImage} from "./property-satellite-image";
 import "../quiet/quiet.css";
 import "./fast-quote.css";
+import {QuietHeader} from "../quiet/quiet-header";
 
-export type FastQuoteBrand = {name: string; logoUrl?: string; phoneDisplay: string; phoneHref: string};
+export type FastQuoteBrand = {name: string; logoUrl?: string; logoOnDarkUrl?: string; phoneDisplay: string; phoneHref: string};
 type Summary = {pending: boolean; state: QuietEstimateState};
 type OpenBooking = Extract<BookingPageModel, {kind: "open" | "booked"}>;
 type BookingState = {token: string; model: OpenBooking};
 type Responses = Partial<RoofAssessmentResponses>;
 type Ownership = RoofAssessmentResponses["ownership"];
 
+// The quote screen holds the ownership question and the calendar too, so the
+// homeowner books without leaving their price.
 type Stage =
   | {name: "phases"}
   | {name: "quote"}
-  | {name: "owner"}
-  | {name: "renter"}
-  | {name: "days"}
-  | {name: "times"; date: string}
-  | {name: "confirm"; startsAt: string; otherEmail: boolean}
   | {name: "callback"}
   | {name: "ended"; title: string; body: string}
   | {name: "booked"}
@@ -69,7 +67,16 @@ const CALL_WINDOWS: Array<{value: CallWindow; label: string; phrase: string}> = 
 // real decision makers. A renter is offered a call instead of a slot.
 const BOOKABLE_OWNERSHIP: readonly Ownership[] = ["owner", "buying", "manager"];
 
-const VISIBLE_DAYS = 6;
+// Short labels for the two-by-two ownership choice on the quote screen.
+const OWNERSHIP_CHOICES: Array<{value: Ownership; label: string}> = [
+  {value: "owner", label: "Yes, I own it"},
+  {value: "buying", label: "I'm buying it"},
+  {value: "manager", label: "I manage it"},
+  {value: "not_owner", label: "No"},
+];
+
+// Two rows of day chips before "Later dates".
+const VISIBLE_DAYS = 10;
 const MAX_LATE_POLLS = 30;
 const MAX_MEET_POLLS = 10;
 const PREP_STEPS = roofAssessmentQuestionSteps;
@@ -77,9 +84,13 @@ const LAST_STEP = PREP_STEPS.length - 1;
 
 const money = new Intl.NumberFormat("en-US", {style: "currency", currency: "USD", maximumFractionDigits: 0});
 const dayLong = new Intl.DateTimeFormat("en-US", {timeZone: "UTC", weekday: "long", month: "long", day: "numeric"});
+const dayChipWeekday = new Intl.DateTimeFormat("en-US", {timeZone: "UTC", weekday: "short"});
+const dayChipNumber = new Intl.DateTimeFormat("en-US", {timeZone: "UTC", day: "numeric"});
+const dayShort = new Intl.DateTimeFormat("en-US", {timeZone: "UTC", weekday: "short", month: "short", day: "numeric"});
 const noonUtc = (dateKey: string) => new Date(`${dateKey}T12:00:00.000Z`);
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const range = (low: number, high: number) => `${money.format(low / 100)} to ${money.format(high / 100)}`;
+const tierLabel = (key: string) => key.charAt(0).toUpperCase() + key.slice(1);
 
 function openDays(booking: BookingState | null): DaySlots[] {
   return booking?.model.kind === "open" ? booking.model.days.filter((day) => day.slots.length > 0) : [];
@@ -136,15 +147,9 @@ function Screen({brand, alert, wide = false, children}: {
   return (
     <main className="quiet-flow fq-flow">
       <div className={wide ? "quiet-frame fq-frame-wide" : "quiet-frame"}>
-        <header className="quiet-header fq-header">
-          {brand.logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={brand.logoUrl} alt={brand.name} className="quiet-logo" />
-          ) : (
-            <span>{brand.name.toUpperCase()}</span>
-          )}
+        <QuietHeader brandName={brand.name} logoUrl={brand.logoUrl} logoOnDarkUrl={brand.logoOnDarkUrl} className="fq-header">
           <a href={brand.phoneHref} className="fq-header-call">{brand.phoneDisplay}</a>
-        </header>
+        </QuietHeader>
         <section className="quiet-body fq-body">
           {children}
           {alert ? <p role="alert" className="quiet-alert fq-alert">{alert}</p> : null}
@@ -155,8 +160,12 @@ function Screen({brand, alert, wide = false, children}: {
 }
 
 /** Each screen's heading; it takes focus when the screen changes. */
-function Title({children}: {children: ReactNode}) {
-  return <h1 id={HEADING_ID} tabIndex={-1} className="quiet-question fq-heading">{children}</h1>;
+function Title({children, className}: {children: ReactNode; className?: string}) {
+  return (
+    <h1 id={HEADING_ID} tabIndex={-1} className={className ? `quiet-question fq-heading ${className}` : "quiet-question fq-heading"}>
+      {children}
+    </h1>
+  );
 }
 
 function TextButton({children, onClick, disabled}: {children: ReactNode; onClick: () => void; disabled?: boolean}) {
@@ -253,6 +262,11 @@ export function FastQuote({
   const [busy, setBusy] = useState(false);
   const [alert, setAlert] = useState<string | null>(null);
   const [showAllDays, setShowAllDays] = useState(false);
+  // The quote screen's own picks: the day (the first open one until chosen),
+  // the time, and whether the invite goes to another email.
+  const [pickedDate, setPickedDate] = useState<string | null>(null);
+  const [pickedSlot, setPickedSlot] = useState<string | null>(null);
+  const [inviteOther, setInviteOther] = useState(false);
   const alive = useRef(true);
   const firstStage = useRef(true);
   const ownershipSave = useRef<Promise<unknown>>(Promise.resolve());
@@ -363,31 +377,14 @@ export function FastQuote({
   const remaining = unansweredSteps(assessment, ownership);
   const canBook = bookingAvailable && (!bookingLoaded || days.length > 0 || Boolean(booked));
 
-  function chooseOwnership(option: AssessmentOption) {
-    const value = option.value as Ownership;
-    setOwnership(value);
-    // The gate never waits on the save; the questions after booking do.
-    ownershipSave.current = api.saveOwnership(token, value).catch(() => false);
-    if (!BOOKABLE_OWNERSHIP.includes(value)) {
-      setStage({name: "renter"});
-      return;
-    }
-    setStage(days.length > 0 || !bookingLoaded ? {name: "days"} : {name: "callback"});
-  }
+  // An answer from an earlier visit counts; the homeowner can still change it.
+  const knownOwnership = ownership ?? assessment?.responses.ownership ?? null;
 
-  function startBooking() {
-    if (booked) {
-      setStage({name: "booked"});
-      return;
-    }
-    // Anyone who already answered (an earlier visit) skips the gate.
-    const known = ownership ?? assessment?.responses.ownership ?? null;
-    if (known && BOOKABLE_OWNERSHIP.includes(known)) {
-      setOwnership(known);
-      setStage({name: "days"});
-      return;
-    }
-    setStage({name: "owner"});
+  function chooseOwnership(value: Ownership) {
+    setOwnership(value);
+    setAlert(null);
+    // The calendar never waits on the save; the questions after booking do.
+    ownershipSave.current = api.saveOwnership(token, value).catch(() => false);
   }
 
   async function refreshBooking(message: string) {
@@ -401,11 +398,12 @@ export function FastQuote({
         await loadPrep();
         return;
       }
-      if (openDays({token: current.token, model}).length > 0) {
-        setStage({name: "days"});
-        setAlert(message);
-        return;
-      }
+      // Back on the same screen with fresh times; the alert sits by the button.
+      setPickedSlot(null);
+      setAlert(openDays({token: current.token, model}).length > 0
+        ? message
+        : "There are no open times right now. A specialist can call you instead.");
+      return;
     }
     setStage({name: "callback"});
     setAlert("There are no open times right now. A specialist can call you instead.");
@@ -443,10 +441,15 @@ export function FastQuote({
     setAlert(result.message ?? `We couldn’t book that time. Pick another, or call ${brand.phoneDisplay}.`);
   }
 
-  function submitOtherEmail(event: FormEvent<HTMLFormElement>, startsAt: string) {
+  function confirmBooking(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!pickedSlot || busy) return;
+    if (!inviteOther) {
+      void book(pickedSlot);
+      return;
+    }
     if (!event.currentTarget.reportValidity()) return;
-    void book(startsAt, String(new FormData(event.currentTarget).get("attendeeEmail") ?? "").trim());
+    void book(pickedSlot, String(new FormData(event.currentTarget).get("attendeeEmail") ?? "").trim());
   }
 
   async function requestCallback(choice: (typeof CALL_WINDOWS)[number]) {
@@ -563,6 +566,10 @@ export function FastQuote({
       const state = summary.state;
       const ready = state.kind === "ready" ? state : null;
       const tiers = ready?.packages?.length === 3 ? ready.packages : null;
+      // The card's big number: the span across the three options, or the single range.
+      const span = tiers
+        ? {low: Math.min(...tiers.map((tier) => tier.rangeLowCents)), high: Math.max(...tiers.map((tier) => tier.rangeHighCents))}
+        : ready ? {low: ready.lowCents, high: ready.highCents} : null;
       const headline = summary.pending
         ? "Your estimate is almost ready."
         : ready
@@ -572,109 +579,213 @@ export function FastQuote({
             : "Your request is with our team.";
       const lede = summary.pending
         ? "We’ll text and email your range the moment it’s ready. You can book your call now."
-        : ready
-          ? `Based on about ${ready.roofSquares.toFixed(1)} roofing squares measured from above.`
-          : state.kind === "review"
-            ? "Google didn’t return a measurement we trust enough to price automatically. A specialist can go over it with you on a call."
-            : "We couldn’t create a reliable instant range. A specialist can review the property with you on a call.";
-      return (
-        <Screen brand={brand} alert={alert} wide>
-          <div className="fq-quote">
-            <figure className="fq-aerial-figure">
-              <div className="quiet-aerial fq-aerial">
-                <PropertySatelliteImage src={imageSrc ?? `/api/roof-estimate/${token}/house-image`} address={address} />
-              </div>
-              <figcaption className="quiet-caption fq-caption">
-                <span className="fq-caption-address">{address}</span>
-                <span translate="no">Satellite imagery from Google Maps</span>
-              </figcaption>
-            </figure>
-            <div className="fq-quote-copy">
-              <p className="quiet-step">Preliminary estimate</p>
-              <Title>{headline}</Title>
-              {summary.pending ? (
-                <div className="quiet-progress quiet-progress-indeterminate" aria-hidden="true"><span /></div>
-              ) : tiers ? (
-                <ol className="fq-tiers" aria-label="Your three options">
-                  {tiers.map((tier) => (
-                    <li key={tier.tierKey} className="fq-tier" data-recommended={tier.recommended}>
-                      <div className="fq-tier-head">
-                        <span className="fq-tier-key">{tier.tierKey} · {tier.customerName}</span>
-                        {/* AllSeason's Better tier is itself named "Recommended"; don't say it twice. */}
-                        {tier.recommended && !/recommended/i.test(tier.customerName)
-                          ? <span className="fq-tier-badge">Recommended</span>
-                          : null}
-                      </div>
-                      <p className="fq-tier-price">{range(tier.rangeLowCents, tier.rangeHighCents)}</p>
-                      <p className="fq-tier-detail">{tier.warrantySummary}</p>
-                    </li>
-                  ))}
-                </ol>
-              ) : ready ? (
-                <p className="quiet-price">
-                  {money.format(ready.lowCents / 100)} <span>to</span> {money.format(ready.highCents / 100)}
-                </p>
-              ) : null}
-              {/* With the tiers, the roof size moves into the fine print to keep booking close. */}
-              {tiers ? null : <p className="quiet-lede">{lede}</p>}
+        : state.kind === "review"
+          ? "Google didn’t return a measurement we trust enough to price automatically. A specialist can go over it with you on a call."
+          : "We couldn’t create a reliable instant range. A specialist can review the property with you on a call.";
+      const minutes = booking?.model.durationMinutes ?? 30;
+      const timezone = booking?.model.timezone ?? "America/New_York";
+      const bookable = knownOwnership !== null && BOOKABLE_OWNERSHIP.includes(knownOwnership);
+      const activeDate = pickedDate && days.some((day) => day.date === pickedDate) ? pickedDate : days[0]?.date ?? null;
+      const slots = days.find((day) => day.date === activeDate)?.slots ?? [];
+      const visibleDays = showAllDays ? days : days.slice(0, VISIBLE_DAYS);
+      const inlineAlert = alert ? <p role="alert" className="quiet-alert fq-alert">{alert}</p> : null;
 
-              {booked && booking ? (
-                <div className="fq-section">
-                  <p className="quiet-step">Your video call</p>
-                  <p className="fq-booked-time">{formatMeetingTime(booked.startsAt, booking.model.timezone)}</p>
-                  <button type="button" className="quiet-secondary quiet-cta" onClick={() => setStage({name: "booked"})}>
-                    {remaining.length > 0 ? "See your call and finish getting ready" : "See your call details"}
+      let bookingPanel: ReactNode;
+      if (booked && booking) {
+        bookingPanel = (
+          <>
+            <p className="quiet-step">Your video call</p>
+            <p className="fq-booked-time">{formatMeetingTime(booked.startsAt, booking.model.timezone)}</p>
+            <button type="button" className="quiet-secondary quiet-cta" onClick={() => setStage({name: "booked"})}>
+              {remaining.length > 0 ? "See your call and finish getting ready" : "See your call details"}
+            </button>
+          </>
+        );
+      } else if (!canBook) {
+        bookingPanel = (
+          <>
+            <h2 className="fq-book-title">Talk it through with a specialist</h2>
+            <p className="fq-book-lede">
+              {bookingAvailable ? "There are no open video times right now, so a specialist will call you. " : ""}When’s a good time?
+            </p>
+            {callWindowOptions}
+            {inlineAlert}
+          </>
+        );
+      } else {
+        bookingPanel = (
+          <>
+            <h2 className="fq-book-title">Lock it in on a {minutes}-minute video call</h2>
+            <p className="fq-book-lede">We go over the measurements and your final price together on Google Meet. No home visit needed.</p>
+            <fieldset className="fq-fieldset">
+              <legend className="fq-legend">Do you own this home?</legend>
+              <div className="fq-choices">
+                {OWNERSHIP_CHOICES.map((choice) => (
+                  <button
+                    key={choice.value}
+                    type="button"
+                    className="fq-choice"
+                    aria-pressed={knownOwnership === choice.value}
+                    disabled={busy}
+                    onClick={() => chooseOwnership(choice.value)}
+                  >
+                    {choice.label}
                   </button>
-                </div>
-              ) : canBook ? (
-                <>
-                  <button type="button" className="quiet-submit quiet-cta" onClick={startBooking}>
-                    Pick a video call time
+                ))}
+              </div>
+            </fieldset>
+
+            {knownOwnership === null ? null : !bookable ? (
+              <div className="fq-inline">
+                <p className="fq-book-lede">
+                  The owner signs off on a roof project, so a specialist will call you first to talk it through. When’s a good time?
+                </p>
+                {callWindowOptions}
+                {inlineAlert}
+                <TextButton disabled={busy} onClick={notNow}>Not now</TextButton>
+              </div>
+            ) : !bookingLoaded ? (
+              <p className="fq-book-lede" role="status">Loading open times…</p>
+            ) : (
+              <form className="fq-book-form" onSubmit={confirmBooking} noValidate>
+                <fieldset className="fq-fieldset">
+                  <legend className="fq-legend">Pick a day</legend>
+                  <div className="fq-days">
+                    {visibleDays.map((day) => (
+                      <button
+                        key={day.date}
+                        type="button"
+                        className="fq-day"
+                        aria-pressed={day.date === activeDate}
+                        disabled={busy}
+                        onClick={() => {
+                          setPickedDate(day.date);
+                          setPickedSlot(null);
+                        }}
+                      >
+                        <span aria-hidden="true" className="fq-day-week">{dayChipWeekday.format(noonUtc(day.date))}</span>
+                        <span aria-hidden="true" className="fq-day-number">{dayChipNumber.format(noonUtc(day.date))}</span>
+                        <span className="sr-only">{dayLong.format(noonUtc(day.date))}</span>
+                      </button>
+                    ))}
+                  </div>
+                  {!showAllDays && days.length > VISIBLE_DAYS ? (
+                    <button type="button" className="quiet-back fq-more" onClick={() => setShowAllDays(true)}>Later dates</button>
+                  ) : null}
+                </fieldset>
+                <fieldset className="fq-fieldset">
+                  <legend className="fq-legend">Pick a time <span className="fq-legend-note">Eastern</span></legend>
+                  <div className="fq-times">
+                    {slots.map((slot: Slot) => (
+                      <button
+                        key={slot.startsAt}
+                        type="button"
+                        className="fq-time"
+                        aria-pressed={slot.startsAt === pickedSlot}
+                        disabled={busy}
+                        onClick={() => setPickedSlot(slot.startsAt)}
+                      >
+                        {formatClockTime(slot.startsAt, timezone)}
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
+                {inviteOther ? (
+                  <label className="quiet-field fq-invite-field">
+                    Email for the invite
+                    <input name="attendeeEmail" type="email" inputMode="email" autoComplete="email" required className="quiet-input" />
+                  </label>
+                ) : null}
+                <p className="fq-invite">
+                  {inviteOther ? "We’ll send the Google Meet invite there. " : `We’ll send the Google Meet invite to ${booking?.model.inviteEmail}. `}
+                  <button type="button" className="fq-inline-button" disabled={busy} onClick={() => setInviteOther(!inviteOther)}>
+                    {inviteOther ? `Use ${booking?.model.inviteEmail}` : "Use a different email"}
                   </button>
-                  <p className="fq-cta-note">
-                    {booking?.model.durationMinutes ?? 30} minutes on Google Meet with a specialist. No home visit needed.
-                  </p>
-                </>
-              ) : (
-                <button type="button" className="quiet-submit quiet-cta" onClick={() => setStage({name: "callback"})}>
-                  Have a specialist call me
+                </p>
+                {inlineAlert}
+                <button type="submit" className="quiet-submit quiet-cta fq-confirm" disabled={busy || !pickedSlot}>
+                  {busy
+                    ? "Booking…"
+                    : pickedSlot && activeDate
+                      ? `Confirm ${dayShort.format(noonUtc(activeDate))} at ${formatClockTime(pickedSlot, timezone)}`
+                      : "Pick a time to confirm"}
                 </button>
-              )}
+              </form>
+            )}
+
+            <div className="fq-actions">
+              {bookable ? <TextButton disabled={busy} onClick={go({name: "callback"})}>Have someone call me instead</TextButton> : null}
+              {bookable || knownOwnership === null ? <TextButton disabled={busy} onClick={notNow}>Not ready to book yet?</TextButton> : null}
+            </div>
+          </>
+        );
+      }
+
+      return (
+        <Screen brand={brand} alert={null} wide>
+          <div className="fq-quote">
+            <div className="fq-quote-side">
+              <section className="fq-card" aria-label="Your estimate">
+                <div className="fq-card-head">
+                  <div className="fq-thumb">
+                    <PropertySatelliteImage src={imageSrc ?? `/api/roof-estimate/${token}/house-image`} address={address} />
+                  </div>
+                  <div className="fq-card-intro">
+                    <p className="fq-card-eyebrow">Preliminary estimate</p>
+                    <Title className="fq-card-title">{headline}</Title>
+                    {ready ? (
+                      <p className="fq-card-sub">About {ready.roofSquares.toFixed(1)} roofing squares, measured from above</p>
+                    ) : null}
+                  </div>
+                </div>
+                {summary.pending ? (
+                  <div className="fq-card-body">
+                    <p className="fq-card-lede">{lede}</p>
+                    <div className="quiet-progress quiet-progress-indeterminate" aria-hidden="true"><span /></div>
+                  </div>
+                ) : span ? (
+                  <p className="quiet-price fq-card-range">{range(span.low, span.high)}</p>
+                ) : (
+                  <p className="fq-card-body fq-card-lede">{lede}</p>
+                )}
+                {tiers ? (
+                  <ol className="fq-tiers" aria-label="Your three options">
+                    {tiers.map((tier) => (
+                      <li key={tier.tierKey} className="fq-tier" data-recommended={tier.recommended}>
+                        <span className="fq-tier-name">
+                          {tier.recommended ? <span className="fq-tier-dot" aria-hidden="true" /> : null}
+                          {tierLabel(tier.tierKey)} · {tier.customerName}
+                          {/* AllSeason's Better tier is itself named "Recommended"; don't say it twice. */}
+                          {tier.recommended && !/recommended/i.test(tier.customerName)
+                            ? <span className="fq-tier-badge">Recommended</span>
+                            : null}
+                        </span>
+                        <span className="fq-tier-price">{range(tier.rangeLowCents, tier.rangeHighCents)}</span>
+                        <span className="fq-tier-detail">{tier.warrantySummary}</span>
+                      </li>
+                    ))}
+                  </ol>
+                ) : null}
+                <p className="fq-card-foot">
+                  <span className="fq-card-address">{address}</span>
+                  <span translate="no">Imagery: Google Maps</span>
+                </p>
+              </section>
+            </div>
+
+            <section className="fq-book" aria-label="Book your video call">
+              {bookingPanel}
               <a href={brand.phoneHref} className="quiet-back quiet-inline-link fq-call">Or call {brand.phoneDisplay}</a>
               {ready ? (
-                <p className="quiet-notice quiet-fine">
-                  {tiers ? `${lede} ` : null}
+                <p className="quiet-notice fq-fine">
                   Preliminary sales estimate only. Decking, tear-off layers, access, permits, and field conditions can change the final proposal.
                 </p>
               ) : null}
-            </div>
+            </section>
           </div>
         </Screen>
       );
     }
-
-    case "owner":
-      return (
-        <Screen brand={brand} alert={alert}>
-          <p className="quiet-step">Before we book</p>
-          <Title>Do you own this home?</Title>
-          <Options items={ownershipOptions} label="Do you own this home?" disabled={busy} onPick={chooseOwnership} />
-          <TextButton disabled={busy} onClick={go({name: "quote"})}>Back</TextButton>
-        </Screen>
-      );
-
-    case "renter":
-      return (
-        <Screen brand={brand} alert={alert}>
-          <p className="quiet-step">Thanks for letting us know</p>
-          <Title>Let’s start with a call.</Title>
-          <p className="quiet-lede">
-            The owner signs off on a roof project, so a specialist will call you first to talk it through. When’s a good time?
-          </p>
-          {callWindowOptions}
-          <button type="button" className="quiet-back" onClick={notNow} disabled={busy}>Not now</button>
-        </Screen>
-      );
 
     case "callback":
       return (
@@ -683,7 +794,7 @@ export function FastQuote({
           <Title>When’s a good time to call?</Title>
           {callWindowOptions}
           <div className="fq-actions">
-            {days.length > 0 ? <TextButton disabled={busy} onClick={go({name: "days"})}>Pick a video call time instead</TextButton> : null}
+            {days.length > 0 ? <TextButton disabled={busy} onClick={go({name: "quote"})}>Pick a video call time instead</TextButton> : null}
             <TextButton disabled={busy} onClick={go({name: "quote"})}>Back to my estimate</TextButton>
           </div>
         </Screen>
@@ -698,110 +809,6 @@ export function FastQuote({
           <TextButton disabled={busy} onClick={go({name: "quote"})}>Back to my estimate</TextButton>
         </Screen>
       );
-
-    case "days": {
-      const minutes = booking?.model.durationMinutes ?? 30;
-      if (!bookingLoaded) {
-        return (
-          <Screen brand={brand} alert={alert}>
-            <p className="quiet-step">Video call · {minutes} minutes</p>
-            <Title>Pick a day.</Title>
-            <p className="quiet-lede" role="status">Loading open times…</p>
-          </Screen>
-        );
-      }
-      if (days.length === 0) {
-        return (
-          <Screen brand={brand} alert={alert}>
-            <p className="quiet-step">Video call</p>
-            <Title>No open times right now.</Title>
-            <p className="quiet-lede">A specialist can call you instead. When’s a good time?</p>
-            {callWindowOptions}
-            <TextButton disabled={busy} onClick={go({name: "quote"})}>Back to my estimate</TextButton>
-          </Screen>
-        );
-      }
-      const visible = showAllDays ? days : days.slice(0, VISIBLE_DAYS);
-      return (
-        <Screen brand={brand} alert={alert}>
-          <p className="quiet-step">Video call · {minutes} minutes</p>
-          <Title>Pick a day.</Title>
-          <div className="quiet-options" role="group" aria-label="Days with open times">
-            {visible.map((day) => (
-              <button key={day.date} type="button" className="quiet-option" onClick={() => setStage({name: "times", date: day.date})}>
-                {dayLong.format(noonUtc(day.date))}
-              </button>
-            ))}
-            {!showAllDays && days.length > VISIBLE_DAYS ? (
-              <button type="button" className="quiet-option fq-option-quiet" onClick={() => setShowAllDays(true)}>Later dates</button>
-            ) : null}
-          </div>
-          <div className="fq-actions">
-            <TextButton disabled={busy} onClick={go({name: "callback"})}>Have someone call me instead</TextButton>
-            <TextButton disabled={busy} onClick={go({name: "quote"})}>Back to my estimate</TextButton>
-          </div>
-        </Screen>
-      );
-    }
-
-    case "times": {
-      const day = days.find((item) => item.date === stage.date);
-      const timezone = booking?.model.timezone ?? "America/New_York";
-      return (
-        <Screen brand={brand} alert={alert}>
-          <p className="quiet-step">{dayLong.format(noonUtc(stage.date))}</p>
-          <Title>Pick a time.</Title>
-          <p className="quiet-lede">Times are Eastern.</p>
-          <div className="quiet-options" role="group" aria-label="Open times">
-            {(day?.slots ?? []).map((slot: Slot) => (
-              <button
-                key={slot.startsAt}
-                type="button"
-                className="quiet-option"
-                onClick={() => setStage({name: "confirm", startsAt: slot.startsAt, otherEmail: false})}
-              >
-                {formatClockTime(slot.startsAt, timezone)}
-              </button>
-            ))}
-          </div>
-          <TextButton disabled={busy} onClick={go({name: "days"})}>Pick another day</TextButton>
-        </Screen>
-      );
-    }
-
-    case "confirm": {
-      if (!booking) return null;
-      const when = formatMeetingTime(stage.startsAt, booking.model.timezone);
-      return (
-        <Screen brand={brand} alert={alert}>
-          <p className="quiet-step">Confirm your video call</p>
-          <Title>{when}</Title>
-          {stage.otherEmail ? (
-            <form onSubmit={(event) => submitOtherEmail(event, stage.startsAt)} className="quiet-form" noValidate>
-              <label className="quiet-field">
-                Email for the invite
-                <input name="attendeeEmail" type="email" inputMode="email" autoComplete="email" required className="quiet-input" />
-              </label>
-              <button type="submit" disabled={busy} className="quiet-submit">{busy ? "Booking…" : "Book it"}</button>
-              <button type="button" className="quiet-back" onClick={() => setStage({...stage, otherEmail: false})}>
-                Use {booking.model.inviteEmail} instead
-              </button>
-            </form>
-          ) : (
-            <>
-              <p className="quiet-lede">We’ll send the Google Meet invite to {booking.model.inviteEmail}.</p>
-              <button type="button" className="quiet-submit quiet-cta" disabled={busy} onClick={() => void book(stage.startsAt)}>
-                {busy ? "Booking…" : "Book it"}
-              </button>
-              <button type="button" className="quiet-secondary quiet-cta" disabled={busy} onClick={() => setStage({...stage, otherEmail: true})}>
-                Send the invite to a different email
-              </button>
-            </>
-          )}
-          <TextButton disabled={busy} onClick={go({name: "days"})}>Pick another time</TextButton>
-        </Screen>
-      );
-    }
 
     case "booked": {
       if (!booking || !booked) return null;

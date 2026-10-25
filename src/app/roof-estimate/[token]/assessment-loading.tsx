@@ -40,7 +40,7 @@ export function AssessmentLoading({
     outcome: AssessmentAnalysisOutcome;
   }) => void;
   /** Plain white presentation for the value-first preview; timing is unchanged. */
-  quiet?: {brandName: string; logoUrl?: string};
+  quiet?: {brandName: string; logoUrl?: string; logoOnDarkUrl?: string};
 }) {
   const [storedTiming, setTiming] = useState<LoadingTiming>(() => initialTiming(imageSrc));
   const timing = storedTiming.imageSrc === imageSrc ? storedTiming : initialTiming(imageSrc);
@@ -106,7 +106,7 @@ export function AssessmentLoading({
     return (
       <main className="quiet-flow">
         <div className="quiet-frame">
-          <QuietHeader brandName={quiet.brandName} logoUrl={quiet.logoUrl} />
+          <QuietHeader brandName={quiet.brandName} logoUrl={quiet.logoUrl} logoOnDarkUrl={quiet.logoOnDarkUrl} />
           <section className="quiet-body">
             <p className="quiet-step">Analysis in progress</p>
             <h1 className="quiet-question">Analyzing your property.</h1>

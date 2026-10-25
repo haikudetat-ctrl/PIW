@@ -187,7 +187,8 @@
 .chat-chip-primary {
   border-color: transparent;
   background: var(--quiet-cta);
-  color: #fff;
+  color: var(--quiet-cta-ink);
+  font-weight: 700;
 }
 
 .chat-chip-primary:hover:not(:disabled) { background: var(--quiet-cta-hover); }

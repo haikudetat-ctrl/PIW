@@ -17,7 +17,7 @@ export default async function PreviewUnsubscribePage({
   return (
     <main className="quiet-flow">
       <div className="quiet-frame">
-        <QuietHeader brandName={brand.name} logoUrl={brand.logoUrl} />
+        <QuietHeader brandName={brand.name} logoUrl={brand.logoUrl} logoOnDarkUrl={brand.logoOnDarkUrl} />
         <section className="quiet-body">
           {done === "1" ? (
             <>

@@ -30,6 +30,7 @@ describe("public assessment media boundary", () => {
     "/campaigns/weather-report/hero.webp",
     "/campaigns/seasonal-shield/hero.webp",
     "/brand/all-season-mark.svg",
+    "/brand/all-season-logo-on-dark.svg",
   ])("allows anonymous access to %s", (pathname) => {
     expect(isPublicPath(pathname)).toBe(true);
   });

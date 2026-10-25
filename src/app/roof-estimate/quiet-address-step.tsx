@@ -6,16 +6,18 @@ import "./quiet/quiet.css";
 export function QuietAddressStep({
   brandName,
   logoUrl,
+  logoOnDarkUrl,
   turnstileSiteKey,
 }: {
   brandName: string;
   logoUrl?: string;
+  logoOnDarkUrl?: string;
   turnstileSiteKey: string;
 }) {
   return (
     <main className="quiet-flow">
       <div className="quiet-frame">
-        <QuietHeader brandName={brandName} logoUrl={logoUrl} />
+        <QuietHeader brandName={brandName} logoUrl={logoUrl} logoOnDarkUrl={logoOnDarkUrl} />
         <section className="quiet-body">
           <p className="quiet-step">Free roof preview</p>
           <h1 className="quiet-question">Where is the roof?</h1>
