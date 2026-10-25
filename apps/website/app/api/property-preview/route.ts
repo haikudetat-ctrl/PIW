@@ -1,6 +1,7 @@
 import {NextResponse, type NextRequest} from "next/server";
 import {z} from "zod";
-import {campaignSlugs} from "../../campaigns/campaigns";
+import {forwardableAttributionToken} from "../../../lib/ad-attribution";
+import {landingEntryPoints, landingSlugs} from "../../../lib/landing-slugs";
 import {PRIVACY_COOKIE_NAME, readWebsiteConsent} from "../../../lib/privacy-consent";
 import {trustedPiwOidcHeaders} from "../../../lib/vercel-protection";
 
@@ -13,15 +14,15 @@ const optionalAttribution = z.string().trim().max(500).nullish();
 const requestSchema = z.strictObject({
   address: z.string().trim().min(5).max(500),
   google_place_id: z.string().trim().min(1).max(300).nullable(),
-  campaign: z.enum(campaignSlugs).nullable(),
+  campaign: z.enum(landingSlugs).nullable(),
   entry_point: z.enum([
     "main-home",
     "main-contact",
     "main-drawer",
     "main-chat",
-    ...campaignSlugs.map((campaign) => `campaign:${campaign}` as const),
+    ...landingEntryPoints,
   ]),
-  presentation_key: z.enum(["all-season-main", ...campaignSlugs]),
+  presentation_key: z.enum(["all-season-main", ...landingSlugs]),
   turnstile_token: z.string().min(1).max(2048),
   utm_source: optionalAttribution,
   utm_medium: optionalAttribution,
@@ -76,6 +77,10 @@ export async function handlePropertyPreviewRequest(
     ? cookieToken
     : undefined;
 
+  // Carried on the preview so PIW can attach it to the lead at conversion even
+  // when the estimate host cannot read this domain's cookie.
+  const adAttributionToken = forwardableAttributionToken(request, process.env);
+
   const upstream = await forward({
     address: input.address,
     google_place_id: input.google_place_id,
@@ -89,6 +94,7 @@ export async function handlePropertyPreviewRequest(
       utm_term: nullable(input.utm_term),
       utm_content: nullable(input.utm_content),
       fbclid: nullable(input.fbclid),
+      ...(adAttributionToken ? {ad_attribution_token: adAttributionToken} : {}),
     },
     referrer: referrer && z.url().safeParse(referrer).success ? referrer.slice(0, 2000) : null,
     client_ip_address: clientIp,

@@ -1,4 +1,10 @@
 import {NextResponse, type NextFetchEvent, type NextRequest} from "next/server";
+import {
+  AD_ATTRIBUTION_COOKIE_NAME,
+  adAttributionSecret,
+  nextAttributionCookie,
+  setAttributionCookie,
+} from "./lib/ad-attribution";
 import {buildArrival, shouldLogArrival} from "./lib/arrival-beacon";
 import {trustedWebsiteRequestIp} from "./lib/trusted-request-ip";
 import {trustedPiwOidcHeaders} from "./lib/vercel-protection";
@@ -54,17 +60,45 @@ function logArrival(request: NextRequest, event: NextFetchEvent | undefined) {
   );
 }
 
+/**
+ * First-party ad attribution cookie. Set only when a page navigation carries a
+ * click ID, UTM tag or ValueTrack value; the signed token travels with the
+ * lead to PIW. No-op until AD_ATTRIBUTION_SIGNING_SECRET is configured.
+ */
+function attributionCookieFor(request: NextRequest) {
+  if (!shouldLogArrival(request.nextUrl.pathname)) return null;
+  try {
+    return nextAttributionCookie({
+      url: request.nextUrl,
+      headers: request.headers,
+      existing: request.cookies.get(AD_ATTRIBUTION_COOKIE_NAME)?.value,
+      secret: adAttributionSecret(process.env),
+      now: new Date(),
+    });
+  } catch {
+    // Attribution is best effort; it must never break a page load.
+    return null;
+  }
+}
+
 // Keep this app's routing boundary explicit in the monorepo so deployment
 // tooling never inherits the dashboard's root-level authentication proxy.
 export default function proxy(request: NextRequest, event?: NextFetchEvent) {
   logArrival(request, event);
+  const attributionCookie = attributionCookieFor(request);
 
   const {pathname} = request.nextUrl;
+  let response: NextResponse;
   if (pathname.endsWith(".html") && !pathname.startsWith("/public-pages/")) {
     const destination = request.nextUrl.clone();
     destination.pathname = `/public-pages${pathname}`;
-    return NextResponse.rewrite(destination);
+    response = NextResponse.rewrite(destination);
+  } else {
+    response = NextResponse.next();
   }
 
-  return NextResponse.next();
+  if (attributionCookie) {
+    setAttributionCookie(response, attributionCookie, request.nextUrl.protocol === "https:");
+  }
+  return response;
 }

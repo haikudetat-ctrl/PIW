@@ -6324,10 +6324,24 @@ export type Database = {
           created_at: string
           experiment_arm: string | null
           fbclid: string | null
+          gad_campaignid: string | null
+          gad_source: string | null
+          gbraid: string | null
+          gclid: string | null
+          google_ad_group_id: string | null
+          google_campaign_id: string | null
+          google_creative_id: string | null
+          google_device: string | null
+          google_keyword: string | null
+          google_loc_physical_ms: string | null
+          google_match_type: string | null
+          google_network: string | null
+          google_target_id: string | null
           id: string
           is_likely_bot: boolean
           meta_placement: string | null
           meta_site_source: string | null
+          msclkid: string | null
           occurred_at: string
           referrer_host: string | null
           request_path: string
@@ -6338,6 +6352,7 @@ export type Database = {
           utm_source: string | null
           utm_term: string | null
           visitor_hash: string
+          wbraid: string | null
         }
         Insert: {
           campaign_slug?: string | null
@@ -6345,10 +6360,24 @@ export type Database = {
           created_at?: string
           experiment_arm?: string | null
           fbclid?: string | null
+          gad_campaignid?: string | null
+          gad_source?: string | null
+          gbraid?: string | null
+          gclid?: string | null
+          google_ad_group_id?: string | null
+          google_campaign_id?: string | null
+          google_creative_id?: string | null
+          google_device?: string | null
+          google_keyword?: string | null
+          google_loc_physical_ms?: string | null
+          google_match_type?: string | null
+          google_network?: string | null
+          google_target_id?: string | null
           id?: string
           is_likely_bot?: boolean
           meta_placement?: string | null
           meta_site_source?: string | null
+          msclkid?: string | null
           occurred_at?: string
           referrer_host?: string | null
           request_path: string
@@ -6359,6 +6388,7 @@ export type Database = {
           utm_source?: string | null
           utm_term?: string | null
           visitor_hash: string
+          wbraid?: string | null
         }
         Update: {
           campaign_slug?: string | null
@@ -6366,10 +6396,24 @@ export type Database = {
           created_at?: string
           experiment_arm?: string | null
           fbclid?: string | null
+          gad_campaignid?: string | null
+          gad_source?: string | null
+          gbraid?: string | null
+          gclid?: string | null
+          google_ad_group_id?: string | null
+          google_campaign_id?: string | null
+          google_creative_id?: string | null
+          google_device?: string | null
+          google_keyword?: string | null
+          google_loc_physical_ms?: string | null
+          google_match_type?: string | null
+          google_network?: string | null
+          google_target_id?: string | null
           id?: string
           is_likely_bot?: boolean
           meta_placement?: string | null
           meta_site_source?: string | null
+          msclkid?: string | null
           occurred_at?: string
           referrer_host?: string | null
           request_path?: string
@@ -6380,6 +6424,7 @@ export type Database = {
           utm_source?: string | null
           utm_term?: string | null
           visitor_hash?: string
+          wbraid?: string | null
         }
         Relationships: [
           {

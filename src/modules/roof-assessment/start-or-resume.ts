@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { campaignSlugs, type CampaignSlug } from "@/config/campaigns";
+import { landingSlugs, type LandingSlug } from "@/config/campaigns";
 import {
   roofAssessmentEntryContexts,
   roofAssessmentEntryPoints,
@@ -27,7 +27,7 @@ export type StartAssessmentInput = {
   phone: string;
   submittedAddress: string;
   googlePlaceId?: string;
-  campaign: CampaignSlug | null;
+  campaign: LandingSlug | null;
   presentationKey: RoofAssessmentPresentationKey;
   entryPoint: AssessmentEntryPoint;
   attribution: CampaignAttribution;
@@ -106,7 +106,7 @@ const attributionSchema = z.object({
   fbc: nullableAttributionValueSchema,
 }).strict();
 
-const campaignSchema = z.enum(campaignSlugs);
+const campaignSchema = z.enum(landingSlugs);
 const presentationKeySchema = z.enum(roofAssessmentPresentationKeys);
 const entryPointSchema = z.enum(
   roofAssessmentEntryPoints as [AssessmentEntryPoint, ...AssessmentEntryPoint[]],

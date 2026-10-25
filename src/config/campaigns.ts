@@ -6,6 +6,28 @@ export const campaignSlugs = [
 
 export type CampaignSlug = (typeof campaignSlugs)[number];
 
+/**
+ * Google Search landing pages on the All Season website (apps/website
+ * lib/landing-slugs.ts). They use the same intake contract as the Meta
+ * campaigns: the slug is the durable landing-page identifier on the lead.
+ * They have no creative of their own, so they use the neutral estimate theme.
+ */
+export const searchPageSlugs = [
+  "roof-replacement",
+  "roof-replacement-cost",
+  "roofing-contractor",
+] as const;
+
+export type SearchPageSlug = (typeof searchPageSlugs)[number];
+
+export const landingSlugs = [...campaignSlugs, ...searchPageSlugs] as const;
+
+export type LandingSlug = CampaignSlug | SearchPageSlug;
+
+export function isLandingSlug(value: string): value is LandingSlug {
+  return (landingSlugs as readonly string[]).includes(value);
+}
+
 type CampaignDefinition = {
   slug: CampaignSlug;
   name: string;

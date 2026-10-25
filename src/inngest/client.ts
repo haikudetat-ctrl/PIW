@@ -92,6 +92,10 @@ export const metaDeliveryRequested = eventType("marketing/meta.delivery.requeste
   schema: staticSchema<{deliveryId: string}>(),
 });
 
+export const googleAdsConversionRequested = eventType("marketing/google_ads.conversion.requested", {
+  schema: staticSchema<{deliveryId: string}>(),
+});
+
 export const propertyPreviewMeasurementRequested = eventType("property/preview_measurement_requested", {
   schema: staticSchema<{companyId: string; previewId: string}>(),
 });

@@ -1,10 +1,37 @@
+import {adAttributionForwardingEnabled} from "./ad-attribution";
 import {campaignSlugs, type CampaignSlug} from "../app/campaigns/campaigns";
+import {landingSlugFromPath, type LandingSlug} from "./landing-slugs";
 import {previewFlowEnabled} from "./property-preview-notice";
+
+/**
+ * Google Ads and Microsoft Ads click IDs plus the ValueTrack values requested
+ * in the Google Ads Final URL suffix. Sent to PIW only once
+ * AD_ATTRIBUTION_FORWARDING_ENABLED is on, so a PIW deploy that predates these
+ * columns never receives them. Under Global Privacy Control the click IDs are
+ * withheld; campaign-level values still identify the ad group and keyword.
+ */
+export type SearchArrivalFields = {
+  gclid: string | null;
+  gbraid: string | null;
+  wbraid: string | null;
+  msclkid: string | null;
+  gad_source: string | null;
+  gad_campaignid: string | null;
+  google_campaign_id: string | null;
+  google_ad_group_id: string | null;
+  google_keyword: string | null;
+  google_match_type: string | null;
+  google_creative_id: string | null;
+  google_target_id: string | null;
+  google_device: string | null;
+  google_network: string | null;
+  google_loc_physical_ms: string | null;
+};
 
 export type WebsiteArrival = {
   occurred_at: string;
   request_path: string;
-  campaign_slug: CampaignSlug | null;
+  campaign_slug: LandingSlug | null;
   visitor_hash: string;
   user_agent: string | null;
   referrer_host: string | null;
@@ -18,7 +45,7 @@ export type WebsiteArrival = {
   meta_site_source: string | null;
   is_likely_bot: boolean;
   experiment_arm?: "value_first";
-};
+} & Partial<SearchArrivalFields>;
 
 const BOT_PATTERN =
   /bot|crawler|spider|crawling|facebookexternalhit|slurp|bingpreview|headlesschrome|lighthouse|pingdom|uptime|curl|wget|python-requests|axios|postman/i;
@@ -75,10 +102,38 @@ function bounded(value: string | null, max: number): string | null {
   return trimmed.slice(0, max);
 }
 
-function campaignSlugFromPath(pathname: string): CampaignSlug | null {
+function campaignSlugFromPath(pathname: string, includeSearchPages: boolean): LandingSlug | null {
+  if (includeSearchPages) return landingSlugFromPath(pathname);
   const match = /^\/campaigns\/([^/]+)/.exec(pathname);
   const candidate = match?.[1];
-  return campaignSlugs.find((slug) => slug === candidate) ?? null;
+  return campaignSlugs.find((slug): slug is CampaignSlug => slug === candidate) ?? null;
+}
+
+/** ValueTrack leaves the literal "{keyword}" when a value is unavailable. */
+function valueTrack(query: URLSearchParams, key: string, max: number): string | null {
+  const value = bounded(query.get(key), max);
+  return value && /^\{[a-z_]+\}$/i.test(value) ? null : value;
+}
+
+export function searchArrivalFields(query: URLSearchParams, gpc: boolean): SearchArrivalFields {
+  const clickId = (key: string) => gpc ? null : bounded(query.get(key), 512);
+  return {
+    gclid: clickId("gclid"),
+    gbraid: clickId("gbraid"),
+    wbraid: clickId("wbraid"),
+    msclkid: clickId("msclkid"),
+    gad_source: valueTrack(query, "gad_source", 50),
+    gad_campaignid: valueTrack(query, "gad_campaignid", 50),
+    google_campaign_id: valueTrack(query, "campaignid", 50),
+    google_ad_group_id: valueTrack(query, "adgroupid", 50),
+    google_keyword: valueTrack(query, "keyword", 200),
+    google_match_type: valueTrack(query, "matchtype", 20),
+    google_creative_id: valueTrack(query, "creative", 50),
+    google_target_id: valueTrack(query, "targetid", 100),
+    google_device: valueTrack(query, "device", 20),
+    google_network: valueTrack(query, "network", 20),
+    google_loc_physical_ms: valueTrack(query, "loc_physical_ms", 50),
+  };
 }
 
 function referrerHost(referrer: string | null): string | null {
@@ -100,11 +155,13 @@ export async function buildArrival(input: {
   const {url, headers, ip, secret, now} = input;
   const query = url.searchParams;
   const userAgent = bounded(headers.get("user-agent"), 1_000);
+  const forwardSearchFields = adAttributionForwardingEnabled(process.env);
+  const gpc = headers.get("sec-gpc") === "1";
 
   return {
     occurred_at: now.toISOString(),
     request_path: url.pathname.slice(0, 500),
-    campaign_slug: campaignSlugFromPath(url.pathname),
+    campaign_slug: campaignSlugFromPath(url.pathname, forwardSearchFields),
     visitor_hash: await visitorHash(secret, now, ip, userAgent),
     user_agent: userAgent,
     referrer_host: referrerHost(headers.get("referer")),
@@ -120,5 +177,6 @@ export async function buildArrival(input: {
     // Sent only once the value-first flow is on, so PIW (which accepts the
     // field) never sees it from a deploy that predates it. Absent = legacy.
     ...(previewFlowEnabled() ? {experiment_arm: "value_first" as const} : {}),
+    ...(forwardSearchFields ? searchArrivalFields(query, gpc) : {}),
   };
 }

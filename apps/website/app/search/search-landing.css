@@ -1,0 +1,293 @@
+/* Google Search landing pages. Light, quiet layout in the main site's palette:
+   navy for the header and one feature panel only, lime for the action, blue
+   for small labels. Everything is scoped to .sl-page so the campaign pages and
+   the root defaults in app/styles.css are untouched. */
+
+@font-face {
+  font-family: "Manrope Search";
+  src: url("/fonts/manrope-400.ttf") format("truetype");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Manrope Search";
+  src: url("/fonts/manrope-600.ttf") format("truetype");
+  font-weight: 600;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Manrope Search";
+  src: url("/fonts/manrope-700.ttf") format("truetype");
+  font-weight: 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Barlow Search";
+  src: url("/fonts/barlow-condensed-700.ttf") format("truetype");
+  font-weight: 700;
+  font-display: swap;
+}
+
+/* The app's base stylesheet paints the root beige; match the footer instead. */
+html:has(.sl-page),
+body:has(.sl-page) { background: #edf4f7; }
+
+.sl-page {
+  --sl-navy: #07345d;
+  --sl-blue: #0c67a8;
+  --sl-lime: #82d326;
+  --sl-lime-hover: #92e438;
+  --sl-lime-ink: #123a12;
+  --sl-ink: #102b43;
+  --sl-muted: #526778;
+  --sl-paper: #f8fafb;
+  --sl-soft: #edf4f7;
+  --sl-card: #ffffff;
+  --sl-line: #d6e1e7;
+  --sl-radius: 14px;
+
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  background: var(--sl-paper);
+  color: var(--sl-ink);
+  font: 400 16px/1.65 "Manrope Search", ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.sl-page h1,
+.sl-page h2,
+.sl-page h3 {
+  margin: 0;
+  color: var(--sl-ink);
+  font-family: "Barlow Search", "Arial Narrow", sans-serif;
+  font-weight: 700;
+  letter-spacing: -.01em;
+  text-wrap: balance;
+}
+.sl-page h1 { font-size: clamp(2.6rem, 5.2vw, 4.4rem); line-height: .98; max-width: 15ch; }
+.sl-page h2 { font-size: clamp(2.1rem, 3.8vw, 3.2rem); line-height: 1; max-width: 22ch; }
+.sl-page h3 { font-size: 1.45rem; line-height: 1.1; }
+.sl-page p { margin: 0; }
+
+.sl-wrap { width: min(calc(100% - 48px), 1160px); margin-inline: auto; }
+
+.sl-eyebrow {
+  margin-bottom: 14px !important;
+  color: var(--sl-blue);
+  font-size: .74rem;
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+.sl-eyebrow-light { color: #b8ef78; }
+.sl-lede { max-width: 56ch; margin-top: 18px !important; color: var(--sl-muted); font-size: 1.08rem; }
+
+/* Header */
+.sl-header { background: var(--sl-navy); color: #fff; }
+.sl-header-inner { min-height: 76px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.sl-logo img { width: 168px; height: auto; filter: brightness(0) invert(1); }
+.sl-header-phone { display: grid; text-align: right; color: #fff; text-decoration: none; }
+.sl-header-phone small { color: rgba(255, 255, 255, .72); font-size: .7rem; letter-spacing: .04em; }
+.sl-header-phone strong { font: 700 1.35rem/1.1 "Barlow Search", sans-serif; letter-spacing: .02em; }
+
+/* Hero */
+.sl-hero { padding: clamp(40px, 6vw, 84px) 0 clamp(48px, 6vw, 88px); border-bottom: 1px solid var(--sl-line); }
+.sl-hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr);
+  grid-template-areas: "copy form" "proof form";
+  grid-template-rows: auto 1fr;
+  column-gap: clamp(32px, 6vw, 88px);
+  row-gap: 0;
+  align-items: start;
+}
+.sl-hero-copy { grid-area: copy; }
+.sl-form-shell { grid-area: form; }
+.sl-hero-proof { grid-area: proof; }
+.sl-proof { list-style: none; margin: 32px 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border-top: 1px solid var(--sl-line); }
+.sl-proof li { padding: 16px 16px 0 0; display: grid; gap: 4px; }
+.sl-proof li + li { padding-left: 16px; border-left: 1px solid var(--sl-line); }
+.sl-proof strong { font: 700 1.2rem/1.1 "Barlow Search", sans-serif; color: var(--sl-ink); }
+.sl-proof span { color: var(--sl-muted); font-size: .8rem; line-height: 1.4; }
+
+.sl-rating { margin-top: 26px; display: inline-flex; align-items: baseline; gap: 10px; color: var(--sl-ink); text-decoration: none; }
+.sl-rating strong { font: 700 1.6rem/1 "Barlow Search", sans-serif; }
+.sl-rating span { color: #e6a700; letter-spacing: .08em; font-size: .9rem; }
+.sl-rating small { color: var(--sl-muted); font-size: .8rem; text-decoration: underline; text-underline-offset: 3px; }
+
+/* The shared address form, restyled for a light page. */
+.sl-form-shell {
+  --campaign-ink: var(--sl-ink);
+  --campaign-muted: var(--sl-muted);
+  --campaign-surface: var(--sl-card);
+  --campaign-line: var(--sl-line);
+  --campaign-signal: var(--sl-lime);
+  --campaign-accent: var(--sl-lime-hover);
+  --campaign-accent-ink: var(--sl-lime-ink);
+  scroll-margin-top: 24px;
+}
+.sl-page .sl-form-shell form.campaign-form {
+  max-width: none;
+  margin: 0;
+  border: 1px solid var(--sl-line);
+  border-top: 4px solid var(--sl-lime);
+  border-radius: var(--sl-radius);
+  background: var(--sl-card);
+  box-shadow: 0 28px 70px -40px rgba(7, 52, 93, .45);
+  backdrop-filter: none;
+}
+.sl-page .campaign-form h2 { font: 700 clamp(1.8rem, 2.6vw, 2.25rem)/1 "Barlow Search", sans-serif; letter-spacing: -.005em; }
+.sl-page .campaign-form-label { color: var(--sl-blue); font-family: "Manrope Search", sans-serif; }
+.sl-page .campaign-field input { border-radius: 8px; border-color: #b7c6cf; }
+.sl-page .campaign-primary-action {
+  width: 100%;
+  min-height: 54px;
+  border-radius: 999px;
+  background: var(--sl-lime);
+  color: var(--sl-lime-ink);
+  font: 700 .95rem/1 "Manrope Search", sans-serif;
+  cursor: pointer;
+}
+.sl-page .campaign-primary-action:hover { background: var(--sl-lime-hover); }
+.sl-page .campaign-text-action { color: var(--sl-blue); cursor: pointer; background: transparent; }
+.sl-page .campaign-error,
+.sl-page .campaign-status { color: #b42318; }
+.sl-page .campaign-consent-notice,
+.sl-page .campaign-fine-print { color: var(--sl-muted); }
+.sl-page .campaign-step-meter span { color: #7c8d98; }
+
+/* Sections */
+.sl-section { padding: clamp(56px, 8vw, 104px) 0; }
+.sl-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(32px, 6vw, 88px); align-items: start; }
+.sl-price { background: var(--sl-card); }
+.sl-example { margin-top: 28px; padding: 18px 20px; border-left: 3px solid var(--sl-lime); background: var(--sl-soft); border-radius: 0 var(--sl-radius) var(--sl-radius) 0; }
+.sl-example span { display: block; margin-bottom: 4px; color: var(--sl-blue); font-size: .72rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.sl-example p { font-weight: 600; }
+.sl-checks { list-style: none; margin: 18px 0 0; padding: 0; }
+.sl-checks li { position: relative; padding: 13px 0 13px 28px; border-top: 1px solid var(--sl-line); font-weight: 600; }
+.sl-checks li:last-child { border-bottom: 1px solid var(--sl-line); }
+.sl-checks li::before { content: "✓"; position: absolute; left: 0; color: #5a9f0a; font-weight: 700; }
+.sl-note { margin-top: 18px !important; color: var(--sl-muted); font-size: .88rem; }
+
+.sl-steps ol { list-style: none; margin: 36px 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+.sl-steps li { padding-top: 18px; border-top: 2px solid var(--sl-ink); }
+.sl-steps li span { display: block; margin-bottom: 10px; color: var(--sl-blue); font: 700 1rem/1 "Barlow Search", sans-serif; }
+.sl-steps li h3 { margin-bottom: 8px; }
+.sl-steps li p { color: var(--sl-muted); }
+
+.sl-virtual-wrap { padding-top: 0; }
+.sl-virtual {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: clamp(28px, 5vw, 72px);
+  align-items: center;
+  padding: clamp(32px, 5vw, 64px);
+  border-radius: var(--sl-radius);
+  background: var(--sl-navy);
+  color: rgba(255, 255, 255, .86);
+}
+.sl-virtual h2 { color: #fff; }
+.sl-virtual p { margin-bottom: 22px !important; font-size: 1.04rem; }
+.sl-virtual .sl-virtual-note { margin: 12px 0 0 !important; color: rgba(255, 255, 255, .66); font-size: .82rem; }
+
+.sl-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 54px;
+  padding: 14px 28px;
+  border-radius: 999px;
+  background: var(--sl-lime);
+  color: var(--sl-lime-ink);
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: 0 14px 30px -18px rgba(80, 145, 4, .9);
+}
+.sl-button:hover { background: var(--sl-lime-hover); }
+.sl-text-link { color: var(--sl-blue); font-weight: 700; text-decoration: none; }
+.sl-page a:focus-visible,
+.sl-page button:focus-visible,
+.sl-page summary:focus-visible { outline: 3px solid var(--sl-blue); outline-offset: 3px; }
+
+.sl-trust { background: var(--sl-card); border-block: 1px solid var(--sl-line); }
+.sl-facts { margin: 36px 0 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; border-top: 1px solid var(--sl-line); }
+.sl-facts div { padding: 20px 20px 0 0; }
+.sl-facts div + div { padding-left: 20px; border-left: 1px solid var(--sl-line); }
+.sl-facts dt { font: 700 1.25rem/1.15 "Barlow Search", sans-serif; color: var(--sl-ink); }
+.sl-facts dd { margin: 6px 0 0; color: var(--sl-muted); font-size: .88rem; }
+
+.sl-reviews { margin-top: 48px; }
+.sl-reviews-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 10px; }
+.sl-reviews-head a { color: var(--sl-blue); font-size: .88rem; font-weight: 700; }
+.sl-reviews ul { list-style: none; margin: 18px 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+.sl-reviews li { padding: 22px; border: 1px solid var(--sl-line); border-radius: var(--sl-radius); background: var(--sl-paper); }
+.sl-review-stars { color: #e6a700; letter-spacing: .08em; }
+.sl-reviews blockquote { margin: 10px 0 14px; font-size: .94rem; }
+.sl-review-meta { color: var(--sl-muted); font-size: .8rem; }
+.sl-review-meta a { color: var(--sl-ink); font-weight: 700; }
+.sl-review-source { margin-top: 12px !important; color: var(--sl-muted); font-size: .74rem; }
+
+.sl-faq-grid { display: grid; grid-template-columns: minmax(0, .7fr) minmax(0, 1.3fr); gap: clamp(32px, 6vw, 88px); }
+.sl-faq details { border-top: 1px solid var(--sl-line); }
+.sl-faq details:last-child { border-bottom: 1px solid var(--sl-line); }
+.sl-faq summary {
+  list-style: none;
+  padding: 18px 32px 18px 0;
+  position: relative;
+  font: 700 1.25rem/1.2 "Barlow Search", sans-serif;
+  cursor: pointer;
+}
+.sl-faq summary::-webkit-details-marker { display: none; }
+.sl-faq summary::after { content: "+"; position: absolute; right: 4px; top: 16px; color: var(--sl-blue); font-size: 1.4rem; }
+.sl-faq details[open] summary::after { content: "−"; }
+.sl-faq details p { padding: 0 0 20px; color: var(--sl-muted); max-width: 62ch; }
+
+.sl-closing { text-align: left; }
+.sl-closing-actions { margin-top: 28px; display: flex; flex-wrap: wrap; align-items: center; gap: 22px; }
+
+.sl-footer { padding: 34px 0; background: var(--sl-soft); border-top: 1px solid var(--sl-line); color: var(--sl-muted); font-size: .82rem; }
+.sl-footer-inner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; }
+.sl-footer nav { display: flex; gap: 18px; }
+.sl-footer a { color: var(--sl-ink); }
+
+@media (max-width: 900px) {
+  .sl-hero-grid {
+    grid-template-columns: 1fr;
+    grid-template-areas: "copy" "form" "proof";
+    grid-template-rows: auto;
+    row-gap: 28px;
+  }
+  .sl-split,
+  .sl-virtual,
+  .sl-faq-grid { grid-template-columns: 1fr; }
+  .sl-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sl-facts div:nth-child(3) { padding-left: 0; border-left: 0; }
+  .sl-reviews ul { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 640px) {
+  .sl-wrap { width: calc(100% - 32px); }
+  .sl-header-inner { min-height: 64px; }
+  .sl-logo img { width: 132px; }
+  .sl-header-phone small { display: none; }
+  .sl-header-phone strong { font-size: 1.15rem; }
+  .sl-hero { padding-top: 28px; }
+  .sl-proof { grid-template-columns: 1fr; margin-top: 0; }
+  .sl-page h1 { font-size: clamp(2.3rem, 10vw, 2.9rem); }
+  .sl-lede { font-size: 1rem; }
+  .sl-proof li,
+  .sl-proof li + li { padding: 12px 0; border-left: 0; border-bottom: 1px solid var(--sl-line); }
+  .sl-steps ol { grid-template-columns: 1fr; }
+  .sl-facts { grid-template-columns: 1fr; }
+  .sl-facts div,
+  .sl-facts div + div { padding: 16px 0; border-left: 0; border-bottom: 1px solid var(--sl-line); }
+  .sl-page .sl-form-shell form.campaign-form { padding: 20px 16px; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .sl-button,
+  .sl-page .campaign-primary-action { transition: background .18s ease, transform .18s ease; }
+  .sl-button:hover { transform: translateY(-1px); }
+}

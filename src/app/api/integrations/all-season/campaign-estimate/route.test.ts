@@ -17,6 +17,8 @@ vi.mock("@/lib/env/server", () => ({
   parseServerEnv: mocks.parseServerEnv,
   resolveLeadDistributionConfiguration: mocks.resolveLeadDistributionConfiguration,
   resolveMetaTrackingConfiguration: mocks.resolveMetaTrackingConfiguration,
+  resolveAdAttributionSecret: () => null,
+  resolveGoogleAdsConfiguration: () => null,
 }));
 vi.mock("@/lib/supabase/service", () => ({createServiceClient: mocks.createServiceClient}));
 vi.mock("@/modules/leads/accept-all-season-campaign-estimate", async (importOriginal) => ({
@@ -189,6 +191,64 @@ describe("All Season campaign estimate intake", () => {
       ...validPayload,
       disclosure_version: "all-season-campaign-estimate-v4",
     }).success).toBe(false);
+  });
+
+  test("records ad attribution for an accepted lead, with the signed token", async () => {
+    const leadId = "71000000-0000-4000-8000-000000000001";
+    const recordAdAttribution = vi.fn(async () => undefined);
+    const response = await handleAllSeasonCampaignEstimateRequest(
+      request({...validPayload, ad_attribution_token: "payload.signature"}),
+      {
+        expectedSecret: "shared-secret",
+        accept: vi.fn(async () => ({
+          kind: "continue" as const,
+          continuationPath: "/roof-estimate/continue/signed_token-123" as const,
+          leadId,
+        })),
+        recordAdAttribution,
+      },
+    );
+    expect(response.status).toBe(202);
+    expect(recordAdAttribution).toHaveBeenCalledWith({
+      leadId,
+      payload: expect.objectContaining({ad_attribution_token: "payload.signature"}),
+    });
+  });
+
+  test("still accepts the lead when recording attribution fails", async () => {
+    const reportError = vi.fn();
+    const response = await handleAllSeasonCampaignEstimateRequest(
+      request(validPayload),
+      {
+        expectedSecret: "shared-secret",
+        accept: vi.fn(async () => ({
+          kind: "continue" as const,
+          continuationPath: "/roof-estimate/continue/signed_token-123" as const,
+          leadId: "71000000-0000-4000-8000-000000000002",
+        })),
+        recordAdAttribution: vi.fn(async () => { throw new Error("db down"); }),
+        reportError,
+      },
+    );
+    expect(response.status).toBe(202);
+    expect(reportError).toHaveBeenCalled();
+  });
+
+  test("accepts a Google search landing page as the campaign", async () => {
+    const accept = vi.fn(async () => ({
+      kind: "continue" as const,
+      continuationPath: "/roof-estimate/continue/signed_token-123" as const,
+    }));
+    const response = await handleAllSeasonCampaignEstimateRequest(
+      request({
+        ...validPayload,
+        campaign: "roof-replacement-cost",
+        presentation_key: "roof-replacement-cost",
+        entry_point: "campaign:roof-replacement-cost",
+      }),
+      {expectedSecret: "shared-secret", accept},
+    );
+    expect(response.status).toBe(202);
   });
 
   test("rejects a request with the wrong shared secret", async () => {
