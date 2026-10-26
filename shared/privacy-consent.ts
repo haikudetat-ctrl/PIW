@@ -4,6 +4,15 @@ import {z} from "zod";
 export const CONSENT_POLICY_VERSION = "piw-privacy-v1" as const;
 export const PRIVACY_COOKIE_NAME = "piw_privacy" as const;
 
+/**
+ * Opt-out advertising: a visitor with no saved choice, no Global Privacy
+ * Control signal, and no local denial gets Advertising on by notice. Off
+ * unless explicitly set, so a missing variable keeps the opt-in banner.
+ */
+export function advertisingDefaultOnEnabled(environment: Record<string, string | undefined>) {
+  return environment.NEXT_PUBLIC_ADVERTISING_DEFAULT_ON === "true";
+}
+
 export type ConsentPreferences = {
   necessary: true;
   analytics: boolean;

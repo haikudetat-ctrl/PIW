@@ -2,6 +2,7 @@ import {randomUUID} from "node:crypto";
 import {NextResponse, type NextRequest} from "next/server";
 import {z} from "zod";
 import {
+  advertisingDefaultOnEnabled,
   CONSENT_POLICY_VERSION,
   normalizeConsentPreferences,
   PRIVACY_COOKIE_NAME,
@@ -20,14 +21,22 @@ const consentRequestSchema = z.strictObject({
   analytics: z.boolean(),
   advertising: z.boolean(),
   gpcDetected: z.boolean().optional().default(false),
+  source: z.literal("default_notice").optional(),
 });
+
+type ConsentSync = (
+  consent: VerifiedWebsiteConsent,
+  source?: "default_notice",
+) => Promise<VerifiedWebsiteConsent | null>;
 
 export type WebsitePrivacyConsentDependencies = {
   signingSecret: string | undefined;
   nodeEnv: "development" | "test" | "production";
   now: () => Date;
   createId: () => string;
-  synchronize?: (consent: VerifiedWebsiteConsent) => Promise<VerifiedWebsiteConsent | null>;
+  synchronize?: ConsentSync;
+  /** Whether a visitor with no saved choice may get Advertising by notice. */
+  advertisingDefaultOn?: boolean;
 };
 
 export type WebsitePrivacyConsentStatusDependencies = {
@@ -72,13 +81,17 @@ function failClosed(consent: VerifiedWebsiteConsent): VerifiedWebsiteConsent {
 async function resolveCurrentConsent({
   candidate,
   synchronize,
+  source,
 }: {
   candidate: VerifiedWebsiteConsent;
-  synchronize: ((consent: VerifiedWebsiteConsent) => Promise<VerifiedWebsiteConsent | null>) | undefined;
+  synchronize: ConsentSync | undefined;
+  source?: "default_notice";
 }) {
   let canonical: VerifiedWebsiteConsent | null = null;
   try {
-    canonical = synchronize ? await synchronize(candidate) : null;
+    if (synchronize) {
+      canonical = source ? await synchronize(candidate, source) : await synchronize(candidate);
+    }
   } catch {
     canonical = null;
   }
@@ -150,6 +163,16 @@ export async function handlePrivacyConsentRequest(
 
   const existing = readWebsiteConsent(readCookie(request), signingSecret);
   const gpcDetected = requestHasGpc(request) || parsed.data.gpcDetected;
+  const defaultNotice = parsed.data.source === "default_notice";
+  if (defaultNotice) {
+    // A notice default only ever starts a new identity with Advertising on.
+    // It is never written while the flag is off, under GPC, or over a saved
+    // choice, so it cannot replace a visitor's rejection.
+    if (!dependencies.advertisingDefaultOn || gpcDetected || !parsed.data.advertising) {
+      return noStoreJson({error: "Invalid privacy consent"}, 400);
+    }
+    if (existing) return noStoreJson({error: "A privacy choice is already saved"}, 409);
+  }
   const candidate: VerifiedWebsiteConsent = {
     policyVersion: CONSENT_POLICY_VERSION,
     consentId: existing?.consentId ?? dependencies.createId(),
@@ -157,7 +180,17 @@ export async function handlePrivacyConsentRequest(
     gpcDetected,
     updatedAt: dependencies.now().toISOString(),
   };
-  const current = await resolveCurrentConsent({candidate, synchronize: dependencies.synchronize});
+  const current = await resolveCurrentConsent({
+    candidate,
+    synchronize: dependencies.synchronize,
+    source: defaultNotice ? "default_notice" : undefined,
+  });
+  // A default that PIW did not record is not kept for a later retry: that
+  // retry would sync it as an ordinary preference. The page falls back to the
+  // opt-in banner instead.
+  if (defaultNotice && !current.canonical) {
+    return noStoreJson({error: "Privacy consent is temporarily unavailable"}, 503);
+  }
   const response = noStoreJson({consent: current.consent}, 200);
   // Preserve a locally recorded choice for a future retry, but never expose it
   // as effective Advertising consent until PIW has returned canonical state.
@@ -172,7 +205,8 @@ export async function POST(request: NextRequest) {
       nodeEnv: process.env.NODE_ENV,
       now: () => new Date(),
       createId: randomUUID,
-      synchronize: (consent) => synchronizeCanonicalWebsiteConsent({
+      advertisingDefaultOn: advertisingDefaultOnEnabled(process.env),
+      synchronize: (consent, source) => synchronizeCanonicalWebsiteConsent({
         consent,
         signingSecret: process.env.PRIVACY_CONSENT_SIGNING_SECRET,
         sharedSecret: process.env.INTAKE_WEBHOOK_SHARED_SECRET,
@@ -182,6 +216,7 @@ export async function POST(request: NextRequest) {
         requestIp: trustedWebsiteRequestIp(request.headers, process.env.NODE_ENV),
         liveGpcDetected: requestHasGpc(request),
         vercelOidcToken: request.headers.get("x-vercel-oidc-token"),
+        source,
       }),
     });
   } catch {

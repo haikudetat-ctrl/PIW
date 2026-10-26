@@ -1,4 +1,5 @@
 export {
+  advertisingDefaultOnEnabled,
   CONSENT_POLICY_VERSION,
   createConsentHandoff,
   normalizeConsentPreferences,

@@ -230,3 +230,64 @@ describe("current privacy consent sync endpoint", () => {
     expect(repository.record).not.toHaveBeenCalled();
   });
 });
+
+describe("current privacy consent sync endpoint: notice default", () => {
+  const noticeHeader = {"x-piw-privacy-consent-source": "default_notice"};
+  const defaultConsent: VerifiedConsent = {
+    ...grantedConsent,
+    preferences: {necessary: true, analytics: false, advertising: true},
+  };
+
+  test("records a new website default as default_notice, not preferences", async () => {
+    const repository = {
+      record: vi.fn(async () => undefined),
+      readCurrent: vi.fn()
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(defaultConsent),
+    };
+    const response = await handleCurrentPrivacyConsentSyncRequest(
+      request(signConsentCookie(defaultConsent, signingSecret), noticeHeader),
+      dependencies({repository, advertisingDefaultOn: true}),
+    );
+
+    expect(response.status).toBe(200);
+    expect(repository.record).toHaveBeenCalledWith(expect.objectContaining({
+      consentId,
+      source: "default_notice",
+      preferences: {necessary: true, analytics: false, advertising: true},
+    }));
+  });
+
+  test("returns an existing record instead of writing a default over it", async () => {
+    const rejection: VerifiedConsent = {
+      ...grantedConsent,
+      preferences: {necessary: true, analytics: false, advertising: false},
+      updatedAt: "2026-09-01T15:00:00.000Z",
+    };
+    const repository = {
+      record: vi.fn(async () => undefined),
+      readCurrent: vi.fn(async () => rejection),
+    };
+    const response = await handleCurrentPrivacyConsentSyncRequest(
+      request(signConsentCookie(defaultConsent, signingSecret), noticeHeader),
+      dependencies({repository, advertisingDefaultOn: true}),
+    );
+
+    expect(await response.json()).toEqual({consent: rejection});
+    expect(repository.record).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    ["the flag is off", {}, {}],
+    ["GPC is present", {advertisingDefaultOn: true}, {"sec-gpc": "1"}],
+  ])("is refused when %s", async (_label, overrides, headers) => {
+    const deps = dependencies(overrides);
+    const response = await handleCurrentPrivacyConsentSyncRequest(
+      request(signConsentCookie(defaultConsent, signingSecret), {...noticeHeader, ...headers}),
+      deps,
+    );
+
+    expect(response.status).toBe(403);
+    expect(deps.repository.record).not.toHaveBeenCalled();
+  });
+});

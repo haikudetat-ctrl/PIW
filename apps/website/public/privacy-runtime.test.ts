@@ -443,3 +443,83 @@ describe("static privacy runtime", () => {
     expect(dom.window.document.querySelector('[role="dialog"][aria-modal="true"]')).not.toBeNull();
   });
 });
+
+describe("static privacy runtime: notice default (opt-out advertising)", () => {
+  function noticeDom() {
+    const dom = new JSDOM(`<!doctype html><html><head>
+      <script id="all-season-meta-config" type="application/json">{"enabled":true,"pixelId":"3142520615938086","advertisingDefaultOn":true}</script>
+    </head><body><main>Public page</main></body></html>`, {
+      url: "https://allseason.example/about.html",
+      runScripts: "outside-only",
+    });
+    Object.defineProperty(dom.window, "matchMedia", {value: () => ({matches: false})});
+    Object.defineProperty(dom.window, "requestAnimationFrame", {
+      value: (callback: FrameRequestCallback) => dom.window.setTimeout(() => callback(0), 0),
+    });
+    return dom;
+  }
+
+  test("records the default on arrival, fires PageView, and shows only Privacy choices", async () => {
+    const dom = noticeDom();
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(Response.json({consent: null}))
+      .mockResolvedValue(Response.json({consent: verifiedConsent(true)}));
+    dom.window.fetch = fetch;
+
+    await boot(dom);
+
+    await vi.waitFor(() => expect(dom.window.document.querySelector('script[src*="facebook"]')).not.toBeNull());
+    expect(JSON.parse(fetch.mock.calls[1][1].body)).toEqual({analytics: false, advertising: true, source: "default_notice"});
+    expect(dom.window.document.querySelector("[data-all-season-privacy-banner]")).toBeNull();
+    expect(dom.window.document.querySelector("[data-all-season-privacy-reopen]")).not.toBeNull();
+    expect(dom.window.localStorage.getItem("allseason-privacy-denials")).toBeNull();
+  });
+
+  test("keeps the opt-in banner under GPC", async () => {
+    const dom = noticeDom();
+    Object.defineProperty(dom.window.navigator, "globalPrivacyControl", {value: true});
+    const fetch = vi.fn(async () => Response.json({consent: null}));
+    dom.window.fetch = fetch as typeof dom.window.fetch;
+
+    await boot(dom);
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(dom.window.document.querySelector("[data-all-season-privacy-banner]")).not.toBeNull();
+    expect(dom.window.document.querySelector('script[src*="facebook"]')).toBeNull();
+  });
+
+  test("respects an earlier local rejection", async () => {
+    const dom = noticeDom();
+    dom.window.localStorage.setItem("allseason-privacy-denials", JSON.stringify({analytics: true, advertising: true}));
+    const fetch = vi.fn(async () => Response.json({consent: null}));
+    dom.window.fetch = fetch as typeof dom.window.fetch;
+
+    await boot(dom);
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(dom.window.document.querySelector('script[src*="facebook"]')).toBeNull();
+  });
+
+  test("falls back to the opt-in banner when the default cannot be recorded", async () => {
+    const dom = noticeDom();
+    dom.window.fetch = vi.fn()
+      .mockResolvedValueOnce(Response.json({consent: null}))
+      .mockResolvedValue(new Response(null, {status: 503}));
+
+    await boot(dom);
+
+    await vi.waitFor(() => expect(dom.window.document.querySelector("[data-all-season-privacy-banner]")).not.toBeNull());
+    expect(dom.window.document.querySelector('script[src*="facebook"]')).toBeNull();
+  });
+
+  test("leaves a saved rejection alone", async () => {
+    const dom = noticeDom();
+    const fetch = vi.fn(async () => Response.json({consent: verifiedConsent(false)}));
+    dom.window.fetch = fetch as typeof dom.window.fetch;
+
+    await boot(dom);
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(dom.window.document.querySelector('script[src*="facebook"]')).toBeNull();
+  });
+});

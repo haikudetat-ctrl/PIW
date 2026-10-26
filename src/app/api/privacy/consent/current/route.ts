@@ -3,6 +3,7 @@ import {NextResponse, type NextRequest} from "next/server";
 import {z} from "zod";
 import {parseServerEnv} from "@/lib/env/server";
 import {
+  advertisingDefaultOnEnabled,
   normalizeConsentPreferences,
   verifyConsentCookie,
   type VerifiedConsent,
@@ -25,7 +26,11 @@ export type CurrentPrivacyConsentSyncDependencies = {
   /** Forwarded only by the authenticated website server boundary. */
   requestIp: string | null;
   repository: CurrentPrivacyConsentRepository;
+  /** Whether the website may record an opt-out notice default. */
+  advertisingDefaultOn?: boolean;
 };
+
+const DEFAULT_NOTICE_HEADER = "x-piw-privacy-consent-source";
 
 function unavailable(status = 503) {
   return NextResponse.json(
@@ -110,12 +115,22 @@ export async function handleCurrentPrivacyConsentSyncRequest(
     hasGlobalPrivacyControl(request),
     hasGlobalPrivacyControl(request) ? now.toISOString() : verified.updatedAt,
   );
+  const defaultNotice = request.headers.get(DEFAULT_NOTICE_HEADER) === "default_notice";
+  if (defaultNotice && (
+    !dependencies.advertisingDefaultOn
+    || candidate.gpcDetected
+    || !candidate.preferences.advertising
+  )) return unavailable(403);
 
   try {
     const current = await dependencies.repository.readCurrent({
       consentId: candidate.consentId,
       policyVersion: candidate.policyVersion,
     });
+    // A notice default only starts a new identity; any existing record wins.
+    if (defaultNotice && current) {
+      return NextResponse.json({consent: current}, {headers: {"cache-control": "no-store"}});
+    }
     const currentTime = current ? Date.parse(current.updatedAt) : Number.NEGATIVE_INFINITY;
     const candidateTime = Date.parse(candidate.updatedAt);
     const equalTimeCandidateDenies = currentTime === candidateTime
@@ -131,7 +146,7 @@ export async function handleCurrentPrivacyConsentSyncRequest(
       policyVersion: candidate.policyVersion,
       preferences: candidate.preferences,
       gpcDetected: candidate.gpcDetected,
-      source: candidate.gpcDetected ? "gpc" : "preferences",
+      source: defaultNotice ? "default_notice" : candidate.gpcDetected ? "gpc" : "preferences",
       requestIp: dependencies.requestIp,
       userAgent: "",
       occurredAt: candidate.updatedAt,
@@ -179,6 +194,7 @@ export async function POST(request: NextRequest) {
       isAllowedWebsiteOrigin: (origin) => allowedAllSeasonWebsiteOrigin(origin, deploymentEnvironment),
       requestIp: forwardedIp.success ? forwardedIp.data : null,
       repository: new SupabasePrivacyConsentRepository(),
+      advertisingDefaultOn: advertisingDefaultOnEnabled(process.env),
     });
   } catch {
     return unavailable();

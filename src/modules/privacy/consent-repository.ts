@@ -7,13 +7,20 @@ import {
   type VerifiedConsent,
 } from "./consent";
 
+/**
+ * How an unlinked consent row came to exist. `default_notice` is the opt-out
+ * model: advertising on by notice for a visitor who has made no choice, which
+ * is recorded separately so the evidence never claims a banner click.
+ */
+export type PrivacyConsentSource = "banner" | "preferences" | "gpc" | "default_notice";
+
 export type PrivacyConsentEvidenceInput = {
   evidenceId: string;
   consentId: string;
   policyVersion: "piw-privacy-v1";
   preferences: ConsentPreferences;
   gpcDetected: boolean;
-  source: "banner" | "preferences" | "gpc";
+  source: PrivacyConsentSource;
   requestIp: string | null;
   userAgent: string;
   occurredAt: string;
@@ -42,7 +49,7 @@ type PrivacyConsentRpcClient = {
       p_analytics_granted: boolean;
       p_advertising_granted: boolean;
       p_gpc_detected: boolean;
-      p_source: "banner" | "preferences" | "gpc";
+      p_source: PrivacyConsentSource;
       p_request_ip: string | null;
       p_user_agent: string;
       p_occurred_at: string;

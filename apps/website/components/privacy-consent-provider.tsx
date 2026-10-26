@@ -40,6 +40,9 @@ const DEFAULT_PREFERENCES: ConsentPreferences = {
   advertising: false,
 };
 const FAIL_MESSAGE = "We could not save your privacy choices. Please try again.";
+// Opt-out model: a visitor with no saved choice, no GPC signal, and no local
+// denial gets Advertising on by notice. Session recording keeps its own default.
+const ADVERTISING_DEFAULT_ON = process.env.NEXT_PUBLIC_ADVERTISING_DEFAULT_ON === "true";
 
 const PrivacyConsentContext = createContext<PrivacyConsentContextValue | null>(null);
 
@@ -111,6 +114,12 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
   const restoreFocusAfterDialogCloseRef = useRef(true);
   const focusPrivacyControlAfterSaveRef = useRef(false);
   const gpcSyncAttemptedRef = useRef(false);
+  // While the notice default is being recorded, neither the opt-in banner nor
+  // the choices control renders, so a click cannot race the new identity.
+  const [defaultNoticePending, setDefaultNoticePending] = useState(
+    ADVERTISING_DEFAULT_ON && !initialConsent,
+  );
+  const defaultNoticeAttemptedRef = useRef(false);
   const canonicalResolutionRef = useRef(0);
   const authorizationResolutionRef = useRef(0);
   const consentIdentityRef = useRef(initialConsentId && initialPolicyVersion
@@ -270,6 +279,47 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
   }, [effectivePreferences]);
 
   useEffect(() => {
+    if (!defaultNoticePending || defaultNoticeAttemptedRef.current) return;
+    defaultNoticeAttemptedRef.current = true;
+
+    // Once per page load (Strict Mode re-runs the effect); the result is
+    // applied by resolution, not by an effect-scoped flag.
+    void (async () => {
+      try {
+        if (browserGpcIsEnabled() || privacyDenialSnapshot()[1] === "1") return;
+        const resolution = ++canonicalResolutionRef.current;
+        authorizationResolutionRef.current += 1;
+        const response = await fetch("/api/privacy/consent", {
+          method: "POST",
+          headers: {"content-type": "application/json"},
+          body: JSON.stringify({
+            analytics: DEFAULT_PREFERENCES.analytics,
+            advertising: true,
+            source: "default_notice",
+          }),
+        });
+        if (!response.ok) throw new Error("Default notice was not recorded");
+        const payload: unknown = await response.json();
+        if (!isConsentResponse(payload) || !payload.consent.preferences.advertising) {
+          throw new Error("Default notice response was invalid");
+        }
+        if (resolution !== canonicalResolutionRef.current) return;
+        setPreferences(payload.consent.preferences);
+        consentIdentityRef.current = {
+          consentId: payload.consent.consentId,
+          policyVersion: payload.consent.policyVersion,
+        };
+        setDecided(true);
+        setCanonicalReady(true);
+      } catch {
+        // Fail closed: the visitor sees the opt-in banner instead.
+      } finally {
+        setDefaultNoticePending(false);
+      }
+    })();
+  }, [defaultNoticePending]);
+
+  useEffect(() => {
     if (!browserGpcDetected || gpcSyncAttemptedRef.current) return;
     gpcSyncAttemptedRef.current = true;
     void savePreferences({analytics: preferences.analytics, advertising: false});
@@ -345,7 +395,7 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
 
   return (
     <PrivacyConsentContext.Provider value={value}>
-      {!decided ? (
+      {defaultNoticePending ? null : !decided ? (
         <PrivacyConsentBanner
           saving={saving}
           error={error}

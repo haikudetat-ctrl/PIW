@@ -281,3 +281,77 @@ describe("website privacy consent endpoint", () => {
     });
   });
 });
+
+describe("website privacy consent endpoint: notice default", () => {
+  const body = {analytics: false, advertising: true, source: "default_notice"};
+  const canonicalDefault = {
+    policyVersion: "piw-privacy-v1" as const,
+    consentId,
+    preferences: {necessary: true as const, analytics: false, advertising: true},
+    gpcDetected: false,
+    updatedAt: now.toISOString(),
+  };
+  function deps(overrides: Record<string, unknown> = {}) {
+    return {
+      signingSecret,
+      nodeEnv: "production" as const,
+      now: () => now,
+      createId: () => consentId,
+      advertisingDefaultOn: true,
+      synchronize: vi.fn(async () => canonicalDefault),
+      ...overrides,
+    };
+  }
+
+  test("syncs a new identity to PIW marked as default_notice", async () => {
+    const dependencies = deps();
+    const response = await handlePrivacyConsentRequest(request(body), dependencies);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({consent: {preferences: {advertising: true}}});
+    expect(dependencies.synchronize).toHaveBeenCalledWith(
+      expect.objectContaining({consentId, preferences: expect.objectContaining({advertising: true})}),
+      "default_notice",
+    );
+    const cookie = response.cookies.get("piw_privacy")?.value;
+    expect(readWebsiteConsent(cookie, signingSecret)?.preferences.advertising).toBe(true);
+  });
+
+  test("keeps no cookie when PIW did not record the default", async () => {
+    const response = await handlePrivacyConsentRequest(
+      request(body),
+      deps({synchronize: vi.fn(async () => null)}),
+    );
+
+    expect(response.status).toBe(503);
+    expect(response.cookies.get("piw_privacy")).toBeUndefined();
+  });
+
+  test.each([
+    ["the flag is off", body, {}, {advertisingDefaultOn: false}],
+    ["GPC is present", body, {"sec-gpc": "1"}, {}],
+    ["Advertising is off", {...body, advertising: false}, {}, {}],
+  ])("is refused when %s", async (_label, payload, headers, overrides) => {
+    const dependencies = deps(overrides);
+    const response = await handlePrivacyConsentRequest(request(payload, headers), dependencies);
+
+    expect(response.status).toBe(400);
+    expect(dependencies.synchronize).not.toHaveBeenCalled();
+  });
+
+  test("never writes over a saved choice", async () => {
+    const saved = signWebsiteConsent({
+      ...canonicalDefault,
+      consentId: "22222222-2222-4222-8222-222222222222",
+      preferences: {necessary: true, analytics: false, advertising: false},
+    }, signingSecret);
+    const dependencies = deps();
+    const response = await handlePrivacyConsentRequest(
+      request(body, {cookie: `piw_privacy=${saved}`}),
+      dependencies,
+    );
+
+    expect(response.status).toBe(409);
+    expect(dependencies.synchronize).not.toHaveBeenCalled();
+  });
+});

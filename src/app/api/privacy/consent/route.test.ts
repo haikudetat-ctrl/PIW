@@ -102,6 +102,66 @@ describe("privacy consent route", () => {
     expect(record).toHaveBeenCalledWith(expect.objectContaining({consentId: existingConsentId}));
   });
 
+  describe("notice default (opt-out advertising)", () => {
+    const body = {analytics: false, advertising: true, gpcDetected: false, source: "default_notice"};
+
+    test("records a new identity with source default_notice when the flag is on", async () => {
+      const record = vi.fn(async () => undefined);
+      const response = await handlePrivacyConsentRequest(
+        request(body),
+        {...dependencies(record), advertisingDefaultOn: true},
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("set-cookie")).toContain("piw_privacy=");
+      expect(record).toHaveBeenCalledWith(expect.objectContaining({
+        consentId: "11111111-1111-4111-8111-111111111111",
+        source: "default_notice",
+        gpcDetected: false,
+        preferences: {necessary: true, analytics: false, advertising: true},
+      }));
+    });
+
+    test("is refused while the flag is off", async () => {
+      const record = vi.fn(async () => undefined);
+      const response = await handlePrivacyConsentRequest(request(body), dependencies(record));
+      expect(response.status).toBe(400);
+      expect(record).not.toHaveBeenCalled();
+    });
+
+    test.each([
+      ["a GPC header", body, {"sec-gpc": "1"}],
+      ["a GPC body value", {...body, gpcDetected: true}, undefined],
+      ["Advertising off", {...body, advertising: false}, undefined],
+    ])("is refused with %s", async (_label, payload, headers) => {
+      const record = vi.fn(async () => undefined);
+      const response = await handlePrivacyConsentRequest(
+        request(payload, headers),
+        {...dependencies(record), advertisingDefaultOn: true},
+      );
+      expect(response.status).toBe(400);
+      expect(record).not.toHaveBeenCalled();
+    });
+
+    test("never writes over a saved choice", async () => {
+      const record = vi.fn(async () => undefined);
+      const savedRejection = signConsentCookie({
+        consentId: "22222222-2222-4222-8222-222222222222",
+        preferences: {necessary: true, analytics: false, advertising: false},
+        gpcDetected: false,
+        updatedAt: "2026-08-27T12:00:00.000Z",
+      }, signingSecret);
+      const response = await handlePrivacyConsentRequest(
+        request(body, {cookie: `piw_privacy=${savedRejection}`}),
+        {...dependencies(record), advertisingDefaultOn: true},
+      );
+
+      expect(response.status).toBe(409);
+      expect(response.headers.get("set-cookie")).toBeNull();
+      expect(record).not.toHaveBeenCalled();
+    });
+  });
+
   test("rejects unknown fields", async () => {
     const response = await handlePrivacyConsentRequest(request({
       analytics: false, advertising: false, gpcDetected: false,
