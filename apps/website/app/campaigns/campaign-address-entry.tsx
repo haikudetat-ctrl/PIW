@@ -3,8 +3,8 @@
 import {useCallback, useState, type FormEvent} from "react";
 import {TurnstileWidget} from "../../components/turnstile";
 import {PREVIEW_ADDRESS_SUBMIT_LABEL, propertyProcessingNotice} from "../../lib/property-preview-notice";
+import type {LandingSlug} from "../../lib/landing-slugs";
 import {AddressAutocomplete} from "./address-autocomplete";
-import type {CampaignDefinition} from "./campaigns";
 
 const ATTRIBUTION_KEYS = ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "fbclid"] as const;
 
@@ -14,9 +14,31 @@ function track(event: string, campaign: string) {
   }));
 }
 
+/** What the address step needs from a landing page: Meta campaigns and Google search pages both satisfy it. */
+export type AddressEntryContext = {
+  slug: LandingSlug;
+  entryPoint: `campaign:${LandingSlug}`;
+  presentationKey: LandingSlug;
+  formTitle: string;
+  /**
+   * Overrides for the search landing pages. Nested so a full campaign
+   * definition (which has its own formIntro and submitLabel for the legacy
+   * form) never changes the value-first step. The notice always names the
+   * button that is shown.
+   */
+  addressStepCopy?: {
+    label: string;
+    intro: string;
+    submitLabel: string;
+    pendingLabel: string;
+  };
+};
+
 // Value-first address step for campaign landing pages. Contact details are
 // collected on the estimate host after the homeowner sees their roof.
-export function CampaignAddressEntry({campaign, turnstileSiteKey}: {campaign: CampaignDefinition; turnstileSiteKey: string}) {
+export function CampaignAddressEntry({campaign, turnstileSiteKey}: {campaign: AddressEntryContext; turnstileSiteKey: string}) {
+  const copy = campaign.addressStepCopy;
+  const submitLabel = copy?.submitLabel ?? PREVIEW_ADDRESS_SUBMIT_LABEL;
   const [manual, setManual] = useState(false);
   const [selected, setSelected] = useState<{placeId: string; address: string} | null>(null);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
@@ -85,9 +107,9 @@ export function CampaignAddressEntry({campaign, turnstileSiteKey}: {campaign: Ca
   return (
     <form className="campaign-form" onSubmit={submit} noValidate>
       <header>
-        <span className="campaign-form-label">A clear first step</span>
+        <span className="campaign-form-label">{copy?.label ?? "A clear first step"}</span>
         <h2>{campaign.formTitle}</h2>
-        <p>Enter the address to see your roof and your price.</p>
+        <p>{copy?.intro ?? "Enter the address to see your roof and your price."}</p>
       </header>
       <fieldset disabled={pending}>
         <legend className="campaign-sr-only">Property address</legend>
@@ -111,10 +133,10 @@ export function CampaignAddressEntry({campaign, turnstileSiteKey}: {campaign: Ca
           {manual ? "Use Google address search" : "Can’t find it? Enter the address manually"}
         </button>
         <TurnstileWidget siteKey={turnstileSiteKey} action="property_preview" onToken={setTurnstileToken} resetKey={resetKey} />
-        <p className="campaign-consent-notice" data-preview-notice>{propertyProcessingNotice()}</p>
+        <p className="campaign-consent-notice" data-preview-notice>{propertyProcessingNotice(submitLabel)}</p>
         {error ? <p className="campaign-error" role="alert">{error}</p> : null}
         <button className="campaign-primary-action" type="submit">
-          {pending ? "Finding your roof…" : PREVIEW_ADDRESS_SUBMIT_LABEL} <span aria-hidden="true">→</span>
+          {pending ? (copy?.pendingLabel ?? "Finding your roof…") : submitLabel} <span aria-hidden="true">→</span>
         </button>
       </fieldset>
       <p className="campaign-fine-print">A preliminary estimate, not a contract or final quote. Your information stays with All Season and is not sold.</p>

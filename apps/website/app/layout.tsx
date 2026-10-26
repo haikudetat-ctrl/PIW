@@ -5,6 +5,8 @@ import {ConsentAwarePostHog} from "../components/consent-aware-posthog";
 import {ConsentAwareVercelAnalytics} from "../components/consent-aware-vercel-analytics";
 import {PrivacyConsentProvider} from "../components/privacy-consent-provider";
 import {MetaPixelProvider} from "../components/meta-pixel-provider";
+import {GoogleTagProvider} from "../components/google-tag-provider";
+import {resolveGoogleTagConfiguration} from "../lib/google-tag";
 import {PRIVACY_COOKIE_NAME, readWebsiteConsent} from "../lib/privacy-consent";
 import {websiteMetaTrackingEnabled} from "../lib/meta-tracking";
 import "./styles.css";
@@ -18,6 +20,7 @@ export default async function RootLayout({children}: Readonly<{children: React.R
   const cookieStore = await cookies();
   const signingSecret = process.env.PRIVACY_CONSENT_SIGNING_SECRET;
   const metaTrackingEnabled = websiteMetaTrackingEnabled(process.env);
+  const googleTag = resolveGoogleTagConfiguration(process.env);
   const initialConsent = signingSecret
     ? readWebsiteConsent(cookieStore.get(PRIVACY_COOKIE_NAME)?.value, signingSecret)
     : null;
@@ -30,6 +33,7 @@ export default async function RootLayout({children}: Readonly<{children: React.R
       <body>
         <PrivacyConsentProvider initialConsent={initialConsent}>
           <MetaPixelProvider enabled={metaTrackingEnabled}>{children}</MetaPixelProvider>
+          <GoogleTagProvider configuration={googleTag} />
           <ConsentAwareVercelAnalytics />
           <ConsentAwarePostHog />
         </PrivacyConsentProvider>

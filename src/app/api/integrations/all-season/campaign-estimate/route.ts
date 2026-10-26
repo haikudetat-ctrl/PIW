@@ -2,9 +2,15 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import {
   parseServerEnv,
+  resolveAdAttributionSecret,
+  resolveGoogleAdsConfiguration,
   resolveLeadDistributionConfiguration,
   resolveMetaTrackingConfiguration,
 } from "@/lib/env/server";
+import {
+  buildLeadAdAttribution,
+  recordLeadAdAttribution,
+} from "@/modules/marketing/google-ads/attribution";
 import { createServiceClient } from "@/lib/supabase/service";
 import { inngest } from "@/inngest/client";
 import { SupabaseMetaRepository, type ReservedMetaEvent } from "@/modules/marketing/meta-repository";
@@ -84,6 +90,13 @@ type CampaignEstimateDependencies = {
     occurredAt: string;
   }) => Promise<ReservedMetaEvent | null>;
   requestDelivery?: (deliveryId: string) => Promise<void>;
+  /** Records the lead's verified ad attribution (Google Search Ads). */
+  recordAdAttribution?: (input: {leadId: string; payload: AllSeasonCampaignEstimateInput}) => Promise<void>;
+  /**
+   * Google uploads read consent from the lead's evidence. When Meta tracking
+   * is off nothing else records it, so this does.
+   */
+  recordConsentForAds?: boolean;
   reportError?: (error: unknown) => void;
 };
 
@@ -159,6 +172,47 @@ async function reserveMetaLeadAfterAcceptance({
   }
 }
 
+async function recordAdAttributionAfterAcceptance({
+  request,
+  result,
+  payload,
+  dependencies,
+}: {
+  request: NextRequest;
+  result: CampaignEstimateAcceptance;
+  payload: AllSeasonCampaignEstimateInput;
+  dependencies: CampaignEstimateDependencies;
+}) {
+  if (result.kind !== "continue" || !dependencies.recordAdAttribution) return;
+  try {
+    const leadId = result.leadId ?? await dependencies.findLeadId?.(payload.submission_id);
+    if (!leadId) return;
+    await dependencies.recordAdAttribution({leadId, payload});
+
+    // Meta's path already records consent evidence when it is enabled.
+    if (
+      dependencies.recordConsentForAds
+      && !dependencies.metaTrackingEnabled
+      && dependencies.companyId
+      && dependencies.verifyAdvertisingConsent
+      && dependencies.recordConsent
+    ) {
+      const consent = await dependencies.verifyAdvertisingConsent(request);
+      if (consent) {
+        await dependencies.recordConsent({
+          leadId,
+          companyId: dependencies.companyId,
+          consent,
+          occurredAt: new Date().toISOString(),
+        });
+      }
+    }
+  } catch (error) {
+    // Attribution is never allowed to block or fail an accepted lead.
+    (dependencies.reportError ?? console.error)(error);
+  }
+}
+
 async function deliverLeadAfterAcceptance({
   result,
   submissionId,
@@ -226,6 +280,12 @@ export async function processCampaignEstimate(
       deliverLeadAfterAcceptance({
         result,
         submissionId: input.submission_id,
+        dependencies,
+      }),
+      recordAdAttributionAfterAcceptance({
+        request,
+        result,
+        payload: input,
         dependencies,
       }),
     ]);
@@ -360,6 +420,20 @@ export function createCampaignEstimateDependencies(
       if (error) throw new Error("Failed to record privacy consent evidence");
     },
     reserveQualifiedLead: (input) => metaRepository.reserveQualifiedLead(input),
+    recordAdAttribution: async ({leadId, payload}) => {
+      await recordLeadAdAttribution(service as never, buildLeadAdAttribution({
+        companyId,
+        leadId,
+        token: payload.ad_attribution_token,
+        secret: resolveAdAttributionSecret(environment),
+        legacy: payload.attribution,
+        submittedAt: payload.submittedAt,
+        now: new Date(),
+      }));
+    },
+    // Record consent whenever Google attribution is being captured, so dry-run
+    // validation and the first live uploads have the evidence they need.
+    recordConsentForAds: Boolean(resolveGoogleAdsConfiguration(environment) || resolveAdAttributionSecret(environment)),
     requestDelivery: async (deliveryId) => {
       await inngest.send({
         name: "marketing/meta.delivery.requested",

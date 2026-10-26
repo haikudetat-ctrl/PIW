@@ -1,10 +1,9 @@
 import { z } from "zod";
+// Relative on purpose: the website contract test imports this file directly.
+import { landingSlugs } from "../../../../../config/campaigns";
 
-export const canonicalCampaignSlugs = [
-  "weather-report",
-  "seasonal-shield",
-  "for-every-season",
-] as const;
+/** Meta campaign pages plus the Google search landing pages. */
+export const canonicalCampaignSlugs = landingSlugs;
 
 const nullableAttribution = z.string().trim().max(500).nullable();
 export const campaignSchema = z.enum(canonicalCampaignSlugs);
@@ -49,6 +48,10 @@ export const allSeasonCampaignEstimateSchema = z.strictObject({
     fbp: nullableAttribution,
     fbc: nullableAttribution,
   }),
+  // Signed first-party ad attribution (click IDs, UTMs, ValueTrack). Verified
+  // with AD_ATTRIBUTION_SIGNING_SECRET before use; optional so a website deploy
+  // that predates it keeps working.
+  ad_attribution_token: z.string().min(1).max(4_000).optional(),
   address: z.string().trim().min(5).max(500),
   google_place_id: z.string().trim().min(1).max(300).nullable().optional(),
   address_line_1: z.string().trim().min(3).max(200).nullable().optional(),

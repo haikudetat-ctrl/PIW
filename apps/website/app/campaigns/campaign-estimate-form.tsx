@@ -2,7 +2,8 @@
 
 import {FormEvent, useCallback, useRef, useState} from "react";
 import {AddressAutocomplete} from "./address-autocomplete";
-import {buildCampaignSubmission, type CampaignDefinition} from "./campaigns";
+import {buildCampaignSubmission} from "./campaigns";
+import type {LandingSlug} from "../../lib/landing-slugs";
 import {useMetaPixel, type MetaBrowserEventEnvelope} from "../../components/meta-pixel-provider";
 import {PRIVACY_POLICY_HREF, tcpaNoticeText} from "../../lib/tcpa-notice";
 
@@ -11,7 +12,17 @@ function track(event: string, campaign: string) {
   window.dispatchEvent(new CustomEvent(`allseason:${event}`, {detail}));
 }
 
-export function CampaignEstimateForm({campaign}: {campaign: CampaignDefinition}) {
+/** What the contact-first form needs from a landing page; campaign definitions satisfy it. */
+export type EstimateFormContext = {
+  slug: LandingSlug;
+  entryPoint: `campaign:${LandingSlug}`;
+  presentationKey: LandingSlug;
+  formTitle: string;
+  formIntro: string;
+  submitLabel: string;
+};
+
+export function CampaignEstimateForm({campaign}: {campaign: EstimateFormContext}) {
   const {trackConversion} = useMetaPixel();
   const [step, setStep] = useState<1 | 2>(1);
   const [manual, setManual] = useState(false);
@@ -66,6 +77,7 @@ export function CampaignEstimateForm({campaign}: {campaign: CampaignDefinition})
         headers: {"content-type": "application/json"},
         body: JSON.stringify(buildCampaignSubmission({
           campaign: campaign.slug,
+          context: {entryPoint: campaign.entryPoint, presentationKey: campaign.presentationKey},
           submissionId,
           form: new FormData(event.currentTarget),
           selectedAddress,

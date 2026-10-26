@@ -92,3 +92,32 @@ describe("CampaignAddressEntry", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+describe("CampaignAddressEntry on a search landing page", () => {
+  test("names the search CTA in both the button and the notice, and sends the search context", async () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    roots.push(root);
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({previewUrl}), {status: 201}));
+    vi.stubGlobal("fetch", fetchMock);
+    await act(async () => root.render(
+      <CampaignAddressEntry
+        campaign={{
+          slug: "roof-replacement",
+          entryPoint: "campaign:roof-replacement",
+          presentationKey: "roof-replacement",
+          formTitle: "Get your free roof estimate",
+          addressStepCopy: {label: "Free", intro: "Start here", submitLabel: "Get My Free Roof Estimate", pendingLabel: "Measuring…"},
+        }}
+        turnstileSiteKey="site"
+      />,
+    ));
+    expect(container.querySelector("[data-preview-notice]")?.textContent).toContain("“Get My Free Roof Estimate,”");
+    await act(async () => button(container, "Pick address").click());
+    await act(async () => button(container, "Complete check").click());
+    await act(async () => button(container, "Get My Free Roof Estimate").click());
+    const body = JSON.parse(String((fetchMock.mock.calls[0] as unknown[])[1] && ((fetchMock.mock.calls[0] as unknown[])[1] as RequestInit).body));
+    expect(body).toMatchObject({campaign: "roof-replacement", entry_point: "campaign:roof-replacement", presentation_key: "roof-replacement"});
+  });
+});

@@ -159,3 +159,52 @@ describe("experiment arm", () => {
     expect((await arrival()).experiment_arm).toBe("value_first");
   });
 });
+
+describe("search ad fields", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  async function searchArrival(query: string, extraHeaders: Record<string, string> = {}, path = "/roof-replacement") {
+    return buildArrival({
+      url: new URL(`https://allseasonroofingquote.com${path}?${query}`),
+      headers: new Headers({"user-agent": "Mozilla/5.0", ...extraHeaders}),
+      ip: "203.0.113.5",
+      secret: "test-salt",
+      now: new Date("2026-10-25T12:00:00.000Z"),
+    });
+  }
+
+  test("withholds the new fields until forwarding is enabled", async () => {
+    const arrival = await searchArrival("gclid=abc&campaignid=1");
+    expect(arrival).not.toHaveProperty("gclid");
+    expect(arrival.campaign_slug).toBeNull();
+  });
+
+  test("records click IDs, ValueTrack values and the search landing slug once enabled", async () => {
+    vi.stubEnv("AD_ATTRIBUTION_FORWARDING_ENABLED", "true");
+    const arrival = await searchArrival(
+      "gclid=abc&gad_source=1&campaignid=111&adgroupid=222&keyword=roof%20replacement&matchtype=p&creative=333&targetid=kwd-444&device=m&network=g&loc_physical_ms=1023191",
+    );
+    expect(arrival).toMatchObject({
+      campaign_slug: "roof-replacement",
+      gclid: "abc",
+      gad_source: "1",
+      google_campaign_id: "111",
+      google_ad_group_id: "222",
+      google_keyword: "roof replacement",
+      google_match_type: "p",
+      google_creative_id: "333",
+      google_target_id: "kwd-444",
+      google_device: "m",
+      google_network: "g",
+      google_loc_physical_ms: "1023191",
+    });
+  });
+
+  test("drops click IDs under Global Privacy Control and ignores placeholders", async () => {
+    vi.stubEnv("AD_ATTRIBUTION_FORWARDING_ENABLED", "true");
+    const arrival = await searchArrival("gclid=abc&keyword=%7Bkeyword%7D&campaignid=111", {"sec-gpc": "1"});
+    expect(arrival.gclid).toBeNull();
+    expect(arrival.google_keyword).toBeNull();
+    expect(arrival.google_campaign_id).toBe("111");
+  });
+});

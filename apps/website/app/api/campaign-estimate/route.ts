@@ -15,7 +15,8 @@ import {
 import {TCPA_DISCLOSURE_VERSION} from "../../../lib/tcpa-notice";
 import {trustedWebsiteRequestIp} from "../../../lib/trusted-request-ip";
 import {trustedPiwOidcHeaders} from "../../../lib/vercel-protection";
-import {campaignSlugs} from "../../campaigns/campaigns";
+import {forwardableAttributionToken} from "../../../lib/ad-attribution";
+import {landingEntryPoints, landingSlugs} from "../../../lib/landing-slugs";
 
 const optionalAttribution = z.string().trim().max(500).nullish();
 const browserEvidenceSchema = z.strictObject({
@@ -27,13 +28,13 @@ const browserEvidenceSchema = z.strictObject({
 });
 const campaignEstimateSchema = z.object({
   submission_id: z.uuid(),
-  campaign: z.enum(campaignSlugs).nullable(),
-  presentation_key: z.enum(["all-season-main", ...campaignSlugs]),
+  campaign: z.enum(landingSlugs).nullable(),
+  presentation_key: z.enum(["all-season-main", ...landingSlugs]),
   entry_point: z.enum([
     "main-home",
     "main-contact",
     "main-drawer",
-    ...campaignSlugs.map((campaign) => `campaign:${campaign}` as const),
+    ...landingEntryPoints,
   ]),
   name: z.string().trim().min(2).max(160),
   email: z.email().max(320),
@@ -238,6 +239,9 @@ export async function handleCampaignEstimateRequest(
   if (!origin) {
     return healthResponse({error: "Estimate intake is temporarily unavailable"}, 502, "misconfigured");
   }
+  // Present only once AD_ATTRIBUTION_FORWARDING_ENABLED is on, so a PIW deploy
+  // that predates the field never receives it.
+  const adAttributionToken = forwardableAttributionToken(request, process.env, now());
   const payload = {
     submission_id: input.submission_id,
     campaign: input.campaign,
@@ -271,6 +275,7 @@ export async function handleCampaignEstimateRequest(
     disclosure_version: TCPA_DISCLOSURE_VERSION,
     source: "all-season-campaign",
     submittedAt: new Date().toISOString(),
+    ...(adAttributionToken ? {ad_attribution_token: adAttributionToken} : {}),
   };
 
   const upstream = await (canonicalConsentToken

@@ -21,6 +21,13 @@ import { assessmentAbandonmentWorker } from "@/inngest/functions/assessment-aban
 import { metaConversionSender } from "@/inngest/functions/meta-conversion-sender";
 import { metaConversionSweeper } from "@/inngest/functions/meta-conversion-sweeper";
 import {
+  clickIdRetention,
+  googleAdsConversionScheduler,
+  googleAdsConversionSender,
+  googleAdsSpendImport,
+  paidSearchAlerts,
+} from "@/inngest/functions/google-ads";
+import {
   activeProspectExistingLeadSender,
   activeProspectSecondaryLeadSender,
   internalLeadEmailSender,
@@ -60,6 +67,11 @@ export const { GET, POST, PUT } = serve({
     assessmentAbandonmentWorker,
     metaConversionSender,
     metaConversionSweeper,
+    googleAdsConversionScheduler,
+    googleAdsConversionSender,
+    googleAdsSpendImport,
+    paidSearchAlerts,
+    clickIdRetention,
     activeProspectExistingLeadSender,
     activeProspectSecondaryLeadSender,
     internalLeadEmailSender,
