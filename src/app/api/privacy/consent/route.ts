@@ -3,6 +3,7 @@ import {NextResponse, type NextRequest} from "next/server";
 import {z} from "zod";
 import {parseServerEnv} from "@/lib/env/server";
 import {
+  advertisingDefaultOnEnabled,
   CONSENT_POLICY_VERSION,
   normalizeConsentPreferences,
   PRIVACY_COOKIE_NAME,
@@ -25,8 +26,9 @@ const consentRequestSchema = z.strictObject({
   analytics: z.boolean(),
   advertising: z.boolean(),
   gpcDetected: z.boolean(),
-  source: z.enum(["banner", "preferences", "gpc"]),
+  source: z.enum(["banner", "preferences", "gpc", "default_notice"]),
 });
+
 type PrivacyConsentDependencies = {
   signingSecret: string | undefined;
   deploymentEnvironment: "development" | "preview" | "test" | "production";
@@ -34,6 +36,8 @@ type PrivacyConsentDependencies = {
   now: () => Date;
   createId: () => string;
   repository: PrivacyConsentRepository;
+  /** Whether a `default_notice` record may be written at all. */
+  advertisingDefaultOn?: boolean;
 };
 
 type PrivacyConsentStatusDependencies = {
@@ -63,6 +67,20 @@ function forbidden() {
   return NextResponse.json(
     {error: "Invalid request origin"},
     {status: 403, headers: {"cache-control": "no-store"}},
+  );
+}
+
+function invalidConsent() {
+  return NextResponse.json(
+    {error: "Invalid privacy consent"},
+    {status: 400, headers: {"cache-control": "no-store"}},
+  );
+}
+
+function existingChoice() {
+  return NextResponse.json(
+    {error: "A privacy choice is already saved"},
+    {status: 409, headers: {"cache-control": "no-store"}},
   );
 }
 
@@ -214,12 +232,7 @@ export async function handlePrivacyConsentRequest(
 ) {
   if (!isSameOriginRequest(request)) return forbidden();
   const parsed = consentRequestSchema.safeParse(await request.json().catch(() => null));
-  if (!parsed.success) {
-    return NextResponse.json(
-      {error: "Invalid privacy consent"},
-      {status: 400, headers: {"cache-control": "no-store"}},
-    );
-  }
+  if (!parsed.success) return invalidConsent();
   const signingSecret = dependencies.signingSecret;
   if (!signingSecret || !hasUsableSigningSecret(signingSecret)) return unavailable();
   const existingConsent = verifyConsentCookie(
@@ -228,6 +241,17 @@ export async function handlePrivacyConsentRequest(
   );
   const consentId = existingConsent?.consentId ?? dependencies.createId();
   const gpcDetected = parsed.data.gpcDetected || request.headers.get("sec-gpc") === "1";
+  if (parsed.data.source === "default_notice") {
+    // A notice default only ever starts a new identity with Advertising on.
+    // It is never written while the flag is off, under GPC, or over any
+    // saved choice, so it cannot replace a visitor's rejection.
+    if (
+      !dependencies.advertisingDefaultOn
+      || gpcDetected
+      || !parsed.data.advertising
+    ) return invalidConsent();
+    if (existingConsent) return existingChoice();
+  }
   const preferences = normalizeConsentPreferences(parsed.data, gpcDetected);
   const occurredAt = dependencies.now().toISOString();
   const consent = {
@@ -278,6 +302,7 @@ export async function POST(request: NextRequest) {
       now: () => new Date(),
       createId: randomUUID,
       repository: new SupabasePrivacyConsentRepository(),
+      advertisingDefaultOn: advertisingDefaultOnEnabled(process.env),
     });
   } catch {
     return unavailable();

@@ -1,5 +1,6 @@
 import "server-only";
 export {
+  advertisingDefaultOnEnabled,
   CONSENT_POLICY_VERSION,
   normalizeConsentPreferences,
   PRIVACY_COOKIE_NAME,

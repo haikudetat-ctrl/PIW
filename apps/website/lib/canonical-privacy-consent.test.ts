@@ -53,4 +53,37 @@ describe("canonical website consent synchronization", () => {
       "0123456789abcdef0123456789abcdef",
     )).toMatchObject({gpcDetected: false});
   });
+
+  test("marks only a notice default with the source header", async () => {
+    const consent = {
+      policyVersion: "piw-privacy-v1" as const,
+      consentId: "11111111-1111-4111-8111-111111111111",
+      preferences: {necessary: true as const, analytics: false, advertising: true},
+      gpcDetected: false,
+      updatedAt: "2026-09-01T16:00:00.000Z",
+    };
+    const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      void input;
+      void init;
+      return Response.json({consent});
+    });
+    vi.stubGlobal("fetch", fetch);
+    const input = {
+      consent,
+      signingSecret: "0123456789abcdef0123456789abcdef",
+      sharedSecret: "shared-secret",
+      publicPiwUrl: "https://piw.example",
+      websiteOrigin: "https://allseasonsolar.net",
+      nodeEnv: "production",
+      requestIp: "203.0.113.7",
+    };
+
+    await synchronizeCanonicalWebsiteConsent({...input, source: "default_notice"});
+    await synchronizeCanonicalWebsiteConsent(input);
+
+    const noticeHeaders = fetch.mock.calls[0]?.[1]?.headers as Record<string, string>;
+    const ordinaryHeaders = fetch.mock.calls[1]?.[1]?.headers as Record<string, string>;
+    expect(noticeHeaders["x-piw-privacy-consent-source"]).toBe("default_notice");
+    expect(ordinaryHeaders["x-piw-privacy-consent-source"]).toBeUndefined();
+  });
 });

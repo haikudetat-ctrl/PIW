@@ -44,12 +44,14 @@ export default function PrivacyPage() {
         <section aria-labelledby="advertising-heading">
           <h2 id="advertising-heading" className="text-2xl font-bold text-slate-950">Advertising</h2>
           <p className="mt-3">
-            When you allow Advertising, Meta Pixel and Conversions API may be used
-            to measure advertising results and avoid counting the same action twice.
-            Meta technology is not used for this purpose when Advertising is off,
-            and Global Privacy Control keeps Advertising off. Meta may receive hashed
-            email and limited browser attribution, but not your phone number or SMS
-            consent. We do not send text-messaging opt-in data or consent records to Meta.
+            Meta Pixel and Conversions API measure advertising results and avoid
+            counting the same action twice. Advertising is on when you arrive unless
+            you have turned it off, and we honor a Global Privacy Control signal from
+            your browser as a request to opt out, which keeps Advertising off. Meta
+            technology is not used for this purpose when Advertising is off. Meta may
+            receive hashed email and limited browser attribution, but not your phone
+            number or SMS consent. We do not send text-messaging opt-in data or
+            consent records to Meta.
           </p>
         </section>
 
@@ -81,10 +83,12 @@ export default function PrivacyPage() {
             Consent records and retention
           </h2>
           <p className="mt-3">
-            We retain consent evidence—including the policy version, category choices,
-            time of the choice, a random consent identifier, and bounded request
-            information—as needed to document and honor your choices. Changing a choice
-            stops future nonessential collection; it does not rewrite historical evidence.
+            We retain consent evidence as needed to document and honor your choices:
+            the policy version, each category setting and how it was set (your choice,
+            a default shown with this notice, or a Global Privacy Control signal), when
+            it was set, a random consent identifier, and bounded request information.
+            Changing a choice stops future nonessential collection; it does not
+            rewrite historical evidence.
           </p>
         </section>
 
@@ -94,8 +98,9 @@ export default function PrivacyPage() {
           </h2>
           <p className="mt-3">
             Use the <strong>Privacy choices</strong> button, available on every page,
-            to reopen your preferences at any time. Rejecting nonessential technology
-            does not stop you from submitting a quote request or using an assessment.
+            to turn Advertising or Analytics on or off at any time. Turning
+            nonessential technology off does not stop you from submitting a quote
+            request or using an assessment.
           </p>
         </section>
 

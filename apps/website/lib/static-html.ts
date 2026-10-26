@@ -9,6 +9,7 @@ type StaticRuntimeConfig = {
   enabled: boolean;
   pixelId: string | null;
   analyticsDefaultOn?: boolean;
+  advertisingDefaultOn?: boolean;
 };
 
 function staticRuntimeConfig(): StaticRuntimeConfig {
@@ -16,7 +17,12 @@ function staticRuntimeConfig(): StaticRuntimeConfig {
   const enabled = websiteMetaTrackingEnabled(process.env)
     && /^\d{6,32}$/.test(pixelId);
 
-  return {enabled, pixelId: enabled ? pixelId : null, analyticsDefaultOn: process.env.NEXT_PUBLIC_ANALYTICS_DEFAULT_ON === "true"};
+  return {
+    enabled,
+    pixelId: enabled ? pixelId : null,
+    analyticsDefaultOn: process.env.NEXT_PUBLIC_ANALYTICS_DEFAULT_ON === "true",
+    advertisingDefaultOn: process.env.NEXT_PUBLIC_ADVERTISING_DEFAULT_ON === "true",
+  };
 }
 
 type QuoteRuntimeConfig = {

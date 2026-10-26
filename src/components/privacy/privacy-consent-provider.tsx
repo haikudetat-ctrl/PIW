@@ -49,6 +49,9 @@ const DEFAULT_PREFERENCES: ConsentPreferences = {
   analytics: false,
   advertising: false,
 };
+// Opt-out model: a visitor with no saved choice and no GPC signal gets
+// Advertising on by notice. Analytics (session recording) stays opt-in.
+const ADVERTISING_DEFAULT_ON = process.env.NEXT_PUBLIC_ADVERTISING_DEFAULT_ON === "true";
 
 const PrivacyConsentContext = createContext<PrivacyConsentContextValue | null>(null);
 
@@ -143,6 +146,17 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
   const consentIdentityRef = useRef(initialConsentId && initialPolicyVersion
     ? {consentId: initialConsentId, policyVersion: initialPolicyVersion}
     : null);
+  // Public estimate, campaign, and privacy pages only; the staff app never
+  // shows privacy controls or records a notice default.
+  const showPrivacyChoices = pathname === "/privacy"
+    || pathname === "/roof-estimate" || Boolean(pathname?.startsWith("/roof-estimate/"))
+    || pathname === "/campaigns" || Boolean(pathname?.startsWith("/campaigns/"));
+  // While the notice default is being recorded, neither the opt-in banner nor
+  // the choices control renders, so a click cannot race the new identity.
+  const [defaultNoticePending, setDefaultNoticePending] = useState(
+    ADVERTISING_DEFAULT_ON && initialConsentId === null,
+  );
+  const defaultNoticeAttemptedRef = useRef(false);
 
   const authorizeAdvertising = useCallback(async () => {
     const authorization = ++authorizationResolutionRef.current;
@@ -286,6 +300,48 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
     };
   }, [browserGpcDetected, initialConsentId, initialPolicyVersion]);
 
+  useEffect(() => {
+    if (!defaultNoticePending || defaultNoticeAttemptedRef.current || !showPrivacyChoices) return;
+    defaultNoticeAttemptedRef.current = true;
+
+    // Once per page load (Strict Mode re-runs the effect); the result is
+    // applied by resolution, not by an effect-scoped flag.
+    void (async () => {
+      try {
+        if (browserGpcIsEnabled()) return;
+        const resolution = ++canonicalResolutionRef.current;
+        authorizationResolutionRef.current += 1;
+        const response = await fetch("/api/privacy/consent", {
+          method: "POST",
+          headers: {"content-type": "application/json"},
+          body: JSON.stringify({
+            analytics: DEFAULT_PREFERENCES.analytics,
+            advertising: true,
+            gpcDetected: false,
+            source: "default_notice",
+          }),
+        });
+        if (!response.ok) throw new Error("Default notice was not recorded");
+        const payload: unknown = await response.json();
+        if (!isConsentResponse(payload) || !payload.consent.preferences.advertising) {
+          throw new Error("Default notice response was invalid");
+        }
+        if (resolution !== canonicalResolutionRef.current) return;
+        setStoredPreferences(payload.consent.preferences);
+        consentIdentityRef.current = {
+          consentId: payload.consent.consentId,
+          policyVersion: payload.consent.policyVersion,
+        };
+        setStatus("saved");
+        setCanonicalReady(true);
+      } catch {
+        // Fail closed: the visitor sees the opt-in banner instead.
+      } finally {
+        setDefaultNoticePending(false);
+      }
+    })();
+  }, [defaultNoticePending, showPrivacyChoices]);
+
   // A browser-level GPC signal is immediately effective in memory and is also
   // persisted once when it supersedes an existing Advertising grant. If the
   // write fails, the request-time/server gates still fail closed.
@@ -336,13 +392,11 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
   // The homeowner estimate pages use the minimal white style throughout.
   const quiet = pathname?.startsWith("/roof-estimate") ?? false;
   const quietClass = quiet ? " privacy-quiet" : "";
-  const showPrivacyChoices = pathname === "/privacy"
-    || pathname === "/roof-estimate" || Boolean(pathname?.startsWith("/roof-estimate/"))
-    || pathname === "/campaigns" || Boolean(pathname?.startsWith("/campaigns/"));
+  const controlsReady = showPrivacyChoices && !defaultNoticePending;
 
   return (
     <PrivacyConsentContext.Provider value={value}>
-      {showPrivacyChoices && status !== "saved" ? (
+      {controlsReady && status !== "saved" ? (
         <PrivacyConsentBanner
           error={error}
           saving={saving}
@@ -365,7 +419,7 @@ export function PrivacyConsentProvider({children, initialConsent}: PrivacyConsen
           Global Privacy Control was detected, so Advertising remains off while it is active.
         </p>
       ) : null}
-      {showPrivacyChoices ? <button
+      {controlsReady ? <button
         type="button"
         className={`privacy-consent-reopen${quietClass}`}
         aria-haspopup="dialog"

@@ -21,6 +21,9 @@
   };
   var authorityEpoch = 0;
   var analyticsDefaultOn = false;
+  // Opt-out model: with no saved choice, no GPC, and no local denial, the
+  // visitor gets Advertising on by notice instead of the opt-in banner.
+  var advertisingDefaultOn = false;
   var DENIAL_KEY = "allseason-privacy-denials";
   function denials() {
     try { return JSON.parse(window.localStorage.getItem(DENIAL_KEY)) || {}; } catch { return {}; }
@@ -39,6 +42,7 @@
     try {
       var parsed = JSON.parse(node.textContent || "");
       analyticsDefaultOn = Boolean(parsed && parsed.analyticsDefaultOn === true);
+      advertisingDefaultOn = Boolean(parsed && parsed.advertisingDefaultOn === true);
       if (
         !parsed
         || typeof parsed !== "object"
@@ -519,8 +523,42 @@
     ]);
   }
 
+  function defaultNoticeAllowed() {
+    return advertisingDefaultOn
+      && !consentState.consent
+      && !browserGpcIsEnabled()
+      && denials().advertising !== true;
+  }
+
+  // Records the notice default as its own source. It never touches local
+  // denials or focus, and any failure leaves the opt-in banner in place.
+  async function applyDefaultNotice() {
+    var requestEpoch = ++authorityEpoch;
+    try {
+      var response = await window.fetch("/api/privacy/consent", {
+        method: "POST",
+        headers: {"content-type": "application/json", accept: "application/json"},
+        body: JSON.stringify({analytics: analyticsDefaultOn, advertising: true, source: "default_notice"}),
+        credentials: "same-origin",
+        cache: "no-store",
+      });
+      var payload = await response.json().catch(function () { return null; });
+      if (
+        !response.ok || !payload || !isVerifiedConsent(payload.consent)
+        || payload.consent.preferences.advertising !== true
+      ) return false;
+      if (requestEpoch !== authorityEpoch) return false;
+      consentState.consent = payload.consent;
+      publishAnalyticsConsent();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async function loadVerifiedConsent() {
     await revalidateConsent();
+    if (defaultNoticeAllowed()) await applyDefaultNotice();
     resolveConsentReady();
     renderConsentSurface();
     trackPageView();

@@ -88,6 +88,7 @@ export async function synchronizeCanonicalWebsiteConsent({
   requestIp,
   liveGpcDetected = false,
   vercelOidcToken,
+  source,
 }: {
   consent: VerifiedWebsiteConsent;
   signingSecret: string | undefined;
@@ -99,6 +100,8 @@ export async function synchronizeCanonicalWebsiteConsent({
   requestIp: string | null;
   liveGpcDetected?: boolean;
   vercelOidcToken?: string | null;
+  /** Marks a new opt-out notice default so PIW records it as such. */
+  source?: "default_notice";
 }): Promise<VerifiedWebsiteConsent | null> {
   if (!signingSecret || !sharedSecret || !requestIp) return null;
   const origin = piwOrigin(publicPiwUrl, nodeEnv);
@@ -116,6 +119,7 @@ export async function synchronizeCanonicalWebsiteConsent({
         "x-all-season-privacy-request-ip": requestIp,
         "x-piw-privacy-consent": signWebsiteConsent(requestConsent, signingSecret),
         ...(liveGpcDetected ? {"sec-gpc": "1"} : {}),
+        ...(source === "default_notice" ? {"x-piw-privacy-consent-source": "default_notice"} : {}),
         ...trustedPiwOidcHeaders(new Headers(
           vercelOidcToken ? {"x-vercel-oidc-token": vercelOidcToken} : {},
         )),
