@@ -72,6 +72,21 @@ export async function POST(request: NextRequest) {
     meta_site_source: arrival.meta_site_source ?? null,
     is_likely_bot: arrival.is_likely_bot,
     experiment_arm: arrival.experiment_arm ?? null,
+    gclid: arrival.gclid ?? null,
+    gbraid: arrival.gbraid ?? null,
+    wbraid: arrival.wbraid ?? null,
+    msclkid: arrival.msclkid ?? null,
+    gad_source: arrival.gad_source ?? null,
+    gad_campaignid: arrival.gad_campaignid ?? null,
+    google_campaign_id: arrival.google_campaign_id ?? null,
+    google_ad_group_id: arrival.google_ad_group_id ?? null,
+    google_keyword: arrival.google_keyword ?? null,
+    google_match_type: arrival.google_match_type ?? null,
+    google_creative_id: arrival.google_creative_id ?? null,
+    google_target_id: arrival.google_target_id ?? null,
+    google_device: arrival.google_device ?? null,
+    google_network: arrival.google_network ?? null,
+    google_loc_physical_ms: arrival.google_loc_physical_ms ?? null,
   }));
 
   const supabase = createServiceClient();

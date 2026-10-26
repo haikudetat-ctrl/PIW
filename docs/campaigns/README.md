@@ -11,6 +11,23 @@ Campaign originals and working files live in the [Campaigns Masters Drive folder
 | Seasonal Shield | `/campaigns/seasonal-shield` | `SH_HERO_Master.png` | Ready |
 | For Every Season | `/campaigns/for-every-season` | `FES_HERO_4.5.png` | Ready |
 
+## Google Search landing pages
+
+| Ad group | All Season route |
+| --- | --- |
+| Roof Replacement | `/roof-replacement` |
+| Roof Cost / Estimate | `/roof-replacement-cost` |
+| Roofers Near Me | `/roofing-contractor` |
+
+These live in `apps/website/app/search/` and share the campaign intake contract
+(the slug is the durable landing-page identifier). Setup, attribution and
+conversion upload are in the [Google Ads runbook](../runbooks/google-ads.md).
+When adding a search page, add its slug to `apps/website/lib/landing-slugs.ts`,
+`src/config/campaigns.ts` (`searchPageSlugs`) and the `website_arrivals`
+campaign slug check.
+
+## Meta campaign registry
+
 The public registry in `apps/website/app/campaigns/campaigns.ts` controls route slugs, page copy, theme, and asset paths. Each form submits its durable campaign slug plus UTM and Meta attribution to the All Season server. The All Season server forwards the request to PIW over the authenticated campaign-estimate endpoint, then redirects the homeowner to the PIW estimate result.
 
 ## Add or update a campaign

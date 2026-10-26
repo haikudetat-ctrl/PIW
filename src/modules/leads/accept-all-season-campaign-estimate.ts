@@ -1,4 +1,4 @@
-import type { CampaignSlug } from "@/config/campaigns";
+import type { LandingSlug } from "@/config/campaigns";
 import type {
   AssessmentEntryPoint,
   RoofAssessmentPresentationKey,
@@ -19,7 +19,7 @@ export type CampaignAttribution = {
 
 export type AllSeasonCampaignEstimateLeadInput = {
   submissionId: string;
-  campaign: CampaignSlug | null;
+  campaign: LandingSlug | null;
   presentationKey: RoofAssessmentPresentationKey;
   entryPoint: AssessmentEntryPoint;
   name: string;

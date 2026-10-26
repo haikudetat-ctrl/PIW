@@ -107,6 +107,20 @@ const serverEnvSchema = z
     ),
     ROOF_ASSESSMENT_SIGNING_SECRET: optionalSigningSecret,
     PRIVACY_CONSENT_SIGNING_SECRET: optionalString,
+    // Google Search Ads. Account and conversion action IDs are per company in
+    // company_google_ads_settings; only the 2Stack OAuth app lives here.
+    // Every Google integration is optional and fails open: a missing or
+    // malformed value disables it without touching lead intake.
+    AD_ATTRIBUTION_SIGNING_SECRET: optionalString,
+    GOOGLE_ADS_ENABLED: optionalTrackingFlag,
+    GOOGLE_ADS_API_VERSION: optionalString,
+    GOOGLE_ADS_OAUTH_CLIENT_ID: optionalString,
+    GOOGLE_ADS_OAUTH_CLIENT_SECRET: optionalString,
+    GOOGLE_ADS_OAUTH_REFRESH_TOKEN: optionalString,
+    // Ignored by the API since Sept 2026 (access follows the Cloud project);
+    // sent only when set, for older API versions.
+    GOOGLE_ADS_DEVELOPER_TOKEN: optionalString,
+    SLACK_PAID_MEDIA_ALERTS_WEBHOOK_URL: optionalString,
     TWILIO_VERIFY_ENABLED: booleanString,
     TWILIO_API_KEY_SID: optionalString,
     TWILIO_API_KEY_SECRET: optionalString,
@@ -520,6 +534,52 @@ export function resolveMetaTrackingConfiguration(
     graphApiVersion,
     testEventCode: environment.META_TEST_EVENT_CODE,
   };
+}
+
+export type GoogleAdsConfiguration = {
+  apiVersion: string;
+  oauth: {clientId: string; clientSecret: string; refreshToken: string};
+  developerToken: string | null;
+};
+
+/**
+ * Credentials for the Google Ads API. Null disables every live Google call;
+ * per-company dry run and kill switches live in company_google_ads_settings.
+ */
+export function resolveGoogleAdsConfiguration(
+  environment: Pick<ServerEnv,
+    | "GOOGLE_ADS_ENABLED"
+    | "GOOGLE_ADS_API_VERSION"
+    | "GOOGLE_ADS_OAUTH_CLIENT_ID"
+    | "GOOGLE_ADS_OAUTH_CLIENT_SECRET"
+    | "GOOGLE_ADS_OAUTH_REFRESH_TOKEN"
+    | "GOOGLE_ADS_DEVELOPER_TOKEN"
+  >,
+): GoogleAdsConfiguration | null {
+  const apiVersion = environment.GOOGLE_ADS_API_VERSION?.trim() ?? "";
+  const clientId = environment.GOOGLE_ADS_OAUTH_CLIENT_ID?.trim() ?? "";
+  const clientSecret = environment.GOOGLE_ADS_OAUTH_CLIENT_SECRET?.trim() ?? "";
+  const refreshToken = environment.GOOGLE_ADS_OAUTH_REFRESH_TOKEN?.trim() ?? "";
+  if (
+    !environment.GOOGLE_ADS_ENABLED
+    || !/^v\d{2,3}$/.test(apiVersion)
+    || !clientId
+    || !clientSecret
+    || !refreshToken
+  ) return null;
+  return {
+    apiVersion,
+    oauth: {clientId, clientSecret, refreshToken},
+    developerToken: environment.GOOGLE_ADS_DEVELOPER_TOKEN?.trim() || null,
+  };
+}
+
+/** The shared website/PIW secret for first-party ad attribution tokens. */
+export function resolveAdAttributionSecret(
+  environment: Pick<ServerEnv, "AD_ATTRIBUTION_SIGNING_SECRET">,
+): string | null {
+  const secret = environment.AD_ATTRIBUTION_SIGNING_SECRET;
+  return secret && Buffer.byteLength(secret, "utf8") >= 32 ? secret : null;
 }
 
 export function parseServerEnv(values: Record<string, string | undefined>) {

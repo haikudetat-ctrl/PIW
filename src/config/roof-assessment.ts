@@ -1,4 +1,10 @@
-import { campaignSlugs, type CampaignSlug } from "@/config/campaigns";
+import {
+  campaignSlugs,
+  searchPageSlugs,
+  type CampaignSlug,
+  type LandingSlug,
+  type SearchPageSlug,
+} from "@/config/campaigns";
 import {
   roofAssessmentQuestionIds,
   type RoofAssessmentQuestionId,
@@ -14,19 +20,20 @@ export const assessmentLoadingStages = [
 ] as const;
 
 export type {RoofAssessmentQuestionId} from "@/domain/roof-assessment";
-export type RoofAssessmentPresentationKey = "all-season-main" | CampaignSlug;
-export type RoofAssessmentCampaignSlug = CampaignSlug;
+export type RoofAssessmentPresentationKey = "all-season-main" | LandingSlug;
+export type RoofAssessmentCampaignSlug = LandingSlug;
 export type AssessmentEntryPoint =
   | "main-home"
   | "main-contact"
   | "main-drawer"
   | "main-chat"
   | "roof-estimate"
-  | `campaign:${CampaignSlug}`;
+  | `campaign:${LandingSlug}`;
 
 export const roofAssessmentPresentationKeys = [
   "all-season-main",
   ...campaignSlugs,
+  ...searchPageSlugs,
 ] as const satisfies readonly RoofAssessmentPresentationKey[];
 
 export const roofAssessmentPresentationByCampaign = {
@@ -44,8 +51,11 @@ export const roofAssessmentEntryContexts = {
   "campaign:weather-report": {campaign: "weather-report", presentationKey: "weather-report"},
   "campaign:seasonal-shield": {campaign: "seasonal-shield", presentationKey: "seasonal-shield"},
   "campaign:for-every-season": {campaign: "for-every-season", presentationKey: "for-every-season"},
+  "campaign:roof-replacement": {campaign: "roof-replacement", presentationKey: "roof-replacement"},
+  "campaign:roof-replacement-cost": {campaign: "roof-replacement-cost", presentationKey: "roof-replacement-cost"},
+  "campaign:roofing-contractor": {campaign: "roofing-contractor", presentationKey: "roofing-contractor"},
 } as const satisfies Record<AssessmentEntryPoint, {
-  campaign: CampaignSlug | null;
+  campaign: LandingSlug | null;
   presentationKey: RoofAssessmentPresentationKey;
 }>;
 
@@ -73,7 +83,28 @@ const shared = {
   questionIds: roofAssessmentQuestionIds,
 } as const;
 
+const mainContext = {
+  ...shared,
+  kicker: "Your personalized RoofCheck",
+  headline: "A personalized look at your New Jersey roof.",
+  intro: "We are checking the property first so every recommendation is grounded in your home.",
+  resultHeadline: "Your property-specific project outlook",
+  resultIntro: "A practical next step based on your property and the concerns you shared.",
+  consultationIntro: "Talk through the roof with an All Season specialist who has your assessment in front of them.",
+  accentClass: "assessment-accent-lime",
+  fallbackImage: "/campaigns/for-every-season/hero.webp",
+  fallbackImageAlt: "A New Jersey home prepared for every season",
+} as const;
+
+/** Google search pages share the main-site assessment presentation. */
+const searchPageContexts: Record<SearchPageSlug, RoofAssessmentContext> = {
+  "roof-replacement": {...mainContext, key: "roof-replacement"},
+  "roof-replacement-cost": {...mainContext, key: "roof-replacement-cost"},
+  "roofing-contractor": {...mainContext, key: "roofing-contractor"},
+};
+
 export const roofAssessmentContexts: Record<RoofAssessmentPresentationKey, RoofAssessmentContext> = {
+  ...searchPageContexts,
   "all-season-main": {
     ...shared,
     key: "all-season-main",

@@ -8,6 +8,7 @@ import {
 } from "@/app/api/integrations/all-season/campaign-estimate/route";
 import type { AllSeasonCampaignEstimateInput } from "@/app/api/integrations/all-season/campaign-estimate/schema";
 import { PRIVACY_COOKIE_NAME } from "@/modules/privacy/consent";
+import { AD_ATTRIBUTION_COOKIE_NAME } from "@/../shared/ad-attribution";
 import {
   buildPreviewConversionInput,
   previewContactSchema,
@@ -68,6 +69,7 @@ export async function handlePreviewConversionRequest(
     advertisingCookies: advertising
       ? {fbp: request.cookies.get("_fbp")?.value ?? null, fbc: request.cookies.get("_fbc")?.value ?? null}
       : {fbp: null, fbc: null},
+    adAttributionCookie: request.cookies.get(AD_ATTRIBUTION_COOKIE_NAME)?.value ?? null,
     now,
   });
 

@@ -95,7 +95,24 @@ describe("roof assessment campaign presentation", () => {
         campaign: "for-every-season",
         presentationKey: "for-every-season",
       },
+      "campaign:roof-replacement": {
+        campaign: "roof-replacement",
+        presentationKey: "roof-replacement",
+      },
+      "campaign:roof-replacement-cost": {
+        campaign: "roof-replacement-cost",
+        presentationKey: "roof-replacement-cost",
+      },
+      "campaign:roofing-contractor": {
+        campaign: "roofing-contractor",
+        presentationKey: "roofing-contractor",
+      },
     });
     expect(getRoofAssessmentContext("do-it-right-once").key).toBe("all-season-main");
+    // Google search pages use the main-site assessment copy under their own key.
+    expect(getRoofAssessmentContext("roof-replacement")).toMatchObject({
+      key: "roof-replacement",
+      headline: getRoofAssessmentContext("all-season-main").headline,
+    });
   });
 });

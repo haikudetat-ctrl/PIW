@@ -14,6 +14,7 @@ export const REPORT_TABS = [
   { key: "production", label: "Production", href: "/reports/production" },
   { key: "accuracy", label: "Accuracy", href: "/reports/accuracy" },
   { key: "quality", label: "Data quality", href: "/reports/quality" },
+  { key: "paid-search", label: "Paid search", href: "/reports/paid-search" },
 ] as const;
 
 export type ReportTab = (typeof REPORT_TABS)[number]["key"];

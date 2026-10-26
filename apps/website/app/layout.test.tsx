@@ -14,6 +14,9 @@ vi.mock("../components/privacy-consent-provider", () => ({
 vi.mock("../components/meta-pixel-provider", () => ({
   MetaPixelProvider: ({children}: {children: ReactNode}) => children,
 }));
+vi.mock("../components/google-tag-provider", () => ({
+  GoogleTagProvider: () => null,
+}));
 vi.mock("../components/consent-aware-vercel-analytics", () => ({
   ConsentAwareVercelAnalytics: mocks.ConsentAwareVercelAnalytics,
 }));

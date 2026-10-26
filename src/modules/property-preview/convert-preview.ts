@@ -28,12 +28,19 @@ export type ConvertiblePreview = {
 
 const ATTRIBUTION_KEYS = ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "fbclid"] as const;
 
+function adAttributionToken(stored: unknown, cookie: string | null | undefined): string | undefined {
+  const candidate = typeof stored === "string" && stored ? stored : cookie ?? undefined;
+  return candidate && candidate.length <= 4_000 ? candidate : undefined;
+}
+
 export function buildPreviewConversionInput(input: {
   preview: ConvertiblePreview;
   contact: PreviewContact;
   clientIp: string;
   userAgent: string;
   advertisingCookies: {fbp: string | null; fbc: string | null};
+  /** The first-party as_attr cookie, when the estimate host received it. */
+  adAttributionCookie?: string | null;
   now: Date;
 }): AllSeasonCampaignEstimateInput {
   const stored = input.preview.attribution && typeof input.preview.attribution === "object"
@@ -58,6 +65,11 @@ export function buildPreviewConversionInput(input: {
     client_user_agent: input.userAgent,
     referrer: input.preview.referrer,
     attribution: {...attribution, fbp: input.advertisingCookies.fbp, fbc: input.advertisingCookies.fbc},
+    // Prefer the token captured with the preview; fall back to the cookie the
+    // estimate host can read because it is scoped to the registrable domain.
+    ...(adAttributionToken(stored.ad_attribution_token, input.adAttributionCookie)
+      ? {ad_attribution_token: adAttributionToken(stored.ad_attribution_token, input.adAttributionCookie)}
+      : {}),
     address: input.preview.canonical_address ?? input.preview.submitted_address,
     google_place_id: input.preview.google_place_id,
     consent_to_contact: true,

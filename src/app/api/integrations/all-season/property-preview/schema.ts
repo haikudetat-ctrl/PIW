@@ -19,6 +19,9 @@ export const allSeasonPropertyPreviewSchema = z.strictObject({
     utm_term: nullableAttribution,
     utm_content: nullableAttribution,
     fbclid: nullableAttribution,
+    // Signed first-party ad attribution, stored on the preview and attached to
+    // the lead at conversion. Verified at conversion, never trusted here.
+    ad_attribution_token: z.string().min(1).max(4_000).optional(),
   }),
   referrer: z.url().max(2_000).nullable(),
   client_ip_address: z.union([z.ipv4(), z.ipv6()]),

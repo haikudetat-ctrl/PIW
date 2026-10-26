@@ -141,16 +141,19 @@ export function buildCampaignSubmission({
   selectedAddress,
   googlePlaceId,
   search,
+  context,
 }: {
-  campaign: CampaignSlug;
+  campaign: string;
   submissionId: string;
   form: FormData;
   selectedAddress: string;
   googlePlaceId: string;
   search: string;
+  /** Routing context for landing pages outside this registry (Google search pages). */
+  context?: {entryPoint: string; presentationKey: string};
 }) {
   const params = new URLSearchParams(search);
-  const source = campaigns[campaign];
+  const source = context ?? campaigns[campaign as CampaignSlug];
   const attribution = Object.fromEntries(
     ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "fbclid"]
       .map((key) => [key, params.get(key)]),
