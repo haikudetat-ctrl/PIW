@@ -9,6 +9,229 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      ad_conversion_deliveries: {
+        Row: {
+          attempt_count: number
+          company_id: string
+          conversion_time: string
+          conversion_value: number | null
+          created_at: string
+          event_name: string
+          http_status: number | null
+          id: string
+          last_attempted_at: string | null
+          last_error_category: string | null
+          last_validated_at: string | null
+          lead_id: string
+          next_attempt_at: string
+          order_id: string
+          payload_hash: string | null
+          platform: string
+          request_id: string | null
+          retracted_at: string | null
+          retraction_attempt_count: number
+          retraction_reason: string | null
+          retraction_status: string
+          sent_at: string | null
+          sent_with_identifiers: boolean | null
+          sent_with_value: boolean | null
+          skip_reason: string | null
+          source_ref: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempt_count?: number
+          company_id: string
+          conversion_time: string
+          conversion_value?: number | null
+          created_at?: string
+          event_name: string
+          http_status?: number | null
+          id?: string
+          last_attempted_at?: string | null
+          last_error_category?: string | null
+          last_validated_at?: string | null
+          lead_id: string
+          next_attempt_at?: string
+          order_id: string
+          payload_hash?: string | null
+          platform?: string
+          request_id?: string | null
+          retracted_at?: string | null
+          retraction_attempt_count?: number
+          retraction_reason?: string | null
+          retraction_status?: string
+          sent_at?: string | null
+          sent_with_identifiers?: boolean | null
+          sent_with_value?: boolean | null
+          skip_reason?: string | null
+          source_ref: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempt_count?: number
+          company_id?: string
+          conversion_time?: string
+          conversion_value?: number | null
+          created_at?: string
+          event_name?: string
+          http_status?: number | null
+          id?: string
+          last_attempted_at?: string | null
+          last_error_category?: string | null
+          last_validated_at?: string | null
+          lead_id?: string
+          next_attempt_at?: string
+          order_id?: string
+          payload_hash?: string | null
+          platform?: string
+          request_id?: string | null
+          retracted_at?: string | null
+          retraction_attempt_count?: number
+          retraction_reason?: string | null
+          retraction_status?: string
+          sent_at?: string | null
+          sent_with_identifiers?: boolean | null
+          sent_with_value?: boolean | null
+          skip_reason?: string | null
+          source_ref?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_conversion_deliveries_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ad_conversion_deliveries_company_id_lead_id_fkey"
+            columns: ["company_id", "lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["company_id", "id"]
+          },
+        ]
+      }
+      ad_spend_daily: {
+        Row: {
+          ad_group_id: string
+          ad_group_name: string | null
+          campaign_id: string
+          campaign_name: string | null
+          clicks: number
+          company_id: string
+          cost_micros: number
+          criterion_id: string
+          currency_code: string
+          grain: string
+          imported_at: string
+          impressions: number
+          keyword_text: string | null
+          match_type: string | null
+          platform: string
+          platform_conversions: number
+          spend_date: string
+        }
+        Insert: {
+          ad_group_id?: string
+          ad_group_name?: string | null
+          campaign_id: string
+          campaign_name?: string | null
+          clicks?: number
+          company_id: string
+          cost_micros?: number
+          criterion_id?: string
+          currency_code?: string
+          grain: string
+          imported_at?: string
+          impressions?: number
+          keyword_text?: string | null
+          match_type?: string | null
+          platform?: string
+          platform_conversions?: number
+          spend_date: string
+        }
+        Update: {
+          ad_group_id?: string
+          ad_group_name?: string | null
+          campaign_id?: string
+          campaign_name?: string | null
+          clicks?: number
+          company_id?: string
+          cost_micros?: number
+          criterion_id?: string
+          currency_code?: string
+          grain?: string
+          imported_at?: string
+          impressions?: number
+          keyword_text?: string | null
+          match_type?: string | null
+          platform?: string
+          platform_conversions?: number
+          spend_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_spend_daily_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ad_spend_import_runs: {
+        Row: {
+          company_id: string
+          date_from: string
+          date_to: string
+          error_category: string | null
+          finished_at: string | null
+          id: string
+          platform: string
+          rows_upserted: number | null
+          started_at: string
+          status: string
+        }
+        Insert: {
+          company_id: string
+          date_from: string
+          date_to: string
+          error_category?: string | null
+          finished_at?: string | null
+          id?: string
+          platform?: string
+          rows_upserted?: number | null
+          started_at?: string
+          status?: string
+        }
+        Update: {
+          company_id?: string
+          date_from?: string
+          date_to?: string
+          error_category?: string | null
+          finished_at?: string | null
+          id?: string
+          platform?: string
+          rows_upserted?: number | null
+          started_at?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_spend_import_runs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       admin_profiles: {
         Row: {
           company_id: string
@@ -801,6 +1024,74 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "catalog_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      company_google_ads_settings: {
+        Row: {
+          appointment_ran_action_id: string | null
+          appointment_set_action_id: string | null
+          company_id: string
+          consent_model: string
+          created_at: string
+          currency_code: string
+          customer_id: string
+          dry_run: boolean
+          identifier_only_uploads: boolean
+          login_customer_id: string | null
+          monthly_budget_usd: number | null
+          qualified_lead_action_id: string | null
+          send_conversion_values: boolean
+          sold_action_id: string | null
+          spend_import_enabled: boolean
+          updated_at: string
+          uploads_enabled: boolean
+        }
+        Insert: {
+          appointment_ran_action_id?: string | null
+          appointment_set_action_id?: string | null
+          company_id: string
+          consent_model?: string
+          created_at?: string
+          currency_code?: string
+          customer_id: string
+          dry_run?: boolean
+          identifier_only_uploads?: boolean
+          login_customer_id?: string | null
+          monthly_budget_usd?: number | null
+          qualified_lead_action_id?: string | null
+          send_conversion_values?: boolean
+          sold_action_id?: string | null
+          spend_import_enabled?: boolean
+          updated_at?: string
+          uploads_enabled?: boolean
+        }
+        Update: {
+          appointment_ran_action_id?: string | null
+          appointment_set_action_id?: string | null
+          company_id?: string
+          consent_model?: string
+          created_at?: string
+          currency_code?: string
+          customer_id?: string
+          dry_run?: boolean
+          identifier_only_uploads?: boolean
+          login_customer_id?: string | null
+          monthly_budget_usd?: number | null
+          qualified_lead_action_id?: string | null
+          send_conversion_values?: boolean
+          sold_action_id?: string | null
+          spend_import_enabled?: boolean
+          updated_at?: string
+          uploads_enabled?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_google_ads_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
@@ -2726,6 +3017,117 @@ export type Database = {
           },
         ]
       }
+      lead_ad_attribution: {
+        Row: {
+          channel: string
+          click_id_type: string | null
+          click_ids_purged_at: string | null
+          clicked_at: string | null
+          company_id: string
+          fbclid: string | null
+          first_touch: Json | null
+          gbraid: string | null
+          gclid: string | null
+          google_ad_group_id: string | null
+          google_campaign_id: string | null
+          google_creative_id: string | null
+          google_device: string | null
+          google_keyword: string | null
+          google_match_type: string | null
+          google_network: string | null
+          google_target_id: string | null
+          landing_path: string | null
+          last_touch: Json | null
+          lead_id: string
+          msclkid: string | null
+          recorded_at: string
+          token_verified: boolean
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
+          wbraid: string | null
+        }
+        Insert: {
+          channel: string
+          click_id_type?: string | null
+          click_ids_purged_at?: string | null
+          clicked_at?: string | null
+          company_id: string
+          fbclid?: string | null
+          first_touch?: Json | null
+          gbraid?: string | null
+          gclid?: string | null
+          google_ad_group_id?: string | null
+          google_campaign_id?: string | null
+          google_creative_id?: string | null
+          google_device?: string | null
+          google_keyword?: string | null
+          google_match_type?: string | null
+          google_network?: string | null
+          google_target_id?: string | null
+          landing_path?: string | null
+          last_touch?: Json | null
+          lead_id: string
+          msclkid?: string | null
+          recorded_at?: string
+          token_verified: boolean
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+          wbraid?: string | null
+        }
+        Update: {
+          channel?: string
+          click_id_type?: string | null
+          click_ids_purged_at?: string | null
+          clicked_at?: string | null
+          company_id?: string
+          fbclid?: string | null
+          first_touch?: Json | null
+          gbraid?: string | null
+          gclid?: string | null
+          google_ad_group_id?: string | null
+          google_campaign_id?: string | null
+          google_creative_id?: string | null
+          google_device?: string | null
+          google_keyword?: string | null
+          google_match_type?: string | null
+          google_network?: string | null
+          google_target_id?: string | null
+          landing_path?: string | null
+          last_touch?: Json | null
+          lead_id?: string
+          msclkid?: string | null
+          recorded_at?: string
+          token_verified?: boolean
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+          wbraid?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_ad_attribution_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_ad_attribution_company_id_lead_id_fkey"
+            columns: ["company_id", "lead_id"]
+            isOneToOne: true
+            referencedRelation: "leads"
+            referencedColumns: ["company_id", "id"]
+          },
+        ]
+      }
       lead_attribution_touches: {
         Row: {
           assessment_id: string | null
@@ -2986,6 +3388,55 @@ export type Database = {
             columns: ["pipeline_run_id"]
             isOneToOne: false
             referencedRelation: "pipeline_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_quality_flags: {
+        Row: {
+          company_id: string
+          flag: string
+          flagged_at: string
+          flagged_by: string | null
+          lead_id: string
+          note: string | null
+        }
+        Insert: {
+          company_id: string
+          flag: string
+          flagged_at?: string
+          flagged_by?: string | null
+          lead_id: string
+          note?: string | null
+        }
+        Update: {
+          company_id?: string
+          flag?: string
+          flagged_at?: string
+          flagged_by?: string | null
+          lead_id?: string
+          note?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_quality_flags_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_quality_flags_company_id_lead_id_fkey"
+            columns: ["company_id", "lead_id"]
+            isOneToOne: true
+            referencedRelation: "leads"
+            referencedColumns: ["company_id", "id"]
+          },
+          {
+            foreignKeyName: "lead_quality_flags_flagged_by_fkey"
+            columns: ["flagged_by"]
+            isOneToOne: false
+            referencedRelation: "admin_profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -3920,6 +4371,44 @@ export type Database = {
             columns: ["source_record_id"]
             isOneToOne: false
             referencedRelation: "source_records"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      paid_media_alerts: {
+        Row: {
+          alert_date: string
+          alert_key: string
+          company_id: string
+          created_at: string
+          delivered: boolean
+          message: string
+          severity: string
+        }
+        Insert: {
+          alert_date: string
+          alert_key: string
+          company_id: string
+          created_at?: string
+          delivered?: boolean
+          message: string
+          severity: string
+        }
+        Update: {
+          alert_date?: string
+          alert_key?: string
+          company_id?: string
+          created_at?: string
+          delivered?: boolean
+          message?: string
+          severity?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "paid_media_alerts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
@@ -6689,6 +7178,14 @@ export type Database = {
         Args: { p_company_id: string; p_rate_card_id: string }
         Returns: undefined
       }
+      ad_conversion_consent_state: {
+        Args: { p_at: string; p_company_id: string; p_lead_id: string }
+        Returns: string
+      }
+      ad_conversion_order_id: {
+        Args: { p_event_name: string; p_lead_id: string }
+        Returns: string
+      }
       apply_roof_assessment_property_prefetch: {
         Args: {
           p_attempt_id: string
@@ -6797,6 +7294,33 @@ export type Database = {
           from_stage: Database["public"]["Enums"]["lead_stage"]
         }[]
       }
+      claim_ad_conversion: {
+        Args: { p_delivery_id: string; p_now: string }
+        Returns: {
+          attempt_count: number
+          click_id: string
+          click_id_type: string
+          company_id: string
+          consent_model: string
+          consent_state: string
+          conversion_action_id: string
+          conversion_time: string
+          conversion_value: number
+          created_at: string
+          currency_code: string
+          customer_id: string
+          dry_run: boolean
+          email: string
+          event_name: string
+          id: string
+          identifier_only_uploads: boolean
+          lead_id: string
+          login_customer_id: string
+          order_id: string
+          phone_e164: string
+          send_conversion_values: boolean
+        }[]
+      }
       claim_lead_distribution_delivery: {
         Args: { p_company_id: string; p_delivery_id: string; p_now: string }
         Returns: {
@@ -6886,7 +7410,70 @@ export type Database = {
           side_effects_applied: boolean
         }[]
       }
+      clear_lead_quality_flag: {
+        Args: { p_lead_id: string }
+        Returns: undefined
+      }
       company_role_rank: { Args: { p_role: string }; Returns: number }
+      complete_ad_conversion: {
+        Args: {
+          p_delivery_id: string
+          p_error_category?: string
+          p_http_status?: number
+          p_now: string
+          p_outcome: string
+          p_payload_hash?: string
+          p_request_id?: string
+          p_sent_with_identifiers?: boolean
+          p_sent_with_value?: boolean
+          p_skip_reason?: string
+        }
+        Returns: {
+          attempt_count: number
+          company_id: string
+          conversion_time: string
+          conversion_value: number | null
+          created_at: string
+          event_name: string
+          http_status: number | null
+          id: string
+          last_attempted_at: string | null
+          last_error_category: string | null
+          last_validated_at: string | null
+          lead_id: string
+          next_attempt_at: string
+          order_id: string
+          payload_hash: string | null
+          platform: string
+          request_id: string | null
+          retracted_at: string | null
+          retraction_attempt_count: number
+          retraction_reason: string | null
+          retraction_status: string
+          sent_at: string | null
+          sent_with_identifiers: boolean | null
+          sent_with_value: boolean | null
+          skip_reason: string | null
+          source_ref: string
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "ad_conversion_deliveries"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      complete_ad_conversion_retraction: {
+        Args: {
+          p_delivery_id: string
+          p_error_category?: string
+          p_now: string
+          p_succeeded: boolean
+        }
+        Returns: undefined
+      }
       complete_lead_distribution_delivery: {
         Args: {
           p_available_at: string
@@ -7036,6 +7623,10 @@ export type Database = {
         Args: { p_company_id: string; p_event: Json }
         Returns: string
       }
+      enqueue_google_ads_conversions: {
+        Args: { p_company_id: string; p_now: string }
+        Returns: Json
+      }
       enqueue_roof_assessment_quote_pipeline_event: {
         Args: { p_attempt_id: string }
         Returns: string
@@ -7123,6 +7714,23 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      flag_lead_quality: {
+        Args: { p_flag: string; p_lead_id: string; p_note?: string }
+        Returns: {
+          company_id: string
+          flag: string
+          flagged_at: string
+          flagged_by: string | null
+          lead_id: string
+          note: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "lead_quality_flags"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       get_my_access: {
         Args: never
         Returns: {
@@ -7183,6 +7791,25 @@ export type Database = {
           open_tasks: number
           role: string
           user_id: string
+        }[]
+      }
+      list_due_ad_conversion_retractions: {
+        Args: { p_limit: number; p_now: string }
+        Returns: {
+          company_id: string
+          conversion_action_id: string
+          customer_id: string
+          dry_run: boolean
+          event_name: string
+          id: string
+          login_customer_id: string
+          order_id: string
+        }[]
+      }
+      list_due_ad_conversions: {
+        Args: { p_limit: number; p_now: string }
+        Returns: {
+          id: string
         }[]
       }
       list_my_companies: {
@@ -7254,12 +7881,17 @@ export type Database = {
         Args: { p_address: string }
         Returns: string
       }
+      paid_search_health: {
+        Args: { p_company_id: string; p_now: string }
+        Returns: Json
+      }
       pipeline_jobnimbus: {
         Args: { p_limit?: number; p_since?: string; p_stage?: string }
         Returns: Json
       }
       platform_health: { Args: never; Returns: Json }
       prune_booking_attempts: { Args: never; Returns: number }
+      purge_expired_click_ids: { Args: { p_now: string }; Returns: Json }
       record_integration_event: {
         Args: {
           p_company_id: string
@@ -7343,8 +7975,16 @@ export type Database = {
       report_funnel: { Args: { p_from: string; p_to: string }; Returns: Json }
       report_jobs: { Args: { p_from: string; p_to: string }; Returns: Json }
       report_measurements: { Args: never; Returns: Json }
+      report_paid_search: {
+        Args: { p_from: string; p_to: string }
+        Returns: Json
+      }
       request_estimate_callback: {
-        Args: { p_call_window: string; p_due_at: string; p_public_token: string }
+        Args: {
+          p_call_window: string
+          p_due_at: string
+          p_public_token: string
+        }
         Returns: {
           call_window: string
           created: boolean
