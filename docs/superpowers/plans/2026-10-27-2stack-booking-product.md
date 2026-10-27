@@ -89,3 +89,7 @@ Implemented on `codex/2stack-managed-texting`, based on main at `c8ff4cb`.
 - No live subaccounts, registrations, numbers, credentials, messages, production settings, or traffic ownership were changed.
 
 Implementation decisions: deployment-secret registry is the initial credential store; automated client provisioning is deferred. Inbound callbacks intentionally remain active when outbound is disabled. These choices are documented in the design and runbook. Next slice is ActiveProspect operational intake.
+
+## ActiveProspect slice
+
+Implementation and verification are recorded in [the ActiveProspect intake plan](2026-10-27-activeprospect-booking-intake.md). The new operational receiver is separate from legacy observational checkpoints. It adds transactional receipts, explicit per-phone contact ownership, canonical lead/task/event creation, test isolation, consent evidence, and a manager receipt view. Deployment remains disabled until bindings and exclusive routing are configured.

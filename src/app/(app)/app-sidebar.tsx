@@ -58,6 +58,7 @@ export function AppSidebar({
   const items: NavItem[] = [
     { href: "/", label: "My day", icon: "home" },
     { href: "/pipeline", label: "Pipeline", icon: "pipeline" },
+    { href: "/intake", label: "Intake", icon: "route" },
     {
       href: "/appointments",
       label: "Consultations",
