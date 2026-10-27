@@ -6,7 +6,7 @@ import { createServerClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { loadSmsContext } from "@/modules/sms/load-context";
 import { sendLeadSms, type SendResult } from "@/modules/sms/send-lead-sms";
-import { TwilioMessagingClient } from "@/modules/sms/twilio";
+import {sendCompanySms} from "@/modules/sms/client-config";
 
 export type SmsFormState = SendResult | null;
 
@@ -41,11 +41,8 @@ export async function sendSms(leadId: string, _previous: SmsFormState, formData:
         .eq("id", id);
     },
     send(input) {
-      return new TwilioMessagingClient({
-        accountSid: process.env.TWILIO_ACCOUNT_SID ?? "",
-        apiKeySid: process.env.TWILIO_API_KEY_SID ?? "",
-        apiKeySecret: process.env.TWILIO_API_KEY_SECRET ?? "",
-      }).send(input);
+      // The company comes from the RLS-authorized lead, never form input.
+      return sendCompanySms(context!.companyId, input);
     },
   });
 

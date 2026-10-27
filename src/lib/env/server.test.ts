@@ -11,6 +11,22 @@ const base = {
   INNGEST_SIGNING_KEY: "local-signing-key",
 };
 
+describe("managed SMS configuration", () => {
+  test("does not require the global Verify credentials for managed SMS", () => {
+    expect(parseServerEnv({...base, SMS_ENABLED: "true", TWILIO_SMS_CLIENTS_JSON: JSON.stringify([{
+      companyId: "11111111-1111-4111-8111-111111111111",
+      accountSid: `AC${"1".repeat(32)}`, apiKeySid: `SK${"2".repeat(32)}`,
+      apiKeySecret: "secret", authToken: "token",
+    }])}).SMS_ENABLED).toBe(true);
+  });
+
+  test("rejects enabled messaging without a valid client registry", () => {
+    for (const raw of [undefined, "{}", "[]", "bad-json"]) {
+      expect(() => parseServerEnv({...base, SMS_ENABLED: "true", TWILIO_SMS_CLIENTS_JSON: raw})).toThrow("Texting requires a valid client subaccount registry");
+    }
+  });
+});
+
 const enabledPrefetch = {
   ...base,
   NODE_ENV: "production",
