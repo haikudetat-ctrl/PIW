@@ -9,6 +9,73 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      activeprospect_intake_receipts: {
+        Row: {
+          appointment_type: string
+          company_id: string
+          contact_owner: string
+          event_id: string | null
+          external_lead_id: string
+          flow_id: string
+          id: string
+          is_test: boolean
+          lead_id: string | null
+          payload: Json
+          received_at: string
+          state: string
+        }
+        Insert: {
+          appointment_type: string
+          company_id: string
+          contact_owner: string
+          event_id?: string | null
+          external_lead_id: string
+          flow_id: string
+          id?: string
+          is_test: boolean
+          lead_id?: string | null
+          payload: Json
+          received_at?: string
+          state: string
+        }
+        Update: {
+          appointment_type?: string
+          company_id?: string
+          contact_owner?: string
+          event_id?: string | null
+          external_lead_id?: string
+          flow_id?: string
+          id?: string
+          is_test?: boolean
+          lead_id?: string | null
+          payload?: Json
+          received_at?: string
+          state?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activeprospect_intake_receipts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activeprospect_intake_receipts_company_id_lead_id_fkey"
+            columns: ["company_id", "lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["company_id", "id"]
+          },
+          {
+            foreignKeyName: "activeprospect_intake_receipts_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "domain_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ad_conversion_deliveries: {
         Row: {
           attempt_count: number
@@ -654,6 +721,45 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "admin_profiles"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      booking_contact_ownership: {
+        Row: {
+          company_id: string
+          contact_owner: string
+          created_at: string
+          lead_id: string | null
+          phone_e164: string
+        }
+        Insert: {
+          company_id: string
+          contact_owner: string
+          created_at?: string
+          lead_id?: string | null
+          phone_e164: string
+        }
+        Update: {
+          company_id?: string
+          contact_owner?: string
+          created_at?: string
+          lead_id?: string | null
+          phone_e164?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_contact_ownership_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_contact_ownership_company_id_lead_id_fkey"
+            columns: ["company_id", "lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["company_id", "id"]
           },
         ]
       }
@@ -7150,6 +7256,22 @@ export type Database = {
         Args: { p_batch_size?: number }
         Returns: {
           assessment_id: string
+        }[]
+      }
+      accept_activeprospect_booking_intake: {
+        Args: {
+          p_appointment_type: string
+          p_company_id: string
+          p_contact_owner: string
+          p_flow_id: string
+          p_payload: Json
+        }
+        Returns: {
+          duplicate: boolean
+          event: Json
+          lead_id: string
+          receipt_id: string
+          state: string
         }[]
       }
       acknowledge_roof_assessment_result_view: {
