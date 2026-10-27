@@ -6686,6 +6686,83 @@ export type Database = {
           },
         ]
       }
+      setter_callback_alerts: {
+        Row: {
+          assigned_to: string | null
+          claim_token: string | null
+          claimed_at: string | null
+          company_id: string
+          created_at: string
+          delivery_status: string
+          due_at: string
+          id: string
+          lead_id: string
+          queue_revision: string
+          settled_at: string | null
+          stage: string
+          task_id: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          claim_token?: string | null
+          claimed_at?: string | null
+          company_id: string
+          created_at?: string
+          delivery_status?: string
+          due_at: string
+          id?: string
+          lead_id: string
+          queue_revision: string
+          settled_at?: string | null
+          stage: string
+          task_id: string
+        }
+        Update: {
+          assigned_to?: string | null
+          claim_token?: string | null
+          claimed_at?: string | null
+          company_id?: string
+          created_at?: string
+          delivery_status?: string
+          due_at?: string
+          id?: string
+          lead_id?: string
+          queue_revision?: string
+          settled_at?: string | null
+          stage?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "setter_callback_alerts_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "admin_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "setter_callback_alerts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "setter_callback_alerts_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "setter_callback_alerts_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       setter_lead_stops: {
         Row: {
           company_id: string
@@ -7831,6 +7908,16 @@ export type Database = {
           side_effects_applied: boolean
         }[]
       }
+      claim_setter_callback_alerts: {
+        Args: { p_company_id: string }
+        Returns: {
+          claim_token: string
+          company_id: string
+          due_at: string
+          id: string
+          stage: string
+        }[]
+      }
       claim_setter_task: { Args: { p_task_id?: string }; Returns: Json }
       clear_lead_quality_flag: {
         Args: { p_lead_id: string }
@@ -8174,6 +8261,7 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_setter_callback_report: { Args: never; Returns: Json }
       get_setter_queue: { Args: never; Returns: Json }
       grant_company_membership: {
         Args: {
@@ -8737,6 +8825,10 @@ export type Database = {
         Returns: undefined
       }
       set_setter_shift: { Args: { p_on_shift: boolean }; Returns: undefined }
+      settle_setter_callback_alert: {
+        Args: { p_claim_token: string; p_id: string; p_status: string }
+        Returns: undefined
+      }
       staff_cancel_virtual_consultation: {
         Args: { p_appointment_id: string; p_company_id: string }
         Returns: {
@@ -8893,6 +8985,7 @@ export type Database = {
           public_token: string
         }[]
       }
+      sweep_setter_callback_sla: { Args: never; Returns: number }
       switch_active_company: {
         Args: { p_company_id: string }
         Returns: undefined

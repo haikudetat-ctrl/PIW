@@ -36,6 +36,7 @@ import {
 import {leadDistributionSweeper} from "@/inngest/functions/lead-distribution-sweeper";
 import { jobNimbusWarehouseSync } from "@/inngest/functions/jobnimbus-warehouse-sync";
 import { leadConduitContactRetention } from "@/inngest/functions/leadconduit-contact-retention";
+import { setterCallbackSla } from "@/inngest/functions/setter-callback-sla";
 import { customerJourneyRefresh } from "@/inngest/functions/customer-journey-refresh";
 import {
   bookingMaintenance,
@@ -84,5 +85,6 @@ export const { GET, POST, PUT } = serve({
     virtualConsultationEmails,
     virtualConsultationReminders,
     bookingMaintenance,
+    setterCallbackSla,
   ],
 });
