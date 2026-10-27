@@ -322,7 +322,9 @@ begin
     from public.tasks t join public.leads l on l.id=t.lead_id and l.company_id=t.company_id
     where t.company_id=v_company and t.status='open' and t.queue_bucket is not null and coalesce(t.due_at,clock_timestamp())<=clock_timestamp()
     and private.setter_eligible(v_company,t.lead_id)
-    and (t.assigned_to is null or t.assigned_to=auth.uid() or t.sla_escalated_at is not null or v_manager)
+    and (t.assigned_to is null or t.assigned_to=auth.uid() or t.sla_escalated_at is not null or (v_manager and not v_setter))
+    and ((v_manager and not v_setter) or not exists(select 1 from public.tasks busy where busy.company_id=v_company and busy.lead_id=t.lead_id
+      and busy.status='open' and busy.claim_user_id is not null and busy.claim_user_id<>auth.uid() and busy.claim_expires_at>clock_timestamp()))
     and (t.queue_bucket in ('call_request','scheduled_callback','handoff') or not exists(select 1 from public.appointments a where a.company_id=v_company and a.lead_id=t.lead_id and a.status in ('scheduled','confirmed') and a.scheduled_at>clock_timestamp()))
     group by 1) b;
  end if;
@@ -332,9 +334,10 @@ begin
    where m.company_id=v_company and m.is_active;
  end if;
  return jsonb_build_object('enabled',v_enabled,'is_manager',v_manager,'is_setter',v_setter,'timezone',coalesce((select timezone from public.setter_queue_settings where company_id=v_company),'America/New_York'),
- 'on_shift_until',(select on_shift_until from public.company_setters where company_id=v_company and user_id=auth.uid()),'current',v_current,'buckets',coalesce(v_buckets,'{}'::jsonb),'members',coalesce(v_members,'[]'::jsonb));
+ 'on_shift_until',(select on_shift_until from public.company_setters where company_id=v_company and user_id=auth.uid() and on_shift_until>clock_timestamp()),'current',v_current,'buckets',coalesce(v_buckets,'{}'::jsonb),'members',coalesce(v_members,'[]'::jsonb));
 end $$;
 
 revoke all on function private.setter_eligible(uuid,uuid),private.setter_company(boolean),private.setter_task_bucket(text,text,timestamptz),private.classify_setter_task(),private.guard_setter_task() from public,anon,authenticated;
+grant execute on function private.setter_eligible(uuid,uuid) to service_role;
 revoke all on function public.save_setter_queue_settings(boolean,text),public.set_company_setter(uuid,boolean),public.set_setter_shift(boolean),public.claim_setter_task(uuid),public.record_setter_attempt(uuid,uuid),public.finish_setter_task(uuid,uuid,text,text,timestamptz,uuid),public.get_setter_queue() from public,anon;
 grant execute on function public.save_setter_queue_settings(boolean,text),public.set_company_setter(uuid,boolean),public.set_setter_shift(boolean),public.claim_setter_task(uuid),public.record_setter_attempt(uuid,uuid),public.finish_setter_task(uuid,uuid,text,text,timestamptz,uuid),public.get_setter_queue() to authenticated;

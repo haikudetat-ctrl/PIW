@@ -102,7 +102,7 @@ export default async function LeadWorkspacePage({
       .eq("lead_id", leadId),
     supabase
       .from("tasks")
-      .select("id, title, due_at, status")
+      .select("id, title, due_at, status, queue_bucket")
       .eq("company_id", companyId)
       .eq("lead_id", leadId)
       .order("created_at"),

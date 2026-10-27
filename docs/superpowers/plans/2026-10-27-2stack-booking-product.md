@@ -93,3 +93,7 @@ Implementation decisions: deployment-secret registry is the initial credential s
 ## ActiveProspect slice
 
 Implementation and verification are recorded in [the ActiveProspect intake plan](2026-10-27-activeprospect-booking-intake.md). The new operational receiver is separate from legacy observational checkpoints. It adds transactional receipts, explicit per-phone contact ownership, canonical lead/task/event creation, test isolation, consent evidence, and a manager receipt view. Deployment remains disabled until bindings and exclusive routing are configured.
+
+## Setter queue and callback SLA slice
+
+See [the setter queue plan](2026-10-27-setter-queue-callback-sla.md) and [operating runbook](../../runbooks/setter-queue.md). This slice adds a separate setter enrollment, scoped claimed-lead context, exclusive claims, mandatory manual-call outcomes, real-appointment validation, callbacks, ten-minute coverage release and thirty-minute human recovery. It starts paused for every company and requires confirmed coverage before enablement. Slack uses a separate server-only company registry; ambiguous sends require reconciliation. Approved apology texts, full cadences, employee property/JobNimbus context and in-home capacity stay in subsequent slices.

@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { canUseCrm, hasRole, parseMyAccess } from "@/lib/auth/access";
 import { createServerClient } from "@/lib/supabase/server";
 import { AppSidebar } from "./app-sidebar";
@@ -11,12 +12,13 @@ const ROLE_LABELS = {
   employee: "Employee",
 } as const;
 
-function AccessNotice({ title, body }: { title: string; body: string }) {
+function AccessNotice({ title, body, setterQueue = false }: { title: string; body: string; setterQueue?: boolean }) {
   return (
     <main className="admin-theme flex min-h-screen items-center justify-center px-4">
       <div className="w-full max-w-sm rounded-2xl bg-surface p-6 text-center shadow-card">
         <h1 className="text-xl font-bold text-ink">{title}</h1>
         <p className="mt-2 text-sm text-ink-subtle">{body}</p>
+        {setterQueue && <Link href="/setter-queue" className="mt-4 inline-block text-sm text-tint underline">Open setter queue</Link>}
         <div className="mt-5">
           <SignOutButton />
         </div>
@@ -51,6 +53,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <AccessNotice
         title="Your dashboard is on the way"
         body="Your account is set up. Your personal customer view opens here once it launches."
+        setterQueue
       />
     );
   }

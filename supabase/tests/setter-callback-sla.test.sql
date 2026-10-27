@@ -17,6 +17,9 @@ insert into public.tasks(id,company_id,lead_id,title,queue_bucket,due_at,assigne
  from generate_series(201,205) n;
 -- A test lead must never enter recovery.
 update public.leads set is_test=true where id='b3000000-0000-4000-8000-000000000205';
+set local role service_role;
+select lives_ok('select public.sweep_setter_callback_sla()','the actual worker role can execute the sweep');
+reset role;
 select public.sweep_setter_callback_sla();
 select is((select count(*)::integer from public.setter_callback_alerts),3,'one escalation at ten, escalation and miss at thirty');
 select is((select claim_user_id from public.tasks where id='b3000000-0000-4000-8000-000000000302'),null::uuid,'ten-minute escalation releases the untouched claim');
