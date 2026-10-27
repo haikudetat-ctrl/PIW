@@ -1,5 +1,6 @@
 import "server-only";
 import { z } from "zod";
+import {hasSmsClients} from "@/modules/sms/client-config";
 import { LEADCONDUIT_RECEIPT_FLOW_IDS } from "@/modules/access-route/leadconduit-config";
 import { booleanString, deploymentEnvironmentSchema } from "./shared";
 
@@ -125,9 +126,10 @@ const serverEnvSchema = z
     TWILIO_API_KEY_SID: optionalString,
     TWILIO_API_KEY_SECRET: optionalString,
     TWILIO_VERIFY_SERVICE_SID: optionalString,
-    // Two-way texting: sends with the API key above, checks webhook
-    // signatures with the account's auth token.
+    // Managed SMS uses a separate subaccount per company. The global
+    // TWILIO_API_KEY_* values above are for Verify only.
     SMS_ENABLED: optionalTrackingFlag,
+    TWILIO_SMS_CLIENTS_JSON: optionalString,
     TWILIO_ACCOUNT_SID: optionalString,
     TWILIO_AUTH_TOKEN: optionalString,
     INTEGRATIONS_LEADCONDUIT_ROOFING_RECEIVER_ENABLED: booleanString,
@@ -291,17 +293,12 @@ const serverEnvSchema = z
     }
     if (
       value.SMS_ENABLED
-      && (
-        !value.TWILIO_ACCOUNT_SID
-        || !value.TWILIO_AUTH_TOKEN
-        || !value.TWILIO_API_KEY_SID
-        || !value.TWILIO_API_KEY_SECRET
-      )
+      && !hasSmsClients(value)
     ) {
       context.addIssue({
         code: "custom",
         path: ["SMS_ENABLED"],
-        message: "Texting requires the Twilio account SID, auth token and API key",
+        message: "Texting requires a valid client subaccount registry",
       });
     }
     const readIntegrations = [

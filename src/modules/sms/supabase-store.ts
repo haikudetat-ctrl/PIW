@@ -14,17 +14,23 @@ export function phoneVariants(e164: string): string[] {
   return [e164, national, `1${national}`, `(${area}) ${prefix}-${line}`, `${area}-${prefix}-${line}`, `${area}.${prefix}.${line}`];
 }
 
-export function createSmsWebhookStore(service: Service): InboundDeps & StatusDeps {
+export function createSmsWebhookStore(service: Service, companyId: string): InboundDeps & StatusDeps {
+  function assertCompany(candidate: string) {
+    if (!companyId || candidate !== companyId) throw new Error("SMS company mismatch");
+  }
+  assertCompany(companyId);
   return {
     async findCompanyByNumber(toE164) {
       const { data } = await service
         .from("company_sms_settings")
         .select("company_id")
+        .eq("company_id", companyId)
         .eq("from_e164", toE164)
         .maybeSingle();
       return data?.company_id ?? null;
     },
     async findLeadByPhone(companyId, fromE164) {
+      assertCompany(companyId);
       const variants = phoneVariants(fromE164);
       const list = variants.map((value) => `"${value}"`).join(",");
       const { data } = await service
@@ -38,10 +44,12 @@ export function createSmsWebhookStore(service: Service): InboundDeps & StatusDep
       return data?.[0]?.id ?? null;
     },
     async insertInbound(row) {
+      assertCompany(row.company_id);
       const { error } = await service.from("sms_messages").upsert(row, { onConflict: "provider_sid", ignoreDuplicates: true });
       if (error) throw new Error(`Failed to record inbound text: ${error.message}`);
     },
     async suppress(companyId, phoneE164) {
+      assertCompany(companyId);
       const { error } = await service.from("suppression_list").insert({
         company_id: companyId,
         channel: "sms",
@@ -53,6 +61,7 @@ export function createSmsWebhookStore(service: Service): InboundDeps & StatusDep
       if (error && error.code !== "23505") throw new Error(`Failed to record opt-out: ${error.message}`);
     },
     async unsuppress(companyId, phoneE164) {
+      assertCompany(companyId);
       const { error } = await service
         .from("suppression_list")
         .delete()
@@ -63,13 +72,14 @@ export function createSmsWebhookStore(service: Service): InboundDeps & StatusDep
       if (error) throw new Error(`Failed to record opt-in: ${error.message}`);
     },
     async findBySid(sid) {
-      const { data } = await service.from("sms_messages").select("id, status").eq("provider_sid", sid).maybeSingle();
+      const { data } = await service.from("sms_messages").select("id, status").eq("company_id", companyId).eq("provider_sid", sid).maybeSingle();
       return data ? { id: data.id, status: data.status as SmsStatus } : null;
     },
     async updateStatus(id, status, errorCode) {
       const { error } = await service
         .from("sms_messages")
         .update({ status, error_code: errorCode, status_updated_at: new Date().toISOString() })
+        .eq("company_id", companyId)
         .eq("id", id);
       if (error) throw new Error(`Failed to update text status: ${error.message}`);
     },
