@@ -6,7 +6,7 @@ import { createServerClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { loadSmsContext } from "@/modules/sms/load-context";
 import { sendLeadSms, type SendResult } from "@/modules/sms/send-lead-sms";
-import {sendCompanySms} from "@/modules/sms/client-config";
+import {isCompanySmsEnabled,sendCompanySms} from "@/modules/sms/client-config";
 
 export type SmsFormState = SendResult | null;
 
@@ -22,7 +22,7 @@ export async function sendSms(leadId: string, _previous: SmsFormState, formData:
   const service = createServiceClient();
   const context = await loadSmsContext(supabase, service, leadId);
 
-  const smsEnabled = process.env.SMS_ENABLED === "true";
+  const smsEnabled = context ? isCompanySmsEnabled(context.companyId) : false;
   const productionHost = process.env.VERCEL_PROJECT_PRODUCTION_URL;
   const result = await sendLeadSms(context, body, {
     now: new Date(),

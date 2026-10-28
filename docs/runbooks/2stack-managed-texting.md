@@ -52,6 +52,10 @@ The parent account's messaging registration does not cover customer traffic.
 
 ## Disable and rotate
 
+- A missing, malformed or ambiguous client registry blocks outbound transport
+  and rejects unverified callbacks at the SMS boundary. It does not prevent
+  shared database clients or unrelated pages such as booking settings from
+  loading. `SMS_ENABLED=true` alone does not make a company ready to send.
 - `SMS_ENABLED=false` stops outbound sends globally. The company `enabled`
   setting stops outbound sends for that company. Inbound replies, opt-outs and
   delivery callbacks still work while outbound is off, provided the registry

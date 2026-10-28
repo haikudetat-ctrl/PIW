@@ -42,6 +42,17 @@ export function resolveSmsClient(
     : client.accountSid === selector.accountSid) ?? null;
 }
 
+/** Outbound readiness is company-scoped; webhook verification stays independent. */
+export function isCompanySmsEnabled(
+  companyId: string,
+  environment: SmsEnvironment & {SMS_ENABLED?: string} = {
+    SMS_ENABLED: process.env.SMS_ENABLED,
+    TWILIO_SMS_CLIENTS_JSON: process.env.TWILIO_SMS_CLIENTS_JSON,
+  },
+): boolean {
+  return environment.SMS_ENABLED === "true" && resolveSmsClient({companyId},environment) !== null;
+}
+
 export async function sendCompanySms(
   companyId: string,
   input: Parameters<TwilioMessagingClient["send"]>[0],

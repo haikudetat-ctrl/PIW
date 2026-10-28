@@ -20,9 +20,11 @@ describe("managed SMS configuration", () => {
     }])}).SMS_ENABLED).toBe(true);
   });
 
-  test("rejects enabled messaging without a valid client registry", () => {
+  test("invalid optional SMS configuration does not block core database access", () => {
     for (const raw of [undefined, "{}", "[]", "bad-json"]) {
-      expect(() => parseServerEnv({...base, SMS_ENABLED: "true", TWILIO_SMS_CLIENTS_JSON: raw})).toThrow("Texting requires a valid client subaccount registry");
+      const environment = parseServerEnv({...base, SMS_ENABLED: "true", TWILIO_SMS_CLIENTS_JSON: raw});
+      expect(environment.NEXT_PUBLIC_SUPABASE_URL).toBe("http://127.0.0.1:54321");
+      expect(environment.SUPABASE_SERVICE_ROLE_KEY).toBe("local-service-role-key");
     }
   });
 });

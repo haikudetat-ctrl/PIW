@@ -1,6 +1,5 @@
 import "server-only";
 import { z } from "zod";
-import {hasSmsClients} from "@/modules/sms/client-config";
 import { LEADCONDUIT_RECEIPT_FLOW_IDS } from "@/modules/access-route/leadconduit-config";
 import { booleanString, deploymentEnvironmentSchema } from "./shared";
 
@@ -291,16 +290,9 @@ const serverEnvSchema = z
         message: "Twilio Verify requires API credentials, a service SID, and assessment signing",
       });
     }
-    if (
-      value.SMS_ENABLED
-      && !hasSmsClients(value)
-    ) {
-      context.addIssue({
-        code: "custom",
-        path: ["SMS_ENABLED"],
-        message: "Texting requires a valid client subaccount registry",
-      });
-    }
+    // Client subaccount validation belongs to resolveSmsClient/sendCompanySms.
+    // Invalid optional texting configuration must block SMS at that boundary,
+    // not prevent core database clients and unrelated settings pages loading.
     const readIntegrations = [
       [value.INTEGRATIONS_LEADMASTER_ENABLED, value.LEADMASTER_ACCESS_TOKEN, "LEADMASTER_ACCESS_TOKEN"],
       [value.INTEGRATIONS_JOBNIMBUS_ENABLED, value.JOBNIMBUS_API_KEY, "JOBNIMBUS_API_KEY"],
