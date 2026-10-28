@@ -78,13 +78,13 @@ export function QueueWorkspace({snapshot,report,slaEnabled=false}:{snapshot:Queu
           <section className="rounded-xl border border-border bg-surface p-6">
             <h3 className="font-semibold">Manual call</h3><p className="mt-2 text-sm text-ink-subtle">Call through CallTools or your phone. Record the attempt when you start dialing, then save the outcome here.</p>
             <div className="mt-4 flex flex-wrap items-center gap-3">
-              <form action={submit}><HiddenClaim current={current}/><input type="hidden" name="action" value="attempt"/><button disabled={pending||!!current.attempted_at} className={primaryButtonClasses}>{current.attempted_at?"Attempt recorded":"Record call attempt"}</button></form>
+              <form action={submit}><HiddenClaim current={current}/><input type="hidden" name="action" value="attempt"/><button disabled={pending||current.current_claim_attempted} className={primaryButtonClasses}>{current.current_claim_attempted?"Attempt recorded":"Record call attempt"}</button></form>
               <a className={secondaryButtonClasses} href={`tel:${current.lead.phone}`}>Dial {current.lead.phone}</a>
             </div>
             <p className="mt-3 text-xs text-ink-subtle">Attempts are setter-reported. No-answer and voicemail count as attempts.</p>
           </section>
           <section className="rounded-xl border border-border bg-surface p-6">
-            <h3 className="font-semibold">Text conversation</h3><p className="mt-1 text-xs text-ink-subtle">Latest 200 messages. Messaging controls follow in the approved-template slice.</p>
+            <h3 className="font-semibold">Text conversation</h3><p className="mt-1 text-xs text-ink-subtle">Read-only history · latest 200 messages.</p>
             <ol className="mt-4 max-h-80 space-y-3 overflow-y-auto">{current.messages.map((m,i)=><li key={i} className="rounded-lg bg-surface-muted p-3 text-sm"><p className="whitespace-pre-wrap">{m.body}</p><p className="mt-1 text-xs text-ink-subtle">{m.direction} · {m.status} · {time(m.created_at,snapshot.timezone)}</p></li>)}</ol>
             {!current.messages.length && <p className="mt-3 text-sm text-ink-subtle">No text messages yet.</p>}
           </section>
@@ -98,7 +98,7 @@ export function QueueWorkspace({snapshot,report,slaEnabled=false}:{snapshot:Queu
           <section className="rounded-xl border border-border bg-surface p-6">
             <h3 className="font-semibold">Book a virtual inspection</h3><p className="mt-2 text-sm text-ink-subtle">Choose real availability with the homeowner. Refresh after booking to record the appointment outcome.</p>
             <form action={submit} className="mt-4"><HiddenClaim current={current}/><input type="hidden" name="action" value="booking_link"/><button disabled={pending} className={secondaryButtonClasses}>Get virtual booking link</button></form>
-            <p className="mt-3 text-xs text-ink-subtle">In-home capacity is being built. A handoff can request manager assistance.</p>
+            <p className="mt-3 text-xs text-ink-subtle">For an in-home inspection, request manager assistance using Human handoff.</p>
           </section>
           <form action={submit} className="space-y-4 rounded-xl border border-border bg-surface p-6">
             <h3 className="font-semibold">Record the outcome</h3><p className="text-sm text-ink-subtle">Required before the next homeowner.</p>

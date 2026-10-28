@@ -109,6 +109,13 @@ language sql stable set search_path='' as $$
  when p_title in ('Contact new virtual inspection lead','Contact new in-home inspection lead','Call new roof-estimate lead now') then 'new_lead' end
 $$;
 
+create function private.setter_assignee_available(p_company uuid,p_assignee uuid) returns boolean
+language sql stable set search_path='' as $$
+ select p_assignee is null or p_assignee=auth.uid() or not exists(
+   select 1 from public.company_setters r join public.company_memberships m using(company_id,user_id)
+   where r.company_id=p_company and r.user_id=p_assignee and r.enabled and m.is_active)
+$$;
+
 create function private.classify_setter_task() returns trigger
 language plpgsql security definer set search_path='' as $$
 begin
@@ -195,7 +202,7 @@ begin
  perform pg_advisory_xact_lock(hashtextextended('setter-company:'||v_company::text,0));
  -- Also clear abandoned claims in another active-company selection. The
  -- unique user index prevents a switch from bypassing an unfinished claim.
- update public.tasks set claim_user_id=null,claim_token=null,claim_expires_at=null,claimed_at=null
+ update public.tasks set claim_user_id=null,claim_token=null,claim_expires_at=null
  where status='open' and claim_expires_at<=v_now and (company_id=v_company or claim_user_id=auth.uid());
  select * into v_task from public.tasks where claim_user_id=auth.uid() and status='open' and claim_expires_at>v_now for update;
  if found then
@@ -210,7 +217,8 @@ begin
  where t.company_id=v_company and t.status='open' and t.queue_bucket is not null and t.claim_user_id is null
    and coalesce(t.due_at,v_now)<=v_now and private.setter_eligible(t.company_id,t.lead_id)
    and (p_task_id is null or t.id=p_task_id)
-   and (t.assigned_to is null or t.assigned_to=auth.uid() or t.sla_escalated_at is not null)
+   and (private.setter_assignee_available(v_company,t.assigned_to) or t.sla_escalated_at is not null
+     or (t.claimed_at is not null and t.claim_expires_at is null))
    and not exists(select 1 from public.tasks active where active.company_id=v_company and active.lead_id=t.lead_id and active.status='open' and active.claim_user_id is not null)
    and (t.queue_bucket in ('call_request','scheduled_callback','handoff') or not exists(
      select 1 from public.appointments a where a.company_id=v_company and a.lead_id=t.lead_id and a.status in ('scheduled','confirmed') and a.scheduled_at>v_now))
@@ -282,10 +290,10 @@ begin
  end if;
  v_next:=case when p_outcome='callback_scheduled' then 'scheduled_callback' when p_outcome in ('no_answer','voicemail') then 'follow_up' when p_outcome='handoff' then 'handoff' end;
  if v_next is not null then
-   insert into public.tasks(company_id,lead_id,title,description,due_at,assigned_to,created_by,queue_bucket,parent_task_id)
+   insert into public.tasks(company_id,lead_id,title,description,due_at,assigned_to,created_by,queue_bucket,parent_task_id,origin)
    values(v_company,v_task.lead_id,case v_next when 'scheduled_callback' then 'Scheduled homeowner callback' when 'handoff' then 'Setter handoff' else 'Follow up after unanswered call' end,
    nullif(btrim(p_notes),''),case v_next when 'scheduled_callback' then p_callback_at when 'handoff' then v_now else v_now+interval '2 hours' end,
-   case when v_next='scheduled_callback' then auth.uid() end,auth.uid(),v_next,v_task.id);
+   case when v_next='scheduled_callback' then auth.uid() end,auth.uid(),v_next,v_task.id,case when v_next='scheduled_callback' then 'callback_request' end);
  end if;
  return v_id;
 end $$;
@@ -307,6 +315,7 @@ begin
    if found then
      select jsonb_build_object('id',v_task.id,'claim_token',v_task.claim_token,'title',v_task.title,'description',v_task.description,'due_at',v_task.due_at,
        'claim_expires_at',v_task.claim_expires_at,'attempted_at',v_task.attempted_at,'queue_bucket',v_task.queue_bucket,
+       'current_claim_attempted',exists(select 1 from public.setter_call_attempts where task_id=v_task.id and claim_token=v_task.claim_token),
        'lead',jsonb_build_object('id',l.id,'name',l.name,'phone',coalesce(l.phone_e164,l.phone),'email',l.email,'address',l.submitted_address,'source',coalesce(l.original_lead_source,l.source_system),'stage',l.stage),
        'estimate',(select jsonb_build_object('roof_squares',e.roof_squares,'range_low_cents',e.range_low_cents,'range_high_cents',e.range_high_cents,'status',e.status) from public.roof_estimates e where e.company_id=v_company and e.lead_id=l.id order by e.created_at desc limit 1),
        'messages',coalesce((select jsonb_agg(to_jsonb(msg) order by msg.created_at) from (select direction,body,status,created_at from public.sms_messages where company_id=v_company and lead_id=l.id order by created_at desc limit 200) msg),'[]'::jsonb),
@@ -322,7 +331,8 @@ begin
     from public.tasks t join public.leads l on l.id=t.lead_id and l.company_id=t.company_id
     where t.company_id=v_company and t.status='open' and t.queue_bucket is not null and coalesce(t.due_at,clock_timestamp())<=clock_timestamp()
     and private.setter_eligible(v_company,t.lead_id)
-    and (t.assigned_to is null or t.assigned_to=auth.uid() or t.sla_escalated_at is not null or (v_manager and not v_setter))
+    and (private.setter_assignee_available(v_company,t.assigned_to) or t.sla_escalated_at is not null or (v_manager and not v_setter)
+      or (t.claimed_at is not null and coalesce(t.claim_expires_at,'-infinity'::timestamptz)<=clock_timestamp()))
     and ((v_manager and not v_setter) or not exists(select 1 from public.tasks busy where busy.company_id=v_company and busy.lead_id=t.lead_id
       and busy.status='open' and busy.claim_user_id is not null and busy.claim_user_id<>auth.uid() and busy.claim_expires_at>clock_timestamp()))
     and (t.queue_bucket in ('call_request','scheduled_callback','handoff') or not exists(select 1 from public.appointments a where a.company_id=v_company and a.lead_id=t.lead_id and a.status in ('scheduled','confirmed') and a.scheduled_at>clock_timestamp()))
@@ -338,6 +348,7 @@ begin
 end $$;
 
 revoke all on function private.setter_eligible(uuid,uuid),private.setter_company(boolean),private.setter_task_bucket(text,text,timestamptz),private.classify_setter_task(),private.guard_setter_task() from public,anon,authenticated;
+revoke all on function private.setter_assignee_available(uuid,uuid) from public,anon,authenticated;
 grant execute on function private.setter_eligible(uuid,uuid) to service_role;
 revoke all on function public.save_setter_queue_settings(boolean,text),public.set_company_setter(uuid,boolean),public.set_setter_shift(boolean),public.claim_setter_task(uuid),public.record_setter_attempt(uuid,uuid),public.finish_setter_task(uuid,uuid,text,text,timestamptz,uuid),public.get_setter_queue() from public,anon;
 grant execute on function public.save_setter_queue_settings(boolean,text),public.set_company_setter(uuid,boolean),public.set_setter_shift(boolean),public.claim_setter_task(uuid),public.record_setter_attempt(uuid,uuid),public.finish_setter_task(uuid,uuid,text,text,timestamptz,uuid),public.get_setter_queue() to authenticated;

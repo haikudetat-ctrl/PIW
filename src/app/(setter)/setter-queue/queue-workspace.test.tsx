@@ -36,4 +36,10 @@ describe("setter workspace",()=>{
     expect(screen.queryByText("Dana Rivera")).not.toBeInTheDocument();
     expect(screen.queryByText("Queue settings")).not.toBeInTheDocument();
   });
+  test("recovered claim can log a new call even when the previous setter attempted",()=>{
+    const snapshot=setterQueueFixture();
+    snapshot.current!.attempted_at="2026-10-27T15:50:00Z";
+    render(<QueueWorkspace snapshot={snapshot} report={[]}/>);
+    expect(screen.getByRole("button",{name:"Record call attempt"})).toBeEnabled();
+  });
 });
