@@ -7,7 +7,7 @@ export const queueSnapshotSchema=z.object({
   members:z.array(z.object({user_id:z.uuid(),name:z.string(),role:z.string(),enabled:z.boolean(),on_shift_until:z.string().nullable()})),
   current:z.object({
     id:z.uuid(),claim_token:z.uuid(),title:z.string(),description:z.string().nullable(),due_at:z.string().nullable(),
-    claim_expires_at:z.string(),attempted_at:z.string().nullable(),queue_bucket:z.string(),
+    claim_expires_at:z.string(),attempted_at:z.string().nullable(),current_claim_attempted:z.boolean(),queue_bucket:z.string(),
     lead:z.object({id:z.uuid(),name:z.string(),phone:z.string(),email:z.string(),address:z.string(),source:z.string(),stage:z.string()}),
     estimate:z.object({roof_squares:z.number().nullable(),range_low_cents:z.number().nullable(),range_high_cents:z.number().nullable(),status:z.string()}).nullable(),
     messages:z.array(z.object({direction:z.string(),body:z.string(),status:z.string(),created_at:z.string()})),
