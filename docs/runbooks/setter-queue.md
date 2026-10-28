@@ -23,6 +23,8 @@ Click **Claim next lead**. A database transaction grants one task to one setter 
 
 Claims last fifteen minutes. **Extend current claim** renews an active claim during a long conversation. An expired claim can be recovered by another setter; old tokens then fail, and the previous setter must reload. Do not keep calling from a stale screen. The page refreshes every thirty seconds while visible and when returning to the tab.
 
+Recovery also works when the original setter attempted a call but did not record an outcome, or their enrollment/membership became inactive. This is disposition recovery, not a missed callback: prior attempts and original assignment stay in the record, and no false SLA miss is added. Each recovered claim can record its own new manual attempt.
+
 Click **Record call attempt** when starting to dial, then use CallTools or the phone link. Save an outcome even for no answer. Manual attempts are retained in history; repeating the same request does not add a second attempt for that claim. Saving a call outcome also records the attempt if needed. A non-call handoff does not invent an attempt.
 
 - **No answer / voicemail:** complete the current task and create one follow-up due in two hours. This is an internal task, not an automatic text. Later cadence work will add approved hours and cadence configuration.
@@ -42,6 +44,8 @@ The clock applies to call requests and scheduled callbacks with a due time, only
 - At due +30 minutes without an attempt, close that callback window and create one human recovery handoff plus manager notification/alert. A cancellation here means the callback task closed, not that an appointment was cancelled.
 - A recorded attempt, including no answer or voicemail, prevents escalation. The setter still owes an outcome.
 - A homeowner changing the pending callback time invalidates its old claim, resets its clock and gives it a new revision. Queued alerts for the old revision cannot be delivered.
+
+Setter-created and homeowner-requested callbacks share one pending identity. A new homeowner request also supersedes other open queue work for that lead, including a claimed intake call; the old claim cannot complete and cancel the new promise. The callback RPC and queue writers use the same company lock before locking task rows.
 
 The manager view reports missed windows over the last seven days, attributed to the original assigned setter, or **Unassigned**. Attendance/no-show recovery, approved apology texts, proposed new times and weekly digest delivery remain later slices. No AI voice or outside caller bench is launched.
 
