@@ -64,7 +64,7 @@
 - [x] Use existing virtual booking link and capacity engine. In-home bookings are not offered here until the capacity slice. Explicitly label manual call attempts and company timezone; reject ambiguous callback wall times instead of choosing silently.
 - [x] Link the queue from CRM navigation and replace generic completion for queued tasks with a queue link.
 - [x] Document enable/disable, shift expiry (eight hours), claim expiry, manual CallTools calling, recovery ownership, Slack setup/reconciliation, remaining messaging/capacity boundaries and production rollout.
-- [ ] Run complete unit suite, fresh isolated database reset and all pgTAP, exact generated type comparison, lint/typecheck/build; obtain independent review. Open a PR explicitly targeting `main`, attach it, and verify CI.
+- [x] Run complete unit suite, fresh isolated database reset and all pgTAP, exact generated type comparison, lint/typecheck/build; obtain independent review. Open a PR explicitly targeting `main` and attach it. Required CI must pass before merge.
 
 ## Initial scope decisions
 
@@ -79,4 +79,4 @@ The attachment is planning material, not an instruction to launch AI or send mes
 - Local database security advisors: no issues found.
 - Independent review identified callback identity/supersession, attempted callback recovery and per-claim attempt state gaps. All three have regressions that failed first and now pass. The supersession regression uses the actual homeowner callback RPC.
 - Browser check: local synthetic fixture, desktop callback controls and mobile layout verified. The temporary preview route was removed; no live customer data or messages were used.
-- PR #102 targets main. Final push/CI verification remains the release gate. No production enablement, live Slack/SMS, or production database commands were run.
+- The initial release landed in PR #102 at its earlier reviewed revision. The recovery corrections are a follow-up against main, packaged as a forward migration for existing databases; historical migrations remain unchanged. Required CI is the final merge gate. No production enablement, live Slack/SMS, or production database commands were run.
