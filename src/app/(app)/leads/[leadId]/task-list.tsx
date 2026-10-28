@@ -4,12 +4,14 @@ import { Card } from "@/components/ui/card";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { inputClasses, labelClasses, primaryButtonClasses } from "@/components/ui/form";
 import { humanize } from "@/lib/format";
+import Link from "next/link";
 
 type Task = {
   id: string;
   title: string;
   due_at: string | null;
   status: "open" | "complete" | "cancelled";
+  queue_bucket?: string | null;
 };
 
 const DUE_TONE: Record<string, BadgeTone> = {
@@ -42,7 +44,7 @@ export function TaskList({ leadId, tasks }: { leadId: string; tasks: Task[] }) {
                 <Badge tone={STATUS_TONE[task.status]}>{humanize(task.status)}</Badge>
                 {due !== "none" && <Badge tone={DUE_TONE[due]}>{humanize(due)}</Badge>}
               </div>
-              {task.status === "open" ? (
+              {task.status === "open" && task.queue_bucket ? <Link href="/setter-queue" className="shrink-0 text-xs font-medium text-accent hover:underline">Open setter queue</Link> : task.status === "open" ? (
                 <form
                   action={async () => {
                     "use server";

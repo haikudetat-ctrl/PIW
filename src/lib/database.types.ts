@@ -1310,6 +1310,49 @@ export type Database = {
           },
         ]
       }
+      company_setters: {
+        Row: {
+          company_id: string
+          enabled: boolean
+          on_shift_until: string | null
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          enabled?: boolean
+          on_shift_until?: string | null
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          enabled?: boolean
+          on_shift_until?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_setters_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_setters_user_id_company_id_fkey"
+            columns: ["user_id", "company_id"]
+            isOneToOne: false
+            referencedRelation: "company_memberships"
+            referencedColumns: ["user_id", "company_id"]
+          },
+          {
+            foreignKeyName: "company_setters_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "admin_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       company_sms_settings: {
         Row: {
           company_id: string
@@ -6503,6 +6546,295 @@ export type Database = {
           },
         ]
       }
+      setter_call_attempts: {
+        Row: {
+          attempted_at: string
+          channel: string
+          claim_token: string
+          company_id: string
+          id: string
+          lead_id: string
+          task_id: string
+          user_id: string
+        }
+        Insert: {
+          attempted_at?: string
+          channel?: string
+          claim_token: string
+          company_id: string
+          id?: string
+          lead_id: string
+          task_id: string
+          user_id: string
+        }
+        Update: {
+          attempted_at?: string
+          channel?: string
+          claim_token?: string
+          company_id?: string
+          id?: string
+          lead_id?: string
+          task_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "setter_call_attempts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "setter_call_attempts_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "setter_call_attempts_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "setter_call_attempts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "admin_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      setter_call_outcomes: {
+        Row: {
+          appointment_id: string | null
+          callback_at: string | null
+          claim_token: string
+          company_id: string
+          created_at: string
+          id: string
+          lead_id: string
+          notes: string | null
+          outcome: string
+          task_id: string
+          user_id: string
+        }
+        Insert: {
+          appointment_id?: string | null
+          callback_at?: string | null
+          claim_token: string
+          company_id: string
+          created_at?: string
+          id?: string
+          lead_id: string
+          notes?: string | null
+          outcome: string
+          task_id: string
+          user_id: string
+        }
+        Update: {
+          appointment_id?: string | null
+          callback_at?: string | null
+          claim_token?: string
+          company_id?: string
+          created_at?: string
+          id?: string
+          lead_id?: string
+          notes?: string | null
+          outcome?: string
+          task_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "setter_call_outcomes_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "setter_call_outcomes_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "setter_call_outcomes_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "setter_call_outcomes_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: true
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "setter_call_outcomes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "admin_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      setter_callback_alerts: {
+        Row: {
+          assigned_to: string | null
+          claim_token: string | null
+          claimed_at: string | null
+          company_id: string
+          created_at: string
+          delivery_status: string
+          due_at: string
+          id: string
+          lead_id: string
+          queue_revision: string
+          settled_at: string | null
+          stage: string
+          task_id: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          claim_token?: string | null
+          claimed_at?: string | null
+          company_id: string
+          created_at?: string
+          delivery_status?: string
+          due_at: string
+          id?: string
+          lead_id: string
+          queue_revision: string
+          settled_at?: string | null
+          stage: string
+          task_id: string
+        }
+        Update: {
+          assigned_to?: string | null
+          claim_token?: string | null
+          claimed_at?: string | null
+          company_id?: string
+          created_at?: string
+          delivery_status?: string
+          due_at?: string
+          id?: string
+          lead_id?: string
+          queue_revision?: string
+          settled_at?: string | null
+          stage?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "setter_callback_alerts_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "admin_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "setter_callback_alerts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "setter_callback_alerts_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "setter_callback_alerts_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      setter_lead_stops: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string
+          lead_id: string
+          reason: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by: string
+          lead_id: string
+          reason: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          lead_id?: string
+          reason?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "setter_lead_stops_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "setter_lead_stops_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "admin_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "setter_lead_stops_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      setter_queue_settings: {
+        Row: {
+          company_id: string
+          enabled: boolean
+          timezone: string
+        }
+        Insert: {
+          company_id: string
+          enabled?: boolean
+          timezone?: string
+        }
+        Update: {
+          company_id?: string
+          enabled?: boolean
+          timezone?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "setter_queue_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sms_messages: {
         Row: {
           body: string
@@ -6788,6 +7120,11 @@ export type Database = {
       tasks: {
         Row: {
           assigned_to: string | null
+          attempted_at: string | null
+          claim_expires_at: string | null
+          claim_token: string | null
+          claim_user_id: string | null
+          claimed_at: string | null
           company_id: string
           completed_at: string | null
           created_at: string
@@ -6797,12 +7134,22 @@ export type Database = {
           id: string
           lead_id: string
           origin: string | null
+          parent_task_id: string | null
+          queue_bucket: string | null
+          queue_revision: string
+          sla_escalated_at: string | null
+          sla_missed_at: string | null
           status: Database["public"]["Enums"]["task_status"]
           title: string
           updated_at: string
         }
         Insert: {
           assigned_to?: string | null
+          attempted_at?: string | null
+          claim_expires_at?: string | null
+          claim_token?: string | null
+          claim_user_id?: string | null
+          claimed_at?: string | null
           company_id: string
           completed_at?: string | null
           created_at?: string
@@ -6812,12 +7159,22 @@ export type Database = {
           id?: string
           lead_id: string
           origin?: string | null
+          parent_task_id?: string | null
+          queue_bucket?: string | null
+          queue_revision?: string
+          sla_escalated_at?: string | null
+          sla_missed_at?: string | null
           status?: Database["public"]["Enums"]["task_status"]
           title: string
           updated_at?: string
         }
         Update: {
           assigned_to?: string | null
+          attempted_at?: string | null
+          claim_expires_at?: string | null
+          claim_token?: string | null
+          claim_user_id?: string | null
+          claimed_at?: string | null
           company_id?: string
           completed_at?: string | null
           created_at?: string
@@ -6827,6 +7184,11 @@ export type Database = {
           id?: string
           lead_id?: string
           origin?: string | null
+          parent_task_id?: string | null
+          queue_bucket?: string | null
+          queue_revision?: string
+          sla_escalated_at?: string | null
+          sla_missed_at?: string | null
           status?: Database["public"]["Enums"]["task_status"]
           title?: string
           updated_at?: string
@@ -6835,6 +7197,13 @@ export type Database = {
           {
             foreignKeyName: "tasks_assigned_to_fkey"
             columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "admin_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_claim_user_id_fkey"
+            columns: ["claim_user_id"]
             isOneToOne: false
             referencedRelation: "admin_profiles"
             referencedColumns: ["id"]
@@ -6858,6 +7227,13 @@ export type Database = {
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_parent_task_id_fkey"
+            columns: ["parent_task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
             referencedColumns: ["id"]
           },
         ]
@@ -7532,6 +7908,17 @@ export type Database = {
           side_effects_applied: boolean
         }[]
       }
+      claim_setter_callback_alerts: {
+        Args: { p_company_id: string }
+        Returns: {
+          claim_token: string
+          company_id: string
+          due_at: string
+          id: string
+          stage: string
+        }[]
+      }
+      claim_setter_task: { Args: { p_task_id?: string }; Returns: Json }
       clear_lead_quality_flag: {
         Args: { p_lead_id: string }
         Returns: undefined
@@ -7836,6 +8223,17 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      finish_setter_task: {
+        Args: {
+          p_appointment_id?: string
+          p_callback_at?: string
+          p_claim_token: string
+          p_notes?: string
+          p_outcome: string
+          p_task_id: string
+        }
+        Returns: string
+      }
       flag_lead_quality: {
         Args: { p_flag: string; p_lead_id: string; p_note?: string }
         Returns: {
@@ -7863,6 +8261,8 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_setter_callback_report: { Args: never; Returns: Json }
+      get_setter_queue: { Args: never; Returns: Json }
       grant_company_membership: {
         Args: {
           p_company_id: string
@@ -8080,6 +8480,10 @@ export type Database = {
           p_provider_attempt_id: string
           p_reservation_id: string
         }
+        Returns: undefined
+      }
+      record_setter_attempt: {
+        Args: { p_claim_token: string; p_task_id: string }
         Returns: undefined
       }
       redact_leadconduit_checkpoint_contacts: {
@@ -8412,6 +8816,19 @@ export type Database = {
           status: string
         }[]
       }
+      save_setter_queue_settings: {
+        Args: { p_enabled: boolean; p_timezone: string }
+        Returns: undefined
+      }
+      set_company_setter: {
+        Args: { p_enabled: boolean; p_user_id: string }
+        Returns: undefined
+      }
+      set_setter_shift: { Args: { p_on_shift: boolean }; Returns: undefined }
+      settle_setter_callback_alert: {
+        Args: { p_claim_token: string; p_id: string; p_status: string }
+        Returns: undefined
+      }
       staff_cancel_virtual_consultation: {
         Args: { p_appointment_id: string; p_company_id: string }
         Returns: {
@@ -8568,6 +8985,7 @@ export type Database = {
           public_token: string
         }[]
       }
+      sweep_setter_callback_sla: { Args: never; Returns: number }
       switch_active_company: {
         Args: { p_company_id: string }
         Returns: undefined
