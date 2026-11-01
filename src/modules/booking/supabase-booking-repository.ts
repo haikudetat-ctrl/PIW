@@ -23,7 +23,7 @@ const rpcRowSchema = z.object({
   event: z.unknown().nullable(),
 });
 
-function raiseFor(error: {message?: string} | null) {
+export function raiseFor(error: {message?: string} | null) {
   if (!error) return;
   switch (error.message) {
     case "Booking rate limit exceeded":
@@ -37,7 +37,7 @@ function raiseFor(error: {message?: string} | null) {
   }
 }
 
-function parseOutcome(data: unknown) {
+export function parseOutcome(data: unknown) {
   const parsed = z.array(rpcRowSchema).length(1).safeParse(data);
   if (!parsed.success) throw new Error("Booking persistence returned an unexpected shape");
   const row = parsed.data[0];
