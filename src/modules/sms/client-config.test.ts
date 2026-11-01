@@ -2,7 +2,7 @@
 import {expect, test, vi} from "vitest";
 
 vi.mock("server-only", () => ({}));
-const {resolveSmsClient, sendCompanySms} = await import("./client-config");
+const {resolveSmsClient, sendCompanySms,isCompanySmsEnabled} = await import("./client-config");
 
 const first = {
   companyId: "11111111-1111-4111-8111-111111111111",
@@ -13,6 +13,15 @@ const first = {
 };
 const second = {...first, companyId: "22222222-2222-4222-8222-222222222222", accountSid: `AC${"3".repeat(32)}`, apiKeySid: `SK${"4".repeat(32)}`, apiKeySecret: "client-two-key-secret", authToken: "client-two-auth-token"};
 const environment = {TWILIO_SMS_CLIENTS_JSON: JSON.stringify([first, second])};
+
+test("outbound readiness requires the switch and the authorized company's valid binding",()=>{
+  expect(isCompanySmsEnabled(first.companyId,{...environment,SMS_ENABLED:"true"})).toBe(true);
+  expect(isCompanySmsEnabled(first.companyId,{...environment,SMS_ENABLED:"false"})).toBe(false);
+  expect(isCompanySmsEnabled("unknown",{...environment,SMS_ENABLED:"true"})).toBe(false);
+  for(const raw of [undefined,"bad-json","{}","[]"]) {
+    expect(isCompanySmsEnabled(first.companyId,{SMS_ENABLED:"true",TWILIO_SMS_CLIENTS_JSON:raw})).toBe(false);
+  }
+});
 
 test("resolves a company and a webhook account to their own client binding", () => {
   expect(resolveSmsClient({companyId: first.companyId}, environment)).toEqual(first);
@@ -36,6 +45,13 @@ test.each([
 test("never falls back to global credentials for an unmapped company", async () => {
   const fetchImpl = vi.fn();
   await expect(sendCompanySms("unknown", {messagingServiceSid: `MG${"5".repeat(32)}`, to: "+16095550101", body: "Hello", statusCallback: null}, environment, fetchImpl)).rejects.toThrow("Texting is not configured for this company");
+  expect(fetchImpl).not.toHaveBeenCalled();
+});
+
+test.each([undefined,"bad-json","{}","[]"])("never contacts Twilio with an invalid registry (%#)",async(raw)=>{
+  const fetchImpl=vi.fn();
+  await expect(sendCompanySms(first.companyId,{messagingServiceSid:`MG${"5".repeat(32)}`,to:"+16095550101",body:"Hello",statusCallback:null},
+    {TWILIO_SMS_CLIENTS_JSON:raw},fetchImpl)).rejects.toThrow("Texting is not configured for this company");
   expect(fetchImpl).not.toHaveBeenCalled();
 });
 

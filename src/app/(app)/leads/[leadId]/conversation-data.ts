@@ -6,6 +6,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { loadSmsContext } from "@/modules/sms/load-context";
 import { toUsE164 } from "@/modules/sms/rules";
 import { leadSmsBlock } from "@/modules/sms/send-lead-sms";
+import { isCompanySmsEnabled } from "@/modules/sms/client-config";
 import type { ConversationMessage } from "./conversation";
 
 function formatUs(e164: string | null): string | null {
@@ -34,7 +35,7 @@ export async function loadConversation(
     await supabase.rpc("mark_sms_read", { p_lead_id: lead.id });
   }
 
-  const block = leadSmsBlock(context, process.env.SMS_ENABLED === "true", new Date());
+  const block = leadSmsBlock(context, isCompanySmsEnabled(lead.company_id), new Date());
   const access = parseMyAccess(accessRows);
   return {
     messages: (messages ?? []) as ConversationMessage[],
