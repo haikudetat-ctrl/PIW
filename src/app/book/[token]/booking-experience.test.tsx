@@ -1,5 +1,5 @@
 import {fireEvent, render, screen, waitFor} from "@testing-library/react";
-import {afterEach, describe, expect, test, vi} from "vitest";
+import {afterEach, beforeEach, describe, expect, test, vi} from "vitest";
 import type {BookingPageModel} from "@/modules/booking/booking-service";
 import {BookingExperience} from "./booking-experience";
 
@@ -42,7 +42,14 @@ function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {status, headers: {"content-type": "application/json"}});
 }
 
-afterEach(() => vi.unstubAllGlobals());
+beforeEach(() => {
+  vi.useFakeTimers({toFake: ["Date"]});
+  vi.setSystemTime(new Date("2026-11-01T20:00:00Z"));
+});
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
 
 describe("BookingExperience", () => {
   test("opens on the first day with times and labels times in Eastern", () => {
@@ -69,6 +76,17 @@ describe("BookingExperience", () => {
       body: JSON.stringify({startsAt: "2026-10-20T14:00:00.000Z", attendeeEmail: "", notes: "Porch leak"}),
     }));
     expect(screen.getByRole("link", {name: "Add to my calendar"})).toHaveAttribute("href", "/api/booking/abc.def/calendar");
+  });
+
+  test("updates the timezone label when picking across daylight saving time", () => {
+    render(<BookingExperience token="abc.def" brandName="AllSeason" model={{...model, days: [
+      model.days[1],
+      {date: "2026-11-02", weekday: 1, slots: [{startsAt: "2026-11-02T14:00:00.000Z", minuteOfDay: 540}]},
+    ]}} />);
+    expect(screen.getByText(/Times shown in EDT/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("radio", {name: /Monday, November 2/}));
+    expect(screen.getByText(/Times shown in EST/)).toBeInTheDocument();
+    expect(screen.getByRole("radio", {name: "9:00 AM"})).toBeInTheDocument();
   });
 
   test("refreshes the times when the chosen one was just taken", async () => {

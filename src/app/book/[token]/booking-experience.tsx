@@ -51,8 +51,8 @@ export function BookingExperience({token, brandName, model}: {token: string; bra
   const [confirmingCancel, setConfirmingCancel] = useState(false);
 
   const zone = model.timezone;
-  const zoneName = timeZoneAbbreviation(booking?.startsAt ?? new Date(), zone);
   const selectedDay = useMemo(() => days.find((day) => day.date === date) ?? null, [days, date]);
+  const zoneName = timeZoneAbbreviation(slot ?? selectedDay?.slots[0]?.startsAt ?? booking?.startsAt ?? new Date(), zone);
   const hasAnySlot = days.some((day) => day.slots.length > 0);
 
   async function refreshSlots(message: string | null) {
