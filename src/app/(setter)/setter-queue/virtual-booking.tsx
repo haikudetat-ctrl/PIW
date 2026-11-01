@@ -41,6 +41,10 @@ export function VirtualBooking({current,onSaved}:{current:NonNullable<QueueSnaps
       setResult(next);
       if(next.availability) applyAvailability(next.availability);
       if(next.code==="claim_changed") {setLostClaim(true);setAvailability(null);setSaved(null);setMode(null);}
+      if(!next.ok && ["calendar","unavailable"].includes(next.code??"")) {
+        setAvailability(previous=>previous?.model.booking?{...previous,calendarAvailable:false,model:{...previous.model,days:[]}}:null);
+        setSlot("");setMode(null);
+      }
       if(!next.ok && ["slot_unavailable","booking_changed","already_booked"].includes(next.code??"")) {
         setSlot("");
         if(!next.availability) {setAvailability(null);setMode(null);}
@@ -73,8 +77,9 @@ export function VirtualBooking({current,onSaved}:{current:NonNullable<QueueSnaps
     </div>}
     <button type="button" disabled={pending||lostClaim} className={secondaryButtonClasses} onClick={()=>run(claimForm("load"))}>{pending?"Checking availability…":availability?"Refresh available times":"Load available times"}</button>
     {lostClaim && <p className="text-sm text-ink-subtle">Refresh the queue to continue.</p>}
-    {model && !days.length && <p className="text-sm text-ink-subtle">No times are available. Ask your manager to review capacity or refresh later. Any existing inspection keeps its current time.</p>}
-    {model && days.length>0 && mode && <form onSubmit={save} className="space-y-4 border-t border-border pt-4">
+    {availability?.calendarAvailable===false && result?.ok!==false && <p role="alert" className="text-sm text-danger">Calendar availability couldn&apos;t be checked. Your existing inspection keeps its current time. Refresh available times to try again.</p>}
+    {model && availability?.calendarAvailable && !days.length && <p className="text-sm text-ink-subtle">No times are available. Ask your manager to review capacity or refresh later. Any existing inspection keeps its current time.</p>}
+    {model && availability?.calendarAvailable && days.length>0 && mode && <form onSubmit={save} className="space-y-4 border-t border-border pt-4">
       <p className="text-sm text-ink-subtle">{model.durationMinutes} minutes · Times shown in {model.timezone}</p>
       <label htmlFor={`${id}-date`} className={labelClasses}>Inspection date<select id={`${id}-date`} value={date} disabled={pending} className={inputClasses} onChange={e=>{setDate(e.target.value);setSlot("");}}>{days.map(day=><option key={day.date} value={day.date}>{dateLabel.format(new Date(`${day.date}T12:00:00Z`))}</option>)}</select></label>
       <label htmlFor={`${id}-time`} className={labelClasses}>Inspection time ({model.timezone})<select id={`${id}-time`} value={slot} required disabled={pending} className={inputClasses} onChange={e=>setSlot(e.target.value)}>

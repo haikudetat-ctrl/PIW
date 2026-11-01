@@ -83,6 +83,13 @@ describe("setter booking runtime",()=>{
     await expect(bookConsultation(token,{startsAt},"203.0.113.61",f.dependencies)).rejects.toMatchObject({code:"slot_unavailable"});
     expect(f.rpc).not.toHaveBeenCalled();
   });
+  test("existing booking survives calendar failure without claiming there is no capacity",async()=>{
+    const f=fixture();
+    await bookConsultation(token,{startsAt},"203.0.113.61",f.dependencies);
+    vi.mocked(configuration.calendar.listBusy).mockRejectedValue(new Error("Google unavailable"));
+    const result=await loadSetterBookingAvailability(token,context,f.dependencies);
+    expect(result).toMatchObject({calendarAvailable:false,revision:1,model:{kind:"booked",booking:{appointmentId,startsAt},days:[]}});
+  });
   test("claim loss at commit surfaces a safe reload error",async()=>{
     const f=fixture();f.setError({message:"Claim expired or changed; reload the queue"});
     await expect(bookConsultation(token,{startsAt},"203.0.113.61",f.dependencies)).rejects.toMatchObject({code:"claim_changed"});

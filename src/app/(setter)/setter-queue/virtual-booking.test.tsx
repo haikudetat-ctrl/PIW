@@ -12,7 +12,7 @@ const booking={appointmentId,startsAt:"2026-11-02T15:00:00.000Z",endsAt:"2026-11
 function availability(booked=false):SetterBookingAvailability {
   return {model:{kind:booked?"booked":"open",firstName:"Dana",inviteEmail:"d•••@example.com",supportPhone:null,meetingTitle:"Virtual inspection",durationMinutes:30,timezone:"America/New_York",booking:booked?booking:null,days:[
     {date:"2026-11-02",weekday:1,slots:[{startsAt:"2026-11-02T16:00:00.000Z",minuteOfDay:660},{startsAt:"2026-11-02T17:00:00.000Z",minuteOfDay:720}]},
-  ]},revision:booked?3:null};
+  ]},revision:booked?3:null,calendarAvailable:true};
 }
 beforeEach(()=>{action.mockReset().mockResolvedValue({ok:true,message:"Available",availability:availability()});});
 describe("setter virtual booking",()=>{
@@ -87,5 +87,15 @@ describe("setter virtual booking",()=>{
     fireEvent.click(screen.getByRole("button",{name:"Confirm virtual booking"}));
     expect(await screen.findByRole("status")).toHaveTextContent("Booked");
     expect(screen.getByText("Monday, November 2 at 10:00 AM CST")).toBeInTheDocument();
+  });
+  test("calendar failure preserves the existing inspection and is not reported as no capacity",async()=>{
+    const failed={...availability(true),calendarAvailable:false};failed.model.days=[];
+    action.mockResolvedValueOnce({ok:true,message:"Available",availability:failed});
+    render(<VirtualBooking current={current} onSaved={()=>{}}/>);
+    fireEvent.click(screen.getByRole("button",{name:"Load available times"}));
+    expect(await screen.findByText("Monday, November 2 at 10:00 AM EST")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("Calendar availability couldn't be checked");
+    expect(screen.queryByText(/No times are available/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button",{name:"Move inspection"})).toBeDisabled();
   });
 });

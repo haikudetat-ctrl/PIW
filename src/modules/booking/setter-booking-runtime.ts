@@ -9,6 +9,7 @@ export type SetterBookingContext={companyId:string;leadId:string;linkId:string;u
 export type SetterBookingAvailability={
   model:Extract<BookingPageModel,{kind:"open"|"booked"}>;
   revision:number|null;
+  calendarAvailable:boolean;
 };
 type ObservedBooking={appointmentId:string;revision:number};
 
@@ -57,7 +58,12 @@ export function createSetterBookingDependencies(
 }
 
 export async function loadSetterBookingAvailability(token:string,context:SetterBookingContext,dependencies:BookingDependencies):Promise<SetterBookingAvailability> {
-  const model=await loadBookingPage(token,dependencies);
+  let calendarAvailable=true;
+  const tracked:BookingDependencies={...dependencies,calendar:{async listBusy(calendarId,from,to,timeZone) {
+    try {return await dependencies.calendar.listBusy(calendarId,from,to,timeZone);}
+    catch(error) {calendarAvailable=false;throw error;}
+  }}};
+  const model=await loadBookingPage(token,tracked);
   if(model.kind!=="open" && model.kind!=="booked") {
     throw new BookingRequestError("Virtual booking is unavailable. Ask your manager or try again later.",503,"unavailable");
   }
@@ -65,5 +71,5 @@ export async function loadSetterBookingAvailability(token:string,context:SetterB
   if((active?.id??null)!==(model.booking?.appointmentId??null) || (active && new Date(active.scheduledAt).toISOString()!==model.booking?.startsAt)) {
     throw new BookingRequestError("Booking changed; reload available times",409,"booking_changed");
   }
-  return {model,revision:active?.revision??null};
+  return {model,revision:active?.revision??null,calendarAvailable};
 }
