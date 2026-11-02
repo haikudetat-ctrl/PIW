@@ -169,5 +169,9 @@ insert into public.sms_delivery_jobs(id,company_id,lead_id,source,kind,appointme
  values('c1000000-0000-4000-8000-000000000502','c1000000-0000-4000-8000-000000000001','c1000000-0000-4000-8000-000000000201','automatic','reminder_hour','c1000000-0000-4000-8000-000000000401',100,'preparing',clock_timestamp()+interval '1 hour','c1000000-0000-4000-8000-000000000602');
 select is(public.settle_approved_sms_delivery('c1000000-0000-4000-8000-000000000502','c1000000-0000-4000-8000-000000000602','skipped',null,null,'booking_link_unavailable'),'skipped','preparation failures settle without a provider attempt');
 select is((select count(*)::integer from public.sms_messages where approved_delivery_id='c1000000-0000-4000-8000-000000000502'),0,'preparation failure creates no outbound conversation');
+select is(public.apply_approved_sms_callback('c1000000-0000-4000-8000-000000000001','c1000000-0000-4000-8000-000000000501',
+ (select attempt_token from public.sms_delivery_jobs where id='c1000000-0000-4000-8000-000000000501'),'SM'||repeat('e',32),'delivered','+16095550801','+16095550899',null),true,'late signed provider evidence overrides a not-sent operator attestation');
+select is((select status from public.sms_messages where approved_delivery_id='c1000000-0000-4000-8000-000000000501'),'delivered','provider delivery replaces the synthetic operator failure status');
+select is((select count(*)::integer from public.audit_log where entity_id='c1000000-0000-4000-8000-000000000501' and action='sms_delivery_operator_verified'),1,'contradicted attestation remains in the audit trail');
 select * from finish();
 rollback;

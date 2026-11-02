@@ -348,12 +348,14 @@ language plpgsql security definer set search_path='' as $$
 declare j public.sms_delivery_jobs%rowtype; m public.sms_messages%rowtype; begin
  if p_sid is null or p_sid!~'^(SM|MM)[0-9a-fA-F]{32}$' or private.sms_status_rank(p_status)<1 then return false; end if;
  select * into j from public.sms_delivery_jobs where id=p_delivery_id and company_id=p_company_id for update;
- if not found or j.attempt_token is distinct from p_token or j.status not in ('sending','unknown','accepted') then return false; end if;
+ if not found or j.attempt_token is distinct from p_token or (j.status not in ('sending','unknown','accepted') and not coalesce(j.status='skipped' and j.reason='operator_verified_not_sent',false)) then return false; end if;
  select * into m from public.sms_messages where id=j.message_id and company_id=p_company_id and approved_delivery_id=j.id for update;
  if not found or m.to_e164 is distinct from p_to or m.from_e164 is distinct from p_from or (m.provider_sid is not null and m.provider_sid<>p_sid)
  or exists(select 1 from public.sms_messages where provider_sid=p_sid and id<>m.id) then return false; end if;
- update public.sms_messages set provider_sid=p_sid,status=case when private.sms_status_rank(p_status)>private.sms_status_rank(m.status) then p_status else m.status end,
- error_code=case when private.sms_status_rank(p_status)>private.sms_status_rank(m.status) then left(p_error_code,100) else m.error_code end,status_updated_at=clock_timestamp() where id=m.id;
+ -- An operator attestation is not provider proof. Preserve its audit record,
+ -- but let this exact signed attempt replace its synthetic failure status.
+ update public.sms_messages set provider_sid=p_sid,status=case when (m.provider_sid is null and m.error_code='operator_verified_not_sent') or private.sms_status_rank(p_status)>private.sms_status_rank(m.status) then p_status else m.status end,
+ error_code=case when (m.provider_sid is null and m.error_code='operator_verified_not_sent') or private.sms_status_rank(p_status)>private.sms_status_rank(m.status) then nullif(left(p_error_code,100),'') else m.error_code end,status_updated_at=clock_timestamp() where id=m.id;
  update public.sms_delivery_jobs set status='accepted',reason=null,updated_at=clock_timestamp() where id=j.id;
  return true;
 end $$;
