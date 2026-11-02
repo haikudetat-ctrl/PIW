@@ -14,6 +14,7 @@ export function SettingsNav({ isPlatformAdmin }: { isPlatformAdmin: boolean }) {
       items: [
         { href: "/settings/team", label: "Team & roles", icon: "users" },
         { href: "/settings/booking", label: "Video booking", icon: "video" },
+        { href: "/settings/texting", label: "Texting", icon: "phone" },
       ],
     },
   ];
