@@ -52,3 +52,20 @@ test("reports Twilio's error code when a send is rejected", async () => {
 test("refuses to start without real credentials", () => {
   expect(() => new TwilioMessagingClient({ ...credentials, accountSid: "" })).toThrow(SmsProviderError);
 });
+
+test.each([400,403,429])("HTTP %i is a definite rejection",async(status)=>{
+ const client=new TwilioMessagingClient({...credentials,fetchImpl:async()=>Response.json({code:21610},{status})});
+ await expect(client.send({messagingServiceSid:`MG${"3".repeat(32)}`,to:"+16095550101",body:"Hi",statusCallback:null})).rejects.toMatchObject({acceptance:"rejected"});
+});
+test.each([408,500,503])("HTTP %i may have accepted and is never blindly retried",async(status)=>{
+ const fetchImpl=vi.fn(async()=>Response.json({code:20500},{status}));
+ const client=new TwilioMessagingClient({...credentials,fetchImpl});
+ await expect(client.send({messagingServiceSid:`MG${"3".repeat(32)}`,to:"+16095550101",body:"Hi",statusCallback:null})).rejects.toMatchObject({acceptance:"unknown"});
+ expect(fetchImpl).toHaveBeenCalledTimes(1);
+});
+test("pins an approved send to the configured sender in its Messaging Service",async()=>{
+ const fetchImpl=vi.fn(async()=>Response.json({sid:`SM${"b".repeat(32)}`,status:"queued"},{status:201}));
+ await new TwilioMessagingClient({...credentials,fetchImpl}).send({messagingServiceSid:`MG${"3".repeat(32)}`,to:"+16095550101",from:"+16095550199",body:"Hi",statusCallback:null});
+ const form=new URLSearchParams(String((fetchImpl.mock.calls[0] as unknown as [string,RequestInit])[1].body));
+ expect(form.get("From")).toBe("+16095550199");
+});

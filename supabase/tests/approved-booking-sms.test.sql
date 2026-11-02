@@ -157,5 +157,10 @@ select public.resolve_sms_delivery('c1000000-0000-4000-8000-000000000501','not_s
 reset role;
 select is((select status from public.sms_delivery_jobs where id='c1000000-0000-4000-8000-000000000501'),'skipped','reconciliation records the verified outcome without requeue');
 select is((select count(*)::integer from public.audit_log where entity_id='c1000000-0000-4000-8000-000000000501' and action='sms_delivery_operator_verified'),1,'operator attestation is auditable');
+reset role;
+insert into public.sms_delivery_jobs(id,company_id,lead_id,source,kind,appointment_id,appointment_revision,status,expires_at,attempt_token)
+ values('c1000000-0000-4000-8000-000000000502','c1000000-0000-4000-8000-000000000001','c1000000-0000-4000-8000-000000000201','automatic','reminder_hour','c1000000-0000-4000-8000-000000000401',100,'preparing',clock_timestamp()+interval '1 hour','c1000000-0000-4000-8000-000000000602');
+select is(public.settle_approved_sms_delivery('c1000000-0000-4000-8000-000000000502','c1000000-0000-4000-8000-000000000602','skipped',null,null,'booking_link_unavailable'),'skipped','preparation failures settle without a provider attempt');
+select is((select count(*)::integer from public.sms_messages where approved_delivery_id='c1000000-0000-4000-8000-000000000502'),0,'preparation failure creates no outbound conversation');
 select * from finish();
 rollback;

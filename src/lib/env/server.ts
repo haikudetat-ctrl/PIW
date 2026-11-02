@@ -128,6 +128,7 @@ const serverEnvSchema = z
     // Managed SMS uses a separate subaccount per company. The global
     // TWILIO_API_KEY_* values above are for Verify only.
     SMS_ENABLED: optionalTrackingFlag,
+    SMS_AUTOMATION_ENABLED: optionalTrackingFlag,
     TWILIO_SMS_CLIENTS_JSON: optionalString,
     TWILIO_ACCOUNT_SID: optionalString,
     TWILIO_AUTH_TOKEN: optionalString,

@@ -29,6 +29,10 @@ function clients(environment: SmsEnvironment): SmsClient[] {
   }
 }
 
+export function configuredSmsCompanyIds():string[] {
+  return clients({TWILIO_SMS_CLIENTS_JSON:process.env.TWILIO_SMS_CLIENTS_JSON}).map(client=>client.companyId);
+}
+
 export function hasSmsClients(environment: SmsEnvironment): boolean {
   return clients(environment).length > 0;
 }

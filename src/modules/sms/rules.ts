@@ -52,7 +52,7 @@ export function optKeyword(body: string): "stop" | "start" | "help" | null {
   return null;
 }
 
-export type SmsStatus = "sending" | "queued" | "sent" | "delivered" | "undelivered" | "failed" | "received";
+export type SmsStatus = "unknown" | "sending" | "queued" | "sent" | "delivered" | "undelivered" | "failed" | "received";
 
 export function mapTwilioStatus(status: string): SmsStatus | null {
   switch (status) {
@@ -78,6 +78,7 @@ export function mapTwilioStatus(status: string): SmsStatus | null {
 // A later status never moves a message backwards (callbacks can arrive out of
 // order); a failure always wins.
 const STATUS_RANK: Record<SmsStatus, number> = {
+  unknown: 0,
   sending: 0,
   queued: 1,
   sent: 2,

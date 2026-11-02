@@ -316,6 +316,11 @@ begin
  select * into j from public.sms_delivery_jobs where id=p_id for update;
  if not found or j.attempt_token is distinct from p_token then return 'ignored'; end if;
  if j.status='accepted' then return 'accepted'; end if;
+ if j.status='preparing' and p_outcome='skipped' then
+   if p_error_code not in ('booking_link_unavailable','no_approved_template','unfilled','too_long','invalid_render','client_not_ready') or p_error_code is null then raise exception 'Invalid preparation failure'; end if;
+   update public.sms_delivery_jobs set status='skipped',reason=p_error_code,preparing_until=null,updated_at=clock_timestamp() where id=j.id;
+   return 'skipped';
+ end if;
  if j.status not in ('sending','unknown') then return j.status; end if;
  select * into m from public.sms_messages where id=j.message_id and company_id=j.company_id for update;
  if not found then raise exception 'Delivery conversation record missing'; end if;
