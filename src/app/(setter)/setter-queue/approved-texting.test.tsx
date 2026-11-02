@@ -10,7 +10,9 @@ test("previews approved wording and sends template ID without a body",async()=>{
  render(<ApprovedTexting current={setterQueueFixture().current!}/>);
  fireEvent.click(screen.getByRole("button",{name:"Load approved texts"}));
  expect(await screen.findByText(/Hi Dana, AllSeason. Reply STOP./)).toBeInTheDocument();
- fireEvent.click(screen.getByRole("button",{name:"Send approved text"}));
+ const sendButton=screen.getByRole("button",{name:"Send approved text"});
+ await waitFor(()=>expect(sendButton).toBeEnabled());
+ fireEvent.click(sendButton);
  await waitFor(()=>expect(action).toHaveBeenCalledTimes(2));
  expect(Object.fromEntries(action.mock.calls[1][0])).toMatchObject({action:"send",templateId:context.templates[0].id});
  expect(action.mock.calls[1][0].has("body")).toBe(false);
