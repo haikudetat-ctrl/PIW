@@ -19,6 +19,20 @@ Priority is call requests, scheduled callbacks, fresh new leads (under fifteen m
 
 ## Work a lead
 
+### Book or move a virtual inspection
+
+On a claimed homeowner, select **Load available times**. Choose the date and time with the homeowner, confirm the invite email, add optional appointment notes, then select **Confirm virtual booking**. Availability uses the company's existing weekly hours, notice, horizon, blackouts, concurrent capacity and shared Google calendar. Times show the booking calendar's timezone, which can differ from the queue's callback timezone.
+
+An existing upcoming reservation appears as **Current virtual inspection**. Select **Move inspection**, choose a replacement and confirm. The current time remains reserved until the transaction succeeds. If someone else changes the appointment or takes the selected slot, refresh the offered times and agree a new choice. A missing setup or unavailable calendar never permits a capacity override.
+
+Saving does not finish the call task or attest that a call occurred. Record the call outcome below; **Booked virtual** requires the real upcoming appointment. Use the existing **Homeowner booking link** disclosure when the homeowner prefers to choose independently. In-home inspections still need manager assistance.
+
+The server derives company/lead/link identity from the authorized claim. A service-only commit repeats enrollment, active membership, queue, claim lease and lead eligibility checks after external calendar lookup and again after database lock waits. Browser roles cannot call that commit RPC. A changed or expired claim requires a queue refresh. Reschedules require the appointment/revision that was displayed, retain the existing five-move limit, and invalidate old reminders through the existing revision events.
+
+New setter reservations retain `appointments.created_by`; booking and reschedule changes append `audit_log` entries with actor, task and revision. They use the existing `self_service` reservation engine identity so homeowner manage links and one-active-booking protection continue to work. Use actor/audit information when distinguishing setter assistance in reporting. This release does not enable booking, messaging or live traffic for any company.
+
+### Call and record an outcome
+
 Click **Claim next lead**. A database transaction grants one task to one setter and prevents another task on that same lead being claimed concurrently. A setter cannot claim a second lead before recording an outcome. Reloading or trying again resumes their unfinished claim.
 
 Claims last fifteen minutes. **Extend current claim** renews an active claim during a long conversation. An expired claim can be recovered by another setter; old tokens then fail, and the previous setter must reload. Do not keep calling from a stale screen. The page refreshes every thirty seconds while visible and when returning to the tab.

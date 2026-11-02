@@ -8261,6 +8261,14 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_setter_booking_context: {
+        Args: { p_claim_token: string; p_task_id: string }
+        Returns: {
+          company_id: string
+          lead_id: string
+          link_id: string
+        }[]
+      }
       get_setter_callback_report: { Args: never; Returns: Json }
       get_setter_queue: { Args: never; Returns: Json }
       grant_company_membership: {
@@ -8819,6 +8827,31 @@ export type Database = {
       save_setter_queue_settings: {
         Args: { p_enabled: boolean; p_timezone: string }
         Returns: undefined
+      }
+      save_setter_virtual_booking: {
+        Args: {
+          p_action: string
+          p_appointment_id: string
+          p_attendee_email: string
+          p_claim_token: string
+          p_company_id: string
+          p_customer_notes: string
+          p_expected_revision: number
+          p_link_id: string
+          p_request_ip: unknown
+          p_starts_at: string
+          p_task_id: string
+          p_user_id: string
+        }
+        Returns: {
+          appointment_id: string
+          duration_minutes: number
+          event: Json
+          outcome: string
+          problem: string
+          revision: number
+          scheduled_at: string
+        }[]
       }
       set_company_setter: {
         Args: { p_enabled: boolean; p_user_id: string }

@@ -6,6 +6,7 @@ import {useRouter} from "next/navigation";
 import {inputClasses,labelClasses,primaryButtonClasses,secondaryButtonClasses} from "@/components/ui/form";
 import type {CallbackReport,QueueSnapshot} from "@/modules/setter-queue/schema";
 import {runSetterQueueAction,type QueueActionResult} from "./actions";
+import {VirtualBooking} from "./virtual-booking";
 
 const BUCKETS=[['call_request','Call requests'],['scheduled_callback','Scheduled callbacks'],['new_lead','New leads'],['handoff','Handoffs'],['follow_up','Due follow-up']] as const;
 function money(cents:number|null) {return cents===null?"—":new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(cents/100);}
@@ -96,8 +97,8 @@ export function QueueWorkspace({snapshot,report,slaEnabled=false}:{snapshot:Queu
         </div>
         <div className="space-y-5">
           <section className="rounded-xl border border-border bg-surface p-6">
-            <h3 className="font-semibold">Book a virtual inspection</h3><p className="mt-2 text-sm text-ink-subtle">Choose real availability with the homeowner. Refresh after booking to record the appointment outcome.</p>
-            <form action={submit} className="mt-4"><HiddenClaim current={current}/><input type="hidden" name="action" value="booking_link"/><button disabled={pending} className={secondaryButtonClasses}>Get virtual booking link</button></form>
+            <VirtualBooking current={current} onSaved={()=>router.refresh()}/>
+            <details className="mt-4 text-sm"><summary className="cursor-pointer text-tint">Homeowner booking link</summary><form action={submit} className="mt-3"><HiddenClaim current={current}/><input type="hidden" name="action" value="booking_link"/><button disabled={pending} className={secondaryButtonClasses}>Get virtual booking link</button></form></details>
             <p className="mt-3 text-xs text-ink-subtle">For an in-home inspection, request manager assistance using Human handoff.</p>
           </section>
           <form action={submit} className="space-y-4 rounded-xl border border-border bg-surface p-6">
