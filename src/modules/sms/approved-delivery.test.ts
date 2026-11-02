@@ -11,7 +11,7 @@ function fixture() {
  const dependencies:ApprovedDeliveryDependencies={
    ready:()=>true,automationEnabled:true,
    async claim(){f.claims++;if(f.status!=="queued")return null;f.status="preparing";return f.current;},
-   async start(_job,body){f.starts++;if(f.block){f.status="skipped";return {started:false,reason:f.block};}f.status="sending";return {started:true};},
+   async start(){f.starts++;if(f.block){f.status="skipped";return {started:false,reason:f.block};}f.status="sending";return {started:true};},
    async settle(_job,outcome){if(f.failSettlement)throw new Error("database unavailable");if(f.status==="accepted")return "accepted";f.status=outcome==="rejected"?"failed":outcome==="skipped"?"skipped":outcome;return f.status;},
    async manageUrl(){return "https://client.example/book/signed-token";},
    async send(j,body){f.calls.push({companyId:j.company_id,body,from:j.from_e164!});return {sid:`SM${"b".repeat(32)}`,status:"queued"};},

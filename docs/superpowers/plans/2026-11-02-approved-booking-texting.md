@@ -32,9 +32,9 @@
 
 **Interfaces:** Admin RPCs `save_sms_template_draft(kind,body)`, `approve_sms_template(id)`, `retire_sms_template(id)`, `save_sms_automation_settings(enabled,timezone)`, `get_sms_control_panel()`, `resolve_sms_delivery(id,resolution,provider_sid,note)`. Claim RPCs `get_setter_texting_context(task,token)`, `queue_setter_template_sms(task,token,template)`, `set_setter_sms_pause(task,token,paused)`. Service RPCs `claim_approved_sms_delivery(id?)`, `start_approved_sms_delivery(id,token,template,body,to,from,service_sid,segments)`, `settle_approved_sms_delivery(id,token,outcome,sid,status,error_code)`, `apply_approved_sms_callback(company,delivery,token,sid,status,to,from,error_code)`, `sweep_approved_sms_deliveries()`. JSON payloads are validated by adjacent TS schemas. No browser writes to delivery/message tables.
 
-- [ ] Write/observe failing SQL tests for approvals, isolation, guards, lifecycle, unique claims, revision scheduling and unknown outcomes.
-- [ ] Implement tables, explicit grants/RLS, immutable template versions, scheduling/reply triggers, safe lease/send/settlement functions and audited reconciliation.
-- [ ] Exercise two real sessions; fresh isolated reset/full SQL/security advisors/type parity; commit.
+- [x] Write/observe failing SQL tests for approvals, isolation, guards, lifecycle, unique claims, revision scheduling and unknown outcomes.
+- [x] Implement tables, explicit grants/RLS, immutable template versions, scheduling/reply triggers, safe lease/send/settlement functions and audited reconciliation.
+- [x] Exercise two real sessions; fresh isolated reset/full SQL/security advisors/type parity; commit.
 
 ### Task 2: Managed transport, worker and callbacks
 
@@ -42,9 +42,9 @@
 
 **Interfaces:** `processApprovedSmsDelivery(id?,dependencies)` composes approved content and returns a delivery outcome; runtime supplies service RPCs, signed branded manage links, readiness and managed transport. `SMS_AUTOMATION_ENABLED=false` gates the cron; manual sends retain separate explicit intent. Add a transport acceptance discriminator to `SmsProviderError`. Callback correlation uses signed full URL query job/attempt IDs.
 
-- [ ] Write/observe failing orchestration, transport and callback tests for no send on blockers, unknown/no retry, tenant routing and callback-before-response.
-- [ ] Implement bounded worker/runtime, quiet-hour deadlines, current approved rendering, provider ambiguity and monotonic callback settlement.
-- [ ] Run complete application suite/typecheck; commit.
+- [x] Write/observe failing orchestration, transport and callback tests for no send on blockers, unknown/no retry, tenant routing and callback-before-response.
+- [x] Implement bounded worker/runtime, quiet-hour deadlines, current approved rendering, provider ambiguity and monotonic callback settlement.
+- [x] Run complete application suite/typecheck; commit.
 
 ### Task 3: Template approval and setter controls
 
@@ -52,9 +52,9 @@
 
 **Interfaces:** Strict server actions expose admin template/config/reconciliation operations and claim-scoped preview/send/pause operations. UI never supplies freeform body for approved sends or receives provider secrets. Delivery state distinguishes queued/accepted/unknown from recipient delivery.
 
-- [ ] Write/observe failing action/UI tests for role/identity validation, approval preview, claim-only sends, pause/reconciliation and disabled readiness.
-- [ ] Implement controls using existing UI patterns, preserve call-outcome workflow and expose actionable unknown states.
-- [ ] Inspect synthetic desktop/mobile layouts, remove fixtures, update runbook; commit.
+- [x] Write/observe failing action/UI tests for role/identity validation, approval preview, claim-only sends, pause/reconciliation and disabled readiness.
+- [x] Implement controls using existing UI patterns, preserve call-outcome workflow and expose actionable unknown states.
+- [x] Inspect synthetic desktop/mobile layouts, remove fixtures, update runbook; commit.
 
 ### Task 4: Verify and hand off
 

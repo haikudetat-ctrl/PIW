@@ -372,6 +372,7 @@ end $$;
 
 create function public.resolve_sms_delivery(p_id uuid,p_resolution text,p_provider_sid text,p_note text) returns void language plpgsql security definer set search_path='' as $$
 declare c uuid:=private.sms_admin_company(); j public.sms_delivery_jobs%rowtype; begin
+ p_provider_sid:=nullif(btrim(p_provider_sid),'');
  if p_resolution is null or p_resolution not in ('accepted','not_sent') or length(btrim(coalesce(p_note,''))) not between 10 and 2000 then raise exception 'Verify Twilio logs and explain the resolution' using errcode='22023'; end if;
  select * into j from public.sms_delivery_jobs where id=p_id and company_id=c for update;
  if not found or j.status<>'unknown' then raise exception 'Unknown delivery access required' using errcode='42501'; end if;
@@ -396,6 +397,8 @@ begin
  update public.sms_delivery_jobs set status='skipped',reason='stale_appointment',updated_at=v_now
  where appointment_id=new.id and status in ('queued','preparing')
  and (appointment_revision<>new.revision or new.status not in ('scheduled','confirmed'));
+ -- Status-only confirmation must not backfill bookings created before enablement.
+ if tg_op='UPDATE' and new.revision=old.revision and new.scheduled_at is not distinct from old.scheduled_at then return new; end if;
  if new.meeting_type is distinct from 'virtual' or new.booking_link_id is null or new.status not in ('scheduled','confirmed')
  or new.scheduled_at<=v_now or not exists(select 1 from public.sms_automation_settings where company_id=new.company_id and enabled)
  or not private.setter_eligible(new.company_id,new.lead_id) then return new; end if;
@@ -443,12 +446,12 @@ declare c uuid:=private.sms_admin_company(); begin
  'sender_ready',exists(select 1 from public.company_sms_settings where company_id=c and enabled),
  'templates',coalesce((select jsonb_agg(to_jsonb(t) order by t.kind,t.version desc) from (
    select id,kind,version,body,status,created_at,approved_at from public.sms_template_versions where company_id=c order by created_at desc limit 100) t),'[]'::jsonb),
- 'deliveries',coalesce((select jsonb_agg(to_jsonb(d) order by d.created_at desc) from (
+ 'deliveries',coalesce((select jsonb_agg(to_jsonb(d) order by (d.status='unknown') desc,d.created_at desc) from (
    select j.id,j.kind,j.source,j.status,j.reason,j.created_at,j.not_before,j.expires_at,j.appointment_revision,
      m.status as message_status,m.provider_sid,l.name as lead_name
    from public.sms_delivery_jobs j join public.leads l on l.id=j.lead_id and l.company_id=j.company_id
    left join public.sms_messages m on m.id=j.message_id and m.company_id=j.company_id
-   where j.company_id=c order by j.created_at desc limit 100) d),'[]'::jsonb),
+   where j.company_id=c and (j.status='unknown' or j.id in (select recent.id from public.sms_delivery_jobs recent where recent.company_id=c order by recent.created_at desc limit 100)) order by (j.status='unknown') desc,j.created_at desc) d),'[]'::jsonb),
  'pauses',coalesce((select jsonb_agg(to_jsonb(p) order by updated_at desc) from (
    select phone_e164,reason,updated_at from public.sms_phone_pauses where company_id=c and paused order by updated_at desc limit 100) p),'[]'::jsonb));
 end $$;

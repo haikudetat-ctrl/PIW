@@ -100,6 +100,8 @@ end $$;
 select public.save_sms_automation_settings(true,'America/New_York');
 reset role;
 select is((select count(*)::integer from public.sms_delivery_jobs where source='automatic'),0,'enabling does not backfill an old appointment');
+update public.appointments set status='confirmed' where id='c1000000-0000-4000-8000-000000000401';
+select is((select count(*)::integer from public.sms_delivery_jobs where source='automatic'),0,'status-only confirmation does not backfill a historical booking');
 update public.appointments set revision=2,scheduled_at=scheduled_at+interval '1 hour' where id='c1000000-0000-4000-8000-000000000401';
 select is((select count(*)::integer from public.sms_delivery_jobs where source='automatic'),3,'new revision schedules confirmation and two reminders');
 update public.appointments set scheduled_at=scheduled_at where id='c1000000-0000-4000-8000-000000000401';
@@ -148,12 +150,17 @@ insert into public.sms_delivery_jobs(id,company_id,lead_id,source,kind,appointme
 insert into public.sms_messages(company_id,lead_id,direction,body,from_e164,to_e164,status,approved_delivery_id)
  values('c1000000-0000-4000-8000-000000000001','c1000000-0000-4000-8000-000000000201','outbound','Text Client A reminder. Reply STOP.','+16095550899','+16095550801','unknown','c1000000-0000-4000-8000-000000000501');
 update public.sms_delivery_jobs set message_id=(select id from public.sms_messages where approved_delivery_id='c1000000-0000-4000-8000-000000000501') where id='c1000000-0000-4000-8000-000000000501';
+-- Many newer closed intents must never hide an unresolved attempt from admins.
+insert into public.sms_delivery_jobs(company_id,lead_id,source,kind,appointment_id,appointment_revision,status,expires_at)
+ select 'c1000000-0000-4000-8000-000000000001','c1000000-0000-4000-8000-000000000201','automatic','reminder_day','c1000000-0000-4000-8000-000000000401',n,'skipped',clock_timestamp()+interval '1 hour' from generate_series(200,300) n;
 set local role authenticated;
+select set_config('request.jwt.claim.sub','c1000000-0000-4000-8000-000000000101',true);
+select ok(exists(select 1 from jsonb_array_elements(public.get_sms_control_panel()->'deliveries') d where d->>'id'='c1000000-0000-4000-8000-000000000501'),'unresolved attempts remain accessible after 100 newer deliveries');
 select set_config('request.jwt.claim.sub','c1000000-0000-4000-8000-000000000103',true);
 select throws_ok($$select public.resolve_sms_delivery('c1000000-0000-4000-8000-000000000501','not_sent',null,'Verified no matching request in Twilio logs')$$,'42501','Unknown delivery access required','operator cannot resolve another tenant');
 select set_config('request.jwt.claim.sub','c1000000-0000-4000-8000-000000000101',true);
 select throws_ok($$select public.resolve_sms_delivery('c1000000-0000-4000-8000-000000000501','not_sent',null,'guess')$$,'22023','Verify Twilio logs and explain the resolution','resolution requires explicit evidence note');
-select public.resolve_sms_delivery('c1000000-0000-4000-8000-000000000501','not_sent',null,'Verified no matching request in Twilio logs');
+select lives_ok($$select public.resolve_sms_delivery('c1000000-0000-4000-8000-000000000501','not_sent','','Verified no matching request in Twilio logs')$$,'an empty optional UI SID is treated as absent for a verified not-sent outcome');
 reset role;
 select is((select status from public.sms_delivery_jobs where id='c1000000-0000-4000-8000-000000000501'),'skipped','reconciliation records the verified outcome without requeue');
 select is((select count(*)::integer from public.audit_log where entity_id='c1000000-0000-4000-8000-000000000501' and action='sms_delivery_operator_verified'),1,'operator attestation is auditable');
