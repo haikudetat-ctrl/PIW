@@ -166,10 +166,26 @@ and `database` jobs from `.github/workflows/ci.yml` to pass before merging.
 ## 8. Deploy and verify Inngest sync
 
 After the first deploy, confirm Inngest's dashboard shows the app synced and
-includes `address-validation-worker`, `roof-estimate-worker`,
-`estimate-delivery-sender`, and `publish-outbox`. If it does
+includes `address-validation-worker`, `roof-estimate-worker` and
+`publish-outbox`. If it does
 not sync automatically, trigger a manual sync from the Inngest dashboard
 against `https://<your-domain>/api/inngest`.
+
+Inngest bills every scheduled run, including runs that would return early
+because their feature is off. These scheduled functions are therefore only
+served when their feature is configured (`src/inngest/schedule-gates.ts`);
+after turning one on, redeploy and confirm it appears in the dashboard:
+
+| Function | Served when |
+|---|---|
+| `estimate-delivery-sender` | `ESTIMATE_SMS_WEBHOOK_URL` or `ESTIMATE_EMAIL_WEBHOOK_URL` is set |
+| `setter-callback-sla` | `SETTER_CALLBACK_SLA_ENABLED=true` |
+| `approved-booking-sms` | `TWILIO_SMS_CLIENTS_JSON` holds a valid client registry |
+| `all-season-access-route-read-sync` | `INTEGRATIONS_LEADMASTER_ENABLED=true` or `INTEGRATIONS_JOBNIMBUS_ENABLED=true` |
+
+Keep single-operation cron functions free of `step.run`: each step is billed
+as a separate execution and one step adds nothing over the function's own
+retries.
 
 ## 9. Run and retain a diagnostic event
 

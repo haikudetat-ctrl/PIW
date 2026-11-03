@@ -296,14 +296,16 @@ export class SupabaseContextDialerSlackRepository implements ContextDialerSlackR
   }
 }
 
+// No step.run: Inngest bills each step as its own execution, and a single
+// step adds nothing over the function's own retries. This runs every minute,
+// so the wrapper alone doubled its cost.
 export const contextDialerSlackSender = inngest.createFunction(
   { id: "context-dialer-slack-sender", triggers: { cron: "* * * * *" } },
-  async ({ step }) =>
-    step.run("send-context-dialer-slack", async () => {
-      const environment = parseServerEnv(process.env);
-      return sendQueuedContextDialers(new SupabaseContextDialerSlackRepository(), {
-        webhookUrl: environment.SLACK_CONTEXT_DIALER_WEBHOOK_URL,
-        baseUrl: resolveContextDialerBaseUrl(environment),
-      });
-    }),
+  async () => {
+    const environment = parseServerEnv(process.env);
+    return sendQueuedContextDialers(new SupabaseContextDialerSlackRepository(), {
+      webhookUrl: environment.SLACK_CONTEXT_DIALER_WEBHOOK_URL,
+      baseUrl: resolveContextDialerBaseUrl(environment),
+    });
+  },
 );

@@ -7,7 +7,9 @@ const BATCH_SIZE = 100;
 
 export const leadDistributionSweeper = inngest.createFunction(
   {id: "lead-distribution-sweeper", name: "Lead distribution recovery sweep", triggers: {cron: "*/5 * * * *"}},
-  async ({step}) => step.run("republish-pending-lead-deliveries", async () => {
+  // No step.run: Inngest bills each step as its own execution, and a single
+  // step adds nothing over the function's own retries.
+  async () => {
     const configuration = resolveLeadDistributionConfiguration(parseServerEnv(process.env));
     if (!configuration.companyId || (!configuration.activeProspect && !configuration.internalEmail)) {
       return {republished: 0};
@@ -19,5 +21,5 @@ export const leadDistributionSweeper = inngest.createFunction(
       data: {deliveryId: delivery.deliveryId, destination: delivery.destination},
     })));
     return {republished: pending.length};
-  }),
+  },
 );
