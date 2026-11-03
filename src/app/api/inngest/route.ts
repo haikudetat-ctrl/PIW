@@ -46,8 +46,14 @@ import {
 } from "@/inngest/functions/virtual-consultation-worker";
 
 import {approvedSmsWorker} from "@/inngest/functions/approved-sms-worker";
+import { onlyWhen, scheduleGates } from "@/inngest/schedule-gates";
 
 export const maxDuration = 300;
+
+// Scheduled functions whose feature is switched off are not served, so
+// Inngest stops scheduling (and billing) runs that would do nothing. Turning
+// the feature on takes effect on the next deploy, which re-registers them.
+const environment = process.env;
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
@@ -63,10 +69,10 @@ export const { GET, POST, PUT } = serve({
     propertyPreviewExpiry,
     processIntegrationEvent,
     repIntroSender,
-    estimateDeliverySender,
+    ...onlyWhen(scheduleGates.estimateDeliverySender(environment), estimateDeliverySender),
     contextDialerSlackSender,
     costIntelligenceDigest,
-    accessRouteReadSync,
+    ...onlyWhen(scheduleGates.accessRouteReadSync(environment), accessRouteReadSync),
     assessmentAbandonmentWorker,
     metaConversionSender,
     metaConversionSweeper,
@@ -87,7 +93,7 @@ export const { GET, POST, PUT } = serve({
     virtualConsultationEmails,
     virtualConsultationReminders,
     bookingMaintenance,
-    setterCallbackSla,
-    approvedSmsWorker,
+    ...onlyWhen(scheduleGates.setterCallbackSla(environment), setterCallbackSla),
+    ...onlyWhen(scheduleGates.approvedBookingSms(environment), approvedSmsWorker),
   ],
 });

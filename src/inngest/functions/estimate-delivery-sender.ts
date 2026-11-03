@@ -136,18 +136,20 @@ export class SupabaseEstimateDeliveryRepository implements EstimateDeliveryRepos
   }
 }
 
+// Scheduled only while a delivery webhook is configured (see schedule-gates).
+// No step.run: Inngest bills each step as its own execution, and a single
+// step adds nothing over the function's own retries.
 export const estimateDeliverySender = inngest.createFunction(
   { id: "estimate-delivery-sender", triggers: { cron: "* * * * *" } },
-  async ({ step }) =>
-    step.run("send-queued-estimates", async () => {
-      const environment = parseServerEnv(process.env);
-      return sendQueuedEstimateDeliveries(
-        new SupabaseEstimateDeliveryRepository(),
-        {
-          smsWebhookUrl: environment.ESTIMATE_SMS_WEBHOOK_URL,
-          emailWebhookUrl: environment.ESTIMATE_EMAIL_WEBHOOK_URL,
-          sharedSecret: environment.ESTIMATE_DELIVERY_SHARED_SECRET,
-        },
-      );
-    }),
+  async () => {
+    const environment = parseServerEnv(process.env);
+    return sendQueuedEstimateDeliveries(
+      new SupabaseEstimateDeliveryRepository(),
+      {
+        smsWebhookUrl: environment.ESTIMATE_SMS_WEBHOOK_URL,
+        emailWebhookUrl: environment.ESTIMATE_EMAIL_WEBHOOK_URL,
+        sharedSecret: environment.ESTIMATE_DELIVERY_SHARED_SECRET,
+      },
+    );
+  },
 );

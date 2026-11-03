@@ -46,12 +46,13 @@ export function createMetaConversionSweeper(
       name: "Meta conversion recovery sweep",
       triggers: {cron: "*/5 * * * *"},
     },
-    async ({step}) => step.run("republish-pending-meta-conversions", () =>
+    // No step.run: Inngest bills each step as its own execution, and a single
+    // step adds nothing over the function's own retries.
+    async () =>
       sweepMetaConversionDeliveries({
         repository: repository ?? new SupabaseMetaRepository(),
         send: (events) => client.send(events),
       }),
-    ),
   );
 }
 

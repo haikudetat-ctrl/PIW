@@ -13,6 +13,7 @@ import {
 } from "@/domain/roof-pricing";
 import { propertyDiscoveryRequestedDataSchema } from "@/domain/events";
 import { inngest, propertyDiscoveryRequested } from "@/inngest/client";
+import { estimateWebhookConfigured } from "@/inngest/schedule-gates";
 import type { Database, Json } from "@/lib/database.types";
 import { parseServerEnv } from "@/lib/env/server";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -841,6 +842,17 @@ export class SupabaseRoofEstimateWorkerRepository
     const body = ready
       ? sms!
       : `Hi ${input.name}, we received your roof estimate request. We could not produce a reliable instant range, so our team will review the property and follow up.`;
+    // A channel without a webhook can never be sent. Record it failed now,
+    // with the reason the sender gives, instead of queueing it: the sender is
+    // only scheduled while a webhook is configured, and a row left queued
+    // would go out late if one were configured afterwards.
+    const unsendable = (channel: "sms" | "email") =>
+      estimateWebhookConfigured(channel, process.env)
+        ? {}
+        : {
+            status: "failed",
+            failure_reason: `${channel.toUpperCase()} delivery webhook is not configured`,
+          };
     const rows = [
       {
         company_id: input.companyId,
@@ -850,6 +862,7 @@ export class SupabaseRoofEstimateWorkerRepository
         destination: input.phone,
         composed_subject: null,
         composed_body: body,
+        ...unsendable("sms"),
       },
       {
         company_id: input.companyId,
@@ -859,6 +872,7 @@ export class SupabaseRoofEstimateWorkerRepository
         destination: input.email,
         composed_subject: ready ? email!.subject : "We received your roof estimate request",
         composed_body: ready ? email!.body : body,
+        ...unsendable("email"),
       },
     ];
     const { error } = await this.client

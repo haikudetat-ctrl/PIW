@@ -442,8 +442,20 @@ describe.runIf(runIntegration)("canonical assessment journey", () => {
       longitude: -74.0642,
       attempt: 1,
     };
-    const firstRoof = await runRoofEstimate(roofEvent, roofRepository);
-    const replayedRoof = await runRoofEstimate(roofEvent, roofRepository);
+    // Deliverability is decided when deliveries are queued, from the
+    // deployment's webhook configuration, so configure both channels here
+    // as a deployment that sends estimates would.
+    vi.stubEnv("ESTIMATE_SMS_WEBHOOK_URL", "https://sms.example.test");
+    vi.stubEnv("ESTIMATE_EMAIL_WEBHOOK_URL", "https://email.example.test");
+    vi.stubEnv("ESTIMATE_DELIVERY_SHARED_SECRET", "fake-shared-secret");
+    let firstRoof: Awaited<ReturnType<typeof runRoofEstimate>>;
+    let replayedRoof: Awaited<ReturnType<typeof runRoofEstimate>>;
+    try {
+      firstRoof = await runRoofEstimate(roofEvent, roofRepository);
+      replayedRoof = await runRoofEstimate(roofEvent, roofRepository);
+    } finally {
+      vi.unstubAllEnvs();
+    }
     expect(firstRoof.outcome).toBe("ready");
     expect(replayedRoof).toMatchObject({outcome: "already_completed", workerRunId: firstRoof.workerRunId});
 
