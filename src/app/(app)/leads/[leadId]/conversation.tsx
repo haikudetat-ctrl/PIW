@@ -12,6 +12,7 @@ export type ConversationMessage = {
 };
 
 const STATUS_LABEL: Record<string, string> = {
+  unknown: "Needs verification",
   sending: "Sending",
   queued: "Queued",
   sent: "Sent",

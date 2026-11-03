@@ -35,8 +35,10 @@ describe("setter virtual booking",()=>{
     render(<VirtualBooking current={current} onSaved={()=>{}}/>);
     fireEvent.click(screen.getByRole("button",{name:"Load available times"}));
     expect(await screen.findByText("Monday, November 2 at 10:00 AM EST")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button",{name:"Move inspection"}));
-    fireEvent.change(screen.getByLabelText("Inspection time (America/New_York)"),{target:{value:"2026-11-02T16:00:00.000Z"}});
+    const moveButton=screen.getByRole("button",{name:"Move inspection"});
+    await waitFor(()=>expect(moveButton).toBeEnabled());
+    fireEvent.click(moveButton);
+    fireEvent.change(await screen.findByLabelText("Inspection time (America/New_York)"),{target:{value:"2026-11-02T16:00:00.000Z"}});
     action.mockResolvedValueOnce({ok:true,message:"Moved",booking});
     fireEvent.click(screen.getByRole("button",{name:"Confirm new time"}));
     await waitFor(()=>expect(action).toHaveBeenCalledTimes(2));

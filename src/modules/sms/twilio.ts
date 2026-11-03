@@ -6,6 +6,7 @@ export class SmsProviderError extends Error {
   constructor(
     message: string,
     readonly code: string | null = null,
+    readonly acceptance: "rejected" | "unknown" = "unknown",
   ) {
     super(message);
     this.name = "SmsProviderError";
@@ -31,7 +32,7 @@ export class TwilioMessagingClient {
 
   constructor(options: TwilioMessagingOptions) {
     if (!/^AC[0-9a-fA-F]{32}$/.test(options.accountSid) || !/^SK[0-9a-fA-F]{32}$/.test(options.apiKeySid) || !options.apiKeySecret) {
-      throw new SmsProviderError("Twilio credentials are not configured");
+      throw new SmsProviderError("Twilio credentials are not configured", null, "rejected");
     }
     this.url = `https://api.twilio.com/2010-04-01/Accounts/${options.accountSid}/Messages.json`;
     this.authorization = `Basic ${Buffer.from(`${options.apiKeySid}:${options.apiKeySecret}`, "utf8").toString("base64")}`;
@@ -39,8 +40,9 @@ export class TwilioMessagingClient {
     this.timeoutMs = options.timeoutMs ?? 10_000;
   }
 
-  async send(input: { messagingServiceSid: string; to: string; body: string; statusCallback: string | null }) {
+  async send(input: { messagingServiceSid: string; to: string; body: string; statusCallback: string | null; from?: string }) {
     const form = new URLSearchParams({ MessagingServiceSid: input.messagingServiceSid, To: input.to, Body: input.body });
+    if (input.from) form.set("From", input.from);
     if (input.statusCallback) form.set("StatusCallback", input.statusCallback);
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
@@ -66,7 +68,7 @@ export class TwilioMessagingClient {
     if (!response.ok) {
       const error = errorResponseSchema.safeParse(payload);
       const code = error.success && error.data.code !== undefined ? String(error.data.code) : String(response.status);
-      throw new SmsProviderError(error.success && error.data.message ? error.data.message : "Twilio rejected the message", code);
+      throw new SmsProviderError(error.success && error.data.message ? error.data.message : "Twilio rejected the message", code, response.status >= 400 && response.status < 500 && response.status !== 408 ? "rejected" : "unknown");
     }
     const parsed = sendResponseSchema.safeParse(payload);
     if (!parsed.success) throw new SmsProviderError("Twilio returned an unexpected response");

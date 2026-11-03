@@ -45,6 +45,8 @@ import {
   virtualConsultationReminders,
 } from "@/inngest/functions/virtual-consultation-worker";
 
+import {approvedSmsWorker} from "@/inngest/functions/approved-sms-worker";
+
 export const maxDuration = 300;
 
 export const { GET, POST, PUT } = serve({
@@ -86,5 +88,6 @@ export const { GET, POST, PUT } = serve({
     virtualConsultationReminders,
     bookingMaintenance,
     setterCallbackSla,
+    approvedSmsWorker,
   ],
 });

@@ -6835,8 +6835,166 @@ export type Database = {
           },
         ]
       }
+      sms_automation_settings: {
+        Row: {
+          company_id: string
+          enabled: boolean
+          timezone: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          company_id: string
+          enabled?: boolean
+          timezone?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          company_id?: string
+          enabled?: boolean
+          timezone?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sms_automation_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sms_delivery_jobs: {
+        Row: {
+          actor_id: string | null
+          appointment_id: string | null
+          appointment_revision: number | null
+          attempt_token: string | null
+          company_id: string
+          created_at: string
+          expires_at: string
+          id: string
+          kind: string
+          lead_id: string
+          message_id: string | null
+          not_before: string
+          preparing_until: string | null
+          reason: string | null
+          requested_template_id: string | null
+          source: string
+          started_at: string | null
+          status: string
+          task_claim_token: string | null
+          task_id: string | null
+          template_version_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          actor_id?: string | null
+          appointment_id?: string | null
+          appointment_revision?: number | null
+          attempt_token?: string | null
+          company_id: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          kind: string
+          lead_id: string
+          message_id?: string | null
+          not_before?: string
+          preparing_until?: string | null
+          reason?: string | null
+          requested_template_id?: string | null
+          source: string
+          started_at?: string | null
+          status?: string
+          task_claim_token?: string | null
+          task_id?: string | null
+          template_version_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          actor_id?: string | null
+          appointment_id?: string | null
+          appointment_revision?: number | null
+          attempt_token?: string | null
+          company_id?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          kind?: string
+          lead_id?: string
+          message_id?: string | null
+          not_before?: string
+          preparing_until?: string | null
+          reason?: string | null
+          requested_template_id?: string | null
+          source?: string
+          started_at?: string | null
+          status?: string
+          task_claim_token?: string | null
+          task_id?: string | null
+          template_version_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sms_delivery_jobs_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sms_delivery_jobs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sms_delivery_jobs_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sms_delivery_jobs_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "sms_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sms_delivery_jobs_requested_template_id_fkey"
+            columns: ["requested_template_id"]
+            isOneToOne: false
+            referencedRelation: "sms_template_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sms_delivery_jobs_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sms_delivery_jobs_template_version_id_fkey"
+            columns: ["template_version_id"]
+            isOneToOne: false
+            referencedRelation: "sms_template_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sms_messages: {
         Row: {
+          approved_delivery_id: string | null
           body: string
           company_id: string
           created_at: string
@@ -6854,6 +7012,7 @@ export type Database = {
           to_e164: string
         }
         Insert: {
+          approved_delivery_id?: string | null
           body: string
           company_id: string
           created_at?: string
@@ -6871,6 +7030,7 @@ export type Database = {
           to_e164: string
         }
         Update: {
+          approved_delivery_id?: string | null
           body?: string
           company_id?: string
           created_at?: string
@@ -6889,6 +7049,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "sms_messages_approved_delivery_id_fkey"
+            columns: ["approved_delivery_id"]
+            isOneToOne: false
+            referencedRelation: "sms_delivery_jobs"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "sms_messages_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
@@ -6900,6 +7067,88 @@ export type Database = {
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sms_phone_pauses: {
+        Row: {
+          company_id: string
+          paused: boolean
+          phone_e164: string
+          reason: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          company_id: string
+          paused: boolean
+          phone_e164: string
+          reason: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          company_id?: string
+          paused?: boolean
+          phone_e164?: string
+          reason?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sms_phone_pauses_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sms_template_versions: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          body: string
+          company_id: string
+          created_at: string
+          created_by: string
+          id: string
+          kind: string
+          status: string
+          version: number
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          body: string
+          company_id: string
+          created_at?: string
+          created_by: string
+          id?: string
+          kind: string
+          status?: string
+          version: number
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          body?: string
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          kind?: string
+          status?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sms_template_versions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
@@ -7684,6 +7933,19 @@ export type Database = {
         Args: { p_event_name: string; p_lead_id: string }
         Returns: string
       }
+      apply_approved_sms_callback: {
+        Args: {
+          p_company_id: string
+          p_delivery_id: string
+          p_error_code: string
+          p_from: string
+          p_sid: string
+          p_status: string
+          p_to: string
+          p_token: string
+        }
+        Returns: boolean
+      }
       apply_roof_assessment_property_prefetch: {
         Args: {
           p_attempt_id: string
@@ -7710,6 +7972,10 @@ export type Database = {
           property_id: string
           side_effects_applied: boolean
         }[]
+      }
+      approve_sms_template: {
+        Args: { p_template_id: string }
+        Returns: undefined
       }
       approve_verified_roof_assessment_resume: {
         Args: {
@@ -7818,6 +8084,10 @@ export type Database = {
           phone_e164: string
           send_conversion_values: boolean
         }[]
+      }
+      claim_approved_sms_delivery: {
+        Args: { p_company_id: string; p_id?: string }
+        Returns: Json
       }
       claim_lead_distribution_delivery: {
         Args: { p_company_id: string; p_delivery_id: string; p_now: string }
@@ -8271,6 +8541,11 @@ export type Database = {
       }
       get_setter_callback_report: { Args: never; Returns: Json }
       get_setter_queue: { Args: never; Returns: Json }
+      get_setter_texting_context: {
+        Args: { p_claim_token: string; p_task_id: string }
+        Returns: Json
+      }
+      get_sms_control_panel: { Args: never; Returns: Json }
       grant_company_membership: {
         Args: {
           p_company_id: string
@@ -8422,6 +8697,14 @@ export type Database = {
       platform_health: { Args: never; Returns: Json }
       prune_booking_attempts: { Args: never; Returns: number }
       purge_expired_click_ids: { Args: { p_now: string }; Returns: Json }
+      queue_setter_template_sms: {
+        Args: {
+          p_claim_token: string
+          p_task_id: string
+          p_template_id: string
+        }
+        Returns: string
+      }
       record_integration_event: {
         Args: {
           p_company_id: string
@@ -8710,6 +8993,19 @@ export type Database = {
           property_id: string
         }[]
       }
+      resolve_sms_delivery: {
+        Args: {
+          p_id: string
+          p_note: string
+          p_provider_sid: string
+          p_resolution: string
+        }
+        Returns: undefined
+      }
+      retire_sms_template: {
+        Args: { p_template_id: string }
+        Returns: undefined
+      }
       reuse_roof_estimate_packages: {
         Args: {
           p_company_id: string
@@ -8853,11 +9149,38 @@ export type Database = {
           scheduled_at: string
         }[]
       }
+      save_sms_automation_settings: {
+        Args: { p_enabled: boolean; p_timezone: string }
+        Returns: undefined
+      }
+      save_sms_template_draft: {
+        Args: { p_body: string; p_kind: string }
+        Returns: string
+      }
       set_company_setter: {
         Args: { p_enabled: boolean; p_user_id: string }
         Returns: undefined
       }
+      set_company_sms_pause: {
+        Args: { p_paused: boolean; p_phone_e164: string }
+        Returns: undefined
+      }
       set_setter_shift: { Args: { p_on_shift: boolean }; Returns: undefined }
+      set_setter_sms_pause: {
+        Args: { p_claim_token: string; p_paused: boolean; p_task_id: string }
+        Returns: undefined
+      }
+      settle_approved_sms_delivery: {
+        Args: {
+          p_error_code: string
+          p_id: string
+          p_outcome: string
+          p_sid: string
+          p_status: string
+          p_token: string
+        }
+        Returns: string
+      }
       settle_setter_callback_alert: {
         Args: { p_claim_token: string; p_id: string; p_status: string }
         Returns: undefined
@@ -8869,6 +9192,19 @@ export type Database = {
           outcome: string
           revision: number
         }[]
+      }
+      start_approved_sms_delivery: {
+        Args: {
+          p_body: string
+          p_from: string
+          p_id: string
+          p_segments: number
+          p_service_sid: string
+          p_template_id: string
+          p_to: string
+          p_token: string
+        }
+        Returns: Json
       }
       start_or_resume_roof_assessment: {
         Args: {
@@ -9018,6 +9354,7 @@ export type Database = {
           public_token: string
         }[]
       }
+      sweep_approved_sms_deliveries: { Args: never; Returns: number }
       sweep_setter_callback_sla: { Args: never; Returns: number }
       switch_active_company: {
         Args: { p_company_id: string }
