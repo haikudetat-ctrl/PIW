@@ -53,6 +53,12 @@ describe("Google search landing pages", () => {
     for (const text of allCopy()) expect(text).not.toMatch(/South Jersey|Philadelphia|county/i);
   });
 
+  test("use the dedicated Google Ads call line, never the company line", () => {
+    expect(companyFacts.phone).toEqual({display: "(609) 817-8038", href: "tel:+16098178038"});
+    expect(searchPages["roof-replacement"].faqs.map((faq) => faq.answer).join(" ")).toContain("(609) 817-8038");
+    for (const text of allCopy()) expect(text).not.toContain("835-6022");
+  });
+
   test("keep ad landing pages out of organic search", () => {
     expect(searchPageMetadata(searchPages["roof-replacement"]).robots).toEqual({index: false, follow: false});
   });

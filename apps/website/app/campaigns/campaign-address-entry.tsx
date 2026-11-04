@@ -32,7 +32,11 @@ export type AddressEntryContext = {
     submitLabel: string;
     pendingLabel: string;
   };
+  /** Number offered when the lookup fails; search pages pass their own call line. */
+  phoneDisplay?: string;
 };
+
+export const DEFAULT_CAMPAIGN_PHONE_DISPLAY = "(866) 835-6022";
 
 // Value-first address step for campaign landing pages. Contact details are
 // collected on the estimate host after the homeowner sees their roof.
@@ -100,7 +104,7 @@ export function CampaignAddressEntry({campaign, turnstileSiteKey}: {campaign: Ad
     }
     setPending(false);
     setResetKey((key) => key + 1);
-    setError("We couldn’t look up that address just now. Please try again or call (866) 835-6022.");
+    setError(`We couldn’t look up that address just now. Please try again or call ${campaign.phoneDisplay ?? DEFAULT_CAMPAIGN_PHONE_DISPLAY}.`);
     track("address_submit_error", campaign.slug);
   }
 

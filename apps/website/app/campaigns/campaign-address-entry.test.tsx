@@ -83,6 +83,15 @@ describe("CampaignAddressEntry", () => {
     });
   });
 
+  test("offers the company line when the lookup fails", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", {status: 502})));
+    const container = await renderEntry();
+    await act(async () => button(container, "Pick address").click());
+    await act(async () => button(container, "Complete check").click());
+    await act(async () => button(container, "See my roof").click());
+    await vi.waitFor(() => expect(container.querySelector('[role="alert"]')?.textContent).toContain("call (866) 835-6022."));
+  });
+
   test("asks for an address before submitting", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
@@ -119,5 +128,31 @@ describe("CampaignAddressEntry on a search landing page", () => {
     await act(async () => button(container, "Get My Free Roof Estimate").click());
     const body = JSON.parse(String((fetchMock.mock.calls[0] as unknown[])[1] && ((fetchMock.mock.calls[0] as unknown[])[1] as RequestInit).body));
     expect(body).toMatchObject({campaign: "roof-replacement", entry_point: "campaign:roof-replacement", presentation_key: "roof-replacement"});
+  });
+
+  test("offers the page's own call line when the lookup fails", async () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    roots.push(root);
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", {status: 502})));
+    await act(async () => root.render(
+      <CampaignAddressEntry
+        campaign={{
+          slug: "roof-replacement",
+          entryPoint: "campaign:roof-replacement",
+          presentationKey: "roof-replacement",
+          formTitle: "Get your free roof estimate",
+          addressStepCopy: {label: "Free", intro: "Start here", submitLabel: "Get My Free Roof Estimate", pendingLabel: "Measuring…"},
+          phoneDisplay: "(609) 817-8038",
+        }}
+        turnstileSiteKey="site"
+      />,
+    ));
+    await act(async () => button(container, "Pick address").click());
+    await act(async () => button(container, "Complete check").click());
+    await act(async () => button(container, "Get My Free Roof Estimate").click());
+    await vi.waitFor(() => expect(container.querySelector('[role="alert"]')?.textContent).toContain("call (609) 817-8038."));
+    expect(container.textContent).not.toContain("835-6022");
   });
 });

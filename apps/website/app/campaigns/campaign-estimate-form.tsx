@@ -2,6 +2,7 @@
 
 import {FormEvent, useCallback, useRef, useState} from "react";
 import {AddressAutocomplete} from "./address-autocomplete";
+import {DEFAULT_CAMPAIGN_PHONE_DISPLAY} from "./campaign-address-entry";
 import {buildCampaignSubmission} from "./campaigns";
 import type {LandingSlug} from "../../lib/landing-slugs";
 import {useMetaPixel, type MetaBrowserEventEnvelope} from "../../components/meta-pixel-provider";
@@ -20,6 +21,8 @@ export type EstimateFormContext = {
   formTitle: string;
   formIntro: string;
   submitLabel: string;
+  /** Number offered when submission fails; search pages pass their own call line. */
+  phoneDisplay?: string;
 };
 
 export function CampaignEstimateForm({campaign}: {campaign: EstimateFormContext}) {
@@ -96,7 +99,7 @@ export function CampaignEstimateForm({campaign}: {campaign: EstimateFormContext}
       track("campaign_form_success", campaign.slug);
       window.location.assign(payload.estimateUrl);
     } catch {
-      setStatus("We could not start the estimate. Try again or call (866) 835-6022.");
+      setStatus(`We could not start the estimate. Try again or call ${campaign.phoneDisplay ?? DEFAULT_CAMPAIGN_PHONE_DISPLAY}.`);
       track("campaign_form_error", campaign.slug);
       setPending(false);
     }
