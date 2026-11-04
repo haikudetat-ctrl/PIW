@@ -233,7 +233,7 @@ conversions stop; conversions sent within the previous 14 days are retracted
 
 Gate 1, before any spend:
 - [ ] AllSeason decision on NJDPA opt-in vs opt-out recorded
-- [ ] Privacy policy additions (below) approved by AllSeason and published on
+- [ ] Google Ads privacy statement (below) approved by AllSeason and live on
       both the website (`public/privacy.html`) and PIW (`/privacy`)
 - [ ] Open facts confirmed; HIC number set
 - [ ] Migration `20261025120000_google_search_ads_attribution` applied to the
@@ -302,26 +302,26 @@ Gate 3, reporting:
 - Stop the browser tag: `NEXT_PUBLIC_GOOGLE_ADS_TRACKING_ENABLED=false`.
 - Stop forwarding new fields: `AD_ATTRIBUTION_FORWARDING_ENABLED=false`.
 
-## Proposed privacy policy additions (needs AllSeason approval)
+## Privacy policy: what the pages promise about Google
 
-Add to the Advertising section on both privacy pages. Draft only; do not
-publish or enable uploads until AllSeason approves the wording.
+Both privacy pages have a Google Ads statement: the website
+(`apps/website/public/privacy.html`, "Google Ads") and PIW (`/privacy`,
+Advertising section). It describes what is sent today through the Data
+Manager sheet feed: which step happened (estimate request, booked
+appointment, signed project), when, the click identifier, and a reference
+number (the order ID). It also states that Google never receives name, email,
+phone, address, imagery, assessment answers, measurements, quote amounts or
+contract amounts, and that nothing is sent when Advertising is off or under
+Global Privacy Control.
 
-> **Google Ads.** When you reach our site from a Google ad, we record the
-> click identifier Google adds to the link and the ad's campaign and keyword,
-> and keep them for up to 13 months to understand which ads lead to
-> estimates. If you allow Advertising, we may send Google Ads a record that
-> your request led to an estimate, an appointment, or a signed project, along
-> with the Google click identifier and a one-way hashed version of your email
-> address and phone number so Google can match it to the ad. [If the owner
-> approves values: For a signed project we may include the contract amount.]
-> We do not send your name, property address, imagery, assessment answers, or
-> roof measurements to Google. When Advertising is off, or your browser sends
-> Global Privacy Control, we do not send this information to Google.
+Update both pages before turning on anything that sends more:
+- Enhanced conversions for leads (hashed email and phone) or the API sender
+  with contact identifiers.
+- `send_conversion_values` (contract amounts).
+- The browser Google tag (`NEXT_PUBLIC_GOOGLE_ADS_TRACKING_ENABLED`).
 
-Note for AllSeason: the existing Meta text says Meta does not receive a phone
-number. Google's enhanced conversions use a hashed phone number; the Meta
-statement stays true, but the Google section must say so.
+`legal-pages.test.ts` and `src/app/privacy/page.test.tsx` pin the "do not
+send" sentence, so changing it is a deliberate edit.
 
 ## Testing
 

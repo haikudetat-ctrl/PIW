@@ -53,6 +53,18 @@ export default function PrivacyPage() {
             number or SMS consent. We do not send text-messaging opt-in data or
             consent records to Meta.
           </p>
+          <p className="mt-3">
+            When you arrive from a Google ad, we record the click identifier Google
+            adds to the link, with the ad&apos;s campaign and search keyword, and
+            delete the click identifier after 13 months. When that visit leads to an
+            estimate request, a booked appointment, or a signed project, we may tell
+            Google Ads which of those happened and when, along with the click
+            identifier and a reference number for the request. We do not send your
+            name, email address, phone number, property address, imagery, assessment
+            answers, roof measurements, quote amounts, or contract amounts to Google.
+            When Advertising is off, or your browser sends a Global Privacy Control
+            signal, we do not send this information to Google.
+          </p>
         </section>
 
         <section aria-labelledby="messaging-heading">

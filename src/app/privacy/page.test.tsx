@@ -40,6 +40,21 @@ describe("privacy notice", () => {
     ))).toBeVisible();
   });
 
+  test("states what Google Ads receives and what it never receives", () => {
+    render(<PrivacyPage />);
+
+    const normalized = (content: string) => content.replace(/\s+/g, " ").toLowerCase();
+    expect(screen.getByText((content) => normalized(content).includes(
+      "we may tell google ads which of those happened and when, along with the click identifier and a reference number for the request.",
+    ))).toBeVisible();
+    expect(screen.getByText((content) => normalized(content).includes(
+      "we do not send your name, email address, phone number, property address, imagery, assessment answers, roof measurements, quote amounts, or contract amounts to google.",
+    ))).toBeVisible();
+    expect(screen.getByText((content) => normalized(content).includes(
+      "when advertising is off, or your browser sends a global privacy control signal, we do not send this information to google.",
+    ))).toBeVisible();
+  });
+
   test("is available without authentication", () => {
     expect(isPublicPath("/privacy")).toBe(true);
   });
