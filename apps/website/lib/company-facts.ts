@@ -9,7 +9,12 @@
  */
 export const companyFacts = {
   brandName: "AllSeason",
-  phone: {display: "(866) 835-6022", href: "tel:+18668356022"},
+  /**
+   * Dedicated Google Ads call line (Nov 2026), so calls from the ad landing
+   * pages are counted for Google. The main site and Meta campaign pages keep
+   * the company line, (866) 835-6022.
+   */
+  phone: {display: "(609) 817-8038", href: "tel:+16098178038"},
   /** Confirmed by the owner, Oct 2026. */
   experience: {headline: "20+ years", detail: "replacing roofs in New Jersey"},
   certification: {

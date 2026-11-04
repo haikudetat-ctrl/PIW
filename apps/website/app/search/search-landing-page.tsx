@@ -20,6 +20,7 @@ function EstimateEntry({page}: {page: SearchPageDefinition}) {
     entryPoint: page.entryPoint,
     presentationKey: page.presentationKey,
     formTitle: page.formTitle,
+    phoneDisplay: companyFacts.phone.display,
   };
   if (previewFlowEnabled()) {
     return (

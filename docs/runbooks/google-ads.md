@@ -92,7 +92,7 @@ never records a lead conversion, so nothing is counted twice.
 | `NEXT_PUBLIC_GOOGLE_ADS_TAG_ID` | `AW-…` from Google Ads |
 | `NEXT_PUBLIC_ADVERTISING_CONSENT_MODEL` | `opt_in` until AllSeason decides otherwise |
 | `NEXT_PUBLIC_GOOGLE_ADS_CALL_CONVERSION_LABEL` | optional, call conversion label |
-| `NEXT_PUBLIC_GOOGLE_ADS_CALL_TRACKED_NUMBER` | `(866) 835-6022` if the swap is used |
+| `NEXT_PUBLIC_GOOGLE_ADS_CALL_TRACKED_NUMBER` | `(609) 817-8038` (the search pages' call line) if the swap is used |
 | `NEXT_PUBLIC_NJ_HIC_REGISTRATION` | AllSeason's registration number |
 
 The cookie is minted only when `AD_ATTRIBUTION_SIGNING_SECRET` is set. It is
