@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import type {CSSProperties} from "react";
 import {campaignThemeCssVariables, campaignThemes} from "../../../../shared/all-season-campaign-themes";
+import {njHicRegistration} from "../../lib/company-facts";
 import {previewFlowEnabled} from "../../lib/property-preview-notice";
 import {CampaignAddressEntry} from "./campaign-address-entry";
 import {CampaignEstimateForm} from "./campaign-estimate-form";
@@ -15,6 +16,7 @@ const processSteps = [
 
 export function CampaignLandingPage({campaign}: {campaign: CampaignDefinition}) {
   const visual = campaignThemes[campaign.slug];
+  const hicRegistration = njHicRegistration();
   const accentWords = new Set(campaign.bridgeAccents.map((word) => word.toLowerCase()));
   const headlineParts = campaign.bridgeHeadline.split(/(\s+)/);
 
@@ -90,6 +92,7 @@ export function CampaignLandingPage({campaign}: {campaign: CampaignDefinition}) 
       <footer className="campaign-footer">
         <div>
           <p><strong>ALL SEASON</strong> | One New Jersey team before, during, and after the work.</p>
+          {hicRegistration ? <p>NJ Home Improvement Contractor Reg. #{hicRegistration}</p> : null}
           <nav className="campaign-footer-legal" aria-label="Legal">
             <Link href="/privacy.html">Privacy</Link>
             <Link href="/terms.html">Terms</Link>

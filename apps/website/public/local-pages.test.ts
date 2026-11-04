@@ -169,3 +169,18 @@ describe("local review ordering", () => {
     expect(authors.slice(0, 3)).toEqual(["second", "first", "third"]);
   });
 });
+
+describe("NJ home improvement registration", () => {
+  // N.J.S.A. 56:8-144: the registration number belongs on all advertising.
+  const htmlPages = publicFiles(__dirname).filter((file) => file.endsWith(".html"));
+
+  test.each(htmlPages.map((file) => path.relative(__dirname, file)))("%s shows it in the footer", (relative) => {
+    const {document} = new JSDOM(readFileSync(path.join(__dirname, relative), "utf8")).window;
+    expect(document.querySelector("footer")?.textContent).toContain("NJ Home Improvement Contractor Reg. #13VH07213500");
+  });
+
+  test("the service-area generator writes it into every page it builds", () => {
+    expect(readFileSync(path.join(__dirname, "..", "scripts", "generate-service-areas.mjs"), "utf8"))
+      .toContain("NJ Home Improvement Contractor Reg. #13VH07213500");
+  });
+});
