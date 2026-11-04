@@ -109,11 +109,11 @@ export const campaigns: Record<CampaignSlug, CampaignDefinition> = {
     formTitle: "Let’s start with your home",
     formIntro: "Share the address. We will prepare a first look with no pressure and no guesswork.",
     submitLabel: "Get my roof estimate",
-    proof: "20+ years in business",
+    proof: "15+ years in business",
     warranty: "Unbeatable warranty coverage",
     proofItems: [
       {value: "4", label: "seasons planned for"},
-      {value: "20+", label: "years serving homeowners"},
+      {value: "15+", label: "years serving homeowners"},
       {value: "1", label: "accountable local team"},
     ],
     sectionEyebrow: "The All Season promise",
