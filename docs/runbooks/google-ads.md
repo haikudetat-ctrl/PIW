@@ -72,7 +72,7 @@ never records a lead conversion, so nothing is counted twice.
 | Fact | Current page treatment | Who confirms |
 | --- | --- | --- |
 | CertainTeed tier | "CertainTeed ShingleMaster PREMIER, CertainTeed's highest contractor credential" (assumed from "top tier") | AllSeason |
-| 20+ years | Stated | Confirmed by owner |
+| 15+ years in business | Stated (matches the ads) | Confirmed by AllSeason, Nov 2026 |
 | Financing | "through Service Finance and GoodLeap, subject to credit approval" | Confirmed by owner |
 | Price | $500 to $750 per square, with a 25-square example | Confirmed (live estimate range) |
 | Service area | "New Jersey" only | AllSeason, then add towns or counties |

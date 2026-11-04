@@ -116,7 +116,7 @@ export const searchPages: Record<SearchPageSlug, SearchPageDefinition> = {
     presentationKey: "roofing-contractor",
     adGroup: "Roofers Near Me",
     metaTitle: "Roofing Contractor in New Jersey | AllSeason",
-    metaDescription: "A local New Jersey roofing team with 20+ years of experience. Get a free roof replacement estimate online, then talk by video or in person.",
+    metaDescription: `A local New Jersey roofing team with ${companyFacts.experience.headline} in business. Get a free roof replacement estimate online, then talk by video or in person.`,
     eyebrow: "Local roofing contractor",
     headline: "A New Jersey roofing team that shows you the numbers first.",
     intro: `${companyFacts.experience.headline} ${companyFacts.experience.detail}. Get a free estimate online, then decide how you want to talk: a video call or a visit.`,

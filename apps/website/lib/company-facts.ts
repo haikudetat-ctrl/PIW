@@ -15,8 +15,11 @@ export const companyFacts = {
    * the company line, (866) 835-6022.
    */
   phone: {display: "(609) 817-8038", href: "tel:+16098178038"},
-  /** Confirmed by the owner, Oct 2026. */
-  experience: {headline: "20+ years", detail: "replacing roofs in New Jersey"},
+  /**
+   * AllSeason confirmed "15+" years in business (decisions sheet, Nov 2026;
+   * founded 2009). Matches the Google ads' "15+ Years in Business".
+   */
+  experience: {headline: "15+ years", detail: "in business in New Jersey"},
   certification: {
     name: "CertainTeed ShingleMaster PREMIER",
     shortName: "ShingleMaster PREMIER",
