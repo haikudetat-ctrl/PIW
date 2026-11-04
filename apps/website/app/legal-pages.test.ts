@@ -36,4 +36,15 @@ describe("public legal pages", () => {
     expect(html).not.toContain("Only if you allow Advertising");
     expect(html).toContain("(866) 835-6022");
   });
+
+  test("states what Google Ads receives and what it never receives", async () => {
+    const html = await publicPage("privacy.html");
+
+    expect(html).toContain("<h2>Google Ads</h2>");
+    expect(html).toContain("delete the click identifier after 13 months");
+    expect(html).toContain("an estimate request, a booked appointment, or a signed project");
+    expect(html).toContain("We do not send your name, email address, phone number, property address, property imagery, assessment answers, roof measurements, quote amounts, or contract amounts to Google.");
+    expect(html).toContain("or your browser sends a Global Privacy Control signal, we do not send this information to Google.");
+    expect(html).not.toMatch(/—/);
+  });
 });
