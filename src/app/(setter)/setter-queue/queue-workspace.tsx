@@ -71,8 +71,10 @@ export function QueueWorkspace({snapshot,signOut}:{snapshot:QueueSnapshot;signOu
           next=claimed.ok?{ok:true,message:`${next.message} · ${claimed.message}`}:claimed;
         } catch {next={ok:false,message:`${next.message}, but the next lead couldn't be claimed. Press Claim next lead.`};}
       }
-      setResult(next);
-      router.refresh();
+      const settled=next;
+      // Keep the result and refresh inside the transition so buttons re-enable
+      // in the same commit that shows the outcome.
+      startTransition(()=>{setResult(settled);router.refresh();});
     });
   };
 

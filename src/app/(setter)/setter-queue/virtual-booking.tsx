@@ -50,18 +50,23 @@ export function VirtualBooking({current,onBooked}:{current:Current;onBooked:(boo
     startTransition(async()=>{
       let next:SetterBookingResult;
       try {next=await runSetterBookingAction(form);} catch {next={ok:false,message:"Couldn't reach virtual booking. Try again.",code:"unavailable"};}
-      setResult(next);
-      if(next.availability) applyAvailability(next.availability);
-      if(next.code==="claim_changed") {setLostClaim(true);setAvailability(null);setSaved(null);setMode(null);}
-      if(!next.ok && ["calendar","unavailable"].includes(next.code??"")) {
-        setAvailability(previous=>previous?.model.booking?{...previous,calendarAvailable:false,model:{...previous.model,days:[]}}:null);
-        setSlot("");setMode(null);
-      }
-      if(!next.ok && ["slot_unavailable","booking_changed","already_booked"].includes(next.code??"")) {
-        setSlot("");
-        if(!next.availability) {setAvailability(null);setMode(null);}
-      }
-      if(next.ok && next.booking) {setSaved(next.booking);setAvailability(null);setMode(null);setSlot("");onBooked(next.booking);}
+      // State set after an await is not part of the outer transition. Without
+      // this wrapper the times render while `pending` is still true, so every
+      // time button is briefly disabled and a fast click is dropped.
+      startTransition(()=>{
+        setResult(next);
+        if(next.availability) applyAvailability(next.availability);
+        if(next.code==="claim_changed") {setLostClaim(true);setAvailability(null);setSaved(null);setMode(null);}
+        if(!next.ok && ["calendar","unavailable"].includes(next.code??"")) {
+          setAvailability(previous=>previous?.model.booking?{...previous,calendarAvailable:false,model:{...previous.model,days:[]}}:null);
+          setSlot("");setMode(null);
+        }
+        if(!next.ok && ["slot_unavailable","booking_changed","already_booked"].includes(next.code??"")) {
+          setSlot("");
+          if(!next.availability) {setAvailability(null);setMode(null);}
+        }
+        if(next.ok && next.booking) {setSaved(next.booking);setAvailability(null);setMode(null);setSlot("");onBooked(next.booking);}
+      });
     });
   }
   function refresh() {run(claimForm("load"));}
