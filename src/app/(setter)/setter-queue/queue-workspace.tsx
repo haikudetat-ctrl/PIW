@@ -1,26 +1,53 @@
 "use client";
 
 import Link from "next/link";
-import {useEffect,useState,useTransition} from "react";
+import {useEffect,useState,useTransition,type ReactNode} from "react";
 import {useRouter} from "next/navigation";
-import {inputClasses,labelClasses,primaryButtonClasses,secondaryButtonClasses} from "@/components/ui/form";
-import type {CallbackReport,QueueSnapshot} from "@/modules/setter-queue/schema";
+import {plainButtonClasses,primaryButtonClasses,secondaryButtonClasses} from "@/components/ui/form";
+import {Icon} from "@/components/ui/icons";
+import {RakeLogo} from "@/components/brand/rake-logo";
+import {formatClockTime} from "@/modules/booking/booking-format";
+import type {BookingSummary} from "@/modules/booking/booking-service";
+import type {QueueSnapshot} from "@/modules/setter-queue/schema";
 import {runSetterQueueAction,type QueueActionResult} from "./actions";
 import {ApprovedTexting} from "./approved-texting";
+import {BUCKET_LABELS,formatCountdown} from "./cockpit-format";
+import {DispositionPanel} from "./disposition-panel";
+import {LeadPanel} from "./lead-panel";
 import {VirtualBooking} from "./virtual-booking";
 
-const BUCKETS=[['call_request','Call requests'],['scheduled_callback','Scheduled callbacks'],['new_lead','New leads'],['handoff','Handoffs'],['follow_up','Due follow-up']] as const;
-function money(cents:number|null) {return cents===null?"—":new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(cents/100);}
-function time(value:string|null,timezone:string) {return value?new Intl.DateTimeFormat("en-US",{timeZone:timezone,dateStyle:"medium",timeStyle:"short"}).format(new Date(value)):"—";}
-function HiddenClaim({current}:{current:NonNullable<QueueSnapshot['current']>}) {
-  return <><input type="hidden" name="taskId" value={current.id}/><input type="hidden" name="token" value={current.claim_token}/></>;
+type Current=NonNullable<QueueSnapshot["current"]>;
+type Submit=(form:FormData,claimNext?:boolean)=>void;
+
+function command(action:string,fields:Record<string,string>={}) {
+  const form=new FormData();form.set("action",action);
+  for(const [key,value] of Object.entries(fields)) form.set(key,value);
+  return form;
+}
+function claimFields(current:Current) {return {taskId:current.id,token:current.claim_token};}
+
+/** Ticks once a second after mount; null during server render so markup matches. */
+function useNow() {
+  const [now,setNow]=useState<number|null>(null);
+  useEffect(()=>{
+    const tick=()=>setNow(Date.now());
+    tick();
+    const timer=setInterval(tick,1000);
+    return ()=>clearInterval(timer);
+  },[]);
+  return now;
 }
 
-export function QueueWorkspace({snapshot,report,slaEnabled=false}:{snapshot:QueueSnapshot;report:CallbackReport;slaEnabled?:boolean}) {
+/**
+ * Setter cockpit: one homeowner, one screen. Lead and call on the left,
+ * booking in the center because the goal of every call is an appointment,
+ * outcome on the right. Panels scroll on their own; the page does not.
+ */
+export function QueueWorkspace({snapshot,signOut}:{snapshot:QueueSnapshot;signOut?:ReactNode}) {
   const router=useRouter();
   const [pending,startTransition]=useTransition();
   const [result,setResult]=useState<QueueActionResult|null>(null);
-  const [outcome,setOutcome]=useState("");
+  const now=useNow();
   const current=snapshot.current;
   const onShift=!!snapshot.on_shift_until;
 
@@ -33,106 +60,117 @@ export function QueueWorkspace({snapshot,report,slaEnabled=false}:{snapshot:Queu
     return ()=>{clearInterval(timer);document.removeEventListener("visibilitychange",refresh);};
   },[router]);
 
-  function submit(form:FormData) {
+  const submit:Submit=(form,claimNext=false)=>{
     setResult(null);
     startTransition(async()=>{
-      try {setResult(await runSetterQueueAction(form));} catch {setResult({ok:false,message:"Couldn't update the queue. Reload and try again."});}
+      let next:QueueActionResult;
+      try {next=await runSetterQueueAction(form);} catch {next={ok:false,message:"Couldn't update the queue. Reload and try again."};}
+      if(next.ok && claimNext) {
+        try {
+          const claimed=await runSetterQueueAction(command("claim"));
+          next=claimed.ok?{ok:true,message:`${next.message} · ${claimed.message}`}:claimed;
+        } catch {next={ok:false,message:`${next.message}, but the next lead couldn't be claimed. Press Claim next lead.`};}
+      }
+      setResult(next);
       router.refresh();
     });
-  }
+  };
 
-  return <div className="space-y-6">
-    <div className="flex flex-wrap items-start justify-between gap-4">
-      <div><h1 className="text-2xl font-semibold tracking-tight">Setter queue</h1><p className="mt-1 text-sm text-ink-subtle">One homeowner at a time. Times shown in {snapshot.timezone}.</p></div>
-      <div className="flex items-center gap-3">
-        <button type="button" onClick={()=>router.refresh()} className={secondaryButtonClasses}>Refresh</button>
-        {snapshot.enabled && snapshot.is_setter && <form action={submit}>
-          <input type="hidden" name="action" value="shift"/><input type="hidden" name="onShift" value={String(!onShift)}/>
-          <button disabled={pending||!!current} className={secondaryButtonClasses}>{onShift?"Go off shift":"Go on shift"}</button>
-        </form>}
+  const claimLeft=current&&now?new Date(current.claim_expires_at).getTime()-now:null;
+
+  return <div className="admin-theme flex min-h-dvh flex-col bg-page text-ink lg:h-dvh">
+    <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-border bg-surface px-4 py-2.5">
+      <div className="flex items-center gap-2"><RakeLogo className="h-3.5 w-auto text-ink"/><span className="text-sm font-medium text-ink-subtle">Setter</span></div>
+      {snapshot.is_setter && <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${onShift?"bg-success-bg text-success":"bg-surface-muted text-ink-muted"}`}>
+        <span aria-hidden className="size-1.5 rounded-full bg-current"/>{snapshot.on_shift_until?`On shift until ${formatClockTime(snapshot.on_shift_until,snapshot.timezone)}`:"Off shift"}
+      </span>}
+      {current && <div className="flex items-center gap-2 text-xs">
+        <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-medium tabular-nums ${claimLeft!==null&&claimLeft<60_000?"bg-danger-bg text-danger":claimLeft!==null&&claimLeft<300_000?"bg-warning-bg text-warning":"bg-surface-muted text-ink-muted"}`}>
+          <Icon name="clock" size={13}/>Claim {claimLeft===null?"—":formatCountdown(claimLeft)}
+        </span>
+        <button type="button" disabled={pending} onClick={()=>submit(command("claim"))} className={plainButtonClasses}>Extend</button>
+      </div>}
+      <div aria-live="polite" className="min-w-0 flex-1">
+        {result && <p role={result.ok?"status":"alert"} className={`truncate text-sm ${result.ok?"text-ink-muted":"font-medium text-danger"}`}>
+          {result.message}{result.bookingUrl && <> · <a href={result.bookingUrl} target="_blank" rel="noreferrer" className="text-tint underline">Open booking link</a></>}
+        </p>}
+      </div>
+      {snapshot.is_manager && snapshot.enabled && <dl aria-label="Queue" className="hidden items-center gap-3 text-xs xl:flex">
+        {BUCKET_LABELS.map(([key,label])=><div key={key} className="flex items-baseline gap-1"><dt className="text-ink-subtle">{label}</dt><dd className="font-semibold tabular-nums">{snapshot.buckets[key]??0}</dd></div>)}
+      </dl>}
+      <div className="flex items-center gap-2">
+        {snapshot.enabled && snapshot.is_setter && <button type="button" disabled={pending||!!current} title={current?"Record an outcome before going off shift":undefined}
+          onClick={()=>submit(command("shift",{onShift:String(!onShift)}))} className={secondaryButtonClasses}>{onShift?"Go off shift":"Go on shift"}</button>}
+        {snapshot.is_manager && <Link href="/setter-queue/settings" className={secondaryButtonClasses}><Icon name="settings" size={14}/>Settings</Link>}
+        {snapshot.is_manager && <Link href="/" className={plainButtonClasses}>CRM</Link>}
+        <button type="button" aria-label="Refresh" title="Refresh" onClick={()=>router.refresh()} className="rounded-md p-1.5 text-ink-subtle hover:bg-fill-hover hover:text-ink">
+          <svg aria-hidden width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg>
+        </button>
+        {signOut}
+      </div>
+    </header>
+
+    {current && snapshot.enabled
+      ?<Cockpit key={current.claim_token} snapshot={snapshot} current={current} pending={pending} onShift={onShift} now={now} submit={submit}/>
+      :<Idle snapshot={snapshot} pending={pending} onShift={onShift} submit={submit}/>}
+  </div>;
+}
+
+function Idle({snapshot,pending,onShift,submit}:{snapshot:QueueSnapshot;pending:boolean;onShift:boolean;submit:Submit}) {
+  let title="Ready for the next homeowner",body="You get one lead at a time, highest priority first. An unfinished claim resumes before a new lead.",action:ReactNode=null;
+  if(!snapshot.enabled) {title="The queue is paused";body=snapshot.is_manager?"Enable it in Settings once setter coverage is confirmed.":"A manager will turn it back on.";}
+  else if(!snapshot.is_setter) {title="You're not enrolled as a setter";body="Enroll yourself in Settings if you also make calls.";}
+  else if(!onShift) {
+    title="Start your shift";body="Go on shift to receive leads. A shift lasts eight hours.";
+    action=<button type="button" disabled={pending} onClick={()=>submit(command("shift",{onShift:"true"}))} className={`${primaryButtonClasses} px-6 py-2.5 text-sm`}>Go on shift</button>;
+  } else {
+    action=<button type="button" disabled={pending} onClick={()=>submit(command("claim"))} className={`${primaryButtonClasses} px-6 py-2.5 text-sm`}>{pending?"Claiming…":"Claim next lead"}</button>;
+  }
+  return <main className="flex flex-1 items-center justify-center p-6">
+    <div className="w-full max-w-md rounded-xl border border-border bg-surface p-8 text-center">
+      <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
+      <p className="mx-auto mt-2 max-w-sm text-sm text-ink-subtle">{body}</p>
+      {action && <div className="mt-6">{action}</div>}
+      {snapshot.is_manager && <Link href="/setter-queue/settings" className={`${plainButtonClasses} mt-6`}>Queue settings</Link>}
+    </div>
+  </main>;
+}
+
+function Cockpit({snapshot,current,pending,onShift,now,submit}:{
+  snapshot:QueueSnapshot;current:Current;pending:boolean;onShift:boolean;now:number|null;submit:Submit;
+}) {
+  const router=useRouter();
+  const [booked,setBooked]=useState<BookingSummary|null>(null);
+  const column="flex min-h-0 min-w-0 flex-col gap-3 lg:overflow-y-auto";
+  return <main className="grid flex-1 grid-cols-1 gap-3 p-3 lg:min-h-0 lg:grid-cols-[minmax(17rem,22rem)_minmax(0,1fr)_minmax(16rem,20rem)]">
+    <div className={column}>
+      <LeadPanel current={current} timezone={snapshot.timezone} isManager={snapshot.is_manager} pending={pending} now={now}
+        onAttempt={()=>submit(command("attempt",claimFields(current)))}/>
+    </div>
+    <div className={column}>
+      <div className="rounded-xl border border-border bg-surface p-5">
+        <VirtualBooking current={current} onBooked={booking=>{setBooked(booking);router.refresh();}}/>
+      </div>
+      <details className="group rounded-xl border border-border bg-surface">
+        <summary className="flex cursor-pointer list-none items-center justify-between px-5 py-3 text-sm font-medium">
+          <span>Can&apos;t book on this call? Send a text or a self-booking link</span>
+          <Icon name="chevronDown" className="text-ink-subtle transition group-open:rotate-180"/>
+        </summary>
+        <div className="grid gap-5 border-t border-border p-5 md:grid-cols-2">
+          <ApprovedTexting key={`${current.id}:${current.claim_token}`} current={current}/>
+          <div>
+            <h3 className="text-sm font-semibold">Self-booking link</h3>
+            <p className="mt-0.5 text-xs text-ink-subtle">For a homeowner who wants to pick a time later. It books the same real capacity.</p>
+            <button type="button" disabled={pending} onClick={()=>submit(command("booking_link",claimFields(current)))} className={`${secondaryButtonClasses} mt-3`}>Get booking link</button>
+            <p className="mt-4 text-xs text-ink-subtle">In-home inspection requested? Choose Needs manager.</p>
+          </div>
+        </div>
+      </details>
+    </div>
+    <div className={column}>
+      <div className="rounded-xl border border-border bg-surface p-5">
+        <DispositionPanel current={current} timezone={snapshot.timezone} pending={pending} onShift={onShift} booked={booked} onSubmit={submit}/>
       </div>
     </div>
-    {result && <div role={result.ok?"status":"alert"} className={`rounded-lg border p-3 text-sm ${result.ok?"border-border bg-surface":"border-danger text-danger"}`}>
-      <p>{result.message}</p>{result.bookingUrl && <a href={result.bookingUrl} target="_blank" rel="noreferrer" className="mt-2 block break-all text-tint underline">Open homeowner booking link</a>}
-    </div>}
-    {!snapshot.enabled && <p className="rounded-lg border border-border bg-surface p-5">The queue is paused. A manager can enable it below after confirming setter coverage.</p>}
-    {snapshot.enabled && <>
-      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-5">{BUCKETS.map(([key,label])=><div key={key} className="rounded-lg border border-border bg-surface p-4"><dt className="text-xs text-ink-subtle">{label}</dt><dd className="mt-1 text-2xl font-semibold tabular-nums">{snapshot.buckets[key]??0}</dd></div>)}</dl>
-      {snapshot.is_setter && !current && <div className="rounded-lg border border-border bg-surface p-6">
-        <h2 className="text-lg font-semibold">{onShift?"Ready for the next homeowner":"Start your shift"}</h2>
-        <p className="my-3 text-sm text-ink-subtle">{onShift?"Claim the highest-priority available task. An unfinished claim resumes before another lead.":"Go on shift to receive leads. A shift expires after eight hours."}</p>
-        {onShift && <form action={submit}><input type="hidden" name="action" value="claim"/><button disabled={pending} className={primaryButtonClasses}>Claim next lead</button></form>}
-      </div>}
-      {!snapshot.is_setter && <p className="text-sm text-ink-subtle">Enroll yourself below if you also make calls.</p>}
-      {current && <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]" key={current.claim_token}>
-        <div className="space-y-5">
-          <section className="rounded-xl border border-border bg-surface p-6">
-            <p className="text-xs font-semibold uppercase tracking-wide text-ink-subtle">{current.title}</p>
-            <h2 className="mt-2 text-2xl font-semibold">{current.lead.name}</h2>
-            <p className="mt-2 text-sm">{current.lead.address}</p><p className="mt-1 text-sm text-ink-subtle">{current.lead.source} · {current.lead.stage.replaceAll("_"," ")}</p>
-            <p className="mt-3 text-sm">{current.lead.phone} · <a className="text-tint underline" href={`mailto:${current.lead.email}`}>{current.lead.email}</a></p>
-            <p className="mt-3 text-xs text-ink-subtle">Due {time(current.due_at,snapshot.timezone)} · Claim until {time(current.claim_expires_at,snapshot.timezone)}</p>
-            <form action={submit} className="mt-3"><input type="hidden" name="action" value="claim"/><button disabled={pending} className="text-xs font-medium text-tint underline">Extend current claim</button></form>
-            {current.description && <p className="mt-3 whitespace-pre-wrap text-sm">{current.description}</p>}
-            {current.estimate && <div className="mt-4 border-t border-border pt-4"><p className="text-sm font-medium">Estimate: {money(current.estimate.range_low_cents)}–{money(current.estimate.range_high_cents)}</p><p className="mt-1 text-sm text-ink-subtle">{current.estimate.roof_squares??"—"} measured squares · {current.estimate.status}</p></div>}
-            {snapshot.is_manager && <Link className="mt-4 inline-block text-sm text-tint underline" href={`/leads/${current.lead.id}/dialer`} target="_blank">Full lead workspace and property context</Link>}
-          </section>
-          <section className="rounded-xl border border-border bg-surface p-6">
-            <h3 className="font-semibold">Manual call</h3><p className="mt-2 text-sm text-ink-subtle">Call through CallTools or your phone. Record the attempt when you start dialing, then save the outcome here.</p>
-            <div className="mt-4 flex flex-wrap items-center gap-3">
-              <form action={submit}><HiddenClaim current={current}/><input type="hidden" name="action" value="attempt"/><button disabled={pending||current.current_claim_attempted} className={primaryButtonClasses}>{current.current_claim_attempted?"Attempt recorded":"Record call attempt"}</button></form>
-              <a className={secondaryButtonClasses} href={`tel:${current.lead.phone}`}>Dial {current.lead.phone}</a>
-            </div>
-            <p className="mt-3 text-xs text-ink-subtle">Attempts are setter-reported. No-answer and voicemail count as attempts.</p>
-          </section>
-          <section className="rounded-xl border border-border bg-surface p-6">
-            <h3 className="font-semibold">Text conversation</h3><p className="mt-1 text-xs text-ink-subtle">Read-only history · latest 200 messages.</p>
-            <ol className="mt-4 max-h-80 space-y-3 overflow-y-auto">{current.messages.map((m,i)=><li key={i} className="rounded-lg bg-surface-muted p-3 text-sm"><p className="whitespace-pre-wrap">{m.body}</p><p className="mt-1 text-xs text-ink-subtle">{m.direction} · {m.status} · {time(m.created_at,snapshot.timezone)}</p></li>)}</ol>
-            {!current.messages.length && <p className="mt-3 text-sm text-ink-subtle">No text messages yet.</p>}
-          </section>
-          <section className="rounded-xl border border-border bg-surface p-6">
-            <h3 className="font-semibold">Call history</h3>
-            <ul className="mt-3 space-y-2 text-sm">{current.attempts.map((a,i)=><li key={`a${i}`}>Manual attempt · {time(a.attempted_at,snapshot.timezone)}</li>)}{current.outcomes.map((o,i)=><li key={`o${i}`} className="border-t border-border pt-2">{o.outcome.replaceAll("_"," ")} · {time(o.created_at,snapshot.timezone)}{o.notes && <p className="whitespace-pre-wrap text-ink-subtle">{o.notes}</p>}</li>)}</ul>
-            {!current.attempts.length && !current.outcomes.length && <p className="mt-3 text-sm text-ink-subtle">No recorded calls yet.</p>}
-          </section>
-        </div>
-        <div className="space-y-5">
-          <section className="rounded-xl border border-border bg-surface p-6">
-            <ApprovedTexting key={`${current.id}:${current.claim_token}`} current={current}/>
-            <VirtualBooking current={current} onSaved={()=>router.refresh()}/>
-            <details className="mt-4 text-sm"><summary className="cursor-pointer text-tint">Homeowner booking link</summary><form action={submit} className="mt-3"><HiddenClaim current={current}/><input type="hidden" name="action" value="booking_link"/><button disabled={pending} className={secondaryButtonClasses}>Get virtual booking link</button></form></details>
-            <p className="mt-3 text-xs text-ink-subtle">For an in-home inspection, request manager assistance using Human handoff.</p>
-          </section>
-          <form action={submit} className="space-y-4 rounded-xl border border-border bg-surface p-6">
-            <h3 className="font-semibold">Record the outcome</h3><p className="text-sm text-ink-subtle">Required before the next homeowner.</p>
-            <HiddenClaim current={current}/><input type="hidden" name="action" value="outcome"/>
-            <label className={labelClasses}>Outcome<select name="outcome" required value={outcome} onChange={e=>setOutcome(e.target.value)} className={inputClasses}>
-              <option value="">Choose an outcome</option><option value="no_answer">No answer</option><option value="voicemail">Voicemail</option><option value="callback_scheduled">Callback scheduled</option>
-              {current.appointments.some(a=>a.meeting_type==="virtual"&&a.reservable) && <option value="booked_virtual">Booked virtual</option>}
-              {current.appointments.some(a=>a.meeting_type==="in_person") && <option value="booked_in_home">Booked in-home</option>}
-              <option value="not_interested">Not interested — stop follow-up</option><option value="disqualified">Disqualified</option><option value="handoff">Human handoff</option>
-            </select></label>
-            {outcome==="callback_scheduled" && <label className={labelClasses}>Callback time ({snapshot.timezone})<input name="callbackLocal" type="datetime-local" required className={inputClasses}/></label>}
-            {outcome.startsWith("booked_") && <label className={labelClasses}>Existing appointment<select name="appointmentId" required className={inputClasses}><option value="">Choose appointment</option>{current.appointments.filter(a=>outcome==="booked_virtual"?a.meeting_type==="virtual"&&a.reservable:a.meeting_type==="in_person").map(a=><option key={a.id} value={a.id}>{time(a.scheduled_at,snapshot.timezone)} · {a.status}</option>)}</select></label>}
-            <label className={labelClasses}>Notes / reason<textarea name="notes" maxLength={2000} required={outcome==="disqualified"||outcome==="handoff"} className={`${inputClasses} min-h-24`}/></label>
-            <button disabled={pending} className={primaryButtonClasses}>{pending?"Saving…":"Save outcome"}</button>
-          </form>
-        </div>
-      </div>}
-    </>}
-    {snapshot.is_manager && <section className="space-y-5 rounded-xl border border-border bg-surface p-6">
-      <h2 className="text-lg font-semibold">Queue settings</h2>
-      {!slaEnabled && <p className="text-sm text-ink-subtle">The callback timer is paused in this environment. Ask your operator to enable it after confirming escalation coverage.</p>}
-      <form action={submit} className="flex flex-wrap items-end gap-4"><input type="hidden" name="action" value="settings"/>
-        <label className={labelClasses}>Queue<select name="enabled" defaultValue={String(snapshot.enabled)} className={inputClasses}><option value="false">Paused</option><option value="true">Enabled</option></select></label>
-        <label className={labelClasses}>Company time zone<input name="timezone" defaultValue={snapshot.timezone} required className={inputClasses}/></label><button disabled={pending} className={secondaryButtonClasses}>Save settings</button>
-      </form>
-      <p className="text-sm text-ink-subtle">Confirm coverage before enabling. The callback worker releases untouched callbacks after 10 minutes and queues human recovery after 30 minutes.</p>
-      <h3 className="font-semibold">Setter enrollment</h3>
-      <ul className="divide-y divide-border">{snapshot.members.map(member=><li key={member.user_id} className="flex flex-wrap items-center justify-between gap-3 py-3"><div><p className="text-sm font-medium">{member.name}</p><p className="text-xs text-ink-subtle">{member.role} · {member.enabled?"Enrolled":"Not enrolled"}{member.on_shift_until?` · Shift until ${time(member.on_shift_until,snapshot.timezone)}`:""}</p></div>
-        <form action={submit}><input type="hidden" name="action" value="enroll"/><input type="hidden" name="userId" value={member.user_id}/><input type="hidden" name="enabled" value={String(!member.enabled)}/><button disabled={pending} className={secondaryButtonClasses}>{member.enabled?"Remove":"Enroll"} {member.name}</button></form></li>)}</ul>
-      <h3 className="font-semibold">Missed callback windows · last 7 days</h3>
-      {report.length?<ul className="space-y-2 text-sm">{report.map(r=><li key={r.assigned_to??"unassigned"}>{r.name}: {r.missed} missed{r.delivery_issues?` · ${r.delivery_issues} Slack deliveries need reconciliation`:""}</li>)}</ul>:<p className="text-sm text-ink-subtle">No missed windows recorded.</p>}
-    </section>}
-  </div>;
+  </main>;
 }
