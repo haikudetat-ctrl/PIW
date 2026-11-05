@@ -21,7 +21,9 @@ type PasswordUpdateHandler = (
     updateUser: (attributes: { password: string }) => Promise<{
       error: { message: string } | null;
     }>;
-    signOut: () => Promise<{ error: { message: string } | null }>;
+    signOut: (options: { scope: "others" }) => Promise<{
+      error: { message: string } | null;
+    }>;
   },
 ) => Promise<{ updated?: boolean; error?: string }>;
 
@@ -90,7 +92,7 @@ test("does not expose Supabase recovery errors", async () => {
   expect(JSON.stringify(result)).not.toContain("auth.users");
 });
 
-test("updates the recovered user's password and clears the recovery session", async () => {
+test("updates the password and revokes other sessions while keeping this one", async () => {
   const dependencies = passwordUpdateDependencies();
 
   const result = await handlePasswordUpdate(
@@ -102,7 +104,44 @@ test("updates the recovered user's password and clears the recovery session", as
   expect(dependencies.updateUser).toHaveBeenCalledWith({
     password: "correct horse battery staple",
   });
+  // A global sign-out clears this session's cookie, which re-renders
+  // /reset-password as "invalid or expired" right after a successful update.
   expect(dependencies.signOut).toHaveBeenCalledOnce();
+  expect(dependencies.signOut).toHaveBeenCalledWith({ scope: "others" });
+});
+
+test("does not revoke sessions when the password update fails", async () => {
+  const dependencies = passwordUpdateDependencies();
+  dependencies.updateUser.mockResolvedValue({
+    error: { message: "Password is known to be weak" },
+  });
+
+  const result = await handlePasswordUpdate(
+    passwordForm("correct horse battery staple"),
+    dependencies,
+  );
+
+  expect(result).toEqual({
+    error: "We could not update the password. Please request a new recovery link.",
+  });
+  expect(dependencies.signOut).not.toHaveBeenCalled();
+});
+
+test("tells a retrying user their password already took instead of sending them for a new link", async () => {
+  const dependencies = passwordUpdateDependencies();
+  dependencies.updateUser.mockResolvedValue({
+    error: { message: "New password should be different from the old password." },
+  });
+
+  const result = await handlePasswordUpdate(
+    passwordForm("correct horse battery staple"),
+    dependencies,
+  );
+
+  expect(result).toEqual({
+    error: "That is already your password. Use a different one, or sign in with it.",
+  });
+  expect(dependencies.signOut).not.toHaveBeenCalled();
 });
 
 test("rejects mismatched passwords before changing the user", async () => {

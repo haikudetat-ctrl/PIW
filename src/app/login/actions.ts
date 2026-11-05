@@ -24,7 +24,9 @@ export type PasswordUpdateDependencies = {
   updateUser: (attributes: { password: string }) => Promise<{
     error: { message: string } | null;
   }>;
-  signOut: () => Promise<{ error: { message: string } | null }>;
+  signOut: (options: { scope: "others" }) => Promise<{
+    error: { message: string } | null;
+  }>;
 };
 
 export async function handlePasswordResetRequest(
@@ -63,11 +65,21 @@ export async function handlePasswordUpdate(
   const { error } = await dependencies.updateUser({
     password: parsed.data.password,
   });
+  if (error && /different from the old password/i.test(error.message)) {
+    // Someone retrying after a confusing screen often re-enters the password
+    // that already took. Telling them to request a new link starts a loop.
+    return { error: "That is already your password. Use a different one, or sign in with it." };
+  }
   if (error) {
     return { error: "We could not update the password. Please request a new recovery link." };
   }
 
-  await dependencies.signOut();
+  // Revoke every other session, but keep this one. Signing out here clears the
+  // auth cookie, Next.js re-renders /reset-password on that cookie change, the
+  // page finds no session and shows "invalid or expired" over a password that
+  // was in fact saved. The current session just proved control of the inbox,
+  // so it is safe to keep and lets an invited user land straight in the app.
+  await dependencies.signOut({ scope: "others" });
   return { updated: true };
 }
 
@@ -89,9 +101,11 @@ export async function requestPasswordReset(formData: FormData) {
 
 export async function updatePassword(formData: FormData) {
   const supabase = await createServerClient();
-  return handlePasswordUpdate(formData, {
+  const result = await handlePasswordUpdate(formData, {
     getUser: () => supabase.auth.getUser(),
     updateUser: (attributes) => supabase.auth.updateUser(attributes),
-    signOut: () => supabase.auth.signOut(),
+    signOut: (options) => supabase.auth.signOut(options),
   });
+  if (result.updated) redirect("/");
+  return result;
 }
