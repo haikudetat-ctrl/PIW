@@ -14,8 +14,8 @@ export function ApprovedTexting({current}:{current:NonNullable<QueueSnapshot["cu
   const f=new FormData();for(const[k,v]of Object.entries({action,taskId:current.id,token:current.claim_token,...extras}))f.set(k,v);
   start(async()=>{try{const next=await runSetterTextingAction(f);setResult(next);if(next.context&&!next.context.templates.some(t=>t.id===templateId))setTemplateId(next.context.templates[0]?.id??"");}catch{setResult({ok:false,message:"Could not load texting status. Reload before sending."});}});
  }
- return <section aria-label="Approved texting" className="rounded-xl border border-border bg-surface p-4">
-  <h3 className="font-semibold">Approved texting</h3><p className="mt-1 text-sm text-ink-muted">One approved text per claim. Record the call outcome separately.</p>
+ return <section aria-label="Approved texting">
+  <h3 className="text-sm font-semibold">Approved text</h3><p className="mt-0.5 text-xs text-ink-subtle">One approved text per claim. Still record the call outcome.</p>
   {!context?<button className={`${secondaryButtonClasses} mt-3`} disabled={pending} onClick={()=>run("load")}>Load approved texts</button>:<div className="mt-3 space-y-3">
    {!result?.ready&&<p className="text-sm text-warning">Texting setup is incomplete. Ask your manager.</p>}
    {!context.phone&&<p className="text-sm text-warning">A valid US phone is required.</p>}

@@ -54,7 +54,7 @@ export async function runSetterBookingAction(formData:FormData):Promise<SetterBo
         ?await bookConsultation(token,{startsAt:command.startsAt,attendeeEmail:command.attendeeEmail??"",notes:command.notes??""},requestIp,dependencies)
         :await rescheduleConsultation(token,{startsAt:command.startsAt},requestIp,dependencies);
       revalidatePath("/setter-queue");revalidatePath("/appointments");revalidatePath(`/leads/${context.leadId}`);
-      return {ok:true,message:command.action==="book"?"Virtual inspection booked. Record the call outcome below.":"Virtual inspection rescheduled. Record the call outcome below.",booking};
+      return {ok:true,message:command.action==="book"?"Virtual inspection booked. Save the outcome to finish.":"Virtual inspection moved. Save the outcome to finish.",booking};
     } catch(error) {
       if(error instanceof BookingRequestError && ["slot_unavailable","already_booked","booking_changed"].includes(error.code)) {
         // Preserve the business error even if a subsequent calendar refresh fails.
