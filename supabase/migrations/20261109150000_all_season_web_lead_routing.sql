@@ -60,7 +60,7 @@ begin
     and lead.company_id = p_company_id
     and lead.source_system = 'all-season-website'
     and lead.service_requested in ('solar', 'both', 'roofing')
-  on conflict (lead_id, destination) do nothing;
+  on conflict on constraint lead_distribution_deliveries_lead_id_destination_key do nothing;
 
   return query select accepted.lead_id, accepted.property_id,
                       accepted.pipeline_run_id, accepted.is_duplicate;
