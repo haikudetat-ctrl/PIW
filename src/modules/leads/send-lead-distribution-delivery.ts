@@ -1,5 +1,5 @@
 import "server-only";
-import type {LeadConduitResult, MetaDistributionLead, MetaLeadSource} from "./meta-lead-distribution";
+import type {LeadConduitResult, MetaDistributionLead, LeadDistributionSource} from "./meta-lead-distribution";
 import type {LeadConduitSubmissionTarget} from "./lead-distribution-clients";
 import type {
   ClaimedLeadDistribution,
@@ -18,7 +18,7 @@ export interface LeadDistributionRepository {
 export interface LeadDistributionClient {
   send(
     lead: MetaDistributionLead,
-    source: MetaLeadSource,
+    source: LeadDistributionSource,
     target?: LeadConduitSubmissionTarget,
   ): Promise<LeadConduitResult>;
 }

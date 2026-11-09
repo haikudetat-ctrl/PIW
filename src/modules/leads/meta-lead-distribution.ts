@@ -2,6 +2,9 @@ import {z} from "zod";
 
 export const metaLeadSources = ["Meta70", "Meta30"] as const;
 export type MetaLeadSource = (typeof metaLeadSources)[number];
+export const webLeadSources = ["Web Solar", "Web Roofing"] as const;
+export type WebLeadSource = (typeof webLeadSources)[number];
+export type LeadDistributionSource = MetaLeadSource | WebLeadSource;
 
 export type MetaDistributionLead = {
   id: string;
@@ -77,7 +80,7 @@ function splitNewJerseyAddress(address: string) {
 
 export function toLeadConduitForm(
   lead: MetaDistributionLead,
-  source: MetaLeadSource,
+  source: LeadDistributionSource,
 ) {
   const {firstName, lastName} = splitName(lead.name);
   const address = splitNewJerseyAddress(lead.submittedAddress);

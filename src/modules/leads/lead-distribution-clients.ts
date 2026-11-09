@@ -1,12 +1,14 @@
 import "server-only";
 import {z} from "zod";
+import {LEADCONDUIT_RECEIPT_FLOW_IDS} from "@/modules/access-route/leadconduit-config";
 import {
   buildInternalLeadEmail,
   classifyLeadConduitResponse,
   toLeadConduitForm,
   type LeadConduitResult,
   type MetaDistributionLead,
-  type MetaLeadSource,
+  type LeadDistributionSource,
+  type WebLeadSource,
 } from "./meta-lead-distribution";
 
 export type LeadConduitSubmissionTarget = "primary" | "secondary";
@@ -29,16 +31,40 @@ async function jsonBody(response: Response): Promise<unknown> {
   }
 }
 
+type WebLeadConduitUrls = Record<WebLeadSource, string>;
+
+export function resolveWebLeadConduitUrls(
+  solar = process.env.ALL_SEASON_WEB_SOLAR_LEADCONDUIT_URL,
+  roofing = process.env.ALL_SEASON_WEB_ROOFING_LEADCONDUIT_URL,
+): WebLeadConduitUrls | null {
+  const pattern = /^https:\/\/app\.leadconduit\.com\/flows\/([a-f0-9]{24})\/sources\/[a-f0-9]{24}\/submit$/;
+  const solarFlow = solar?.match(pattern)?.[1];
+  const roofingFlow = roofing?.match(pattern)?.[1];
+  if (!solar || !roofing || !solarFlow
+      || Object.values(LEADCONDUIT_RECEIPT_FLOW_IDS).some((id) => id === solarFlow)
+      || roofingFlow !== LEADCONDUIT_RECEIPT_FLOW_IDS["roofing-virtual-quote"]) {
+    return null;
+  }
+  return {"Web Solar": solar, "Web Roofing": roofing};
+}
+
 export class LeadConduitSubmissionClient {
-  constructor(private readonly fetcher: Fetcher = fetch) {}
+  constructor(
+    private readonly fetcher: Fetcher = fetch,
+    private readonly webUrls: WebLeadConduitUrls | null = null,
+  ) {}
 
   async send(
     lead: MetaDistributionLead,
-    source: MetaLeadSource,
+    source: LeadDistributionSource,
     target: LeadConduitSubmissionTarget = "primary",
   ): Promise<LeadConduitResult> {
+    const isWebSource = source === "Web Solar" || source === "Web Roofing";
+    const url = isWebSource ? this.webUrls?.[source] : LEADCONDUIT_SUBMISSION_URLS[target];
+    if (!url) return {status: "permanent_failed", externalId: null, reason: "web_source_not_configured"};
     try {
-      const response = await this.fetcher(LEADCONDUIT_SUBMISSION_URLS[target], {
+      const response = await this.fetcher(url, {
+        ...(isWebSource ? {redirect: "error" as const} : {}),
         method: "POST",
         headers: {
           Accept: "application/json",
@@ -69,7 +95,10 @@ export class ResendLeadNotificationClient {
     this.fetcher = configuration.fetcher ?? fetch;
   }
 
-  async send(lead: MetaDistributionLead, source: MetaLeadSource): Promise<LeadConduitResult> {
+  async send(lead: MetaDistributionLead, source: LeadDistributionSource): Promise<LeadConduitResult> {
+    if (source === "Web Solar" || source === "Web Roofing") {
+      return {status: "permanent_failed", externalId: null, reason: "unexpected_email_source"};
+    }
     const email = buildInternalLeadEmail(
       lead,
       source,

@@ -7,6 +7,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { enqueueAndPublishEvent } from "@/modules/events/enqueue-and-publish-event";
 import { SupabaseOutboxRepository } from "@/modules/events/supabase-outbox-repository";
 import { acceptAllSeasonIntake } from "@/modules/leads/accept-all-season-intake";
+import {resolveWebLeadConduitUrls} from "@/modules/leads/lead-distribution-clients";
 import { allSeasonSecretsMatch } from "@/modules/leads/all-season-intake-secret";
 import { fetchGooglePlaceDetails } from "@/modules/providers/adapters/google-places";
 import {type VerifiedConsent} from "@/modules/privacy/consent";
@@ -159,6 +160,15 @@ export async function POST(request: NextRequest) {
   }
 
   const companyId = environment.ALL_SEASON_INTAKE_COMPANY_ID;
+  const routeWebsiteLead = request.nextUrl.searchParams.get("distribution") === "allseason-web";
+  if (routeWebsiteLead && (
+    !environment.INTEGRATIONS_LEADCONDUIT_SUBMISSION_ENABLED
+    || environment.ACCESS_ROUTE_COMPANY_ID !== companyId
+    || !resolveWebLeadConduitUrls()
+  )) {
+    return NextResponse.json({ error: "Website lead routing is not configured" }, { status: 503 });
+  }
+  const submitLeadRpc = routeWebsiteLead ? "submit_all_season_web_lead" : "submit_all_season_lead";
   const tracking = resolveMetaTrackingConfiguration(environment);
   const service = createServiceClient();
   const forwardedFor = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "";
@@ -232,7 +242,7 @@ export async function POST(request: NextRequest) {
         },
         {
           createLeadRecords: async (lead) => {
-            const { data, error } = await service.rpc("submit_all_season_lead", {
+            const { data, error } = await service.rpc(submitLeadRpc, {
               p_company_id: companyId,
               p_submission_id: lead.externalLeadId,
               p_name: lead.name,

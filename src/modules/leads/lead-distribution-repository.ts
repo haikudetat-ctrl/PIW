@@ -4,12 +4,16 @@ import {createServiceClient} from "@/lib/supabase/service";
 import type {
   LeadConduitResult,
   MetaDistributionLead,
-  MetaLeadSource,
+  LeadDistributionSource,
 } from "./meta-lead-distribution";
+
+const destinations = ["activeprospect_existing", "activeprospect_secondary", "activeprospect_web", "internal_email"] as const;
+const sourceLabels = ["Meta70", "Meta30", "Web Solar", "Web Roofing"] as const;
 
 export type LeadDistributionDestination =
   | "activeprospect_existing"
   | "activeprospect_secondary"
+  | "activeprospect_web"
   | "internal_email";
 export type LeadDistributionCompletion = LeadConduitResult["status"];
 
@@ -17,15 +21,15 @@ export type ClaimedLeadDistribution = {
   deliveryId: string;
   companyId: string;
   destination: LeadDistributionDestination;
-  sourceLabel: MetaLeadSource;
+  sourceLabel: LeadDistributionSource;
   attemptCount: number;
   lead: MetaDistributionLead;
 };
 
 const claimedSchema = z.object({
   delivery_id: z.uuid(), company_id: z.uuid(), lead_id: z.uuid(),
-  destination: z.enum(["activeprospect_existing", "activeprospect_secondary", "internal_email"]),
-  source_label: z.enum(["Meta70", "Meta30"]), attempt_count: z.number().int().positive(),
+  destination: z.enum(destinations),
+  source_label: z.enum(sourceLabels), attempt_count: z.number().int().positive(),
   name: z.string().min(1), phone: z.string().min(1), email: z.email(),
   submitted_address: z.string().min(1), notes: z.string().nullable(),
   source_system: z.string().min(1),
@@ -39,8 +43,8 @@ const completionSchema = z.object({
 }).passthrough();
 const pendingSchema = z.array(z.object({
   delivery_id: z.uuid(), lead_id: z.uuid(),
-  destination: z.enum(["activeprospect_existing", "activeprospect_secondary", "internal_email"]),
-  source_label: z.enum(["Meta70", "Meta30"]),
+  destination: z.enum(destinations),
+  source_label: z.enum(sourceLabels),
 }).strict()).max(100);
 
 type RpcClient = {rpc(name: string, args: Record<string, unknown>): PromiseLike<{data: unknown; error: unknown}>};
