@@ -2,6 +2,7 @@ import {describe, expect, test, vi} from "vitest";
 import {
   LeadConduitSubmissionClient,
   ResendLeadNotificationClient,
+  resolveWebLeadConduitUrls,
 } from "./lead-distribution-clients";
 import type {MetaDistributionLead} from "./meta-lead-distribution";
 
@@ -60,6 +61,34 @@ describe("lead distribution clients", () => {
       "https://app.leadconduit.com/flows/68d597a7e5a45ce2a9c822fe/sources/6a999da372afc3570dc712a1/submit",
       expect.objectContaining({method: "POST"}),
     );
+  });
+
+  test("requires approved LeadConduit web submission URLs", () => {
+    const solar = "https://app.leadconduit.com/flows/123456789012345678901234/sources/123456789012345678901235/submit";
+    const roofing = "https://app.leadconduit.com/flows/68d597a7e5a45ce2a9c822fe/sources/123456789012345678901236/submit";
+    expect(resolveWebLeadConduitUrls(solar, roofing)).toEqual({"Web Solar": solar, "Web Roofing": roofing});
+    expect(resolveWebLeadConduitUrls(roofing, roofing)).toBeNull();
+    expect(resolveWebLeadConduitUrls(solar, roofing.replace("app.leadconduit.com", "example.com"))).toBeNull();
+  });
+
+  test.each(["Web Solar", "Web Roofing"] as const)("sends %s to the configured web source only", async (source) => {
+    const urls = {"Web Solar": "https://example.test/solar", "Web Roofing": "https://example.test/roofing"};
+    const fetcher: typeof fetch = vi.fn(async () => new Response(JSON.stringify({
+      outcome: "success", lead: {id: "123456789012345678901234"},
+    }), {status: 201}));
+    const client = new LeadConduitSubmissionClient(fetcher, urls);
+    await expect(client.send(lead, source)).resolves.toMatchObject({status: "sent"});
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(fetcher).toHaveBeenCalledWith(urls[source], expect.objectContaining({
+      redirect: "error",
+      body: expect.any(URLSearchParams),
+    }));
+    const body = vi.mocked(fetcher).mock.calls[0][1]?.body as URLSearchParams;
+    expect(body.get("original_source")).toBe(source);
+    expect(body.get("campaign_source")).toBe(source);
+    await expect(new LeadConduitSubmissionClient(fetcher).send(lead, source))
+      .resolves.toMatchObject({status: "permanent_failed"});
+    expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
   test("sends the internal notification with an idempotency key", async () => {

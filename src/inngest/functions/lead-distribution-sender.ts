@@ -8,6 +8,7 @@ import {parseServerEnv, resolveLeadDistributionConfiguration} from "@/lib/env/se
 import {
   LeadConduitSubmissionClient,
   ResendLeadNotificationClient,
+  resolveWebLeadConduitUrls,
 } from "@/modules/leads/lead-distribution-clients";
 import {
   SupabaseLeadDistributionRepository,
@@ -27,7 +28,7 @@ function runtimeConfiguration() {
 
 export function deliveryIdFromLeadDistributionEvent(
   event: Extract<DomainEvent, {name: "lead/distribution.requested"}>,
-  destination: LeadDistributionDestination,
+  destination: Exclude<LeadDistributionDestination, "activeprospect_web">,
 ) {
   switch (destination) {
     case "activeprospect_existing":
@@ -89,6 +90,16 @@ export const recoveredLeadDistributionSender = inngest.createFunction(
       return sendLeadDistributionDelivery({deliveryId, repository, client: new ResendLeadNotificationClient(configuration.internalEmail), expectedDestination: destination, companyId: configuration.companyId!});
     }
     if (!configuration.activeProspect) return {outcome: "disabled" as const, deliveryId};
-    return sendLeadDistributionDelivery({deliveryId, repository, client: new LeadConduitSubmissionClient(), expectedDestination: destination, companyId: configuration.companyId!});
+    const webUrls = destination === "activeprospect_web" ? resolveWebLeadConduitUrls() : null;
+    if (destination === "activeprospect_web" && !webUrls) {
+      return {outcome: "disabled" as const, deliveryId};
+    }
+    return sendLeadDistributionDelivery({
+      deliveryId,
+      repository,
+      client: new LeadConduitSubmissionClient(fetch, webUrls),
+      expectedDestination: destination,
+      companyId: configuration.companyId!,
+    });
   }),
 );
