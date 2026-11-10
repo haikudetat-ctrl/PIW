@@ -64,8 +64,23 @@ type IntakeDependencies = {
     occurredAt: string;
   }) => Promise<ReservedMetaEvent | null>;
   requestDelivery?: (deliveryId: string) => Promise<void>;
+  // Website leads routed to ActiveProspect. Best effort: the five-minute
+  // distribution sweeper still picks up anything this misses.
+  requestWebLeadDistribution?: (leadId: string) => Promise<void>;
   reportError?: (error: unknown) => void;
 };
+
+async function requestWebLeadDistributionAfterAcceptance(
+  leadId: string,
+  dependencies: IntakeDependencies,
+) {
+  if (!dependencies.requestWebLeadDistribution) return;
+  try {
+    await dependencies.requestWebLeadDistribution(leadId);
+  } catch (error) {
+    (dependencies.reportError ?? console.error)(error);
+  }
+}
 
 async function reserveMetaLeadAfterAcceptance({
   request,
@@ -141,6 +156,7 @@ export async function handleAllSeasonIntakeRequest(
       payload = { ...payload, address: canonicalAddress };
     }
     const accepted = await dependencies.accept(payload);
+    await requestWebLeadDistributionAfterAcceptance(accepted.leadId, dependencies);
     const metaEvent = await reserveMetaLeadAfterAcceptance({
       request,
       accepted,
@@ -212,6 +228,28 @@ export async function POST(request: NextRequest) {
         data: {deliveryId},
       });
     },
+    requestWebLeadDistribution: routeWebsiteLead
+      ? async (leadId) => {
+          // submit_all_season_web_lead writes the delivery row but no event, so
+          // without this the lead waits for the next sweep. A duplicate
+          // submission finds its delivery already claimed or sent and skips.
+          const {data, error} = await service
+            .from("lead_distribution_deliveries")
+            .select("id")
+            .eq("company_id", companyId)
+            .eq("lead_id", leadId)
+            .eq("destination", "activeprospect_web")
+            // Pending only: a retryable failure keeps the sweeper's backoff.
+            .eq("status", "pending")
+            .maybeSingle();
+          if (error) throw new Error("Failed to load website lead delivery");
+          if (!data) return;
+          await inngest.send({
+            name: "lead/distribution.delivery.requested",
+            data: {deliveryId: data.id, destination: "activeprospect_web"},
+          });
+        }
+      : undefined,
     normalizeAddress: async ({ submittedAddress, googlePlaceId }) => {
       const normalized = await fetchGooglePlaceDetails({
         submittedAddress,
