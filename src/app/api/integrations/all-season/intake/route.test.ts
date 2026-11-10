@@ -110,6 +110,63 @@ describe("All Season lead intake", () => {
     }));
   });
 
+  test("requests website lead distribution as soon as the lead is saved", async () => {
+    const calls: string[] = [];
+    const accept = vi.fn(async () => {
+      calls.push("accept");
+      return {leadId: "22222222-2222-4222-8222-222222222222", duplicate: false};
+    });
+    const requestWebLeadDistribution = vi.fn(async (leadId: string) => {
+      calls.push(`distribute:${leadId}`);
+    });
+
+    const response = await handleAllSeasonIntakeRequest(request(validPayload), {
+      expectedSecret: "shared-secret",
+      accept,
+      requestWebLeadDistribution,
+    });
+
+    expect(response.status).toBe(202);
+    expect(calls).toEqual(["accept", "distribute:22222222-2222-4222-8222-222222222222"]);
+  });
+
+  test("still accepts the lead when the immediate distribution request fails", async () => {
+    const reportError = vi.fn();
+    const dispatchError = new Error("Inngest is unavailable");
+
+    const response = await handleAllSeasonIntakeRequest(request(validPayload), {
+      expectedSecret: "shared-secret",
+      accept: async () => ({
+        leadId: "22222222-2222-4222-8222-222222222222",
+        duplicate: false,
+      }),
+      requestWebLeadDistribution: async () => {
+        throw dispatchError;
+      },
+      reportError,
+    });
+
+    expect(response.status).toBe(202);
+    await expect(response.json()).resolves.toMatchObject({accepted: true});
+    expect(reportError).toHaveBeenCalledWith(dispatchError);
+  });
+
+  test("does not request distribution when the lead was not saved", async () => {
+    const requestWebLeadDistribution = vi.fn();
+
+    const response = await handleAllSeasonIntakeRequest(request(validPayload), {
+      expectedSecret: "shared-secret",
+      accept: async () => {
+        throw new Error("database unavailable");
+      },
+      requestWebLeadDistribution,
+      reportError: vi.fn(),
+    });
+
+    expect(response.status).toBe(503);
+    expect(requestWebLeadDistribution).not.toHaveBeenCalled();
+  });
+
   test("rejects a lead without property-processing consent", async () => {
     const accept = vi.fn();
 
