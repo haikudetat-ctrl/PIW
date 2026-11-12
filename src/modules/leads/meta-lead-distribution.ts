@@ -61,21 +61,50 @@ function splitName(name: string) {
   return {firstName, lastName: remainder.join(" ")};
 }
 
-function splitNewJerseyAddress(address: string) {
-  const parts = address.split(",").map((part) => part.trim()).filter(Boolean);
-  const stateIndex = parts.findIndex((part) => /^NJ\s+\d{5}(?:-\d{4})?$/i.test(part));
-  const stateMatch = stateIndex >= 0
-    ? /^NJ\s+(\d{5}(?:-\d{4})?)$/i.exec(parts[stateIndex])
-    : null;
-  if (stateIndex >= 2 && stateMatch) {
+const US_STATE_CODES = new Set([
+  "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "DC", "FL", "GA", "HI", "ID", "IL",
+  "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE",
+  "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD",
+  "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY", "PR",
+]);
+const COUNTRY_SUFFIX = /^(?:USA|US|United States(?: of America)?)$/i;
+const STATE_AND_ZIP = /^([A-Za-z]{2})\s+(\d{5}(?:-\d{4})?)$/;
+const TRAILING_STATE_AND_ZIP = /^(.*?)[\s,]+([A-Za-z]{2})\s+(\d{5}(?:-\d{4})?)$/;
+
+type SplitAddress = {street: string; city: string; state: string; postalCode: string};
+
+// Addresses arrive as one line: the website joins its street, unit, city, state
+// and ZIP fields as "street[, unit], city, ST 12345", and Google returns the same
+// shape with ", USA" on the end. LeadConduit wants them back in separate fields.
+// Any US state is accepted; the website also offers PA, DE and NY.
+export function splitUsAddress(address: string): SplitAddress {
+  const trimmed = address.trim();
+  const parts = trimmed.split(",").map((part) => part.trim()).filter(Boolean);
+  while (parts.length > 0 && COUNTRY_SUFFIX.test(parts[parts.length - 1])) parts.pop();
+
+  const last = parts.length >= 3 ? STATE_AND_ZIP.exec(parts[parts.length - 1]) : null;
+  if (last && US_STATE_CODES.has(last[1].toUpperCase())) {
     return {
-      street: parts.slice(0, stateIndex - 1).join(", "),
-      city: parts[stateIndex - 1],
-      state: "NJ",
-      postalCode: stateMatch[1],
+      street: parts.slice(0, -2).join(", "),
+      city: parts[parts.length - 2],
+      state: last[1].toUpperCase(),
+      postalCode: last[2],
     };
   }
-  return {street: address.trim(), city: "", state: "NJ", postalCode: ""};
+
+  // No comma before the city: keep the state and ZIP, leave the city to the street line.
+  const trailing = TRAILING_STATE_AND_ZIP.exec(parts.join(", "));
+  if (trailing && trailing[1].trim() && US_STATE_CODES.has(trailing[2].toUpperCase())) {
+    return {
+      street: trailing[1].replace(/,\s*$/, "").trim(),
+      city: "",
+      state: trailing[2].toUpperCase(),
+      postalCode: trailing[3],
+    };
+  }
+
+  // Unrecognized: send it whole rather than guess a state.
+  return {street: trimmed, city: "", state: "", postalCode: ""};
 }
 
 export function toLeadConduitForm(
@@ -83,7 +112,7 @@ export function toLeadConduitForm(
   source: LeadDistributionSource,
 ) {
   const {firstName, lastName} = splitName(lead.name);
-  const address = splitNewJerseyAddress(lead.submittedAddress);
+  const address = splitUsAddress(lead.submittedAddress);
   const fields: Record<string, string | null> = {
     first_name: firstName,
     last_name: lastName,

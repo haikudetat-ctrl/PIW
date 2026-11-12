@@ -3,6 +3,7 @@ import {
   buildInternalLeadEmail,
   classifyLeadConduitResponse,
   mapMetaLeadSource,
+  splitUsAddress,
   toLeadConduitForm,
 } from "./meta-lead-distribution";
 
@@ -64,6 +65,25 @@ describe("LeadConduit submission", () => {
     expect(form.has("redir_url")).toBe(false);
   });
 
+  test("splits an out-of-state website address instead of sending it on one line", () => {
+    const form = toLeadConduitForm({
+      ...lead,
+      submittedAddress: "45 Willow Dr, Unit 2, Easton, PA 18042",
+    }, "Web Solar");
+    expect(form.get("address_1")).toBe("45 Willow Dr, Unit 2");
+    expect(form.get("city")).toBe("Easton");
+    expect(form.get("state")).toBe("PA");
+    expect(form.get("postal_code")).toBe("18042");
+  });
+
+  test("omits state rather than defaulting to NJ when the address cannot be read", () => {
+    const form = toLeadConduitForm({...lead, submittedAddress: "Behind the old mill"}, "Web Roofing");
+    expect(form.get("address_1")).toBe("Behind the old mill");
+    expect(form.has("city")).toBe(false);
+    expect(form.has("state")).toBe(false);
+    expect(form.has("postal_code")).toBe(false);
+  });
+
   test("includes TrustedForm only when captured", () => {
     const form = toLeadConduitForm({
       ...lead,
@@ -80,6 +100,20 @@ describe("LeadConduit submission", () => {
     [503, {message: "unavailable"}, "retryable_failed"],
   ] as const)("classifies HTTP %s as %s", (status, body, expected) => {
     expect(classifyLeadConduitResponse(status, body).status).toBe(expected);
+  });
+});
+
+describe("US address splitting", () => {
+  test.each([
+    ["123 Main Street, Newark, NJ 07102", {street: "123 Main Street", city: "Newark", state: "NJ", postalCode: "07102"}],
+    ["209 Barclay Ln, Cherry Hill, NJ 08034, USA", {street: "209 Barclay Ln", city: "Cherry Hill", state: "NJ", postalCode: "08034"}],
+    ["12 Oak Ave, Apt 3B, Toms River, nj 08753-1234", {street: "12 Oak Ave, Apt 3B", city: "Toms River", state: "NJ", postalCode: "08753-1234"}],
+    ["90 Ridge Rd, Wilmington, DE 19801", {street: "90 Ridge Rd", city: "Wilmington", state: "DE", postalCode: "19801"}],
+    ["7 Elm St Haddonfield NJ 08033", {street: "7 Elm St Haddonfield", city: "", state: "NJ", postalCode: "08033"}],
+    ["7 Elm St Haddonfield, NJ 08033", {street: "7 Elm St Haddonfield", city: "", state: "NJ", postalCode: "08033"}],
+    ["7 Elm St, Haddonfield, ZZ 08033", {street: "7 Elm St, Haddonfield, ZZ 08033", city: "", state: "", postalCode: ""}],
+  ] as const)("splits %s", (input, expected) => {
+    expect(splitUsAddress(input)).toEqual(expected);
   });
 });
 
