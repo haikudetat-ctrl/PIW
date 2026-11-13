@@ -4,8 +4,21 @@ import { StatTile } from "@/components/ui/stat-tile";
 import { humanize } from "@/lib/format";
 import { createServerClient } from "@/lib/supabase/server";
 import { summarizeFunnel } from "@/modules/access-route/funnel";
+import {
+  jobNimbusHealth,
+  leadConduitHealth,
+  syncRunHealth,
+  type IngestionHealth,
+} from "@/modules/access-route/ingestion-health";
 
 const FUNNEL_STAGES = ["source", "contacted", "appointment", "sold", "job"] as const;
+
+const HEALTH_TONE_CLASSES: Record<IngestionHealth["tone"], string> = {
+  ok: "text-ink",
+  warning: "text-warning",
+  danger: "text-danger",
+  muted: "text-ink-subtle",
+};
 
 function formatTimestamp(value: string | null) {
   if (!value) return "Not yet run";
@@ -21,18 +34,45 @@ function formatTimestamp(value: string | null) {
 
 export default async function AccessRoutePage() {
   const supabase = await createServerClient();
-  const [{ data: routes }, { data: blindSpots }, { data: syncRuns }] = await Promise.all([
+  const now = new Date();
+  const since24Hours = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+  const [
+    { data: routes },
+    { data: blindSpots },
+    { data: syncRuns },
+    { data: latestLeadConduit },
+    { count: leadConduitLast24Hours },
+    { data: jobNimbusRuns },
+  ] = await Promise.all([
     supabase.from("reconciled_lead_routes").select("*"),
     supabase.from("jobnimbus_reengagement_blind_spots").select("*")
       .order("appointment_at", { ascending: false }).limit(20),
     supabase.from("integration_sync_runs").select("source_system, outcome, started_at, records_written, error_category")
-      .order("started_at", { ascending: false }).limit(30),
+      .eq("source_system", "leadmaster")
+      .order("started_at", { ascending: false }).limit(1),
+    // LeadConduit pushes webhooks; it never writes sync runs.
+    supabase.from("leadconduit_events").select("first_observed_at")
+      .eq("event_type", "checkpoint_intake")
+      .order("first_observed_at", { ascending: false }).limit(1),
+    supabase.from("leadconduit_events").select("id", { count: "exact", head: true })
+      .eq("event_type", "checkpoint_intake").gte("first_observed_at", since24Hours),
+    // Visible to company admins only; managers see "not configured".
+    supabase.from("jobnimbus_sync_runs").select("started_at, status, records_changed")
+      .order("started_at", { ascending: false }).limit(8),
   ]);
   const funnel = summarizeFunnel(routes ?? []);
-  const latestRuns = ["leadconduit", "leadmaster", "jobnimbus"].map((system) => ({
-    system,
-    run: syncRuns?.find((candidate) => candidate.source_system === system),
-  }));
+  const health: { system: string; health: IngestionHealth }[] = [
+    {
+      system: "leadconduit",
+      health: leadConduitHealth({
+        lastReceivedAt: latestLeadConduit?.[0]?.first_observed_at ?? null,
+        receivedLast24Hours: leadConduitLast24Hours ?? 0,
+        now,
+      }),
+    },
+    { system: "leadmaster", health: syncRunHealth(syncRuns?.[0]) },
+    { system: "jobnimbus", health: jobNimbusHealth(jobNimbusRuns ?? []) },
+  ];
 
   return (
     <div className="flex flex-col gap-6">
@@ -45,7 +85,7 @@ export default async function AccessRoutePage() {
           </p>
         </div>
         <div className="flex gap-3 text-sm">
-          {latestRuns.map(({ system }) => (
+          {health.map(({ system }) => (
             <Link key={system} href={`/access-route/${system}`} className="font-medium text-accent hover:underline">
               {humanize(system)}
             </Link>
@@ -86,15 +126,15 @@ export default async function AccessRoutePage() {
 
         <Card title="Ingestion health" ariaLabel="Read-only ingestion health">
           <ul className="divide-y divide-border">
-            {latestRuns.map(({ system, run }) => (
+            {health.map(({ system, health: entry }) => (
               <li key={system} className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
                 <div>
                   <Link href={`/access-route/${system}`} className="font-medium text-accent hover:underline">{humanize(system)}</Link>
-                  <p className="text-xs text-ink-subtle">{formatTimestamp(run?.started_at ?? null)}</p>
+                  <p className="text-xs text-ink-subtle">{formatTimestamp(entry.lastAt)}</p>
                 </div>
                 <div className="text-right">
-                  <p className={`text-sm font-semibold ${run?.outcome === "failed" ? "text-danger" : "text-ink"}`}>{run?.outcome ?? "not configured"}</p>
-                  <p className="text-xs text-ink-subtle">{run?.records_written ?? 0} records</p>
+                  <p className={`text-sm font-semibold ${HEALTH_TONE_CLASSES[entry.tone]}`}>{entry.status}</p>
+                  <p className="text-xs text-ink-subtle">{entry.detail}</p>
                 </div>
               </li>
             ))}
