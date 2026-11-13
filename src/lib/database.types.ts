@@ -1070,16 +1070,19 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          service_states: string[] | null
         }
         Insert: {
           created_at?: string
           id?: string
           name: string
+          service_states?: string[] | null
         }
         Update: {
           created_at?: string
           id?: string
           name?: string
+          service_states?: string[] | null
         }
         Relationships: []
       }
@@ -7782,6 +7785,36 @@ export type Database = {
           submitted_email: string | null
           submitted_phone: string | null
           trustedform_url: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leadconduit_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leadconduit_intake_quality: {
+        Row: {
+          city: string | null
+          company_id: string | null
+          contact_redacted: boolean | null
+          flow_id: string | null
+          has_address: boolean | null
+          has_email: boolean | null
+          has_phone: boolean | null
+          has_trustedform: boolean | null
+          jobnimbus_contact_since: string | null
+          lead_id: string | null
+          lead_name: string | null
+          received_at: string | null
+          repeat_of_received_at: string | null
+          repeat_of_source_name: string | null
+          service_states: string[] | null
+          source_name: string | null
+          state: string | null
         }
         Relationships: [
           {

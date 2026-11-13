@@ -37,6 +37,16 @@ from (values
   ('b-in', 'lc-bob', 'checkpoint_intake', '2026-09-02T09:00:00Z', '+17325550102', 'bob@example.invalid', 'Angi', '{}')
 ) as fixture(event_id, lead_id, event_type, at, phone, email, source, attribution);
 
+-- A test lead delivered after Bob entered. It is not a customer, but it shows
+-- the delivered recipient was live on both sides of Bob, so Bob really was
+-- filtered.
+insert into public.leadconduit_events(
+  company_id, event_id, flow_id, lead_id, event_type, occurred_at, raw_payload, phone_normalized,
+  source_name, is_test, ingestion_channels, first_observed_at, webhook_received_at, processing_status)
+values ('98000000-0000-4000-8000-000000000001', 't-out', 'flow-roofing', 'lc-test-bookend',
+  'checkpoint_delivered', '2026-09-02T12:00:00Z', '{}', '+16095550198', 'PIW', true,
+  array['webhook'], '2026-09-02T12:00:00Z', '2026-09-02T12:00:00Z', 'not_applicable');
+
 -- JobNimbus: Jane's contact (matched by email only) with a sold job and an
 -- estimate; Carl's job completed before we ever saw it; an orphan job.
 insert into public.jn_contacts(company_id, jnid, email_normalized, phone_normalized, jn_created_at) values
