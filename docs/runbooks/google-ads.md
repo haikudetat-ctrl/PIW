@@ -98,6 +98,18 @@ never records a lead conversion, so nothing is counted twice.
 The cookie is minted only when `AD_ATTRIBUTION_SIGNING_SECRET` is set. It is
 safe to set the secret before turning forwarding on: the cookie just waits.
 
+### Vercel: `allseason-solar-piw-demo` (allseasonsolar.net)
+
+The main site mints the same signed `as_attr` cookie on landing and forwards
+it to `/api/integrations/all-season/intake` as `ad_attribution_token`. PIW
+records `lead_ad_attribution` for every website lead (channel credit only
+without a verified token), so these leads reach the Data Manager sheet feed.
+
+| Variable | Value |
+| --- | --- |
+| `AD_ATTRIBUTION_SIGNING_SECRET` | same secret as PIW and `rake-website` |
+| `AD_ATTRIBUTION_FORWARDING_ENABLED` | `false` until the PIW deploy that accepts the token is live, then `true` |
+
 ### Vercel: `piw` (estimate.allseasonroofingquote.com)
 
 | Variable | Value |

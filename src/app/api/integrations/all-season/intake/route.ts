@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createEventEnvelope } from "@/domain/events";
 import { inngest } from "@/inngest/client";
-import { parseServerEnv, resolveMetaTrackingConfiguration } from "@/lib/env/server";
+import {
+  parseServerEnv,
+  resolveAdAttributionSecret,
+  resolveMetaTrackingConfiguration,
+} from "@/lib/env/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { enqueueAndPublishEvent } from "@/modules/events/enqueue-and-publish-event";
 import { SupabaseOutboxRepository } from "@/modules/events/supabase-outbox-repository";
@@ -17,6 +21,10 @@ import {
 } from "@/modules/privacy/current-consent";
 import {SupabasePrivacyConsentRepository} from "@/modules/privacy/consent-repository";
 import { SupabaseMetaRepository, type ReservedMetaEvent } from "@/modules/marketing/meta-repository";
+import {
+  buildLeadAdAttribution,
+  recordLeadAdAttribution,
+} from "@/modules/marketing/google-ads/attribution";
 
 const nullableAttribution = z.string().trim().max(500).nullable();
 
@@ -37,6 +45,10 @@ export const allSeasonIntakeSchema = z.object({
     fbp: nullableAttribution,
     fbc: nullableAttribution,
   }),
+  // Signed first-party attribution (Google click IDs, UTMs, ValueTrack) the
+  // website minted on landing. PIW re-verifies it; an unsigned or tampered
+  // token is ignored, never rejected, so a lead is never lost over it.
+  ad_attribution_token: z.string().trim().min(1).max(4_000).nullable().optional().catch(null),
 });
 
 export type AllSeasonIntake = z.infer<typeof allSeasonIntakeSchema>;
@@ -67,8 +79,27 @@ type IntakeDependencies = {
   // Website leads routed to ActiveProspect. Best effort: the five-minute
   // distribution sweeper still picks up anything this misses.
   requestWebLeadDistribution?: (leadId: string) => Promise<void>;
+  /**
+   * Records the lead's ad attribution (lead_ad_attribution). Best effort: the
+   * lead is already saved, so a failure here is reported and never turns the
+   * response into an error.
+   */
+  recordAdAttribution?: (input: {leadId: string; payload: AllSeasonIntake}) => Promise<void>;
   reportError?: (error: unknown) => void;
 };
+
+async function recordAdAttributionAfterAcceptance(
+  leadId: string,
+  payload: AllSeasonIntake,
+  dependencies: IntakeDependencies,
+) {
+  if (!dependencies.recordAdAttribution) return;
+  try {
+    await dependencies.recordAdAttribution({leadId, payload});
+  } catch (error) {
+    (dependencies.reportError ?? console.error)(error);
+  }
+}
 
 async function requestWebLeadDistributionAfterAcceptance(
   leadId: string,
@@ -157,6 +188,7 @@ export async function handleAllSeasonIntakeRequest(
     }
     const accepted = await dependencies.accept(payload);
     await requestWebLeadDistributionAfterAcceptance(accepted.leadId, dependencies);
+    await recordAdAttributionAfterAcceptance(accepted.leadId, payload, dependencies);
     const metaEvent = await reserveMetaLeadAfterAcceptance({
       request,
       accepted,
@@ -227,6 +259,29 @@ export async function POST(request: NextRequest) {
         name: "marketing/meta.delivery.requested",
         data: {deliveryId},
       });
+    },
+    // First write wins, so a duplicate submission keeps the lead's original
+    // attribution. Without a verified token the row records channel credit
+    // only (fbclid) and never a Google click ID.
+    recordAdAttribution: async ({leadId, payload}) => {
+      await recordLeadAdAttribution(service as never, buildLeadAdAttribution({
+        companyId,
+        leadId,
+        token: payload.ad_attribution_token,
+        secret: resolveAdAttributionSecret(environment),
+        legacy: {
+          utm_source: null,
+          utm_medium: null,
+          utm_campaign: null,
+          utm_term: null,
+          utm_content: null,
+          fbclid: payload.attribution.fbclid,
+          fbp: payload.attribution.fbp,
+          fbc: payload.attribution.fbc,
+        },
+        submittedAt: payload.submittedAt,
+        now: new Date(),
+      }));
     },
     requestWebLeadDistribution: routeWebsiteLead
       ? async (leadId) => {
