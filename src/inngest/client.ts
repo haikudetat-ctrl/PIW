@@ -115,6 +115,12 @@ export const leadDistributionDeliveryRequested = eventType("lead/distribution.de
   }>(),
 });
 
+// A manager started or submitted a closeout: prepare its photos or file it
+// to JobNimbus now instead of waiting for the next sweep.
+export const closeoutWorkRequested = eventType("production/closeout.work_requested", {
+  schema: staticSchema<{ companyId: string; closeoutId: string }>(),
+});
+
 export const inngest = new Inngest({
   id: "property-intelligence-worker",
 });

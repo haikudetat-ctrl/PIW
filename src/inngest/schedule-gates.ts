@@ -36,6 +36,10 @@ export const scheduleGates = {
   estimateDeliverySender: (environment: Environment) =>
     estimateWebhookConfigured("sms", environment)
     || estimateWebhookConfigured("email", environment),
+  // Closeout photos and filing both go through JobNimbus, so the worker is
+  // served only where the warehouse sync runs.
+  jobCloseoutWorker: (environment: Environment) =>
+    isTrue(environment.INTEGRATIONS_JOBNIMBUS_SYNC_ENABLED),
   // runAccessRouteSync returns early unless one of these is "true".
   accessRouteReadSync: (environment: Environment) =>
     isTrue(environment.INTEGRATIONS_LEADMASTER_ENABLED)

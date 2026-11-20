@@ -46,6 +46,7 @@ import {
 } from "@/inngest/functions/virtual-consultation-worker";
 
 import {approvedSmsWorker} from "@/inngest/functions/approved-sms-worker";
+import { jobCloseoutWorker } from "@/inngest/functions/job-closeout-worker";
 import { onlyWhen, scheduleGates } from "@/inngest/schedule-gates";
 
 export const maxDuration = 300;
@@ -95,5 +96,6 @@ export const { GET, POST, PUT } = serve({
     bookingMaintenance,
     ...onlyWhen(scheduleGates.setterCallbackSla(environment), setterCallbackSla),
     ...onlyWhen(scheduleGates.approvedBookingSms(environment), approvedSmsWorker),
+    ...onlyWhen(scheduleGates.jobCloseoutWorker(environment), jobCloseoutWorker),
   ],
 });

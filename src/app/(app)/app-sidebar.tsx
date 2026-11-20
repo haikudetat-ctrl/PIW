@@ -69,6 +69,7 @@ export function AppSidebar({
         ? `Consultations, ${consultationsNeedingRep} need a rep`
         : undefined,
     },
+    { href: "/closeouts", label: "Closeouts", icon: "check" },
     { href: "/reports", label: "Reports", icon: "chart" },
     { href: "/review", label: "Review", icon: "review", count: reviewCount },
     { href: "/access-route", label: "Access Route", icon: "route" },

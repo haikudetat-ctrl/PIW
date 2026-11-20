@@ -183,6 +183,11 @@ export default async function JobPage({ params }: { params: Promise<{ jnid: stri
             <a href={jobnimbusUrl} target="_blank" rel="noreferrer" className={secondaryButtonClasses}>
               Open in JobNimbus
             </a>
+            {statusStage === "sold" || statusStage === "in_production" || statusStage === "completed" ? (
+              <Link href={`/closeouts/${encodeURIComponent(job.jnid)}`} className={secondaryButtonClasses}>
+                Close out job
+              </Link>
+            ) : null}
           </div>
         </div>
 

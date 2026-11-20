@@ -76,6 +76,14 @@ export type JobNimbusClientOptions = {
 
 type RequestStats = JobNimbusTelemetry;
 
+type OutboundRequest = {
+  method: "GET" | "POST" | "PUT";
+  headers: Record<string, string>;
+  body?: string | Uint8Array<ArrayBuffer>;
+  // Presigned upload URLs must not carry the API key.
+  authorize?: boolean;
+};
+
 export type FullScanOptions = {
   windowStart?: Date | number;
   windowEnd?: Date | number;
@@ -89,6 +97,20 @@ export type FilterVerificationResult = JobNimbusTelemetry & {
 export type JobNimbusFileDownload = JobNimbusTelemetry & {
   bytes: Uint8Array;
   contentType: string | null;
+};
+
+export type JobNimbusUploadTicket = JobNimbusTelemetry & {
+  fileJnid: string;
+  uploadUrl: string;
+};
+
+export type JobNimbusUploadRequest = {
+  relatedJnids: string[];
+  filename: string;
+  description?: string;
+  // JobNimbus file types: 1 document, 2 photo, 5 invoice; or a custom type id.
+  type: number;
+  isPrivate?: boolean;
 };
 
 export type JobNimbusPageOptions = {
@@ -362,6 +384,80 @@ export class JobNimbusClient {
     };
   }
 
+  // Writes. A file goes up in two calls: JobNimbus hands back the new file's
+  // jnid and a presigned URL (valid about 15 minutes), then the bytes are
+  // PUT there. Creating the upload is not idempotent, so it is retried only
+  // when JobNimbus refused it outright with a 429.
+  async requestFileUpload(request: JobNimbusUploadRequest): Promise<JobNimbusUploadTicket> {
+    const stats = emptyStats();
+    if (request.relatedJnids.length === 0 || request.relatedJnids.some((jnid) => jnid.trim().length === 0)) {
+      throw new JobNimbusProviderError("A JobNimbus upload needs the records it belongs to", {
+        terminal: true,
+        code: "filter_contract",
+        telemetry: stats,
+      });
+    }
+    const url = new URL("/files/v1/uploads/url", this.baseUrl);
+    const { response, body } = await this.requestWithRetry(
+      url,
+      {
+        method: "POST",
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify({
+          related: request.relatedJnids,
+          type: request.type,
+          filename: request.filename,
+          description: request.description,
+          isPrivate: request.isPrivate ?? false,
+        }),
+      },
+      stats,
+      readJson,
+      "rate_limit_only",
+    );
+    const data = isObject(body) && isObject(body.data) ? body.data : null;
+    if (!data || typeof data.jnid !== "string" || typeof data.url !== "string" || !data.url.startsWith("https://")) {
+      throw invalidEnvelope(response.status, "JobNimbus upload ticket is missing its jnid or URL", stats);
+    }
+    return { fileJnid: data.jnid, uploadUrl: data.url, ...stats };
+  }
+
+  async uploadToTicket(uploadUrl: string, bytes: Uint8Array<ArrayBuffer>): Promise<JobNimbusTelemetry> {
+    const stats = emptyStats();
+    // The URL carries its own signature; JobNimbus credentials stay off it.
+    await this.requestWithRetry(
+      new URL(uploadUrl),
+      { method: "PUT", headers: {}, body: bytes, authorize: false },
+      stats,
+      async (response) => {
+        await response.arrayBuffer();
+        return null;
+      },
+      "transient",
+    );
+    return stats;
+  }
+
+  async updateJob(jnid: string, fields: Record<string, unknown>): Promise<JobNimbusTelemetry & { record: JobNimbusRecord }> {
+    const stats = emptyStats();
+    const url = new URL(`${this.baseUrl}/jobs/${encodeURIComponent(jnid)}`);
+    const { response, body } = await this.requestWithRetry(
+      url,
+      {
+        method: "PUT",
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify(fields),
+      },
+      stats,
+      readJson,
+      "transient",
+    );
+    if (!isObject(body) || body.jnid !== jnid) {
+      throw invalidEnvelope(response.status, "JobNimbus job update returned a different record", stats);
+    }
+    return { record: body as JobNimbusRecord, ...stats };
+  }
+
   private internalPageSize(from: number): number {
     return Math.min(this.pageSize, MAX_OFFSET_WINDOW - from);
   }
@@ -438,15 +534,26 @@ export class JobNimbusClient {
     stats: RequestStats,
     consume: (response: Response) => Promise<T>,
   ): Promise<{ response: Response; body: T }> {
+    return this.requestWithRetry(url, { method: "GET", headers }, stats, consume, "transient");
+  }
+
+  private async requestWithRetry<T>(
+    url: URL,
+    request: OutboundRequest,
+    stats: RequestStats,
+    consume: (response: Response) => Promise<T>,
+    retryPolicy: "transient" | "rate_limit_only",
+  ): Promise<{ response: Response; body: T }> {
+    const retriesAllowed = retryPolicy === "transient";
     for (let attempt = 0; ; attempt += 1) {
       let response: Response;
       try {
-        response = await this.serialFetch(url, headers);
+        response = await this.serialFetch(url, request);
         stats.apiCalls += 1;
       } catch (cause) {
         stats.apiCalls += 1;
         stats.transientErrorCount += 1;
-        if (attempt < this.retryCount) {
+        if (retriesAllowed && attempt < this.retryCount) {
           await this.sleep(this.retryBackoffMs * 2 ** attempt);
           continue;
         }
@@ -468,7 +575,7 @@ export class JobNimbusClient {
             throw withTelemetry(cause, stats);
           }
           stats.transientErrorCount += 1;
-          if (attempt < this.retryCount) {
+          if (retriesAllowed && attempt < this.retryCount) {
             await this.sleep(this.retryBackoffMs * 2 ** attempt);
             continue;
           }
@@ -492,7 +599,8 @@ export class JobNimbusClient {
         response.status === 429 ||
         response.status >= 500;
       if (transient) stats.transientErrorCount += 1;
-      if (transient && attempt < this.retryCount) {
+      const retryable = retriesAllowed ? transient : response.status === 429;
+      if (retryable && attempt < this.retryCount) {
         await this.sleep(this.retryBackoffMs * 2 ** attempt);
         continue;
       }
@@ -510,10 +618,7 @@ export class JobNimbusClient {
     }
   }
 
-  private async serialFetch(
-    url: URL,
-    headers: Record<string, string>,
-  ): Promise<Response> {
+  private async serialFetch(url: URL, request: OutboundRequest): Promise<Response> {
     const previous = this.requestTail;
     let release: () => void = () => {};
     this.requestTail = new Promise<void>((resolve) => {
@@ -528,11 +633,12 @@ export class JobNimbusClient {
       }
       this.lastRequestStartedAt = this.now();
       return await this.fetchImpl(url, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${this.apiKey}`,
-          ...headers,
-        },
+        method: request.method,
+        headers:
+          request.authorize === false
+            ? request.headers
+            : { Authorization: `Bearer ${this.apiKey}`, ...request.headers },
+        body: request.body,
         signal: AbortSignal.timeout(this.timeoutMs),
       });
     } finally {

@@ -2573,6 +2573,301 @@ export type Database = {
           },
         ]
       }
+      job_closeout_jobnimbus_writes: {
+        Row: {
+          attempts: number
+          claimed_until: string | null
+          closeout_id: string
+          company_id: string
+          completed_at: string | null
+          created_at: string
+          id: string
+          jobnimbus_file_jnid: string | null
+          kind: string
+          not_before: string
+          outcome_detail: string | null
+          package_path: string | null
+          package_sha256: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          claimed_until?: string | null
+          closeout_id: string
+          company_id: string
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          jobnimbus_file_jnid?: string | null
+          kind: string
+          not_before?: string
+          outcome_detail?: string | null
+          package_path?: string | null
+          package_sha256?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          claimed_until?: string | null
+          closeout_id?: string
+          company_id?: string
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          jobnimbus_file_jnid?: string | null
+          kind?: string
+          not_before?: string
+          outcome_detail?: string | null
+          package_path?: string | null
+          package_sha256?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_closeout_jobnimbus_writes_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_closeout_jobnimbus_writes_closeout_id_fkey"
+            columns: ["closeout_id"]
+            isOneToOne: false
+            referencedRelation: "job_closeouts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      job_closeout_photos: {
+        Row: {
+          closeout_id: string
+          company_id: string
+          file_jnid: string
+          filename: string | null
+          height: number | null
+          outcome: string
+          prepared_at: string
+          print_path: string | null
+          taken_at: string | null
+          thumb_path: string | null
+          uploaded_at: string | null
+          width: number | null
+        }
+        Insert: {
+          closeout_id: string
+          company_id: string
+          file_jnid: string
+          filename?: string | null
+          height?: number | null
+          outcome: string
+          prepared_at?: string
+          print_path?: string | null
+          taken_at?: string | null
+          thumb_path?: string | null
+          uploaded_at?: string | null
+          width?: number | null
+        }
+        Update: {
+          closeout_id?: string
+          company_id?: string
+          file_jnid?: string
+          filename?: string | null
+          height?: number | null
+          outcome?: string
+          prepared_at?: string
+          print_path?: string | null
+          taken_at?: string | null
+          thumb_path?: string | null
+          uploaded_at?: string | null
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_closeout_photos_closeout_id_fkey"
+            columns: ["closeout_id"]
+            isOneToOne: false
+            referencedRelation: "job_closeouts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_closeout_photos_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      job_closeout_settings: {
+        Row: {
+          company_id: string
+          completed_status_name: string
+          delivery_receipt_pattern: string
+          jobnimbus_writeback_enabled: boolean
+          package_document_pattern: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          company_id: string
+          completed_status_name?: string
+          delivery_receipt_pattern?: string
+          jobnimbus_writeback_enabled?: boolean
+          package_document_pattern?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          company_id?: string
+          completed_status_name?: string
+          delivery_receipt_pattern?: string
+          jobnimbus_writeback_enabled?: boolean
+          package_document_pattern?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_closeout_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      job_closeouts: {
+        Row: {
+          checklist: Json
+          company_id: string
+          created_at: string
+          created_by: string | null
+          crew: string | null
+          decking_sheets_replaced: number | null
+          feature_note: string | null
+          homeowner_name: string | null
+          homeowner_outcome: string | null
+          homeowner_signature_path: string | null
+          homeowner_signed_at: string | null
+          homeowner_signed_user_agent: string | null
+          homeowner_terms_version: string | null
+          homeowner_unavailable_reason: string | null
+          id: string
+          install_completed_on: string | null
+          install_started_on: string | null
+          job_jnid: string
+          layers_removed: number | null
+          photo_release: string
+          photos_attempts: number
+          photos_claimed_until: string | null
+          photos_error: string | null
+          photos_prepared_at: string | null
+          photos_status: string
+          prefill: Json
+          production_notes: string | null
+          punch_items: string | null
+          review_request_ok: boolean | null
+          selected_photo_jnids: string[]
+          squares_installed: number | null
+          status: string
+          submitted_at: string | null
+          submitted_by: string | null
+          updated_at: string
+          updated_by: string | null
+          version: number
+        }
+        Insert: {
+          checklist?: Json
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          crew?: string | null
+          decking_sheets_replaced?: number | null
+          feature_note?: string | null
+          homeowner_name?: string | null
+          homeowner_outcome?: string | null
+          homeowner_signature_path?: string | null
+          homeowner_signed_at?: string | null
+          homeowner_signed_user_agent?: string | null
+          homeowner_terms_version?: string | null
+          homeowner_unavailable_reason?: string | null
+          id?: string
+          install_completed_on?: string | null
+          install_started_on?: string | null
+          job_jnid: string
+          layers_removed?: number | null
+          photo_release?: string
+          photos_attempts?: number
+          photos_claimed_until?: string | null
+          photos_error?: string | null
+          photos_prepared_at?: string | null
+          photos_status?: string
+          prefill?: Json
+          production_notes?: string | null
+          punch_items?: string | null
+          review_request_ok?: boolean | null
+          selected_photo_jnids?: string[]
+          squares_installed?: number | null
+          status?: string
+          submitted_at?: string | null
+          submitted_by?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+        }
+        Update: {
+          checklist?: Json
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          crew?: string | null
+          decking_sheets_replaced?: number | null
+          feature_note?: string | null
+          homeowner_name?: string | null
+          homeowner_outcome?: string | null
+          homeowner_signature_path?: string | null
+          homeowner_signed_at?: string | null
+          homeowner_signed_user_agent?: string | null
+          homeowner_terms_version?: string | null
+          homeowner_unavailable_reason?: string | null
+          id?: string
+          install_completed_on?: string | null
+          install_started_on?: string | null
+          job_jnid?: string
+          layers_removed?: number | null
+          photo_release?: string
+          photos_attempts?: number
+          photos_claimed_until?: string | null
+          photos_error?: string | null
+          photos_prepared_at?: string | null
+          photos_status?: string
+          prefill?: Json
+          production_notes?: string | null
+          punch_items?: string | null
+          review_request_ok?: boolean | null
+          selected_photo_jnids?: string[]
+          squares_installed?: number | null
+          status?: string
+          submitted_at?: string | null
+          submitted_by?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_closeouts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       job_inspections: {
         Row: {
           company_id: string
@@ -8122,6 +8417,80 @@ export type Database = {
         Args: { p_company_id: string; p_id?: string }
         Returns: Json
       }
+      claim_job_closeout_photo_prep: {
+        Args: { p_limit?: number }
+        Returns: {
+          checklist: Json
+          company_id: string
+          created_at: string
+          created_by: string | null
+          crew: string | null
+          decking_sheets_replaced: number | null
+          feature_note: string | null
+          homeowner_name: string | null
+          homeowner_outcome: string | null
+          homeowner_signature_path: string | null
+          homeowner_signed_at: string | null
+          homeowner_signed_user_agent: string | null
+          homeowner_terms_version: string | null
+          homeowner_unavailable_reason: string | null
+          id: string
+          install_completed_on: string | null
+          install_started_on: string | null
+          job_jnid: string
+          layers_removed: number | null
+          photo_release: string
+          photos_attempts: number
+          photos_claimed_until: string | null
+          photos_error: string | null
+          photos_prepared_at: string | null
+          photos_status: string
+          prefill: Json
+          production_notes: string | null
+          punch_items: string | null
+          review_request_ok: boolean | null
+          selected_photo_jnids: string[]
+          squares_installed: number | null
+          status: string
+          submitted_at: string | null
+          submitted_by: string | null
+          updated_at: string
+          updated_by: string | null
+          version: number
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "job_closeouts"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      claim_job_closeout_writes: {
+        Args: { p_limit?: number }
+        Returns: {
+          attempts: number
+          claimed_until: string | null
+          closeout_id: string
+          company_id: string
+          completed_at: string | null
+          created_at: string
+          id: string
+          jobnimbus_file_jnid: string | null
+          kind: string
+          not_before: string
+          outcome_detail: string | null
+          package_path: string | null
+          package_sha256: string | null
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "job_closeout_jobnimbus_writes"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       claim_lead_distribution_delivery: {
         Args: { p_company_id: string; p_delivery_id: string; p_now: string }
         Returns: {
@@ -8222,6 +8591,10 @@ export type Database = {
         }[]
       }
       claim_setter_task: { Args: { p_task_id?: string }; Returns: Json }
+      clear_job_closeout_signoff: {
+        Args: { p_closeout_id: string; p_expected_version: number }
+        Returns: number
+      }
       clear_lead_quality_flag: {
         Args: { p_lead_id: string }
         Returns: undefined
@@ -8650,6 +9023,26 @@ export type Database = {
           id: string
         }[]
       }
+      list_job_closeout_queue: {
+        Args: { p_days?: number }
+        Returns: {
+          city: string | null
+          closeout_id: string | null
+          closeout_status: string | null
+          customer_name: string | null
+          delivered_at: string | null
+          homeowner_signed: boolean | null
+          job_jnid: string
+          job_number: string | null
+          job_type: string | null
+          photo_count: number | null
+          sales_rep_name: string | null
+          status_name: string | null
+          status_stage: string | null
+          submitted_at: string | null
+          writeback_state: string | null
+        }[]
+      }
       list_my_companies: {
         Args: never
         Returns: {
@@ -8750,6 +9143,20 @@ export type Database = {
           event_id: string
           is_duplicate: boolean
         }[]
+      }
+      record_job_closeout_signoff: {
+        Args: {
+          p_closeout_id: string
+          p_expected_version: number
+          p_homeowner_name: string
+          p_outcome: string
+          p_photo_release: string
+          p_review_request_ok: boolean
+          p_signature_path: string
+          p_terms_version: string
+          p_user_agent: string
+        }
+        Returns: number
       }
       record_privacy_consent: {
         Args: {
@@ -9039,6 +9446,10 @@ export type Database = {
         Args: { p_template_id: string }
         Returns: undefined
       }
+      retry_job_closeout_write: {
+        Args: { p_write_id: string }
+        Returns: undefined
+      }
       reuse_roof_estimate_packages: {
         Args: {
           p_company_id: string
@@ -9093,6 +9504,14 @@ export type Database = {
           is_enabled: boolean
           updated_at: string
         }[]
+      }
+      save_job_closeout: {
+        Args: {
+          p_closeout_id: string
+          p_expected_version: number
+          p_fields: Json
+        }
+        Returns: number
       }
       save_property_preview_email: {
         Args: {
@@ -9239,6 +9658,10 @@ export type Database = {
         }
         Returns: Json
       }
+      start_job_closeout: {
+        Args: { p_job_jnid: string }
+        Returns: string
+      }
       start_or_resume_roof_assessment: {
         Args: {
           p_attribution: Json
@@ -9344,6 +9767,10 @@ export type Database = {
           pipeline_run_id: string
           property_id: string
         }[]
+      }
+      submit_job_closeout: {
+        Args: { p_closeout_id: string; p_expected_version: number }
+        Returns: undefined
       }
       submit_lead_intake: {
         Args: {

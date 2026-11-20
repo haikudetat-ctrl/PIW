@@ -47,6 +47,7 @@ schema and records remain available for audit and older lead workspaces.
 - [Deployment runbook](docs/runbooks/deployment.md)
 - [Virtual consultation booking runbook](docs/runbooks/virtual-consultation-booking.md)
 - [Google Search Ads runbook](docs/runbooks/google-ads.md)
+- [Job closeouts runbook](docs/runbooks/job-closeouts.md)
 
 ## Local development
 

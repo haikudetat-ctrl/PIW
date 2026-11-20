@@ -1044,3 +1044,114 @@ describe("JobNimbusClient file downloads", () => {
     expect(Array.from(result.bytes)).toEqual([1, 2, 3]);
   });
 });
+
+describe("JobNimbusClient writes", () => {
+  type Seen = { url: URL; init: RequestInit | undefined };
+
+  function recordingClient(responses: (() => Response)[]) {
+    const seen: Seen[] = [];
+    const client = new JobNimbusClient({
+      apiKey: "fixture-key",
+      paceMs: 0,
+      retryBackoffMs: 0,
+      sleep: async () => {},
+      fetch: async (input, init) => {
+        seen.push({ url: new URL(String(input)), init });
+        const next = responses.shift();
+        if (!next) throw new Error("unexpected request");
+        return next();
+      },
+    });
+    return { client, seen };
+  }
+
+  it("asks the files service for a presigned upload tied to the job", async () => {
+    const { client, seen } = recordingClient([
+      () => jsonResponse({ data: { jnid: "file-9", url: "https://uploads.example.com/signed?sig=1" } }),
+    ]);
+
+    const ticket = await client.requestFileUpload({
+      relatedJnids: ["job-1"],
+      filename: "Closeout package - Job 4512.pdf",
+      description: "Job closeout package",
+      type: 1,
+    });
+
+    expect(ticket).toMatchObject({ fileJnid: "file-9", uploadUrl: "https://uploads.example.com/signed?sig=1", apiCalls: 1 });
+    expect(seen[0].url.toString()).toBe("https://app.jobnimbus.com/files/v1/uploads/url");
+    expect(seen[0].init?.method).toBe("POST");
+    expect(new Headers(seen[0].init?.headers).get("authorization")).toBe("Bearer fixture-key");
+    expect(JSON.parse(String(seen[0].init?.body))).toEqual({
+      related: ["job-1"],
+      type: 1,
+      filename: "Closeout package - Job 4512.pdf",
+      description: "Job closeout package",
+      isPrivate: false,
+    });
+  });
+
+  it("does not retry a failed upload request that JobNimbus may have created", async () => {
+    // A 502 can arrive after JobNimbus created the placeholder file; asking
+    // again would leave a second one on the job.
+    const { client, seen } = recordingClient([() => new Response("bad gateway", { status: 502 })]);
+
+    await expect(
+      client.requestFileUpload({ relatedJnids: ["job-1"], filename: "a.pdf", type: 1 }),
+    ).rejects.toMatchObject({ status: 502, terminal: false });
+    expect(seen).toHaveLength(1);
+  });
+
+  it("retries an upload request JobNimbus rate-limited", async () => {
+    const { client, seen } = recordingClient([
+      () => new Response("slow down", { status: 429 }),
+      () => jsonResponse({ data: { jnid: "file-9", url: "https://uploads.example.com/signed" } }),
+    ]);
+
+    const ticket = await client.requestFileUpload({ relatedJnids: ["job-1"], filename: "a.pdf", type: 1 });
+    expect(ticket.fileJnid).toBe("file-9");
+    expect(ticket.rateLimitResponses).toBe(1);
+    expect(seen).toHaveLength(2);
+  });
+
+  it("rejects an upload ticket without an https URL", async () => {
+    const { client } = recordingClient([() => jsonResponse({ data: { jnid: "file-9", url: "http://plain" } })]);
+    await expect(
+      client.requestFileUpload({ relatedJnids: ["job-1"], filename: "a.pdf", type: 1 }),
+    ).rejects.toBeInstanceOf(JobNimbusProviderError);
+  });
+
+  it("puts the bytes to the presigned URL without the API key, retrying transient failures", async () => {
+    const { client, seen } = recordingClient([
+      () => new Response("unavailable", { status: 503 }),
+      () => new Response(null, { status: 200 }),
+    ]);
+
+    await client.uploadToTicket("https://uploads.example.com/signed?sig=1", new Uint8Array([37, 80, 68, 70]));
+
+    expect(seen).toHaveLength(2);
+    expect(seen[1].init?.method).toBe("PUT");
+    expect(new Headers(seen[1].init?.headers).get("authorization")).toBeNull();
+    expect(seen[1].init?.body).toEqual(new Uint8Array([37, 80, 68, 70]));
+  });
+
+  it("updates a job's status and checks the record that comes back", async () => {
+    const { client, seen } = recordingClient([
+      () => jsonResponse({ jnid: "job-1", status_name: "Job Completed" }),
+    ]);
+
+    const result = await client.updateJob("job-1", { status_name: "Job Completed", record_type_name: "Roofing" });
+
+    expect(result.record.status_name).toBe("Job Completed");
+    expect(seen[0].url.pathname).toBe("/api1/jobs/job-1");
+    expect(seen[0].init?.method).toBe("PUT");
+    expect(JSON.parse(String(seen[0].init?.body))).toEqual({ status_name: "Job Completed", record_type_name: "Roofing" });
+  });
+
+  it("treats a refused job update as terminal", async () => {
+    const { client } = recordingClient([() => new Response("forbidden", { status: 403 })]);
+    await expect(client.updateJob("job-1", { status_name: "Job Completed" })).rejects.toMatchObject({
+      status: 403,
+      terminal: true,
+    });
+  });
+});
