@@ -167,6 +167,83 @@ describe("All Season lead intake", () => {
     expect(requestWebLeadDistribution).not.toHaveBeenCalled();
   });
 
+  test("records ad attribution with the forwarded token after the lead is saved", async () => {
+    const calls: string[] = [];
+    const recordAdAttribution = vi.fn(async ({leadId}: {leadId: string}) => {
+      calls.push(`attribution:${leadId}`);
+    });
+
+    const response = await handleAllSeasonIntakeRequest(
+      request({...validPayload, ad_attribution_token: "signed.token"}),
+      {
+        expectedSecret: "shared-secret",
+        accept: async () => {
+          calls.push("accept");
+          return {leadId: "22222222-2222-4222-8222-222222222222", duplicate: false};
+        },
+        recordAdAttribution,
+      },
+    );
+
+    expect(response.status).toBe(202);
+    expect(calls).toEqual(["accept", "attribution:22222222-2222-4222-8222-222222222222"]);
+    expect(recordAdAttribution).toHaveBeenCalledWith({
+      leadId: "22222222-2222-4222-8222-222222222222",
+      payload: expect.objectContaining({ad_attribution_token: "signed.token"}),
+    });
+  });
+
+  test("records attribution for website leads that arrive without a token", async () => {
+    const recordAdAttribution = vi.fn(async () => undefined);
+
+    const response = await handleAllSeasonIntakeRequest(request(validPayload), {
+      expectedSecret: "shared-secret",
+      accept: async () => ({leadId: "22222222-2222-4222-8222-222222222222", duplicate: false}),
+      recordAdAttribution,
+    });
+
+    expect(response.status).toBe(202);
+    expect(recordAdAttribution).toHaveBeenCalledWith({
+      leadId: "22222222-2222-4222-8222-222222222222",
+      payload: expect.not.objectContaining({ad_attribution_token: expect.any(String)}),
+    });
+  });
+
+  test("never loses a lead over a malformed attribution token", async () => {
+    const accept = vi.fn(async () => ({
+      leadId: "22222222-2222-4222-8222-222222222222",
+      duplicate: false,
+    }));
+
+    for (const token of ["x".repeat(5_000), 42, ""]) {
+      const response = await handleAllSeasonIntakeRequest(
+        request({...validPayload, ad_attribution_token: token}),
+        {expectedSecret: "shared-secret", accept},
+      );
+      expect(response.status).toBe(202);
+    }
+    expect(accept).toHaveBeenCalledTimes(3);
+    expect(accept).toHaveBeenLastCalledWith(expect.objectContaining({ad_attribution_token: null}));
+  });
+
+  test("still accepts the lead when recording attribution fails", async () => {
+    const reportError = vi.fn();
+    const attributionError = new Error("db down");
+
+    const response = await handleAllSeasonIntakeRequest(request(validPayload), {
+      expectedSecret: "shared-secret",
+      accept: async () => ({leadId: "22222222-2222-4222-8222-222222222222", duplicate: false}),
+      recordAdAttribution: async () => {
+        throw attributionError;
+      },
+      reportError,
+    });
+
+    expect(response.status).toBe(202);
+    await expect(response.json()).resolves.toMatchObject({accepted: true});
+    expect(reportError).toHaveBeenCalledWith(attributionError);
+  });
+
   test("rejects a lead without property-processing consent", async () => {
     const accept = vi.fn();
 
