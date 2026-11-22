@@ -3006,6 +3006,13 @@ export type Database = {
             referencedRelation: "jn_files"
             referencedColumns: ["company_id", "jnid"]
           },
+          {
+            foreignKeyName: "jobnimbus_roofr_reports_company_id_file_jnid_fkey"
+            columns: ["company_id", "file_jnid"]
+            isOneToOne: true
+            referencedRelation: "jobnimbus_roofr_report_candidates"
+            referencedColumns: ["company_id", "file_jnid"]
+          },
         ]
       }
       jobnimbus_status_stages: {
@@ -7771,6 +7778,13 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "jn_files"
             referencedColumns: ["company_id", "jnid"]
+          },
+          {
+            foreignKeyName: "jobnimbus_roofr_reports_company_id_file_jnid_fkey"
+            columns: ["company_id", "file_jnid"]
+            isOneToOne: true
+            referencedRelation: "jobnimbus_roofr_report_candidates"
+            referencedColumns: ["company_id", "file_jnid"]
           },
         ]
       }
