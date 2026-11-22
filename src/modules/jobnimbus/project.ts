@@ -124,7 +124,8 @@ export function projectJobNimbusEstimate(input: {
 }
 
 // Only metadata is projected. Download URLs and other payload fields stay in
-// the raw landing zone; report bytes are fetched on demand by file jnid.
+// the raw landing zone; report bytes are fetched on demand by file jnid. The
+// contact is kept so a file attached only to a contact can find its job.
 export function projectJobNimbusFile(input: {
   companyId: string;
   payload: JsonObject;
@@ -139,6 +140,7 @@ export function projectJobNimbusFile(input: {
     size: nonnegativeInteger(payload.size),
     pages: nonnegativeInteger(payload.pages, POSTGRES_INTEGER_MAX),
     related_job_jnid: relatedJobJnid(payload.related),
+    related_contact_jnid: primaryContactJnid(payload.primary) ?? relatedContactJnid(payload.related),
     jn_created_at: epochSecondsToIso(payload.date_created),
     jn_updated_at: epochSecondsToIso(payload.date_updated),
     projected_at: input.projectedAt,
@@ -276,6 +278,12 @@ function primaryContactJnid(value: unknown): string | null {
 function relatedJobJnid(value: unknown): string | null {
   if (!Array.isArray(value)) return null;
   const relation = value.find((candidate) => isJsonObject(candidate) && candidate.type === "job");
+  return isJsonObject(relation) ? text(relation.id) ?? text(relation.jnid) : null;
+}
+
+function relatedContactJnid(value: unknown): string | null {
+  if (!Array.isArray(value)) return null;
+  const relation = value.find((candidate) => isJsonObject(candidate) && candidate.type === "contact");
   return isJsonObject(relation) ? text(relation.id) ?? text(relation.jnid) : null;
 }
 

@@ -159,6 +159,7 @@ describe("projectJobNimbusFile", () => {
       size: 4096,
       pages: 12,
       related_job_jnid: "job-related",
+      related_contact_jnid: null,
       jn_created_at: "2023-11-14T22:13:20.000Z",
       jn_updated_at: "2023-11-14T22:14:20.000Z",
       projected_at: "2026-10-13T12:00:00.000Z",
@@ -171,7 +172,25 @@ describe("projectJobNimbusFile", () => {
       payload: { jnid: "file-2", size: -1, pages: 1.5, related: [{ id: { malformed: true }, type: "job" }] },
       projectedAt: "2026-10-13T12:00:00.000Z",
     });
-    expect(row).toMatchObject({ size: null, pages: null, related_job_jnid: null });
+    expect(row).toMatchObject({ size: null, pages: null, related_job_jnid: null, related_contact_jnid: null });
+  });
+
+  it("keeps the contact of a file attached to a contact rather than a job", () => {
+    expect(projectJobNimbusFile({
+      companyId: "company-1",
+      payload: {
+        jnid: "file-3",
+        primary: { id: "contact-primary", type: "contact" },
+        related: [{ id: "contact-related", type: "contact" }],
+      },
+      projectedAt: "2026-10-13T12:00:00.000Z",
+    })).toMatchObject({ related_job_jnid: null, related_contact_jnid: "contact-primary" });
+
+    expect(projectJobNimbusFile({
+      companyId: "company-1",
+      payload: { jnid: "file-4", related: [{ id: "job-1", type: "job" }, { id: "contact-1", type: "contact" }] },
+      projectedAt: "2026-10-13T12:00:00.000Z",
+    })).toMatchObject({ related_job_jnid: "job-1", related_contact_jnid: "contact-1" });
   });
 });
 

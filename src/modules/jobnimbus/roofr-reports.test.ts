@@ -8,7 +8,8 @@ import {
   extractRoofrText,
   parseRoofrText,
   runRoofrReports,
-  selectNewestRoofrCandidates,
+  selectRoofrCandidates,
+  assertRoofrPrepared,
   type RoofrCandidate,
   type RoofrReportDependencies,
   type RoofrReportRow,
@@ -51,7 +52,57 @@ describe("strict Roofr report parsing", () => {
       areaWeightedPitch12: 8.51,
       maxPitch12: 12,
       wasteLadder: [0, 10, 14, 15],
+      edgesFt: {
+        eaves: null, rakes: null, ridges: null, hips: null, valleys: null, wallFlashing: null, stepFlashing: null,
+      },
     });
+  });
+
+  // Shape of a current Roofr report: the length page and the report summary
+  // both carry footage; the summary also has the combined lines.
+  const footageText = `${representativeText}
+Length measurement report
+Eaves: 443ft 9in Valleys: 0ft 0in Hips: 12ft 3in
+Ridges: 163ft 6in Rakes: 125ft 10in Wall flashing: 116ft 10in
+Step flashing: 0ft 0in Curb flashing: 0ft 0in Transitions: 0ft 0in
+Report summary
+Total eaves 1,443ft 9in
+Total valleys 0ft 0in
+Total hips 12ft 3in
+Total ridges 163ft 6in
+Total rakes 125ft 10in
+Total wall flashing 116ft 10in
+Total step flashing 0ft 0in
+Hips + ridges 175ft 9in
+Eaves + rakes 1,569ft 7in
+`;
+
+  it("reads edge footage from the report summary in decimal feet", () => {
+    expect(parseRoofrText(footageText).edgesFt).toEqual({
+      eaves: 1443.75, rakes: 125.83, ridges: 163.5, hips: 12.25, valleys: 0, wallFlashing: 116.83, stepFlashing: 0,
+    });
+  });
+
+  it("falls back to the length page when a report has no summary totals", () => {
+    const lengthOnly = footageText.slice(0, footageText.indexOf("Report summary"));
+    expect(parseRoofrText(lengthOnly).edgesFt).toMatchObject({ eaves: 443.75, ridges: 163.5, hips: 12.25 });
+  });
+
+  it.each([
+    ["inches above eleven", footageText.replace("Total eaves 1,443ft 9in", "Total eaves 1,443ft 12in")],
+    ["non-decimal feet", footageText.replace("Total ridges 163ft", "Total ridges 1e3ft")],
+    ["feet above the destination boundary", footageText.replace("Total rakes 125ft", "Total rakes 1,000,000ft")],
+  ])("rejects footage with %s", (_case, text) => {
+    expect(() => parseRoofrText(text)).toThrowError(
+      expect.objectContaining({ code: "invalid_report", terminal: true }),
+    );
+  });
+
+  it("recognises only text that Roofr prepared", () => {
+    expect(() => assertRoofrPrepared("This report was prepared by Roofr. Copyright Roofr.com")).not.toThrow();
+    expect(() => assertRoofrPrepared("Total roof area: 2,857 sqft\nPrepared by another vendor")).toThrowError(
+      expect.objectContaining({ code: "not_roofr", terminal: true }),
+    );
   });
 
   it.each([
@@ -161,16 +212,49 @@ describe("Roofr PDF extraction", () => {
 });
 
 describe("Roofr report discovery", () => {
-  it("keeps only the newest Roofr-named report for each related job", () => {
+  const candidate = (jnid: string, job: string | null, createdAt: string, matchRank = 0): RoofrCandidate =>
+    ({ jnid, filename: `${jnid}.pdf`, relatedJobJnid: job, createdAt, matchRank });
+
+  it("picks one file per job: the likeliest name, then the newest", () => {
     expect(
-      selectNewestRoofrCandidates([
-        { jnid: "old", filename: "ROOFR old.pdf", relatedJobJnid: "job-1", createdAt: "2026-01-01T00:00:00Z" },
-        { jnid: "new", filename: "roofr new.jpg", relatedJobJnid: "job-1", createdAt: "2026-02-01T00:00:00Z" },
-        { jnid: "other", filename: "Roofr.pdf", relatedJobJnid: "job-2", createdAt: "2026-01-15T00:00:00Z" },
-        { jnid: "unrelated", filename: "Roofr.pdf", relatedJobJnid: null, createdAt: "2026-03-01T00:00:00Z" },
-        { jnid: "vendor", filename: "EagleView.pdf", relatedJobJnid: "job-3", createdAt: "2026-03-01T00:00:00Z" },
-      ]).map((row) => row.jnid),
-    ).toEqual(["new", "other"]);
+      selectRoofrCandidates([
+        candidate("old", "job-1", "2026-01-01T00:00:00Z"),
+        candidate("new", "job-1", "2026-02-01T00:00:00Z"),
+        candidate("address-newer", "job-1", "2026-03-01T00:00:00Z", 1),
+        candidate("only-shape", "job-2", "2026-01-15T00:00:00Z", 2),
+        candidate("unrelated", null, "2026-03-01T00:00:00Z"),
+      ], new Map()).map((row) => row.jnid),
+    ).toEqual(["new", "only-shape"]);
+  });
+
+  it("moves past files that were not Roofr reports to the job's next candidate", () => {
+    expect(
+      selectRoofrCandidates([
+        candidate("quote", "job-1", "2026-03-01T00:00:00Z", 1),
+        candidate("report", "job-1", "2026-01-01T00:00:00Z", 1),
+      ], new Map([["quote", "not_roofr" as const]])).map((row) => row.jnid),
+    ).toEqual(["report"]);
+  });
+
+  it("skips files older than the job's ingested report and reads newer re-measures", () => {
+    const files = [
+      candidate("ingested", "job-1", "2026-02-01T00:00:00Z"),
+      candidate("older", "job-1", "2026-01-01T00:00:00Z"),
+      candidate("remeasure", "job-1", "2026-03-01T00:00:00Z", 2),
+    ];
+    expect(selectRoofrCandidates(files, new Map([["ingested", "ingested" as const]])).map((row) => row.jnid))
+      .toEqual(["remeasure"]);
+    expect(selectRoofrCandidates(files.slice(0, 2), new Map([["ingested", "ingested" as const]]))).toEqual([]);
+  });
+
+  it("drains likely names before size-only matches across jobs", () => {
+    expect(
+      selectRoofrCandidates([
+        candidate("a-shape", "job-1", "2026-01-01T00:00:00Z", 2),
+        candidate("b-address", "job-2", "2026-01-01T00:00:00Z", 1),
+        candidate("c-named", "job-3", "2026-01-01T00:00:00Z", 0),
+      ], new Map()).map((row) => row.jnid),
+    ).toEqual(["c-named", "b-address", "a-shape"]);
   });
 });
 
@@ -189,7 +273,7 @@ describe("Roofr report runs", () => {
       store: {
         getEnvKeyName: async () => "JOBNIMBUS_API_KEY",
         listRoofrFiles: async () => input.files,
-        listProcessedFileJnids: async () => new Set(input.processed ?? []),
+        listProcessedFiles: async () => new Map((input.processed ?? []).map((jnid) => [jnid, "ingested" as const])),
         writeReport: async (row) => { written.push(row); },
       },
       createClient: () => ({ downloadFile }),
@@ -200,7 +284,7 @@ describe("Roofr report runs", () => {
   }
 
   const file = (jnid: string, job: string, createdAt = "2026-01-01T00:00:00Z"): RoofrCandidate =>
-    ({ jnid, filename: `Roofr ${jnid}.pdf`, relatedJobJnid: job, createdAt });
+    ({ jnid, filename: `Roofr ${jnid}.pdf`, relatedJobJnid: job, createdAt, matchRank: 0 });
 
   it("ingests the newest unprocessed report per job, keyed by the JobNimbus job", async () => {
     const { dependencies, written, downloadFile } = harness({
@@ -220,11 +304,19 @@ describe("Roofr report runs", () => {
   });
 
   it("records a terminal outcome and no measurement for an unreadable report", async () => {
-    const { dependencies, written } = harness({ files: [file("small", "job-1")], text: "Total roof area: 400 sqft" });
+    const { dependencies, written } = harness({ files: [file("small", "job-1")], text: "Roofr\nTotal roof area: 400 sqft" });
 
     await runRoofrReports({ companyId }, dependencies);
 
     expect(written).toEqual([expect.objectContaining({ fileJnid: "small", outcome: "outbuilding", measurement: null })]);
+  });
+
+  it("records a PDF that Roofr did not prepare as not a Roofr report", async () => {
+    const { dependencies, written } = harness({ files: [file("quote", "job-1")], text: "Roof quote\nTotal roof area: 2,857 sqft" });
+
+    await runRoofrReports({ companyId }, dependencies);
+
+    expect(written).toEqual([expect.objectContaining({ fileJnid: "quote", outcome: "not_roofr", measurement: null })]);
   });
 
   it("records terminal provider failures with their request telemetry", async () => {

@@ -5,8 +5,10 @@ import type { JobNimbusFileDownload, JobNimbusTelemetry } from "./client";
 
 // Roofr measurement reports attached to JobNimbus jobs are the measured roof:
 // what a Google Solar estimate is checked against. Parsing and extraction are
-// ported unchanged from 2stack-roof-quote, where they were proven against the
-// All Season account's real reports.
+// ported from 2stack-roof-quote, where they were proven against the All Season
+// account's real reports. Reports are found by content, not by name: most are
+// saved under the property address, so every candidate file is read and only
+// text that Roofr prepared is parsed.
 
 const SQUARE_FEET_PER_SQUARE = 100;
 const MAX_REPORT_BYTES = 25 * 1024 * 1024;
@@ -16,6 +18,7 @@ const MAX_AREA_SQFT = 99_999_999;
 const MAX_PITCH_12 = 100;
 const MAX_FACETS = 10_000;
 const MAX_WASTE_PERCENT = 1_000;
+const MAX_EDGE_FEET = 999_999;
 const DEFAULT_REPORTS_PER_RUN = 20;
 
 export type RoofrReportErrorCode =
@@ -24,7 +27,8 @@ export type RoofrReportErrorCode =
   | "invalid_report"
   | "outbuilding"
   | "invalid_candidate"
-  | "provider_terminal";
+  | "provider_terminal"
+  | "not_roofr";
 
 export class RoofrReportError extends Error {
   readonly terminal = true;
@@ -50,7 +54,36 @@ export type RoofrMeasurement = {
   areaWeightedPitch12: number | null;
   maxPitch12: number | null;
   wasteLadder: number[];
+  edgesFt: RoofrEdges;
 };
+
+// Linear footage in feet; null when the report has no such line.
+export type RoofrEdges = {
+  eaves: number | null;
+  rakes: number | null;
+  ridges: number | null;
+  hips: number | null;
+  valleys: number | null;
+  wallFlashing: number | null;
+  stepFlashing: number | null;
+};
+
+const EDGE_LABELS: Record<keyof RoofrEdges, string> = {
+  eaves: "eaves",
+  rakes: "rakes",
+  ridges: "ridges",
+  hips: "hips",
+  valleys: "valleys",
+  wallFlashing: "wall flashing",
+  stepFlashing: "step flashing",
+};
+
+// Text that Roofr did not prepare is some other PDF of the same shape.
+export function assertRoofrPrepared(text: string): void {
+  if (!/\bRoofr\b/i.test(text)) {
+    throw new RoofrReportError("not_roofr");
+  }
+}
 
 export function parseRoofrText(text: string): RoofrMeasurement {
   if (typeof text !== "string" || text.length === 0) {
@@ -120,7 +153,29 @@ export function parseRoofrText(text: string): RoofrMeasurement {
     areaWeightedPitch12,
     maxPitch12: pitchArea.length > 0 ? Math.max(...pitchArea.map((row) => row.pitch12)) : null,
     wasteLadder,
+    edgesFt: parseEdges(text),
   };
+}
+
+// The report summary lists "Total eaves 443ft 9in"; the length page lists
+// "Eaves: 443ft 9in". Either is read, summary first.
+function parseEdges(text: string): RoofrEdges {
+  const edges = {} as RoofrEdges;
+  for (const [key, label] of Object.entries(EDGE_LABELS) as [keyof RoofrEdges, string][]) {
+    const words = label.replace(" ", "\\s+");
+    const feet = new RegExp(`Total\\s+${words}\\s+([^\\s]+?)\\s*ft\\s*(\\d+)\\s*in`, "i").exec(text)
+      ?? new RegExp(`\\b${words}:\\s*([^\\s]+?)\\s*ft\\s*(\\d+)\\s*in`, "i").exec(text);
+    edges[key] = feet === null ? null : feetAndInches(feet[1], feet[2]);
+  }
+  return edges;
+}
+
+function feetAndInches(feetToken: string, inchToken: string): number {
+  const feet = strictNumber(feetToken, MAX_EDGE_FEET);
+  const inches = strictNumber(inchToken, 11);
+  const value = round(feet + inches / 12, 2);
+  if (value > MAX_EDGE_FEET) throw new RoofrReportError("invalid_report");
+  return value;
 }
 
 export async function extractRoofrText(bytes: Uint8Array): Promise<string> {
@@ -156,27 +211,44 @@ export async function extractRoofrText(bytes: Uint8Array): Promise<string> {
   }
 }
 
+// A file that could be a Roofr report, on the job it belongs to (its own job,
+// or its contact's). matchRank: 0 named like a report, 1 named after an
+// address, 2 matched only by size and page count.
 export type RoofrCandidate = {
   jnid: string;
   filename: string | null;
   relatedJobJnid: string | null;
   createdAt: string | null;
+  matchRank: number;
 };
 
-// A job can carry several Roofr reports (re-measures); only the newest is the
-// measurement of record.
-export function selectNewestRoofrCandidates(files: RoofrCandidate[]): RoofrCandidate[] {
-  const newest = new Map<string, RoofrCandidate>();
+// One file per job per run. A job can carry several Roofr reports
+// (re-measures) and other PDFs of the same shape: files already read are
+// skipped, files older than the job's newest ingested report are skipped
+// (the newest is the measurement of record), and of the rest the likeliest
+// name wins, then the newest. Likely names drain first across jobs.
+export function selectRoofrCandidates(
+  files: RoofrCandidate[],
+  processed: ReadonlyMap<string, RoofrReportOutcome>,
+): RoofrCandidate[] {
+  const newestIngested = new Map<string, number>();
   for (const file of files) {
-    if (file.relatedJobJnid === null || file.filename === null || !/roofr/i.test(file.filename)) {
-      continue;
-    }
-    const prior = newest.get(file.relatedJobJnid);
-    if (prior === undefined || compareCandidate(file, prior) > 0) {
-      newest.set(file.relatedJobJnid, file);
-    }
+    if (file.relatedJobJnid === null || processed.get(file.jnid) !== "ingested") continue;
+    const at = timestamp(file.createdAt);
+    newestIngested.set(file.relatedJobJnid, Math.max(newestIngested.get(file.relatedJobJnid) ?? -Infinity, at));
   }
-  return [...newest.values()].sort((left, right) => left.jnid.localeCompare(right.jnid));
+
+  const chosen = new Map<string, RoofrCandidate>();
+  for (const file of files) {
+    const job = file.relatedJobJnid;
+    if (job === null || processed.has(file.jnid)) continue;
+    const ingestedAt = newestIngested.get(job);
+    if (ingestedAt !== undefined && timestamp(file.createdAt) <= ingestedAt) continue;
+    const prior = chosen.get(job);
+    if (prior === undefined || compareCandidate(file, prior) > 0) chosen.set(job, file);
+  }
+  return [...chosen.values()].sort((left, right) =>
+    left.matchRank - right.matchRank || left.jnid.localeCompare(right.jnid));
 }
 
 export type RoofrReportOutcome = "ingested" | RoofrReportErrorCode;
@@ -193,7 +265,7 @@ export type RoofrReportRow = {
 export type RoofrReportStore = {
   getEnvKeyName(companyId: string): Promise<string>;
   listRoofrFiles(companyId: string): Promise<RoofrCandidate[]>;
-  listProcessedFileJnids(companyId: string): Promise<Set<string>>;
+  listProcessedFiles(companyId: string): Promise<Map<string, RoofrReportOutcome>>;
   writeReport(row: RoofrReportRow): Promise<void>;
 };
 
@@ -221,9 +293,9 @@ export async function runRoofrReports(
 ): Promise<RoofrReportRunResult> {
   const [files, processed] = await Promise.all([
     dependencies.store.listRoofrFiles(input.companyId),
-    dependencies.store.listProcessedFileJnids(input.companyId),
+    dependencies.store.listProcessedFiles(input.companyId),
   ]);
-  const pending = selectNewestRoofrCandidates(files).filter((file) => !processed.has(file.jnid));
+  const pending = selectRoofrCandidates(files, processed);
   const batch = pending.slice(0, input.limit ?? DEFAULT_REPORTS_PER_RUN);
   const result: RoofrReportRunResult = {
     candidates: pending.length,
@@ -245,7 +317,9 @@ export async function runRoofrReports(
     let row: RoofrReportRow;
     try {
       download = await client.downloadFile(file.jnid);
-      const measurement = parseRoofrText(await dependencies.extractText(download.bytes));
+      const text = await dependencies.extractText(download.bytes);
+      assertRoofrPrepared(text);
+      const measurement = parseRoofrText(text);
       row = {
         companyId: input.companyId,
         fileJnid: file.jnid,
@@ -293,27 +367,26 @@ export function createSupabaseRoofrReportStore(database: SupabaseClient<Database
 
     async listRoofrFiles(companyId) {
       const { data, error } = await database
-        .from("jn_files")
-        .select("jnid, filename, related_job_jnid, jn_created_at")
-        .eq("company_id", companyId)
-        .ilike("filename", "%roofr%")
-        .not("related_job_jnid", "is", null);
+        .from("jobnimbus_roofr_report_candidates")
+        .select("file_jnid, filename, job_jnid, jn_created_at, match_rank")
+        .eq("company_id", companyId);
       if (error || !data) throw new Error("Roofr report file listing failed", { cause: error });
-      return data.map((file) => ({
-        jnid: file.jnid,
+      return data.flatMap((file) => file.file_jnid === null ? [] : [{
+        jnid: file.file_jnid,
         filename: file.filename,
-        relatedJobJnid: file.related_job_jnid,
+        relatedJobJnid: file.job_jnid,
         createdAt: file.jn_created_at,
-      }));
+        matchRank: file.match_rank ?? 2,
+      }]);
     },
 
-    async listProcessedFileJnids(companyId) {
+    async listProcessedFiles(companyId) {
       const { data, error } = await database
         .from("jobnimbus_roofr_reports")
-        .select("file_jnid")
+        .select("file_jnid, outcome")
         .eq("company_id", companyId);
       if (error || !data) throw new Error("Roofr report outcome listing failed", { cause: error });
-      return new Set(data.map((row) => row.file_jnid));
+      return new Map(data.map((row) => [row.file_jnid, row.outcome as RoofrReportOutcome]));
     },
 
     async writeReport(row) {
@@ -333,6 +406,13 @@ export function createSupabaseRoofrReportStore(database: SupabaseClient<Database
         flat_squares: measurement?.flatSquares ?? null,
         pitch_area: (measurement?.pitchArea ?? []) as unknown as Json,
         waste_ladder: (measurement?.wasteLadder ?? []) as unknown as Json,
+        eaves_ft: measurement?.edgesFt.eaves ?? null,
+        rakes_ft: measurement?.edgesFt.rakes ?? null,
+        ridges_ft: measurement?.edgesFt.ridges ?? null,
+        hips_ft: measurement?.edgesFt.hips ?? null,
+        valleys_ft: measurement?.edgesFt.valleys ?? null,
+        wall_flashing_ft: measurement?.edgesFt.wallFlashing ?? null,
+        step_flashing_ft: measurement?.edgesFt.stepFlashing ?? null,
         api_calls: row.telemetry.apiCalls,
         transient_error_count: row.telemetry.transientErrorCount,
         rate_limit_response_count: row.telemetry.rateLimitResponses,
@@ -377,8 +457,14 @@ function round(value: number, digits: number): number {
   return Math.round((value + Number.EPSILON) * factor) / factor;
 }
 
+function timestamp(value: string | null): number {
+  return Date.parse(value ?? "") || 0;
+}
+
+// Positive when left is the better pick: likelier name, then newer, then jnid.
 function compareCandidate(left: RoofrCandidate, right: RoofrCandidate): number {
-  const byDate = (Date.parse(left.createdAt ?? "") || 0) - (Date.parse(right.createdAt ?? "") || 0);
+  if (left.matchRank !== right.matchRank) return right.matchRank - left.matchRank;
+  const byDate = timestamp(left.createdAt) - timestamp(right.createdAt);
   return byDate === 0 ? left.jnid.localeCompare(right.jnid) : byDate;
 }
 
