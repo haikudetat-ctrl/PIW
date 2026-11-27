@@ -135,6 +135,17 @@ describe("roof measuring sandbox, phase 2", () => {
     expect(screen.queryByRole("button", {name: "shared ridge"})).not.toBeInTheDocument();
   });
 
+  test("merges two planes across their shared edge and starts a cut on the result", async () => {
+    await loaded();
+    fireEvent.click(screen.getByRole("button", {name: "shared ridge"}));
+    fireEvent.click(screen.getByRole("button", {name: "Merge planes"}));
+    expect(screen.getByTestId("map")).toHaveTextContent("1 planes");
+    fireEvent.click(screen.getByRole("button", {name: "Cut in two"}));
+    expect(screen.getByText(/Click where the cut starts/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", {name: "Cancel"}));
+    expect(screen.getByRole("button", {name: "Draw a plane"})).toBeInTheDocument();
+  });
+
   test("a plane marked as wall leaves the squares", async () => {
     await loaded();
     fireEvent.click(screen.getByRole("button", {name: "select solar-1"}));
@@ -158,6 +169,7 @@ describe("roof measuring sandbox, phase 2", () => {
     expect((payload.drawing as {planes: unknown[]}).planes).toHaveLength(2);
     expect(payload.solarResponse).toMatchObject({name: "buildings/test"});
     expect(await screen.findByRole("button", {name: "Save changes"})).toBeInTheDocument();
+    expect(screen.getByRole("link", {name: "PDF report"})).toHaveAttribute("href", "/api/roof-measure/11111111-2222-4333-8444-555555555555/pdf");
   });
 
   test("shows why saving failed", async () => {

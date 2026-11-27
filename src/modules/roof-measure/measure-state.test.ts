@@ -109,3 +109,46 @@ describe("measuring sandbox state", () => {
     expect(state.overrides).toEqual({});
   });
 });
+
+describe("cutting and merging planes", () => {
+  test("cuts the selected plane with two clicks, then merges it back", () => {
+    let state = run([
+      {type: "selectPlane", planeId: "solar-1"},
+      {type: "startCut"},
+      {type: "addDraftPoint", at: at(4, 6)},
+    ], loaded);
+    expect(state.mode).toBe("cut");
+    expect(state.planes).toHaveLength(2);
+    state = run([{type: "addDraftPoint", at: at(4, -0.5)}], state);
+    expect(state.mode).toBe("edit");
+    expect(state.planes.map((plane) => plane.id)).toEqual(["solar-1a", "solar-1b", "solar-2"]);
+    expect(state.planes[0].source).toBe("adjusted");
+    expect(state.selectedPlaneId).toBe("solar-1a");
+    state = run([{type: "mergePlanes", firstId: "solar-1a", secondId: "solar-1b"}], state);
+    expect(state.planes).toHaveLength(2);
+    expect(state.planes[0].vertices).toHaveLength(4);
+    state = run([{type: "undo"}, {type: "undo"}], state);
+    expect(state.planes).toEqual([solarPlane, other]);
+  });
+
+  test("a cut that misses the plane says why and changes nothing", () => {
+    const state = run([
+      {type: "selectPlane", planeId: "solar-1"},
+      {type: "startCut"},
+      {type: "addDraftPoint", at: at(30, 6)},
+      {type: "addDraftPoint", at: at(30, -1)},
+    ], loaded);
+    expect(state.planes).toEqual([solarPlane, other]);
+    expect(state.notice).toMatch(/exactly twice/);
+    expect(state.mode).toBe("edit");
+  });
+
+  test("merging two whole neighbours keeps one plane; corner-only neighbours are refused", () => {
+    const merged = run([{type: "mergePlanes", firstId: "solar-1", secondId: "solar-2"}], loaded);
+    expect(merged.planes).toHaveLength(1);
+    const far: RoofPlane = {...other, id: "solar-3", vertices: [at(10, 4), at(14, 4), at(14, 8), at(10, 8)]};
+    const refused = run([{type: "load", origin, planes: [solarPlane, far]}, {type: "mergePlanes", firstId: "solar-1", secondId: "solar-3"}]);
+    expect(refused.planes).toHaveLength(2);
+    expect(refused.notice).toMatch(/whole edge/);
+  });
+});

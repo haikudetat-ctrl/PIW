@@ -252,10 +252,14 @@ export default async function JobPage({ params }: { params: Promise<{ jnid: stri
                 <Row
                   label="Rake drawing"
                   value={
-                    <Link href={`/roof-measure?m=${drawing.id}`} className="text-tint underline">
-                      {`${Number(drawing.squares).toFixed(1)} sq`}
-                      {drawing.predominant_pitch_rise === null ? "" : ` · ${drawing.predominant_pitch_rise}/12`}
-                    </Link>
+                    <>
+                      <Link href={`/roof-measure?m=${drawing.id}`} className="text-tint underline">
+                        {`${Number(drawing.squares).toFixed(1)} sq`}
+                        {drawing.predominant_pitch_rise === null ? "" : ` · ${drawing.predominant_pitch_rise}/12`}
+                      </Link>
+                      {" · "}
+                      <a href={`/api/roof-measure/${drawing.id}/pdf`} target="_blank" rel="noreferrer" className="text-tint underline">PDF</a>
+                    </>
                   }
                 />
               </dl>

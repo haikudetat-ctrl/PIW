@@ -988,3 +988,124 @@ export function edgeBearings(origin: LatLng, planes: RoofPlane[]) {
     return points.map((a, i) => lineBearing(a, points[(i + 1) % points.length]));
   });
 }
+
+// ---------------------------------------------------------------------------
+// Plane split and merge
+
+export type PlaneEditResult = {ok: true; planes: RoofPlane[]} | {ok: false; reason: string};
+
+/**
+ * Cuts a plane in two along the line through `from` and `to`. The line must
+ * cross the plane's outline exactly twice; both halves keep the plane's
+ * pitch, facing, height and surface.
+ */
+export function splitPlane(origin: LatLng, plane: RoofPlane, from: LatLng, to: LatLng): PlaneEditResult {
+  const points = plane.vertices.map((v) => toLocal(origin, v));
+  const a = toLocal(origin, from);
+  const b = toLocal(origin, to);
+  const dir = {x: b.x - a.x, y: b.y - a.y};
+  const length = Math.hypot(dir.x, dir.y);
+  if (length < 0.3) return {ok: false, reason: "Click two points farther apart to cut along."};
+  const side = (p: LocalPoint) => (dir.x * (p.y - a.y) - dir.y * (p.x - a.x)) / length;
+  const EPS = 1e-6;
+  const crossings: Array<{edge: number; point: LocalPoint}> = [];
+  points.forEach((p, i) => {
+    const q = points[(i + 1) % points.length];
+    const sp = side(p);
+    const sq = side(q);
+    if (Math.abs(sp) < EPS) {
+      crossings.push({edge: i, point: p});
+    } else if (sp * sq < -EPS * EPS && Math.abs(sq) >= EPS) {
+      const t = sp / (sp - sq);
+      crossings.push({edge: i, point: {x: p.x + (q.x - p.x) * t, y: p.y + (q.y - p.y) * t}});
+    }
+  });
+  if (crossings.length !== 2) {
+    return {ok: false, reason: "The cut has to cross the plane's outline exactly twice. Cut across one part at a time."};
+  }
+  const [first, second] = crossings;
+  const n = points.length;
+  const walk = (start: {edge: number; point: LocalPoint}, end: {edge: number; point: LocalPoint}) => {
+    const out: LocalPoint[] = [start.point];
+    let i = (start.edge + 1) % n;
+    while (i !== (end.edge + 1) % n) {
+      out.push(points[i]);
+      i = (i + 1) % n;
+    }
+    out.push(end.point);
+    // Drop repeats where a crossing sat on a corner.
+    return out.filter((p, k) => k === 0 || Math.hypot(p.x - out[k - 1].x, p.y - out[k - 1].y) > 1e-4);
+  };
+  const halves = [walk(first, second), walk(second, first)].map((half) =>
+    half.length > 2 && Math.hypot(half[0].x - half[half.length - 1].x, half[0].y - half[half.length - 1].y) < 1e-4 ? half.slice(0, -1) : half,
+  );
+  if (halves.some((half) => half.length < 3 || Math.abs(signedArea(half)) < 0.05)) {
+    return {ok: false, reason: "That cut would leave a sliver. Cut farther from the edge."};
+  }
+  const solarShare = (half: LocalPoint[]) =>
+    plane.solarSlopedAreaSqft === null ? null : plane.solarSlopedAreaSqft * (Math.abs(signedArea(half)) / Math.abs(signedArea(points)));
+  const make = (half: LocalPoint[], suffix: string): RoofPlane => ({
+    ...plane,
+    id: `${plane.id}${suffix}`,
+    vertices: half.map((p) => toLatLng(origin, p)),
+    source: plane.source === "solar" ? "adjusted" : plane.source,
+    solarSlopedAreaSqft: solarShare(half),
+  });
+  return {ok: true, planes: [make(halves[0], "a"), make(halves[1], "b")]};
+}
+
+const SAME_POINT_M = 0.3;
+
+/**
+ * Joins two planes that share a whole edge (both of its corners) into one
+ * plane. The merged plane takes the pitch and facing of the larger one.
+ */
+export function mergePlanes(origin: LatLng, first: RoofPlane, second: RoofPlane): PlaneEditResult {
+  const a = first.vertices.map((v) => toLocal(origin, v));
+  const b = second.vertices.map((v) => toLocal(origin, v));
+  const close = (p: LocalPoint, q: LocalPoint) => Math.hypot(p.x - q.x, p.y - q.y) <= SAME_POINT_M;
+  for (let i = 0; i < a.length; i += 1) {
+    const p = a[i];
+    const q = a[(i + 1) % a.length];
+    for (let j = 0; j < b.length; j += 1) {
+      // Shared edge runs the other way round on the neighbour when both wind the same way.
+      const reversed = close(b[j], q) && close(b[(j + 1) % b.length], p);
+      const same = close(b[j], p) && close(b[(j + 1) % b.length], q);
+      if (!reversed && !same) continue;
+      const fromA: LocalPoint[] = [];
+      for (let k = 0; k < a.length; k += 1) fromA.push(a[(i + 1 + k) % a.length]); // q ... p
+      const bOrdered = reversed ? b : [...b].reverse();
+      const startB = reversed ? j : bOrdered.findIndex((pt) => close(pt, p));
+      // Walk the neighbour from just after p back round to just before q.
+      const fromB: LocalPoint[] = [];
+      for (let k = 1; k < bOrdered.length - 1; k += 1) fromB.push(bOrdered[(startB + 1 + k) % bOrdered.length]);
+      const merged = removeCollinear([...fromA, ...fromB]);
+      if (merged.length < 3) return {ok: false, reason: "Those planes don't make a single outline."};
+      const larger = Math.abs(signedArea(a)) >= Math.abs(signedArea(b)) ? first : second;
+      return {
+        ok: true,
+        planes: [{
+          ...larger,
+          id: larger.id,
+          vertices: merged.map((pt) => toLatLng(origin, pt)),
+          source: larger.source === "solar" ? "adjusted" : larger.source,
+          solarSlopedAreaSqft: first.solarSlopedAreaSqft === null && second.solarSlopedAreaSqft === null
+            ? null
+            : (first.solarSlopedAreaSqft ?? 0) + (second.solarSlopedAreaSqft ?? 0),
+        }],
+      };
+    }
+  }
+  return {ok: false, reason: "Those planes don't share a whole edge. Move their corners together first."};
+}
+
+function removeCollinear(points: LocalPoint[]) {
+  const out = points.filter((p, i) => {
+    const prev = points[(i - 1 + points.length) % points.length];
+    const next = points[(i + 1) % points.length];
+    if (Math.hypot(p.x - prev.x, p.y - prev.y) < 1e-4) return false;
+    const cross = (p.x - prev.x) * (next.y - prev.y) - (p.y - prev.y) * (next.x - prev.x);
+    return Math.abs(cross) / Math.max(Math.hypot(next.x - prev.x, next.y - prev.y), 1e-9) > 0.02;
+  });
+  return out;
+}

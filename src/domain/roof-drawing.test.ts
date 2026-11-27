@@ -1,6 +1,7 @@
 import {describe, expect, test} from "vitest";
 import {
   buildingAxisDegrees,
+  mergePlanes,
   buildRoofMeasurementReport,
   computeRoofEdges,
   degreesFromPitchRise,
@@ -18,6 +19,7 @@ import {
   slopedAreaSqft,
   snapToNearbyVertex,
   solarSquares,
+  splitPlane,
   squareUpPlane,
   SQFT_PER_M2,
   toLatLng,
@@ -431,5 +433,59 @@ describe("90-degree helpers", () => {
     const kept = squareUpPlane(origin, hipEnd, 0).vertices.map((v) => toLocal(origin, v));
     expect(kept[2].x).toBeCloseTo(5, 6);
     expect(kept[2].y).toBeCloseTo(5, 6);
+  });
+});
+
+describe("plane split and merge", () => {
+  const box = plane("p", [[0, 0], [10, 0], [10, 4], [0, 4]], 180);
+
+  test("cuts a plane in two along a line, keeping its pitch and splitting its area", () => {
+    const result = splitPlane(origin, {...box, solarSlopedAreaSqft: 500}, at(4, -1), at(4, 5));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const [left, right] = result.planes;
+    const areas = result.planes.map((half) => planAreaSqft(origin, half.vertices));
+    expect(areas[0] + areas[1]).toBeCloseTo(planAreaSqft(origin, box.vertices), 3);
+    expect(Math.min(...areas) / Math.max(...areas)).toBeCloseTo(4 / 6, 3);
+    expect(left.pitchDegrees).toBe(box.pitchDegrees);
+    expect(new Set([left.id, right.id]).size).toBe(2);
+    expect((left.solarSlopedAreaSqft ?? 0) + (right.solarSlopedAreaSqft ?? 0)).toBeCloseTo(500, 6);
+    // The halves meet along the cut and join back into one ridge-free edge.
+    expect(computeRoofEdges(origin, result.planes).filter((edge) => edge.planeIds.length === 2)).toHaveLength(1);
+  });
+
+  test("refuses a cut that misses or crosses an L-shape more than twice", () => {
+    expect(splitPlane(origin, box, at(20, 0), at(20, 5)).ok).toBe(false);
+    const ell = plane("l", [[0, 0], [10, 0], [10, 2], [2, 2], [2, 6], [0, 6]], 180);
+    expect(splitPlane(origin, ell, at(-1, 1), at(11, 1)).ok).toBe(true);
+    expect(splitPlane(origin, ell, at(1, -1), at(1, 7)).ok).toBe(true);
+    // Enters the upright arm, leaves it, then crosses the bottom arm: four crossings.
+    expect(splitPlane(origin, ell, at(-1, 5), at(11, -1)).ok).toBe(false);
+  });
+
+  test("merges two planes that share a whole edge back into one outline", () => {
+    const left = plane("a", [[0, 0], [4, 0], [4, 4], [0, 4]], 180);
+    const right = plane("b", [[4, 0], [10, 0], [10, 4], [4, 4]], 180);
+    const result = mergePlanes(origin, left, right);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.planes).toHaveLength(1);
+    expect(result.planes[0].vertices).toHaveLength(4);
+    expect(planAreaSqft(origin, result.planes[0].vertices)).toBeCloseTo(40 * SQFT_PER_M2, 2);
+    expect(result.planes[0].id).toBe("b");
+  });
+
+  test("merges a split plane back to its original area", () => {
+    const halves = splitPlane(origin, box, at(4, -1), at(4, 5));
+    if (!halves.ok) throw new Error("split failed");
+    const back = mergePlanes(origin, halves.planes[0], halves.planes[1]);
+    expect(back.ok).toBe(true);
+    if (back.ok) expect(planAreaSqft(origin, back.planes[0].vertices)).toBeCloseTo(planAreaSqft(origin, box.vertices), 3);
+  });
+
+  test("refuses planes that only touch at a corner", () => {
+    const left = plane("a", [[0, 0], [4, 0], [4, 4], [0, 4]], 180);
+    const corner = plane("b", [[4, 4], [8, 4], [8, 8], [4, 8]], 180);
+    expect(mergePlanes(origin, left, corner).ok).toBe(false);
   });
 });
