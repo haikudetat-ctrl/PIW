@@ -111,3 +111,10 @@ test("a job the member cannot see is not found", async () => {
   tables.set("jn_jobs", []);
   await expect(JobPage({ params: Promise.resolve({ jnid: "missing" }) })).rejects.toThrow("NEXT_NOT_FOUND");
 });
+
+test("links the latest roof drawing saved for the job", async () => {
+  tables.set("roof_measurements", [{ id: "11111111-2222-4333-8444-555555555555", squares: "15.33", predominant_pitch_rise: 5, updated_at: "2026-11-27T16:00:00Z" }]);
+  render(await JobPage({ params: Promise.resolve({ jnid: "jn-1" }) }));
+  const link = screen.getByRole("link", { name: "15.3 sq · 5/12" });
+  expect(link).toHaveAttribute("href", "/roof-measure?m=11111111-2222-4333-8444-555555555555");
+});

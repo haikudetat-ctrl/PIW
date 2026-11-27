@@ -1,11 +1,17 @@
 import {
+  buildingAxisDegrees,
   degreesFromPitchRise,
   distanceMeters,
+  edgeBearings,
   guessAzimuthForDrawnPlane,
+  orthoSnapCorner,
   snapToNearbyVertex,
+  squareUpPlane,
+  type EdgePairMode,
   type LatLng,
   type RoofEdgeKind,
   type RoofPlane,
+  type RoofSurface,
 } from "@/domain/roof-drawing";
 
 export type MeasureMode = "edit" | "draw";
@@ -13,6 +19,7 @@ export type MeasureMode = "edit" | "draw";
 export type DrawingSnapshot = {
   planes: RoofPlane[];
   overrides: Record<string, RoofEdgeKind>;
+  pairModes: Record<string, EdgePairMode>;
 };
 
 export type MeasureState = DrawingSnapshot & {
@@ -24,13 +31,18 @@ export type MeasureState = DrawingSnapshot & {
   draft: LatLng[];
   history: DrawingSnapshot[];
   nextDrawnId: number;
+  /** Building axis for 90-degree helpers, from the Solar planes at load. */
+  axisDegrees: number | null;
 };
 
 export type MeasureAction =
-  | {type: "load"; origin: LatLng; planes: RoofPlane[]}
+  | {type: "load"; origin: LatLng; planes: RoofPlane[]; saved?: DrawingSnapshot}
   | {type: "selectPlane"; planeId: string | null}
   | {type: "selectEdge"; edgeId: string | null}
   | {type: "moveVertex"; planeId: string; index: number; to: LatLng; snap: boolean}
+  | {type: "squareUp"; planeId: string}
+  | {type: "setSurface"; planeId: string; surface: RoofSurface}
+  | {type: "setPairMode"; pairKey: string; mode: EdgePairMode | null}
   | {type: "insertVertex"; planeId: string; afterIndex: number; at: LatLng}
   | {type: "deleteVertex"; planeId: string; index: number}
   | {type: "deletePlane"; planeId: string}
@@ -48,6 +60,7 @@ export const initialMeasureState: MeasureState = {
   origin: null,
   planes: [],
   overrides: {},
+  pairModes: {},
   solarPlanes: [],
   selectedPlaneId: null,
   selectedEdgeId: null,
@@ -55,6 +68,7 @@ export const initialMeasureState: MeasureState = {
   draft: [],
   history: [],
   nextDrawnId: 1,
+  axisDegrees: null,
 };
 
 const HISTORY_LIMIT = 50;
@@ -62,7 +76,7 @@ const DEFAULT_DRAWN_PITCH_RISE = 6;
 const DUPLICATE_POINT_M = 0.2;
 
 function remember(state: MeasureState): DrawingSnapshot[] {
-  return [...state.history, {planes: state.planes, overrides: state.overrides}].slice(-HISTORY_LIMIT);
+  return [...state.history, {planes: state.planes, overrides: state.overrides, pairModes: state.pairModes}].slice(-HISTORY_LIMIT);
 }
 
 function editPlane(state: MeasureState, planeId: string, change: (plane: RoofPlane) => RoofPlane | null): MeasureState {
@@ -81,8 +95,20 @@ const adjusted = (plane: RoofPlane): RoofPlane["source"] => (plane.source === "s
 
 export function measureReducer(state: MeasureState, action: MeasureAction): MeasureState {
   switch (action.type) {
-    case "load":
-      return {...initialMeasureState, origin: action.origin, planes: action.planes, solarPlanes: action.planes};
+    case "load": {
+      const planes = action.saved?.planes ?? action.planes;
+      const drawnIds = planes.map((plane) => Number(plane.id.match(/^drawn-(\d+)$/)?.[1] ?? 0));
+      return {
+        ...initialMeasureState,
+        origin: action.origin,
+        planes,
+        overrides: action.saved?.overrides ?? {},
+        pairModes: action.saved?.pairModes ?? {},
+        solarPlanes: action.planes,
+        nextDrawnId: Math.max(0, ...drawnIds) + 1,
+        axisDegrees: buildingAxisDegrees(action.origin, action.planes.length ? action.planes : planes),
+      };
+    }
     case "selectPlane":
       return {...state, selectedPlaneId: action.planeId, selectedEdgeId: null};
     case "selectEdge":
@@ -90,10 +116,24 @@ export function measureReducer(state: MeasureState, action: MeasureAction): Meas
     case "moveVertex": {
       const origin = state.origin;
       return editPlane(state, action.planeId, (plane) => {
-        const to = action.snap && origin ? snapToNearbyVertex(origin, action.to, state.planes, plane.id) : action.to;
+        const to = action.snap && origin ? snapCorner(state, origin, plane, action.index, action.to).point : action.to;
         const vertices = plane.vertices.map((vertex, index) => (index === action.index ? to : vertex));
         return {...plane, vertices, source: adjusted(plane)};
       });
+    }
+    case "squareUp": {
+      const origin = state.origin;
+      const axis = state.axisDegrees ?? (origin ? buildingAxisDegrees(origin, state.planes) : null);
+      if (!origin || axis === null) return state;
+      return editPlane(state, action.planeId, (plane) => squareUpPlane(origin, plane, axis));
+    }
+    case "setSurface":
+      return editPlane(state, action.planeId, (plane) => ({...plane, surface: action.surface, source: adjusted(plane)}));
+    case "setPairMode": {
+      const pairModes = {...state.pairModes};
+      if (action.mode === null) delete pairModes[action.pairKey];
+      else pairModes[action.pairKey] = action.mode;
+      return {...state, pairModes, selectedEdgeId: null, history: remember(state)};
     }
     case "insertVertex":
       return editPlane(state, action.planeId, (plane) => {
@@ -166,11 +206,31 @@ export function measureReducer(state: MeasureState, action: MeasureAction): Meas
     case "cancelDraw":
       return {...state, mode: "edit", draft: []};
     case "resetToSolar":
-      return {...state, planes: state.solarPlanes, overrides: {}, history: remember(state), selectedPlaneId: null, selectedEdgeId: null};
+      return {...state, planes: state.solarPlanes, overrides: {}, pairModes: {}, history: remember(state), selectedPlaneId: null, selectedEdgeId: null};
     case "undo": {
       const previous = state.history.at(-1);
       if (!previous) return state;
       return {...state, ...previous, history: state.history.slice(0, -1)};
     }
   }
+}
+
+/**
+ * Where a dragged corner lands: onto another plane's corner when close,
+ * otherwise square to the building axes or parallel to another edge.
+ */
+export function snapCorner(state: MeasureState, origin: LatLng, plane: RoofPlane, index: number, to: LatLng) {
+  const corner = snapToNearbyVertex(origin, to, state.planes, plane.id);
+  if (corner !== to) return {point: corner, snapped: true, kind: "corner" as const};
+  const n = plane.vertices.length;
+  const others = state.planes.filter((other) => other.id !== plane.id);
+  const ortho = orthoSnapCorner({
+    origin,
+    previous: plane.vertices[(index - 1 + n) % n],
+    next: plane.vertices[(index + 1) % n],
+    proposed: to,
+    axisDegrees: state.axisDegrees,
+    extraBearings: edgeBearings(origin, others),
+  });
+  return {point: ortho.point, snapped: ortho.snapped, kind: ortho.snapped ? "square" as const : null};
 }

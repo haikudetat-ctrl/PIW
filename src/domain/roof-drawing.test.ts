@@ -1,5 +1,6 @@
 import {describe, expect, test} from "vitest";
 import {
+  buildingAxisDegrees,
   buildRoofMeasurementReport,
   computeRoofEdges,
   degreesFromPitchRise,
@@ -9,12 +10,15 @@ import {
   guessAzimuthForDrawnPlane,
   parseSolarForDrawing,
   pickActiveSquares,
+  orthoSnapCorner,
   planAreaSqft,
   planeFromSolarSegment,
+  planePairKey,
   planesFromSolar,
   slopedAreaSqft,
   snapToNearbyVertex,
   solarSquares,
+  squareUpPlane,
   SQFT_PER_M2,
   toLatLng,
   toLocal,
@@ -135,6 +139,98 @@ describe("edge detection", () => {
     expect(same.kind).toBe("wall_flashing");
     expect(same.autoKind).toBe("ridge");
     expect(same.overridden).toBe(true);
+  });
+});
+
+describe("levels, wall faces and folds (from the 132 Windsor Ave drawing)", () => {
+  const withHeight = (p: RoofPlane, x: number, y: number, meters: number): RoofPlane => ({...p, heightRef: {at: at(x, y), meters}});
+
+  test("a steep overhang below a higher roof keeps its own edges instead of joining it", () => {
+    // Main roof faces west; its eave line at x = 0 sits about 6.3 m up.
+    const main = withHeight(plane("a-main", [[0, 0], [6, 0], [6, 8], [0, 8]], 270, degreesFromPitchRise(5)), 3, 4, 7.5);
+    // A 20/12 pent section below it on the same line, about 3.5 m up at its top.
+    const pent = withHeight(plane("b-pent", [[-1.2, 0], [0, 0], [0, 8], [-1.2, 8]], 270, degreesFromPitchRise(20)), -0.6, 4, 2.5);
+    const edges = computeRoofEdges(origin, [main, pent]);
+    expect(edges.every((edge) => edge.planeIds.length === 1)).toBe(true);
+    const onLine = edges.filter((edge) => Math.abs(toLocal(origin, edge.start).x) < 0.01 && Math.abs(toLocal(origin, edge.end).x) < 0.01);
+    expect(onLine.find((edge) => edge.planeIds[0] === "a-main")?.kind).toBe("eave");
+    expect(onLine.find((edge) => edge.planeIds[0] === "b-pent")?.kind).toBe("wall_flashing");
+  });
+
+  test("planes at the same height still share the edge", () => {
+    const north = withHeight(gable[0], 0, 2, 5);
+    const south = withHeight(gable[1], 0, -2, 5);
+    expect(computeRoofEdges(origin, [north, south]).some((edge) => edge.kind === "ridge" && edge.planeIds.length === 2)).toBe(true);
+  });
+
+  test("a pitch break between planes facing the same way is a pitch change", () => {
+    const upper = plane("a-upper", [[-5, 0], [5, 0], [5, 4], [-5, 4]], 180, degreesFromPitchRise(12));
+    const lower = plane("b-lower", [[-5, -3], [5, -3], [5, 0], [-5, 0]], 180, degreesFromPitchRise(4));
+    expect(computeRoofEdges(origin, [upper, lower]).find((edge) => edge.planeIds.length === 2)?.kind).toBe("transition");
+  });
+
+  test("two roof planes meeting on a diagonal are a hip or a valley, never step flashing", () => {
+    const facesNorth = plane("a", [[0, 0], [5, 5], [0, 5]], 0);
+    const facesEast = plane("b", [[0, 0], [5, 0], [5, 5]], 90);
+    const hip = computeRoofEdges(origin, [facesNorth, facesEast]).find((edge) => edge.planeIds.length === 2);
+    expect(hip?.kind).toBe("hip");
+    const facesSouth = {...facesNorth, azimuthDegrees: 180};
+    const facesWest = {...facesEast, azimuthDegrees: 270};
+    expect(computeRoofEdges(origin, [facesSouth, facesWest]).find((edge) => edge.planeIds.length === 2)?.kind).toBe("valley");
+    const mixed = computeRoofEdges(origin, [facesNorth, facesWest]);
+    expect(mixed.some((edge) => edge.kind === "step_flashing")).toBe(false);
+  });
+
+  test("splitting a joined edge gives each plane its own labelled, counted edge", () => {
+    // Upper roof drips onto a lower porch roof that runs up under it.
+    const upper = plane("a-upper", [[-5, 0], [5, 0], [5, 4], [-5, 4]], 180, degreesFromPitchRise(8));
+    const lower = plane("b-lower", [[-5, -3], [5, -3], [5, 0], [-5, 0]], 180, degreesFromPitchRise(3));
+    const joined = computeRoofEdges(origin, [upper, lower]);
+    const shared = joined.filter((edge) => edge.planeIds.length === 2);
+    expect(shared).toHaveLength(1);
+    expect(shared[0].pair).toEqual({key: planePairKey("a-upper", "b-lower"), otherPlaneId: "b-lower", joined: true});
+
+    const split = computeRoofEdges(origin, [upper, lower], {}, {[planePairKey("a-upper", "b-lower")]: "split"});
+    const alongLine = split.filter((edge) => edge.pair?.key === planePairKey("a-upper", "b-lower"));
+    expect(alongLine).toHaveLength(2);
+    expect(alongLine.every((edge) => edge.pair?.joined === false)).toBe(true);
+    expect(alongLine.find((edge) => edge.planeIds[0] === "a-upper")?.kind).toBe("eave");
+    expect(alongLine.find((edge) => edge.planeIds[0] === "b-lower")?.kind).toBe("wall_flashing");
+    const sum = (edges: typeof split) => edges.reduce((total, edge) => total + edge.trueLengthFt, 0);
+    // Joined counts the line once; split counts both sides.
+    expect(sum(alongLine)).toBeCloseTo(2 * shared[0].trueLengthFt, 4);
+  });
+
+  test("planes on different levels can still be joined by hand", () => {
+    const main = {...plane("a-main", [[0, 0], [6, 0], [6, 8], [0, 8]], 270, degreesFromPitchRise(5)), heightRef: {at: at(3, 4), meters: 7.5}};
+    const pent = {...plane("b-pent", [[-1.2, 0], [0, 0], [0, 8], [-1.2, 8]], 270, degreesFromPitchRise(20)), heightRef: {at: at(-0.6, 4), meters: 2.5}};
+    const key = planePairKey("a-main", "b-pent");
+    expect(computeRoofEdges(origin, [main, pent]).find((edge) => edge.pair?.key === key)?.pair?.joined).toBe(false);
+    const joined = computeRoofEdges(origin, [main, pent], {}, {[key]: "join"});
+    expect(joined.filter((edge) => edge.pair?.key === key)).toHaveLength(1);
+    expect(joined.find((edge) => edge.pair?.key === key)?.kind).toBe("transition");
+  });
+
+  test("a face marked as wall is left out of squares and turns its roof edge into flashing", () => {
+    const roof = plane("a-roof", [[-5, -4], [5, -4], [5, 0], [-5, 0]], 180);
+    const cheek: RoofPlane = {...plane("b-cheek", [[-5, 0], [5, 0], [5, 0.5], [-5, 0.5]], 180, degreesFromPitchRise(20)), surface: "wall"};
+    const edges = computeRoofEdges(origin, [roof, cheek]);
+    expect(edges.find((edge) => edge.planeIds.length === 2)?.kind).toBe("wall_flashing");
+    expect(edges.some((edge) => edge.planeIds.length === 1 && edge.planeIds[0] === "b-cheek")).toBe(false);
+    const report = buildRoofMeasurementReport(origin, [roof, cheek], edges);
+    expect(report.planeCount).toBe(1);
+    expect(report.wallPlaneCount).toBe(1);
+    expect(report.wallSqft).toBeGreaterThan(0);
+    expect(report.squares).toBeCloseTo(slopedAreaSqft(origin, roof) / 100, 6);
+  });
+
+  test("flags steep area for the steep charge and very steep planes as possible walls", () => {
+    const steep = plane("a-steep", [[0, 0], [4, 0], [4, 2], [0, 2]], 270, degreesFromPitchRise(20));
+    const report = buildRoofMeasurementReport(origin, [gable[0], steep], []);
+    expect(report.steepSqft).toBeCloseTo(slopedAreaSqft(origin, steep), 6);
+    expect(report.possibleWallPlaneIds).toEqual(["a-steep"]);
+    // Still counted as roof unless someone marks it.
+    expect(report.planeCount).toBe(2);
   });
 });
 
@@ -289,5 +385,51 @@ describe("report", () => {
     expect(pickActiveSquares({solar, drawn: edited, measured: {source: "Roofr", totalSqft: 2450, predominantPitchRise: 6, lengthsFt: {}}}))
       .toEqual({tier: "measured", squares: 24.5});
     expect(pickActiveSquares({solar: null, drawn: null, measured: null})).toBeNull();
+  });
+});
+
+describe("90-degree helpers", () => {
+  const rotate = (x: number, y: number, deg: number): [number, number] => {
+    const r = (deg * Math.PI) / 180;
+    return [x * Math.cos(r) + y * Math.sin(r), -x * Math.sin(r) + y * Math.cos(r)];
+  };
+
+  test("finds a building rotated 20 degrees from north from its plane facings", () => {
+    const planes = [plane("a", [[0, 0], [10, 0], [10, 4], [0, 4]], 20), plane("b", [[0, -4], [10, -4], [10, 0], [0, 0]], 200), plane("c", [[10, -4], [14, -4], [14, 4], [10, 4]], 110)];
+    expect(buildingAxisDegrees(origin, planes)).toBeCloseTo(20, 6);
+  });
+
+  test("snaps a dragged corner square to both neighbours on the building axes", () => {
+    // Axis at 20 degrees; neighbours sit on a rotated rectangle's corners.
+    const [px, py] = rotate(0, 0, 20);
+    const [nx, ny] = rotate(10, 4, 20);
+    const [cx, cy] = rotate(10, 0, 20);
+    const result = orthoSnapCorner({origin, previous: at(px, py), next: at(nx, ny), proposed: at(cx + 0.4, cy - 0.3), axisDegrees: 20});
+    expect(result.snapped).toBe(true);
+    const local = toLocal(origin, result.point);
+    expect(local.x).toBeCloseTo(cx, 4);
+    expect(local.y).toBeCloseTo(cy, 4);
+  });
+
+  test("leaves a corner alone when neither edge is near an axis", () => {
+    const result = orthoSnapCorner({origin, previous: at(0, 0), next: at(10, 10), proposed: at(6, 3), axisDegrees: 0});
+    expect(result.snapped).toBe(false);
+  });
+
+  test("squares up a skewed plane onto the axes and keeps a diagonal edge's ends", () => {
+    const skewed = plane("s", [[0, 0], [10, 0.6], [10.4, 4], [-0.3, 4.2]], 0);
+    const squared = squareUpPlane(origin, skewed, 0);
+    const pts = squared.vertices.map((v) => toLocal(origin, v));
+    // Opposite edges now parallel to the axes: equal y along the bottom, equal x on the sides.
+    expect(pts[0].y).toBeCloseTo(pts[1].y, 6);
+    expect(pts[1].x).toBeCloseTo(pts[2].x, 6);
+    expect(pts[2].y).toBeCloseTo(pts[3].y, 6);
+    expect(pts[3].x).toBeCloseTo(pts[0].x, 6);
+    expect(squared.source).toBe("drawn");
+
+    const hipEnd = plane("h", [[0, 0], [10, 0], [5, 5]], 180);
+    const kept = squareUpPlane(origin, hipEnd, 0).vertices.map((v) => toLocal(origin, v));
+    expect(kept[2].x).toBeCloseTo(5, 6);
+    expect(kept[2].y).toBeCloseTo(5, 6);
   });
 });

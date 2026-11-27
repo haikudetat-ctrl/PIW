@@ -68,7 +68,7 @@ export default async function JobPage({ params }: { params: Promise<{ jnid: stri
   if (error) throw new Error("Failed to load JobNimbus job");
   if (!job) notFound();
 
-  const [contactResult, statusResult, estimatesResult, filesResult, roofrResult, identityResult] =
+  const [contactResult, statusResult, estimatesResult, filesResult, roofrResult, identityResult, drawingResult] =
     await Promise.all([
       job.primary_contact_jnid
         ? supabase
@@ -107,6 +107,13 @@ export default async function JobPage({ params }: { params: Promise<{ jnid: stri
         .eq("source_system", "jobnimbus_job")
         .eq("external_id", jnid)
         .maybeSingle(),
+      // Latest drawing saved on the roof measuring page for this job.
+      supabase
+        .from("roof_measurements")
+        .select("id, squares, predominant_pitch_rise, updated_at")
+        .eq("job_jnid", jnid)
+        .order("updated_at", { ascending: false })
+        .limit(1),
     ]);
 
   const contact = contactResult.data;
@@ -117,6 +124,7 @@ export default async function JobPage({ params }: { params: Promise<{ jnid: stri
   const files = filesResult.data ?? [];
   const fileCount = filesResult.count ?? files.length;
   const roofr = roofrResult.data?.[0] ?? null;
+  const drawing = drawingResult.data?.[0] ?? null;
 
   // The customer journey ties this job to its Rake lead and its history;
   // only managers can read it, so reps see the job without the timeline.
@@ -239,6 +247,19 @@ export default async function JobPage({ params }: { params: Promise<{ jnid: stri
             title="Roof measurement"
             right={roofr ? <Badge tone="success">Roofr</Badge> : <Badge tone="neutral">None yet</Badge>}
           >
+            {drawing ? (
+              <dl className="mb-2">
+                <Row
+                  label="Rake drawing"
+                  value={
+                    <Link href={`/roof-measure?m=${drawing.id}`} className="text-tint underline">
+                      {`${Number(drawing.squares).toFixed(1)} sq`}
+                      {drawing.predominant_pitch_rise === null ? "" : ` · ${drawing.predominant_pitch_rise}/12`}
+                    </Link>
+                  }
+                />
+              </dl>
+            ) : null}
             {roofr ? (
               <dl>
                 <Row label="Total" value={`${Number(roofr.total_squares).toFixed(1)} sq`} />
