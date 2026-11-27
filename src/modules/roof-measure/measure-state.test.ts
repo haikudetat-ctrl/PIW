@@ -75,6 +75,35 @@ describe("measuring sandbox state", () => {
     expect(state.overrides).toEqual({});
   });
 
+  test("squares a plane to the building axis and marks it adjusted", () => {
+    const skewed = {...solarPlane, vertices: [at(0, 0), at(10, 0.5), at(10.3, 4), at(0, 4.2)]};
+    const state = run([{type: "load", origin, planes: [skewed, other]}, {type: "squareUp", planeId: "solar-1"}]);
+    const pts = state.planes[0].vertices.map((v) => toLocal(origin, v));
+    expect(pts[0].y).toBeCloseTo(pts[1].y, 6);
+    expect(state.planes[0].source).toBe("adjusted");
+  });
+
+  test("a corner dragged near square snaps onto the building axes", () => {
+    const state = run([{type: "moveVertex", planeId: "solar-1", index: 2, to: at(10.4, 4.3), snap: true}], loaded);
+    const moved = toLocal(origin, state.planes[0].vertices[2]);
+    expect(moved.x).toBeCloseTo(10, 6);
+    expect(moved.y).toBeCloseTo(4, 6);
+  });
+
+  test("marks a face as wall, toggles a shared edge to split, and restores a saved drawing", () => {
+    let state = run([
+      {type: "setSurface", planeId: "solar-2", surface: "wall"},
+      {type: "setPairMode", pairKey: "solar-1|solar-2", mode: "split"},
+    ], loaded);
+    expect(state.planes[1].surface).toBe("wall");
+    expect(state.pairModes).toEqual({"solar-1|solar-2": "split"});
+    const saved = {planes: state.planes, overrides: {x: "hip" as const}, pairModes: state.pairModes};
+    state = run([{type: "load", origin, planes: [solarPlane, other], saved}]);
+    expect(state.planes[1].surface).toBe("wall");
+    expect(state.overrides).toEqual({x: "hip"});
+    expect(state.solarPlanes).toEqual([solarPlane, other]);
+  });
+
   test("clears an edge override", () => {
     const state = run([{type: "setEdgeKind", edgeId: "e", kind: "hip"}, {type: "setEdgeKind", edgeId: "e", kind: null}], loaded);
     expect(state.overrides).toEqual({});

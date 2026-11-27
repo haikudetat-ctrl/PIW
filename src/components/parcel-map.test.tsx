@@ -165,7 +165,8 @@ test("uses NJGIN aerial imagery and identifies its capture date", async () => {
   );
   expect(screen.getByTestId("tile-layer")).toHaveAttribute(
     "data-max-native-zoom",
-    "23",
+    // Real detail stops at zoom 20; Leaflet enlarges those tiles beyond it.
+    "20",
   );
   expect(screen.getByTestId("tile-layer")).toHaveAttribute(
     "data-attribution",

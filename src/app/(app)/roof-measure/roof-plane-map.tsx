@@ -2,9 +2,9 @@
 
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
-import {Fragment, useEffect, useMemo} from "react";
+import {Fragment, useEffect, useMemo, useRef, useState} from "react";
 import {MapContainer, Marker, Polygon, Polyline, TileLayer, Tooltip, useMapEvents} from "react-leaflet";
-import {NJGIN_AERIAL_ATTRIBUTION, NJGIN_AERIAL_TILE_URL} from "@/components/parcel-map";
+import {NJGIN_AERIAL_ATTRIBUTION, NJGIN_AERIAL_TILE_URL, NJGIN_MAX_NATIVE_ZOOM} from "@/components/parcel-map";
 import {roofEdgeKindLabels, type LatLng, type RoofEdge, type RoofPlane} from "@/domain/roof-drawing";
 import {edgeKindColors} from "@/modules/roof-measure/edge-colors";
 import type {MeasureAction, MeasureMode} from "@/modules/roof-measure/measure-state";
@@ -27,6 +27,12 @@ const draftIcon = L.divIcon({
   className: "piw-roof-draft",
   html: '<span style="display:block;width:10px;height:10px;border-radius:50%;background:#facc15;border:2px solid #0f172a"></span>',
   iconAnchor: [5, 5],
+});
+
+const snapIcon = L.divIcon({
+  className: "piw-roof-snap",
+  html: '<span style="display:block;width:16px;height:16px;border:2px solid #22d3ee;border-radius:2px;box-shadow:0 0 0 1px rgba(0,0,0,.5)"></span>',
+  iconAnchor: [8, 8],
 });
 
 const toTuple = (point: LatLng): [number, number] => [point.lat, point.lng];
@@ -60,10 +66,26 @@ export type RoofPlaneMapProps = {
   draft: LatLng[];
   showPlaneFill: boolean;
   dispatch: (action: MeasureAction) => void;
+  /** Where a corner dragged to `to` would snap, for the live square marker. */
+  previewSnap?: (planeId: string, index: number, to: LatLng) => {point: LatLng; snapped: boolean};
 };
 
-export default function RoofPlaneMap({center, planes, edges, selectedPlaneId, selectedEdgeId, mode, draft, showPlaneFill, dispatch}: RoofPlaneMapProps) {
+export default function RoofPlaneMap({center, planes, edges, selectedPlaneId, selectedEdgeId, mode, draft, showPlaneFill, dispatch, previewSnap}: RoofPlaneMapProps) {
   const selected = useMemo(() => planes.find((plane) => plane.id === selectedPlaneId) ?? null, [planes, selectedPlaneId]);
+  // Alt (Option) held while dragging turns snapping off.
+  const freeDrag = useRef(false);
+  const [snapHint, setSnapHint] = useState<LatLng | null>(null);
+  useEffect(() => {
+    const update = (event: KeyboardEvent) => {
+      freeDrag.current = event.altKey;
+    };
+    window.addEventListener("keydown", update);
+    window.addEventListener("keyup", update);
+    return () => {
+      window.removeEventListener("keydown", update);
+      window.removeEventListener("keyup", update);
+    };
+  }, []);
 
   return (
     <MapContainer
@@ -73,7 +95,7 @@ export default function RoofPlaneMap({center, planes, edges, selectedPlaneId, se
       scrollWheelZoom
       className="h-full min-h-[28rem] w-full"
     >
-      <TileLayer attribution={NJGIN_AERIAL_ATTRIBUTION} url={NJGIN_AERIAL_TILE_URL} maxNativeZoom={23} maxZoom={23} />
+      <TileLayer attribution={NJGIN_AERIAL_ATTRIBUTION} url={NJGIN_AERIAL_TILE_URL} maxNativeZoom={NJGIN_MAX_NATIVE_ZOOM} maxZoom={23} keepBuffer={4} />
       <MapClicks mode={mode} dispatch={dispatch} />
       {planes.map((plane) => (
         <Polygon
@@ -126,9 +148,17 @@ export default function RoofPlaneMap({center, planes, edges, selectedPlaneId, se
               draggable
               title="Drag to move. Right-click to delete this corner."
               eventHandlers={{
+                drag(event) {
+                  if (!previewSnap) return;
+                  const at = (event.target as L.Marker).getLatLng();
+                  const free = freeDrag.current || Boolean((event as unknown as {originalEvent?: MouseEvent}).originalEvent?.altKey);
+                  const hint = free ? null : previewSnap(selected.id, index, {lat: at.lat, lng: at.lng});
+                  setSnapHint(hint?.snapped ? hint.point : null);
+                },
                 dragend(event) {
                   const at = (event.target as L.Marker).getLatLng();
-                  dispatch({type: "moveVertex", planeId: selected.id, index, to: {lat: at.lat, lng: at.lng}, snap: true});
+                  setSnapHint(null);
+                  dispatch({type: "moveVertex", planeId: selected.id, index, to: {lat: at.lat, lng: at.lng}, snap: !freeDrag.current});
                 },
                 contextmenu() {
                   dispatch({type: "deleteVertex", planeId: selected.id, index});
@@ -144,6 +174,7 @@ export default function RoofPlaneMap({center, planes, edges, selectedPlaneId, se
           </Fragment>
         );
       }) : null}
+      {snapHint ? <Marker position={toTuple(snapHint)} icon={snapIcon} interactive={false} /> : null}
       {draft.length > 0 ? (
         <>
           <Polyline positions={draft.map(toTuple)} pathOptions={{color: "#facc15", weight: 2, dashArray: "4 4"}} />

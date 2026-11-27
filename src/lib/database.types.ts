@@ -6386,6 +6386,90 @@ export type Database = {
           },
         ]
       }
+      roof_measurements: {
+        Row: {
+          address: string
+          company_id: string
+          created_at: string
+          created_by: string | null
+          drawing: Json
+          id: string
+          job_jnid: string | null
+          latitude: number
+          lengths_ft: Json
+          longitude: number
+          measured: Json | null
+          predominant_pitch_rise: number | null
+          solar_building_name: string | null
+          solar_imagery_date: string | null
+          solar_response: Json | null
+          squares: number
+          stories: string | null
+          total_sloped_sqft: number
+          updated_at: string
+          waste_percent: number | null
+        }
+        Insert: {
+          address: string
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          drawing: Json
+          id?: string
+          job_jnid?: string | null
+          latitude: number
+          lengths_ft?: Json
+          longitude: number
+          measured?: Json | null
+          predominant_pitch_rise?: number | null
+          solar_building_name?: string | null
+          solar_imagery_date?: string | null
+          solar_response?: Json | null
+          squares: number
+          stories?: string | null
+          total_sloped_sqft: number
+          updated_at?: string
+          waste_percent?: number | null
+        }
+        Update: {
+          address?: string
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          drawing?: Json
+          id?: string
+          job_jnid?: string | null
+          latitude?: number
+          lengths_ft?: Json
+          longitude?: number
+          measured?: Json | null
+          predominant_pitch_rise?: number | null
+          solar_building_name?: string | null
+          solar_imagery_date?: string | null
+          solar_response?: Json | null
+          squares?: number
+          stories?: string | null
+          total_sloped_sqft?: number
+          updated_at?: string
+          waste_percent?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "roof_measurements_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "roof_measurements_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "admin_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       roof_pricing_adjustments: {
         Row: {
           active: boolean

@@ -34,7 +34,23 @@ export type RoofPlane = {
   source: RoofPlaneSource;
   /** Solar's own sloped area for the segment, kept for comparison. */
   solarSlopedAreaSqft: number | null;
+  /**
+   * "wall" marks a face that is not roofing (a dormer cheek or front wall):
+   * left out of area, squares and waste, and its edges against roof planes
+   * become flashing. Absent means roof.
+   */
+  surface?: RoofSurface;
+  /**
+   * A known height on the plane (Solar's plane height at its segment centre,
+   * metres above sea level). With pitch and facing it gives the plane's height
+   * anywhere, so planes at different levels are not joined. Null when drawn.
+   */
+  heightRef?: {at: LatLng; meters: number} | null;
 };
+
+export type RoofSurface = "roof" | "wall";
+
+export const isWall = (plane: Pick<RoofPlane, "surface">) => plane.surface === "wall";
 
 export const roofEdgeKinds = [
   "eave",
@@ -71,7 +87,18 @@ export type RoofEdge = {
   overridden: boolean;
   /** The automatic label is a guess worth a look (for example an unshared top edge). */
   needsReview: boolean;
+  /**
+   * Set where this edge lies along another plane. joined: one shared edge,
+   * counted once. Not joined: each plane keeps its own edge (an eave dripping
+   * onto a lower roof, step flashing on the lower side), both counted.
+   */
+  pair: {key: string; otherPlaneId: string; joined: boolean} | null;
 };
+
+export type EdgePairMode = "join" | "split";
+
+/** Stable key for the meeting of two planes, independent of order. */
+export const planePairKey = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
 
 // ---------------------------------------------------------------------------
 // Projection
@@ -341,6 +368,10 @@ export function planeFromSolarSegment(origin: LatLng, segment: SolarSegment): Ro
     azimuthDegrees: segment.azimuthDegrees,
     source: "solar",
     solarSlopedAreaSqft: segment.slopedAreaSqft,
+    surface: "roof",
+    heightRef: segment.planeHeightAtCenterMeters === null
+      ? null
+      : {at: segment.center, meters: segment.planeHeightAtCenterMeters},
   };
 }
 
@@ -426,6 +457,7 @@ type LocalPlane = {
   points: LocalPoint[];
   center: LocalPoint;
   down: LocalPoint;
+  heightRef: {at: LocalPoint; meters: number} | null;
 };
 
 type Piece = {
@@ -433,15 +465,33 @@ type Piece = {
   a: LocalPoint;
   b: LocalPoint;
   key: string;
+  /** For an open piece: it sits against a plane that is clearly higher here. */
+  againstHigherPlane: boolean;
+  pair: RoofEdge["pair"];
 };
+
+/** Planes whose heights differ by more than this at a shared line are on different levels. */
+export const LEVEL_GAP_M = 1.0;
 
 function localPlanes(origin: LatLng, planes: RoofPlane[]): LocalPlane[] {
   return planes
     .filter((plane) => plane.vertices.length >= 3)
     .map((plane) => {
       const points = plane.vertices.map((v) => toLocal(origin, v));
-      return {plane, points, center: centroid(points), down: downslope(plane.azimuthDegrees)};
+      return {
+        plane,
+        points,
+        center: centroid(points),
+        down: downslope(plane.azimuthDegrees),
+        heightRef: plane.heightRef ? {at: toLocal(origin, plane.heightRef.at), meters: plane.heightRef.meters} : null,
+      };
     });
+}
+
+function heightAt(plane: LocalPlane, point: LocalPoint): number | null {
+  if (!plane.heightRef || isWall(plane.plane)) return null;
+  const run = (point.x - plane.heightRef.at.x) * plane.down.x + (point.y - plane.heightRef.at.y) * plane.down.y;
+  return plane.heightRef.meters - Math.tan(Math.min(plane.plane.pitchDegrees, 80) * DEG) * run;
 }
 
 function edgesOf(points: LocalPoint[]) {
@@ -476,7 +526,7 @@ function overlapInterval(
   return [lo, hi];
 }
 
-function splitEdges(planes: LocalPlane[]): Piece[] {
+function splitEdges(planes: LocalPlane[], pairModes: Record<string, EdgePairMode>): Piece[] {
   const pieces: Piece[] = [];
   planes.forEach((self) => {
     edgesOf(self.points).forEach(({a, b, index}) => {
@@ -485,11 +535,29 @@ function splitEdges(planes: LocalPlane[]): Piece[] {
       const u = {x: (b.x - a.x) / length, y: (b.y - a.y) / length};
       const at = (t: number): LocalPoint => ({x: a.x + u.x * t, y: a.y + u.y * t});
       const shared: Array<{lo: number; hi: number; other: string}> = [];
+      const neighbors: Array<{lo: number; hi: number; other: string; otherHigher: boolean}> = [];
       planes.forEach((other) => {
         if (other.plane.id === self.plane.id) return;
+        if (isWall(self.plane) && isWall(other.plane)) return;
         edgesOf(other.points).forEach((edge) => {
           const interval = overlapInterval(a, b, edge.a, edge.b);
-          if (interval) shared.push({lo: interval[0], hi: interval[1], other: other.plane.id});
+          if (!interval) return;
+          const mid = at((interval[0] + interval[1]) / 2);
+          const mine = heightAt(self, mid);
+          const theirs = heightAt(other, mid);
+          const levelsDiffer = mine !== null && theirs !== null && Math.abs(mine - theirs) > LEVEL_GAP_M;
+          const mode = pairModes[planePairKey(self.plane.id, other.plane.id)] ?? (levelsDiffer ? "split" : "join");
+          if (mode === "split" && !isWall(self.plane) && !isWall(other.plane)) {
+            // Different levels (for example a pent roof under a second-story
+            // wall), or split by hand: each plane keeps its own edge. Without
+            // heights, a split on this plane's top side means the other is above.
+            const otherHigher = mine !== null && theirs !== null
+              ? theirs > mine
+              : (mid.x - self.center.x) * self.down.x + (mid.y - self.center.y) * self.down.y < 0;
+            neighbors.push({lo: interval[0], hi: interval[1], other: other.plane.id, otherHigher});
+            return;
+          }
+          shared.push({lo: interval[0], hi: interval[1], other: other.plane.id});
         });
       });
       shared.sort((x, y) => x.lo - y.lo);
@@ -497,7 +565,18 @@ function splitEdges(planes: LocalPlane[]): Piece[] {
       let freeIndex = 0;
       const pushFree = (lo: number, hi: number) => {
         if (hi - lo < MIN_PIECE_M) return;
-        pieces.push({planeIds: [self.plane.id], a: at(lo), b: at(hi), key: `${self.plane.id}:${index}:${freeIndex}`});
+        // Wall faces only contribute where they meet roof.
+        if (isWall(self.plane)) return;
+        const middle = (lo + hi) / 2;
+        const neighbor = neighbors.find((item) => item.lo <= middle && middle <= item.hi);
+        pieces.push({
+          planeIds: [self.plane.id],
+          a: at(lo),
+          b: at(hi),
+          key: `${self.plane.id}:${index}:${freeIndex}`,
+          againstHigherPlane: neighbor?.otherHigher ?? false,
+          pair: neighbor ? {key: planePairKey(self.plane.id, neighbor.other), otherPlaneId: neighbor.other, joined: false} : null,
+        });
         freeIndex += 1;
       };
       shared.forEach((item) => {
@@ -509,6 +588,8 @@ function splitEdges(planes: LocalPlane[]): Piece[] {
             a: at(Math.max(item.lo, cursor)),
             b: at(item.hi),
             key: `${self.plane.id}~${item.other}:${index}`,
+            againstHigherPlane: false,
+            pair: {key: planePairKey(self.plane.id, item.other), otherPlaneId: item.other, joined: true},
           });
         }
         cursor = Math.max(cursor, item.hi);
@@ -519,32 +600,68 @@ function splitEdges(planes: LocalPlane[]): Piece[] {
   return pieces;
 }
 
-type SideInfo = {high: boolean; low: boolean; alongSlope: number; flat: boolean};
+type SideInfo = {
+  /** Height change per metre moving from the edge into the plane (negative: falls away). */
+  riseInto: number;
+  high: boolean;
+  low: boolean;
+  alongSlope: number;
+  flat: boolean;
+  wall: boolean;
+  down: LocalPoint;
+};
 
 function sideOf(plane: LocalPlane, mid: LocalPoint, u: LocalPoint): SideInfo {
   const offset = (mid.x - plane.center.x) * plane.down.x + (mid.y - plane.center.y) * plane.down.y;
   const alongSlope = Math.abs(u.x * plane.down.x + u.y * plane.down.y);
-  return {high: offset < -0.05, low: offset > 0.05, alongSlope, flat: plane.plane.pitchDegrees < FLAT_PITCH_DEG};
+  // Unit normal to the edge, pointing into this plane.
+  let n = {x: -u.y, y: u.x};
+  if ((plane.center.x - mid.x) * n.x + (plane.center.y - mid.y) * n.y < 0) n = {x: -n.x, y: -n.y};
+  const riseInto = -Math.tan(Math.min(plane.plane.pitchDegrees, 80) * DEG) * (n.x * plane.down.x + n.y * plane.down.y);
+  return {
+    riseInto,
+    high: offset < -0.05,
+    low: offset > 0.05,
+    alongSlope,
+    flat: plane.plane.pitchDegrees < FLAT_PITCH_DEG,
+    wall: isWall(plane.plane),
+    down: plane.down,
+  };
 }
 
-function classify(pieceSides: SideInfo[]): {kind: RoofEdgeKind; needsReview: boolean} {
+/** Dihedral strength below which a shared edge's convex/concave call is a coin toss. */
+const FOLD_CONFIDENCE = 0.08;
+
+function classify(pieceSides: SideInfo[], againstHigherPlane: boolean): {kind: RoofEdgeKind; needsReview: boolean} {
   if (pieceSides.length === 1) {
     const [s] = pieceSides;
-    if (s.flat) return {kind: "eave", needsReview: false};
-    if (s.alongSlope > 0.5) return {kind: "rake", needsReview: false};
+    if (s.flat) return {kind: againstHigherPlane && s.high ? "wall_flashing" : "eave", needsReview: false};
+    if (s.alongSlope > 0.5) {
+      return againstHigherPlane ? {kind: "step_flashing", needsReview: false} : {kind: "rake", needsReview: false};
+    }
     if (s.low) return {kind: "eave", needsReview: false};
-    // An open top edge is either a ridge whose other side was never drawn or
-    // a wall. Solar misses planes often enough that it is worth a look.
+    // A top edge under a higher plane is a headwall. Otherwise it is either a
+    // ridge whose other side was never drawn or a wall: worth a look.
+    if (againstHigherPlane) return {kind: "wall_flashing", needsReview: false};
     return {kind: "ridge", needsReview: true};
   }
   const [a, b] = pieceSides;
-  const contour = a.alongSlope < 0.35 && b.alongSlope < 0.35;
-  if (a.high && b.high) return {kind: contour ? "ridge" : "hip", needsReview: false};
-  if (a.low && b.low) return {kind: "valley", needsReview: false};
-  if ((a.high && b.low) || (a.low && b.high)) {
-    return contour ? {kind: "transition", needsReview: false} : {kind: "step_flashing", needsReview: true};
+  if (a.wall || b.wall) {
+    const roof = a.wall ? b : a;
+    // Roof against a wall face: up the slope is step flashing, across it a
+    // headwall or apron.
+    return {kind: roof.alongSlope > 0.5 ? "step_flashing" : "wall_flashing", needsReview: false};
   }
-  return {kind: contour ? "ridge" : "hip", needsReview: true};
+  const contour = a.alongSlope < 0.35 && b.alongSlope < 0.35;
+  const sameFacing = a.down.x * b.down.x + a.down.y * b.down.y > 0.7;
+  if (contour && sameFacing) return {kind: "transition", needsReview: false};
+  // Convex fold (both planes fall away from the edge) is a ridge or hip;
+  // concave (both rise away) is a valley. Summing the two rises keeps a
+  // nearly level reading on one plane from deciding on its own.
+  const fold = a.riseInto + b.riseInto;
+  const needsReview = Math.abs(fold) < FOLD_CONFIDENCE;
+  if (fold < 0) return {kind: contour ? "ridge" : "hip", needsReview};
+  return {kind: "valley", needsReview};
 }
 
 function trueLength(plan: number, u: LocalPoint, planes: LocalPlane[]) {
@@ -558,15 +675,18 @@ export function computeRoofEdges(
   origin: LatLng,
   planes: RoofPlane[],
   overrides: Record<string, RoofEdgeKind> = {},
+  pairModes: Record<string, EdgePairMode> = {},
 ): RoofEdge[] {
   const locals = localPlanes(origin, planes);
   const byId = new Map(locals.map((p) => [p.plane.id, p]));
-  return splitEdges(locals).map((piece) => {
+  return splitEdges(locals, pairModes).map((piece) => {
     const length = Math.hypot(piece.b.x - piece.a.x, piece.b.y - piece.a.y);
     const u = {x: (piece.b.x - piece.a.x) / length, y: (piece.b.y - piece.a.y) / length};
     const mid = {x: (piece.a.x + piece.b.x) / 2, y: (piece.a.y + piece.b.y) / 2};
     const owners = piece.planeIds.map((id) => byId.get(id) as LocalPlane);
-    const auto = classify(owners.map((owner) => sideOf(owner, mid, u)));
+    const auto = classify(owners.map((owner) => sideOf(owner, mid, u)), piece.againstHigherPlane);
+    // Flashing and lengths follow the roof plane, not the wall face.
+    const roofOwners = owners.filter((owner) => !isWall(owner.plane));
     const override = overrides[piece.key];
     return {
       id: piece.key,
@@ -574,11 +694,12 @@ export function computeRoofEdges(
       start: toLatLng(origin, piece.a),
       end: toLatLng(origin, piece.b),
       planLengthFt: length * FT_PER_M,
-      trueLengthFt: trueLength(length, u, owners) * FT_PER_M,
+      trueLengthFt: trueLength(length, u, roofOwners.length ? roofOwners : owners) * FT_PER_M,
       kind: override ?? auto.kind,
       autoKind: auto.kind,
       overridden: override !== undefined && override !== auto.kind,
       needsReview: override === undefined && auto.needsReview,
+      pair: piece.pair,
     };
   });
 }
@@ -620,8 +741,20 @@ export type RoofMeasurementReport = {
   reviewEdgeCount: number;
   suggestedWastePercent: number;
   wasteTable: Array<{percent: number; squares: number; bundles: number}>;
-  planes: Array<{id: string; source: RoofPlaneSource; pitchRise: number; azimuthDegrees: number; slopedSqft: number; solarSqft: number | null}>;
+  /** Roof area steeper than the rate card's 10/12 line (steep charge). */
+  steepSqft: number;
+  /** Faces marked as not roof, left out of every total above. */
+  wallPlaneCount: number;
+  wallSqft: number;
+  /** Roof planes steep enough that they may really be wall faces; a suggestion only. */
+  possibleWallPlaneIds: string[];
+  planes: Array<{id: string; source: RoofPlaneSource; surface: RoofSurface; pitchRise: number; azimuthDegrees: number; slopedSqft: number; solarSqft: number | null}>;
 };
+
+/** Rate card line above which work is priced as steep. */
+export const STEEP_PITCH_RISE = 10;
+/** Steeper than this, a plane may be a wall face rather than roof. */
+export const POSSIBLE_WALL_PITCH_RISE = 14;
 
 export const WASTE_PERCENTS = [0, 5, 10, 12, 15, 17, 20] as const;
 
@@ -633,17 +766,21 @@ export function suggestWastePercent(lengths: Record<RoofEdgeKind, number>) {
 }
 
 export function buildRoofMeasurementReport(origin: LatLng, planes: RoofPlane[], edges: RoofEdge[]): RoofMeasurementReport {
-  const rows = planes
+  const allRows = planes
     .filter((plane) => plane.vertices.length >= 3)
     .map((plane) => ({
       id: plane.id,
       source: plane.source,
+      surface: (plane.surface ?? "roof") as RoofSurface,
+      rise: pitchRiseFromDegrees(plane.pitchDegrees),
       pitchRise: roundedPitchRise(plane.pitchDegrees),
       azimuthDegrees: Math.round(plane.azimuthDegrees),
       slopedSqft: slopedAreaSqft(origin, plane),
       planSqft: planAreaSqft(origin, plane.vertices),
       solarSqft: plane.solarSlopedAreaSqft,
     }));
+  const rows = allRows.filter((row) => row.surface === "roof");
+  const walls = allRows.filter((row) => row.surface === "wall");
   const totalSloped = rows.reduce((sum, row) => sum + row.slopedSqft, 0);
   const byPitch = new Map<number, number>();
   rows.forEach((row) => byPitch.set(row.pitchRise, (byPitch.get(row.pitchRise) ?? 0) + row.slopedSqft));
@@ -661,7 +798,7 @@ export function buildRoofMeasurementReport(origin: LatLng, planes: RoofPlane[], 
   const squares = totalSloped / 100;
   return {
     planeCount: rows.length,
-    editedPlaneCount: rows.filter((row) => row.source !== "solar").length,
+    editedPlaneCount: allRows.filter((row) => row.source !== "solar").length,
     totalSlopedSqft: totalSloped,
     totalPlanSqft: rows.reduce((sum, row) => sum + row.planSqft, 0),
     squares,
@@ -674,9 +811,14 @@ export function buildRoofMeasurementReport(origin: LatLng, planes: RoofPlane[], 
       const withWaste = squares * (1 + percent / 100);
       return {percent, squares: withWaste, bundles: Math.ceil(withWaste * 3 - 1e-9)};
     }),
-    planes: rows.map((row) => ({
+    steepSqft: rows.filter((row) => row.rise > STEEP_PITCH_RISE).reduce((sum, row) => sum + row.slopedSqft, 0),
+    wallPlaneCount: walls.length,
+    wallSqft: walls.reduce((sum, row) => sum + row.slopedSqft, 0),
+    possibleWallPlaneIds: rows.filter((row) => row.rise > POSSIBLE_WALL_PITCH_RISE).map((row) => row.id),
+    planes: allRows.map((row) => ({
       id: row.id,
       source: row.source,
+      surface: row.surface,
       pitchRise: row.pitchRise,
       azimuthDegrees: row.azimuthDegrees,
       slopedSqft: row.slopedSqft,
@@ -708,4 +850,141 @@ export function pickActiveSquares(input: {
 
 export function percentDifference(value: number, reference: number) {
   return reference > 0 ? ((value - reference) / reference) * 100 : null;
+}
+
+// ---------------------------------------------------------------------------
+// 90-degree helpers
+
+/** Corners and edges within this many degrees of the building's axes snap square. */
+export const ORTHO_SNAP_DEGREES = 8;
+/** Edges further off-axis than this are left alone by "square up". */
+const SQUARE_UP_MAX_DEGREES = 20;
+
+/**
+ * The building's main axis in degrees (0 to 90): the area-weighted average of
+ * plane facings folded onto a quarter turn, so north, east, south and west
+ * facings of a square-built house agree.
+ */
+export function buildingAxisDegrees(origin: LatLng, planes: RoofPlane[]): number | null {
+  let x = 0;
+  let y = 0;
+  planes.forEach((plane) => {
+    const weight = planAreaSqft(origin, plane.vertices);
+    const angle = 4 * plane.azimuthDegrees * DEG;
+    x += weight * Math.cos(angle);
+    y += weight * Math.sin(angle);
+  });
+  if (Math.hypot(x, y) < 1e-6) return null;
+  return ((Math.atan2(y, x) / DEG / 4) % 90 + 90) % 90;
+}
+
+/** Compass bearing of the line from a to b, folded to 0-180. */
+function lineBearing(a: LocalPoint, b: LocalPoint) {
+  return ((Math.atan2(b.x - a.x, b.y - a.y) / DEG) % 180 + 180) % 180;
+}
+
+function angleGap(a: number, b: number) {
+  const d = Math.abs(a - b) % 180;
+  return Math.min(d, 180 - d);
+}
+
+function unitFromBearing(bearing: number): LocalPoint {
+  return {x: Math.sin(bearing * DEG), y: Math.cos(bearing * DEG)};
+}
+
+function projectOntoLine(point: LocalPoint, through: LocalPoint, dir: LocalPoint): LocalPoint {
+  const t = (point.x - through.x) * dir.x + (point.y - through.y) * dir.y;
+  return {x: through.x + dir.x * t, y: through.y + dir.y * t};
+}
+
+function intersectLines(p: LocalPoint, u: LocalPoint, q: LocalPoint, v: LocalPoint): LocalPoint | null {
+  const det = u.x * v.y - u.y * v.x;
+  if (Math.abs(det) < 1e-9) return null;
+  const t = ((q.x - p.x) * v.y - (q.y - p.y) * v.x) / det;
+  return {x: p.x + u.x * t, y: p.y + u.y * t};
+}
+
+/**
+ * Where a dragged corner should land so the edges to its two neighbours run
+ * along the building axes (or parallel to another drawn edge). Returns the
+ * point unchanged and snapped false when neither edge is close.
+ */
+export function orthoSnapCorner(input: {
+  origin: LatLng;
+  previous: LatLng;
+  next: LatLng;
+  proposed: LatLng;
+  axisDegrees: number | null;
+  /** Bearings (0-180) of other drawn edges to offer as parallels. */
+  extraBearings?: number[];
+}): {point: LatLng; snapped: boolean} {
+  const {origin} = input;
+  const p = toLocal(origin, input.proposed);
+  const bearings = [
+    ...(input.axisDegrees === null ? [] : [input.axisDegrees % 180, (input.axisDegrees + 90) % 180]),
+    ...(input.extraBearings ?? []),
+  ];
+  if (bearings.length === 0) return {point: input.proposed, snapped: false};
+  const pick = (from: LatLng) => {
+    const anchor = toLocal(origin, from);
+    if (Math.hypot(p.x - anchor.x, p.y - anchor.y) < 0.3) return null;
+    const bearing = lineBearing(anchor, p);
+    let best: {bearing: number; gap: number} | null = null;
+    bearings.forEach((candidate) => {
+      const gap = angleGap(bearing, candidate);
+      if (gap <= ORTHO_SNAP_DEGREES && (!best || gap < best.gap)) best = {bearing: candidate, gap};
+    });
+    return best ? {anchor, dir: unitFromBearing((best as {bearing: number}).bearing)} : null;
+  };
+  const a = pick(input.previous);
+  const b = pick(input.next);
+  let result: LocalPoint | null = null;
+  if (a && b) result = intersectLines(a.anchor, a.dir, b.anchor, b.dir);
+  if (!result && a) result = projectOntoLine(p, a.anchor, a.dir);
+  if (!result && b) result = projectOntoLine(p, b.anchor, b.dir);
+  if (!result || Math.hypot(result.x - p.x, result.y - p.y) > 3) return {point: input.proposed, snapped: false};
+  return {point: toLatLng(origin, result), snapped: true};
+}
+
+/**
+ * Squares a plane to the building axes: every edge within 20 degrees of an
+ * axis is turned onto it, through its own midpoint, and corners move to where
+ * the squared edges meet. Diagonal edges (hips, valleys) keep their ends.
+ */
+export function squareUpPlane(origin: LatLng, plane: RoofPlane, axisDegrees: number): RoofPlane {
+  const points = plane.vertices.map((v) => toLocal(origin, v));
+  const n = points.length;
+  if (n < 3) return plane;
+  const axes = [axisDegrees % 180, (axisDegrees + 90) % 180];
+  const lines = points.map((a, i) => {
+    const b = points[(i + 1) % n];
+    const bearing = lineBearing(a, b);
+    const axis = axes.find((candidate) => angleGap(bearing, candidate) <= SQUARE_UP_MAX_DEGREES);
+    return axis === undefined
+      ? null
+      : {through: {x: (a.x + b.x) / 2, y: (a.y + b.y) / 2}, dir: unitFromBearing(axis)};
+  });
+  const squared = points.map((point, i) => {
+    const before = lines[(i - 1 + n) % n];
+    const after = lines[i];
+    if (before && after) {
+      return intersectLines(before.through, before.dir, after.through, after.dir) ?? projectOntoLine(point, after.through, after.dir);
+    }
+    if (before) return projectOntoLine(point, before.through, before.dir);
+    if (after) return projectOntoLine(point, after.through, after.dir);
+    return point;
+  });
+  return {
+    ...plane,
+    vertices: squared.map((point) => toLatLng(origin, point)),
+    source: plane.source === "solar" ? "adjusted" : plane.source,
+  };
+}
+
+/** Bearings (0-180) of every edge of the given planes, for parallel snapping. */
+export function edgeBearings(origin: LatLng, planes: RoofPlane[]) {
+  return planes.flatMap((plane) => {
+    const points = plane.vertices.map((v) => toLocal(origin, v));
+    return points.map((a, i) => lineBearing(a, points[(i + 1) % points.length]));
+  });
 }

@@ -4,11 +4,14 @@ import {degreesFromPitchRise, toLatLng} from "@/domain/roof-drawing";
 import {MEASUREMENT_HANDOFF_KEY} from "@/modules/roof-measure/measure-pricing";
 
 vi.mock("./roof-plane-map-loader", () => ({
-  RoofPlaneMap: ({planes, edges, dispatch}: {planes: Array<{id: string}>; edges: unknown[]; dispatch: (action: unknown) => void}) => (
+  RoofPlaneMap: ({planes, edges, dispatch}: {planes: Array<{id: string}>; edges: Array<{id: string; kind: string; planeIds: string[]}>; dispatch: (action: unknown) => void}) => (
     <div data-testid="map">
       {planes.length} planes, {edges.length} edges
       {planes.map((plane) => (
         <button key={plane.id} type="button" onClick={() => dispatch({type: "selectPlane", planeId: plane.id})}>select {plane.id}</button>
+      ))}
+      {edges.filter((edge) => edge.planeIds.length === 2).map((edge) => (
+        <button key={edge.id} type="button" onClick={() => dispatch({type: "selectEdge", edgeId: edge.id})}>shared {edge.kind}</button>
       ))}
     </div>
   ),
@@ -113,5 +116,82 @@ describe("roof measuring sandbox", () => {
     fireEvent.change(screen.getByLabelText(/address, or latitude/i), {target: {value: "x st"}});
     fireEvent.click(screen.getByRole("button", {name: "Look up roof"}));
     expect(await screen.findByRole("alert")).toHaveTextContent("ROOF_MEASURE_GOOGLE_API_KEY");
+  });
+});
+
+describe("roof measuring sandbox, phase 2", () => {
+  async function loaded(props: Partial<Parameters<typeof MeasureWorkbench>[0]> = {}) {
+    render(<MeasureWorkbench fetchLookup={async () => lookupResponse} {...props} />);
+    fireEvent.change(screen.getByLabelText(/address, or latitude/i), {target: {value: "40.35, -74.07"}});
+    fireEvent.click(screen.getByRole("button", {name: "Look up roof"}));
+    await screen.findByTestId("map");
+  }
+
+  test("splits a shared ridge so each side is counted, then joins it back", async () => {
+    await loaded();
+    fireEvent.click(screen.getByRole("button", {name: "shared ridge"}));
+    expect(screen.getByText(/Joined: one edge, counted once/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", {name: "Split"}));
+    expect(screen.queryByRole("button", {name: "shared ridge"})).not.toBeInTheDocument();
+  });
+
+  test("a plane marked as wall leaves the squares", async () => {
+    await loaded();
+    fireEvent.click(screen.getByRole("button", {name: "select solar-1"}));
+    fireEvent.click(screen.getByLabelText(/Not roof \(wall face\)/));
+    expect(screen.getByText(/Left out as wall/)).toBeInTheDocument();
+    expect(screen.getByText(/1 faces/)).toBeInTheDocument();
+  });
+
+  test("saves the drawing with its job link and Solar response", async () => {
+    const save = vi.fn(async () => ({ok: true as const, value: {id: "11111111-2222-4333-8444-555555555555"}}));
+    const searchJobs = vi.fn(async () => ({ok: true as const, value: [{jnid: "jn1", label: "#4021 · 18 Harbor View Dr, Red Bank"}]}));
+    const storage = {save, searchJobs, list: async () => ({ok: true as const, value: []})};
+    await loaded({storage});
+    fireEvent.change(screen.getByLabelText(/Link to a JobNimbus job/), {target: {value: "Harbor"}});
+    fireEvent.click(await screen.findByRole("button", {name: /#4021/}));
+    fireEvent.click(screen.getByRole("button", {name: "Save drawing"}));
+    expect(await screen.findByRole("status", {name: ""})).toBeInTheDocument();
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    const payload = (save.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
+    expect(payload).toMatchObject({id: null, jobJnid: "jn1", stories: "two"});
+    expect((payload.drawing as {planes: unknown[]}).planes).toHaveLength(2);
+    expect(payload.solarResponse).toMatchObject({name: "buildings/test"});
+    expect(await screen.findByRole("button", {name: "Save changes"})).toBeInTheDocument();
+  });
+
+  test("shows why saving failed", async () => {
+    const storage = {
+      save: async () => ({ok: false as const, error: "Saving isn't switched on yet: the roof_measurements table hasn't been added to the database."}),
+      searchJobs: async () => ({ok: true as const, value: []}),
+      list: async () => ({ok: true as const, value: []}),
+    };
+    await loaded({storage});
+    fireEvent.click(screen.getByRole("button", {name: "Save drawing"}));
+    expect(await screen.findByRole("alert")).toHaveTextContent("roof_measurements table");
+  });
+
+  test("reopens a saved drawing without a new lookup", () => {
+    const fetchLookup = vi.fn(async () => lookupResponse);
+    const saved = {
+      id: "11111111-2222-4333-8444-555555555555",
+      address: "18 Harbor View Dr, Red Bank, NJ",
+      latitude: center.lat,
+      longitude: center.lng,
+      squares: 9.6,
+      jobJnid: "jn1",
+      jobLabel: "#4021",
+      updatedAt: "2026-11-27T16:00:00Z",
+      solarResponse: lookupResponse.solar.raw as Record<string, unknown>,
+      drawing: {version: 1 as const, planes: [], overrides: {}, pairModes: {}},
+      measured: null,
+      stories: "two" as const,
+      wastePercent: 12,
+    };
+    render(<MeasureWorkbench fetchLookup={fetchLookup} initialSaved={saved} storage={{save: vi.fn(), searchJobs: vi.fn(), list: vi.fn()}} />);
+    expect(screen.getByTestId("map")).toHaveTextContent("0 planes");
+    expect(screen.getByText(/Linked to JobNimbus job #4021/)).toBeInTheDocument();
+    expect(screen.getByRole("button", {name: "Save changes"})).toBeInTheDocument();
+    expect(fetchLookup).not.toHaveBeenCalled();
   });
 });

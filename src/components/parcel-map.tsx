@@ -20,6 +20,10 @@ type MapBounds = [
 
 export const NJGIN_AERIAL_TILE_URL =
   "https://maps.nj.gov/arcgis/rest/services/Basemap/Orthos_Natural_2020_NJ_WM/MapServer/tile/{z}/{y}/{x}";
+// The 2020 orthophotos are 6-inch imagery, which matches zoom 20 (0.15 m a
+// pixel). The service lists levels up to 23, but asking it for tiles past its
+// real detail drops the image; Leaflet enlarges zoom-20 tiles instead.
+export const NJGIN_MAX_NATIVE_ZOOM = 20;
 export const NJGIN_AERIAL_ATTRIBUTION =
   'Aerial imagery &copy; <a href="https://www.nj.gov/njgin/edata/imagery/">NJ Office of GIS</a> (2020)';
 
@@ -187,7 +191,7 @@ export function ParcelMap({
       >
         <TileLayer
           attribution={NJGIN_AERIAL_ATTRIBUTION}
-          maxNativeZoom={23}
+          maxNativeZoom={NJGIN_MAX_NATIVE_ZOOM}
           maxZoom={23}
           url={NJGIN_AERIAL_TILE_URL}
         />
