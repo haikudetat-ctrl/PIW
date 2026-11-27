@@ -77,6 +77,27 @@ describe("roof measuring sandbox", () => {
     expect(screen.getByText(/Would trigger/)).toBeInTheDocument();
   });
 
+  test("types an exact side length and nudges the plane with arrow keys", async () => {
+    render(<MeasureWorkbench fetchLookup={async () => lookupResponse} />);
+    fireEvent.change(screen.getByLabelText(/address, or latitude/i), {target: {value: "40.35, -74.07"}});
+    fireEvent.click(screen.getByRole("button", {name: "Look up roof"}));
+    await screen.findByTestId("map");
+    fireEvent.click(screen.getByRole("button", {name: "select solar-1"}));
+
+    const firstSide = screen.getByLabelText(/^Length of side A–B in feet/);
+    fireEvent.change(firstSide, {target: {value: "30"}});
+    fireEvent.keyDown(firstSide, {key: "Enter"});
+    expect(screen.getByLabelText(/^Length of side A–B in feet/)).toHaveValue(30);
+    expect(screen.getByText(/\(Drawing\)/)).toBeInTheDocument();
+
+    const before = (screen.getByLabelText(/^Length of side A–B in feet/) as HTMLInputElement).value;
+    fireEvent.keyDown(window, {key: "ArrowRight", shiftKey: true});
+    // Moving keeps lengths; Undo brings the move back.
+    expect(screen.getByLabelText(/^Length of side A–B in feet/)).toHaveValue(Number(before));
+    fireEvent.click(screen.getByRole("button", {name: "Undo"}));
+    expect(screen.getByLabelText(/^Length of side A–B in feet/)).toHaveValue(30);
+  });
+
   test("a typed measured report wins and the result can be handed to the assessment sandbox", async () => {
     render(<MeasureWorkbench sandboxLinks fetchLookup={async () => lookupResponse} />);
     fireEvent.change(screen.getByLabelText(/address, or latitude/i), {target: {value: "40.35, -74.07"}});
