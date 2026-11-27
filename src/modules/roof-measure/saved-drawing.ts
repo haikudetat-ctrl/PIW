@@ -26,6 +26,8 @@ export const savedDrawingSchema = z.object({
   planes: z.array(savedPlaneSchema).max(MAX_PLANES),
   overrides: z.record(z.string().max(120), z.enum(roofEdgeKinds)),
   pairModes: z.record(z.string().max(120), z.enum(["join", "split"])),
+  /** Aerial the drawing was checked against; absent on drawings saved before Nov 27, 2026 (NJ 2020). */
+  imagery: z.enum(["nj2025", "nj2020"]).optional(),
 });
 export type SavedDrawing = z.infer<typeof savedDrawingSchema>;
 

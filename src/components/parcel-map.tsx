@@ -20,9 +20,11 @@ type MapBounds = [
 
 export const NJGIN_AERIAL_TILE_URL =
   "https://maps.nj.gov/arcgis/rest/services/Basemap/Orthos_Natural_2020_NJ_WM/MapServer/tile/{z}/{y}/{x}";
-// The 2020 orthophotos are 6-inch imagery, which matches zoom 20 (0.15 m a
-// pixel). The service lists levels up to 23, but asking it for tiles past its
-// real detail drops the image; Leaflet enlarges zoom-20 tiles instead.
+// The 2020 orthophotos are 1-foot imagery (the service description says so;
+// about zoom 19 in NJ), cached as zoom levels up to 23. Asking for tiles past
+// zoom 20 drops the image, so Leaflet enlarges zoom-20 tiles instead. The
+// sharper 2025 6-inch capture has no tile service; the roof measuring page
+// renders it itself (src/modules/roof-measure/nj-ortho-tiles.ts).
 export const NJGIN_MAX_NATIVE_ZOOM = 20;
 export const NJGIN_AERIAL_ATTRIBUTION =
   'Aerial imagery &copy; <a href="https://www.nj.gov/njgin/edata/imagery/">NJ Office of GIS</a> (2020)';

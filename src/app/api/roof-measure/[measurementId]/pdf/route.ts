@@ -7,6 +7,7 @@ import {canUseCrm, parseMyAccess} from "@/lib/auth/access";
 import {createServerClient} from "@/lib/supabase/server";
 import {MeasurementReportDocument, type MeasurementReportDocumentProps} from "@/modules/roof-measure/measurement-report-document";
 import {buildMeasurementReportModel} from "@/modules/roof-measure/measurement-report";
+import {NJ_IMAGERY_LABELS} from "@/modules/roof-measure/nj-ortho";
 import {jobLabel, measuredInputSchema, savedDrawingSchema} from "@/modules/roof-measure/saved-drawing";
 
 export const runtime = "nodejs";
@@ -52,6 +53,7 @@ export async function GET(_request: Request, ctx: {params: Promise<{measurementI
     jobLabel: job ? jobLabel(job) : null,
     preparedOn: new Date(row.updated_at),
     imageryDate: row.solar_imagery_date,
+    aerialLabel: NJ_IMAGERY_LABELS[drawing.data.imagery ?? "nj2020"],
     storiesLabel: row.stories ? STORIES[row.stories] ?? null : null,
     wastePercent: row.waste_percent === null ? null : Number(row.waste_percent),
     savedSquares: Number(row.squares),

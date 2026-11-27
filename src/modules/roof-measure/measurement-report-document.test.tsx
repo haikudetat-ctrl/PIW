@@ -56,6 +56,7 @@ describe("roof measurement report", () => {
         jobLabel="#4021 · 132 Windsor Ave, Haddon Township"
         preparedOn={new Date("2026-11-27T15:00:00Z")}
         imageryDate="2024-04-02"
+        aerialLabel="NJ 2025 aerial (6-inch, leaf-off)"
         storiesLabel="Two"
         wastePercent={12}
         savedSquares={9.8}
