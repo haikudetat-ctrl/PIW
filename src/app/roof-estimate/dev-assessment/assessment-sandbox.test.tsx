@@ -117,6 +117,27 @@ describe("development assessment sandbox", () => {
     expect(screen.getByText(/23\.0 measured roofing squares/)).toBeVisible();
   });
 
+  test("prices the ready result from a roof measured on the Solar measuring page", () => {
+    window.sessionStorage.setItem("piw.devRoofMeasurement.v1", JSON.stringify({
+      address: "1 Test Lane, Rumson, NJ",
+      squares: 30,
+      tier: "drawn",
+      stories: "two",
+      predominantPitchRise: 6,
+      maxPitchRise: 6,
+      savedAt: "2026-11-27T15:00:00.000Z",
+    }));
+    window.history.replaceState({}, "", "/roof-estimate/dev-assessment?result=ready");
+
+    render(<AssessmentSandbox />);
+
+    expect(screen.getByText(/30\.0 measured roofing squares/)).toBeVisible();
+    expect(screen.getByRole("heading", {name: "CertainTeed Landmark"})).toBeVisible();
+    // 30 squares at the seeded Landmark rate of $950 to $1,200 a square.
+    expect(screen.getByText("$28,500")).toBeVisible();
+    window.sessionStorage.clear();
+  });
+
   test("query-controlled consultation success returns the selected canonical preference", async () => {
     window.history.replaceState(
       {},

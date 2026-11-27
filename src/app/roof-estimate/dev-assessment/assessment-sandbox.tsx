@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {useEffect, useMemo, useState, useSyncExternalStore} from "react";
 import {
   getRoofAssessmentContext,
@@ -16,6 +17,13 @@ import {AssessmentExperience} from "../[token]/assessment-experience";
 import type {loadAssessmentAerial} from "../[token]/assessment-aerial-loader";
 import {AssessmentQuestionnaire} from "../[token]/assessment-questionnaire";
 import {AssessmentResult} from "../[token]/assessment-result";
+import {
+  calculationFromHandoff,
+  clearMeasurementHandoff,
+  MEASUREMENT_HANDOFF_KEY,
+  readMeasurementHandoff,
+  type MeasurementHandoff,
+} from "@/modules/roof-measure/measure-pricing";
 
 const campaigns: Array<{slug: RoofAssessmentPresentationKey; label: string}> = [
   {slug: "all-season-main", label: "Main website"},
@@ -45,6 +53,30 @@ type ResultPreviewState = CalculationState["status"];
 type ConsultationPreviewMode = "success" | "error" | null;
 type ImageryPreviewMode = "ready" | "slow" | "retry" | "pending";
 const PREVIEW_AERIAL_IMAGE = "/campaigns/seasonal-shield/hero.webp";
+const PREVIEW_ADDRESS = "18 Harbor View Drive, Red Bank, NJ 07701";
+const HANDOFF_CHANGED_EVENT = "piw:dev-roof-measurement";
+
+function subscribeToHandoff(onStoreChange: () => void) {
+  window.addEventListener("storage", onStoreChange);
+  window.addEventListener(HANDOFF_CHANGED_EVENT, onStoreChange);
+  return () => {
+    window.removeEventListener("storage", onStoreChange);
+    window.removeEventListener(HANDOFF_CHANGED_EVENT, onStoreChange);
+  };
+}
+
+function readHandoffSnapshot() {
+  try {
+    return window.sessionStorage.getItem(MEASUREMENT_HANDOFF_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function parseHandoffSnapshot(snapshot: string | null): MeasurementHandoff | null {
+  if (!snapshot) return null;
+  return readMeasurementHandoff({getItem: () => snapshot} as unknown as Storage);
+}
 
 export function createPreviewAerialLoader(mode: ImageryPreviewMode): typeof loadAssessmentAerial {
   let attempts = 0;
@@ -95,7 +127,8 @@ function getPreviewQuery(search = "") {
   };
 }
 
-function calculationForPreview(state: ResultPreviewState | null): CalculationState {
+function calculationForPreview(state: ResultPreviewState | null, handoff: MeasurementHandoff | null = null): CalculationState {
+  if (state === "ready" && handoff) return calculationFromHandoff(handoff);
   if (state === "ready") {
     return {
       status: "ready",
@@ -133,6 +166,11 @@ export function AssessmentSandbox() {
     () => "",
   );
   const previewQuery = useMemo(() => getPreviewQuery(search), [search]);
+  // A roof measured on /roof-measure in this tab, if any.
+  const handoffSnapshot = useSyncExternalStore(subscribeToHandoff, readHandoffSnapshot, () => null);
+  const handoff = useMemo(() => parseHandoffSnapshot(handoffSnapshot), [handoffSnapshot]);
+  const address = handoff?.address ?? PREVIEW_ADDRESS;
+  const measuredStories = handoff && handoff.stories !== "unknown" ? handoff.stories : null;
   const [campaignOverride, setCampaignOverride] = useState<RoofAssessmentPresentationKey | null>(null);
   const campaign = campaignOverride ?? previewQuery.presentation;
   const [run, setRun] = useState(0);
@@ -142,7 +180,11 @@ export function AssessmentSandbox() {
     responses: RoofAssessmentResponses;
   } | null | undefined>(undefined);
   const result = resultOverride === undefined
-    ? previewQuery.result ? previewResult : null
+    ? previewQuery.result
+      ? measuredStories
+        ? {...previewResult, responses: {...previewResult.responses, stories: measuredStories}}
+        : previewResult
+      : null
     : resultOverride;
   const context = getRoofAssessmentContext(campaign);
   const imageUrl = PREVIEW_AERIAL_IMAGE;
@@ -198,11 +240,11 @@ export function AssessmentSandbox() {
       <AssessmentResult
         preview
         token="11111111-1111-4111-8111-111111111111"
-        address="18 Harbor View Drive, Red Bank, NJ 07701"
+        address={address}
         imageUrl={imageUrl}
         recommendation={result.recommendation}
         responses={result.responses}
-        calculation={calculationForPreview(previewQuery.result)}
+        calculation={calculationForPreview(previewQuery.result, handoff)}
         context={context}
         onReplay={() => restart()}
       />
@@ -245,6 +287,27 @@ export function AssessmentSandbox() {
               {label}
             </button>
           ))}
+          <p className="mt-1 border-t border-slate-200 px-3 pb-1 pt-3 text-[0.65rem] font-black uppercase tracking-[0.16em] text-slate-400">Measured roof</p>
+          {handoff ? (
+            <p className="px-3 py-1 text-xs text-slate-600">
+              {handoff.squares.toFixed(1)} squares from the {handoff.tier === "solar" ? "Solar estimate" : handoff.tier === "drawn" ? "drawing" : "measured report"}
+            </p>
+          ) : null}
+          <Link href="/roof-measure" className="whitespace-nowrap rounded-sm px-3 py-2.5 text-left text-xs font-bold text-slate-600 hover:bg-slate-100">
+            {handoff ? "Remeasure with Solar" : "Measure with Solar"}
+          </Link>
+          {handoff ? (
+            <button
+              type="button"
+              onClick={() => {
+                clearMeasurementHandoff();
+                window.dispatchEvent(new Event(HANDOFF_CHANGED_EVENT));
+              }}
+              className="whitespace-nowrap rounded-sm px-3 py-2.5 text-left text-xs font-bold text-slate-600 hover:bg-slate-100"
+            >
+              Clear measured roof
+            </button>
+          ) : null}
         </nav>
       </details>
       <AssessmentExperience
@@ -252,7 +315,7 @@ export function AssessmentSandbox() {
         aerialLoader={imageryFixture.loader}
         preview
         token="11111111-1111-4111-8111-111111111111"
-        address="18 Harbor View Drive, Red Bank, NJ 07701"
+        address={address}
         imageUrl={imageUrl}
         context={context}
         initialPropertyRevealed={false}
@@ -261,10 +324,10 @@ export function AssessmentSandbox() {
         <AssessmentQuestionnaire
           preview
           token="11111111-1111-4111-8111-111111111111"
-          address="18 Harbor View Drive, Red Bank, NJ 07701"
+          address={address}
           imageUrl={imageUrl}
           initialStep={0}
-          initialResponses={{}}
+          initialResponses={measuredStories ? {stories: measuredStories} : {}}
           onPreviewComplete={(responses) => {
             const parsed = roofAssessmentResponsesSchema.safeParse(responses);
             if (parsed.success) {
