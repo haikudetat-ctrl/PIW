@@ -6,7 +6,8 @@ import {Fragment, useEffect, useMemo, useRef, useState} from "react";
 import {MapContainer, Marker, Polygon, Polyline, TileLayer, Tooltip, useMapEvents} from "react-leaflet";
 import {NJGIN_AERIAL_ATTRIBUTION, NJGIN_AERIAL_TILE_URL, NJGIN_MAX_NATIVE_ZOOM} from "@/components/parcel-map";
 import {NJ_2025_MAX_NATIVE_ZOOM, NJ_2025_MIN_NATIVE_ZOOM, type NjImageryLayer} from "@/modules/roof-measure/nj-ortho";
-import {roofEdgeKindLabels, type LatLng, type RoofEdge, type RoofPlane} from "@/domain/roof-drawing";
+import {roofEdgeKindLabels, toLocal, type LatLng, type RoofEdge, type RoofPlane} from "@/domain/roof-drawing";
+import {cornerLetter} from "@/domain/roof-plane-edit";
 import {edgeKindColors} from "@/modules/roof-measure/edge-colors";
 import type {MeasureAction, MeasureMode} from "@/modules/roof-measure/measure-state";
 
@@ -30,6 +31,12 @@ const draftIcon = L.divIcon({
   iconAnchor: [5, 5],
 });
 
+const moveIcon = L.divIcon({
+  className: "piw-roof-move",
+  html: '<span style="display:grid;place-items:center;width:22px;height:22px;border-radius:50%;background:#facc15;border:2px solid #0f172a;font:700 13px/1 sans-serif;color:#0f172a;cursor:move">&#x2725;</span>',
+  iconAnchor: [11, 11],
+});
+
 const snapIcon = L.divIcon({
   className: "piw-roof-snap",
   html: '<span style="display:block;width:16px;height:16px;border:2px solid #22d3ee;border-radius:2px;box-shadow:0 0 0 1px rgba(0,0,0,.5)"></span>',
@@ -41,6 +48,15 @@ const snapIcon = L.divIcon({
 // 2020 layer shows through.
 const NJ_2025_TILE_URL = "/api/roof-measure/imagery/nj-2025/{z}/{x}/{y}.jpg";
 const NJ_2025_ATTRIBUTION = 'Aerial imagery &copy; <a href="https://www.nj.gov/njgin/edata/imagery/">NJ Office of GIS</a> (2025)';
+
+/** Average of a plane's corners: where its move handle sits. */
+function planeCentre(plane: RoofPlane): LatLng {
+  const n = plane.vertices.length;
+  return {
+    lat: plane.vertices.reduce((sum, vertex) => sum + vertex.lat, 0) / n,
+    lng: plane.vertices.reduce((sum, vertex) => sum + vertex.lng, 0) / n,
+  };
+}
 
 const toTuple = (point: LatLng): [number, number] => [point.lat, point.lng];
 
@@ -170,7 +186,7 @@ export default function RoofPlaneMap({center, planes, edges, selectedPlaneId, se
               position={toTuple(vertex)}
               icon={vertexIcon}
               draggable
-              title="Drag to move. Right-click to delete this corner."
+              title={`Corner ${cornerLetter(index)}: drag to move, right-click to delete.`}
               eventHandlers={{
                 drag(event) {
                   if (!previewSnap) return;
@@ -188,7 +204,9 @@ export default function RoofPlaneMap({center, planes, edges, selectedPlaneId, se
                   dispatch({type: "deleteVertex", planeId: selected.id, index});
                 },
               }}
-            />
+            >
+              <Tooltip permanent direction="top" offset={[0, -6]} className="piw-corner-label">{cornerLetter(index)}</Tooltip>
+            </Marker>
             <Marker
               position={toTuple(mid)}
               icon={midpointIcon}
@@ -198,6 +216,22 @@ export default function RoofPlaneMap({center, planes, edges, selectedPlaneId, se
           </Fragment>
         );
       }) : null}
+      {selected && mode === "edit" ? (
+        <Marker
+          key={`move-${selected.id}-${planeCentre(selected).lat}-${planeCentre(selected).lng}`}
+          position={toTuple(planeCentre(selected))}
+          icon={moveIcon}
+          draggable
+          title="Drag to move the whole plane (hold Alt to leave joined planes behind). Arrow keys nudge it."
+          eventHandlers={{
+            dragend(event) {
+              const at = (event.target as L.Marker).getLatLng();
+              const offset = toLocal(planeCentre(selected), {lat: at.lat, lng: at.lng});
+              dispatch({type: "movePlane", planeId: selected.id, east: offset.x, north: offset.y, carry: !freeDrag.current});
+            },
+          }}
+        />
+      ) : null}
       {snapHint ? <Marker position={toTuple(snapHint)} icon={snapIcon} interactive={false} /> : null}
       {mode === "cut" && draft.length === 1 && pointer ? (
         <Polyline positions={[toTuple(draft[0]), toTuple(pointer)]} pathOptions={{color: "#f43f5e", weight: 2, dashArray: "6 4"}} interactive={false} />
