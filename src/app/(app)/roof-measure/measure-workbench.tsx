@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import {useMemo, useReducer, useState} from "react";
+import {useEffect, useMemo, useReducer, useState} from "react";
 import {
   buildRoofMeasurementReport,
   computeRoofEdges,
@@ -18,8 +18,11 @@ import {
   roofEdgeKinds,
   slopedAreaSqft,
   solarSquares,
+  type LatLng,
   type MeasuredReportInput,
+  type RoofEdge,
   type RoofEdgeKind,
+  type RoofPlane,
   type SolarDrawingInsight,
 } from "@/domain/roof-drawing";
 import {
@@ -37,6 +40,7 @@ import {
   type SavedMeasurementSummary,
 } from "@/modules/roof-measure/saved-drawing";
 import {RoofPlaneMap} from "./roof-plane-map-loader";
+import {planeSides, type PlaneSide} from "@/domain/roof-plane-edit";
 import {NJ_IMAGERY_LABELS, type NjImageryLayer} from "@/modules/roof-measure/nj-ortho";
 import {edgeKindColors} from "@/modules/roof-measure/edge-colors";
 
@@ -100,6 +104,7 @@ export function MeasureWorkbench({fetchLookup = defaultFetchLookup, sandboxLinks
   const [storiesOverride, setStoriesOverride] = useState<StoryAnswer | null>(initialSaved?.stories ?? null);
   const [wasteOverride, setWasteOverride] = useState<number | null>(initialSaved?.wastePercent ?? null);
   const [showFill, setShowFill] = useState(true);
+  const [keepEnd, setKeepEnd] = useState<"start" | "end">("start");
   const [imagery, setImagery] = useState<NjImageryLayer>(initialSaved?.drawing.imagery ?? "nj2025");
   const [handoffSaved, setHandoffSaved] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -128,6 +133,27 @@ export function MeasureWorkbench({fetchLookup = defaultFetchLookup, sandboxLinks
   const adjustments = triggeredAdjustments({predominantPitchRise: report?.predominantPitchRise ?? null, maxPitchRise, stories});
   const selectedPlane = state.planes.find((plane) => plane.id === state.selectedPlaneId) ?? null;
   const selectedEdge = edges.find((edge) => edge.id === state.selectedEdgeId) ?? null;
+  const selectedSides = useMemo(() => (origin && selectedPlane ? planeSides(origin, selectedPlane) : []), [origin, selectedPlane]);
+  const edgeSide = origin && selectedEdge ? findEdgeSide(origin, selectedEdge, state.planes) : null;
+
+  // Arrow keys nudge the selected plane 3 inches (Shift: 1 foot); Alt leaves
+  // joined planes behind.
+  const nudgePlaneId = state.mode === "edit" ? state.selectedPlaneId : null;
+  useEffect(() => {
+    if (!nudgePlaneId) return;
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target && (target.isContentEditable || ["INPUT", "SELECT", "TEXTAREA", "BUTTON"].includes(target.tagName))) return;
+      const step = (event.shiftKey ? 1 : 0.25) / 3.28084;
+      const offsets: Record<string, [number, number]> = {ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, step], ArrowDown: [0, -step]};
+      const offset = offsets[event.key];
+      if (!offset) return;
+      event.preventDefault();
+      dispatch({type: "movePlane", planeId: nudgePlaneId, east: offset[0], north: offset[1], carry: !event.altKey});
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [nudgePlaneId]);
   const wastePercent = wasteOverride ?? report?.suggestedWastePercent ?? 10;
   const address = lookup.status === "ready" || lookup.status === "no_coverage" ? lookup.response.formattedAddress ?? query : query;
 
@@ -339,6 +365,28 @@ export function MeasureWorkbench({fetchLookup = defaultFetchLookup, sandboxLinks
                 {!isWall(selectedPlane) && pitchRiseFromDegrees(selectedPlane.pitchDegrees) > POSSIBLE_WALL_PITCH_RISE ? (
                   <p className="mt-1 text-[0.7rem] leading-5 text-amber-800">Steeper than {POSSIBLE_WALL_PITCH_RISE}/12. If this is a dormer cheek or wall, tick Not roof; if it is shingled, leave it and it prices as steep.</p>
                 ) : null}
+                <div className="mt-3">
+                  <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
+                    <span>Side lengths (along the roof)</span>
+                    <label className="flex items-center gap-1 font-normal text-slate-600">
+                      Keep fixed
+                      <select aria-label="Corner kept fixed when a length changes" value={keepEnd} onChange={(event) => setKeepEnd(event.target.value as "start" | "end")} className="rounded border border-slate-300 px-1 py-0.5">
+                        <option value="start">first corner</option>
+                        <option value="end">second corner</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div className="mt-1 grid gap-1">
+                    {selectedSides.map((side) => (
+                      <SideLengthRow
+                        key={`${selectedPlane.id}-${side.index}-${side.trueLengthFt.toFixed(2)}`}
+                        side={side}
+                        onCommit={(feet) => dispatch({type: "setSideLength", planeId: selectedPlane.id, sideIndex: side.index, trueLengthFt: feet, keep: keepEnd})}
+                      />
+                    ))}
+                  </div>
+                  <p className="mt-1 text-[0.7rem] leading-5 text-slate-500">Type a length and press Enter. Corners are lettered on the map; a square far corner carries its whole side, so rectangles stay square. Corners of joined planes move too. Drag the yellow &#x2725; handle or use the arrow keys (Shift for 1 ft) to move the whole plane; hold Alt to leave joined planes behind.</p>
+                </div>
                 <div className="mt-2 flex flex-wrap gap-2">
                   <ToolButton onClick={() => dispatch({type: "squareUp", planeId: selectedPlane.id})} disabled={state.axisDegrees === null}>Square up</ToolButton>
                   <ToolButton onClick={() => dispatch({type: "startCut"})}>Cut in two</ToolButton>
@@ -362,6 +410,16 @@ export function MeasureWorkbench({fetchLookup = defaultFetchLookup, sandboxLinks
                     {roofEdgeKinds.map((kind) => <option key={kind} value={kind}>{roofEdgeKindLabels[kind]}</option>)}
                   </select>
                 </label>
+                {edgeSide ? (
+                  <div className="mt-2">
+                    <SideLengthRow
+                      key={`${edgeSide.planeId}-${edgeSide.side.index}-${edgeSide.side.trueLengthFt.toFixed(2)}`}
+                      side={edgeSide.side}
+                      planeLabel={edgeSide.planeId}
+                      onCommit={(feet) => dispatch({type: "setSideLength", planeId: edgeSide.planeId, sideIndex: edgeSide.side.index, trueLengthFt: feet, keep: keepEnd})}
+                    />
+                  </div>
+                ) : null}
                 <p className="mt-2 text-xs text-slate-600">
                   {num(selectedEdge.trueLengthFt)} ft along the roof ({num(selectedEdge.planLengthFt)} ft from above) · {selectedEdge.planeIds.length === 2 ? `shared by ${selectedEdge.planeIds.join(" and ")}` : `edge of ${selectedEdge.planeIds[0]}`}
                 </p>
@@ -720,6 +778,52 @@ function Panel({title, children}: {title: string; children: React.ReactNode}) {
       <h2 className="mb-2 text-[0.7rem] font-black uppercase tracking-[0.14em] text-slate-500">{title}</h2>
       {children}
     </section>
+  );
+}
+
+/** The selected edge's plane side, when the edge runs the full length of one side of one of its planes. */
+function findEdgeSide(origin: LatLng, edge: RoofEdge, planes: RoofPlane[]) {
+  const close = (a: LatLng, b: LatLng) => distanceMeters(a, b) < 0.05;
+  for (const planeId of edge.planeIds) {
+    const plane = planes.find((candidate) => candidate.id === planeId);
+    if (!plane) continue;
+    const side = planeSides(origin, plane).find((candidate) =>
+      (close(candidate.start, edge.start) && close(candidate.end, edge.end)) || (close(candidate.start, edge.end) && close(candidate.end, edge.start)));
+    if (side) return {planeId, side};
+  }
+  return null;
+}
+
+function SideLengthRow({side, planeLabel, onCommit}: {side: PlaneSide; planeLabel?: string; onCommit: (feet: number) => void}) {
+  const shown = side.trueLengthFt.toFixed(1);
+  const [text, setText] = useState(shown);
+  const commit = () => {
+    const feet = Number(text);
+    if (text.trim() === "" || !Number.isFinite(feet) || feet <= 0 || feet.toFixed(1) === shown) {
+      setText(shown);
+      return;
+    }
+    onCommit(feet);
+  };
+  return (
+    <label className="flex items-center gap-2 text-xs text-slate-600">
+      <span className="w-24 shrink-0">{planeLabel ? `${planeLabel} ` : ""}{side.label} · {side.faces}</span>
+      <input
+        type="number"
+        step={0.1}
+        min={0.5}
+        aria-label={`Length of side ${side.label}${planeLabel ? ` of ${planeLabel}` : ""} in feet`}
+        value={text}
+        onChange={(event) => setText(event.target.value)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") commit();
+          if (event.key === "Escape") setText(shown);
+        }}
+        className="w-20 rounded-md border border-slate-300 px-2 py-1 text-sm text-slate-900"
+      />
+      <span>ft</span>
+    </label>
   );
 }
 

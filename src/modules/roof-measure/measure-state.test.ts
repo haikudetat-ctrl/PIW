@@ -152,3 +152,33 @@ describe("cutting and merging planes", () => {
     expect(refused.notice).toMatch(/whole edge/);
   });
 });
+
+describe("side lengths and moving planes", () => {
+  const origin = {lat: 39.434, lng: -74.936};
+  const at = (x: number, y: number) => toLatLng(origin, {x, y});
+  const mk = (id: string, points: Array<[number, number]>) => ({
+    id, vertices: points.map(([x, y]) => at(x, y)), pitchDegrees: 0, azimuthDegrees: 180, source: "drawn" as const, solarSlopedAreaSqft: null,
+  });
+  const south = mk("a", [[0, 0], [10, 0], [10, 6], [0, 6]]);
+  const north = mk("b", [[0, 6], [10, 6], [10, 11], [0, 11]]);
+  const loaded = () => measureReducer(initialMeasureState, {type: "load", origin, planes: [south, north]});
+
+  test("setting a side length carries the joined neighbour's corner and can be undone", () => {
+    const state = measureReducer(loaded(), {type: "setSideLength", planeId: "a", sideIndex: 0, trueLengthFt: 40, keep: "start"});
+    expect(toLocal(origin, state.planes[0].vertices[2]).x).toBeCloseTo(40 / 3.28084, 3);
+    expect(toLocal(origin, state.planes[1].vertices[1]).x).toBeCloseTo(40 / 3.28084, 3);
+    expect(measureReducer(state, {type: "undo"}).planes).toEqual([south, north]);
+  });
+
+  test("moving a plane with carry off leaves the neighbour", () => {
+    const state = measureReducer(loaded(), {type: "movePlane", planeId: "a", east: 0, north: -1, carry: false});
+    expect(toLocal(origin, state.planes[0].vertices[0]).y).toBeCloseTo(-1, 6);
+    expect(state.planes[1]).toEqual(north);
+  });
+
+  test("a refused length shows why", () => {
+    const state = measureReducer(loaded(), {type: "setSideLength", planeId: "a", sideIndex: 0, trueLengthFt: 0.2, keep: "start"});
+    expect(state.notice).toMatch(/shorter than a foot/);
+    expect(state.planes).toEqual([south, north]);
+  });
+});

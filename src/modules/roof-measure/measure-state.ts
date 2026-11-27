@@ -15,6 +15,7 @@ import {
   type RoofPlane,
   type RoofSurface,
 } from "@/domain/roof-drawing";
+import {carrySharedCorners, resizePlaneSide, translatePlane, type PlaneEditResult} from "@/domain/roof-plane-edit";
 
 export type MeasureMode = "edit" | "draw" | "cut";
 
@@ -45,6 +46,10 @@ export type MeasureAction =
   | {type: "selectEdge"; edgeId: string | null}
   | {type: "moveVertex"; planeId: string; index: number; to: LatLng; snap: boolean}
   | {type: "squareUp"; planeId: string}
+  /** Exact along-the-roof length for side `sideIndex` (corner i to i+1), keeping one end fixed. */
+  | {type: "setSideLength"; planeId: string; sideIndex: number; trueLengthFt: number; keep: "start" | "end"}
+  /** Move a whole plane by metres east and north; carry=false leaves joined neighbours behind. */
+  | {type: "movePlane"; planeId: string; east: number; north: number; carry: boolean}
   | {type: "setSurface"; planeId: string; surface: RoofSurface}
   | {type: "setPairMode"; pairKey: string; mode: EdgePairMode | null}
   | {type: "insertVertex"; planeId: string; afterIndex: number; at: LatLng}
@@ -134,6 +139,20 @@ export function measureReducer(state: MeasureState, action: MeasureAction): Meas
         const vertices = plane.vertices.map((vertex, index) => (index === action.index ? to : vertex));
         return {...plane, vertices, source: adjusted(plane)};
       });
+    }
+    case "setSideLength":
+    case "movePlane": {
+      const origin = state.origin;
+      const plane = state.planes.find((candidate) => candidate.id === action.planeId);
+      if (!origin || !plane) return state;
+      const result: PlaneEditResult = action.type === "setSideLength"
+        ? resizePlaneSide(origin, plane, action.sideIndex, action.trueLengthFt, action.keep)
+        : translatePlane(origin, plane, {x: action.east, y: action.north});
+      if (!result.ok) return {...state, notice: result.reason};
+      const edited = state.planes.map((candidate) => (candidate.id === plane.id ? result.plane : candidate));
+      const carry = action.type === "setSideLength" || action.carry;
+      const planes = carry ? carrySharedCorners(origin, edited, plane.id, result.moves, state.pairModes) : edited;
+      return {...state, planes, history: remember(state), notice: null};
     }
     case "squareUp": {
       const origin = state.origin;
