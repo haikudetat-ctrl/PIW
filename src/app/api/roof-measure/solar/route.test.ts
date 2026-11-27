@@ -2,7 +2,17 @@ import {mkdtemp, readdir, rm} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import {afterEach, describe, expect, test, vi} from "vitest";
-import {runDevRoofLookup, trimSolarResponse} from "./lookup";
+import {LiveCallLimitError, runDevRoofLookup, trimSolarResponse} from "./lookup";
+
+const auth = vi.hoisted(() => ({user: null as {id: string} | null, role: "manager" as string | null}));
+vi.mock("@/lib/supabase/server", () => ({
+  createServerClient: async () => ({
+    auth: {getUser: async () => ({data: {user: auth.user}})},
+    rpc: async () => ({
+      data: auth.role ? [{user_id: "u1", company_id: "c1", display_name: "Chris", role: auth.role, is_platform_admin: false}] : [],
+    }),
+  }),
+}));
 
 const solarBody = {
   name: "buildings/abc",
@@ -39,7 +49,7 @@ describe("dev roof lookup", () => {
   test("geocodes, calls Solar once, trims panels, and reuses the disk cache", async () => {
     const cacheDir = await tempDir();
     const fetchMock = fakeFetch({
-      "https://maps.googleapis.com/maps/api/geocode/json": () => json({status: "OK", results: [{formatted_address: "1 Main St", geometry: {location: {lat: 40.1, lng: -74.2}}}]}),
+      "https://places.googleapis.com/v1/places:searchText": () => json({places: [{formattedAddress: "1 Main St", location: {latitude: 40.1, longitude: -74.2}}]}),
       "https://solar.googleapis.com/v1/buildingInsights:findClosest": () => json(solarBody),
       "https://maps.googleapis.com/maps/api/elevation/json": () => json({status: "OK", results: [{elevation: 12.5}]}),
     });
@@ -80,25 +90,69 @@ describe("dev roof lookup", () => {
     expect(solarUrl.searchParams.get("requiredQuality")).toBe("MEDIUM");
   });
 
+  test("refuses an uncached Solar call past the limit but still serves cached ones", async () => {
+    const cacheDir = await tempDir();
+    const fetchMock = fakeFetch({
+      "https://solar.googleapis.com/v1/buildingInsights:findClosest": () => json(solarBody),
+      "https://maps.googleapis.com/maps/api/elevation/json": () => json({status: "OK", results: [{elevation: 1}]}),
+    });
+    let allowed = 1;
+    const deps = {apiKey: "k", fetch: fetchMock, cacheDir, allowLiveSolarCall: () => allowed-- > 0};
+    await runDevRoofLookup(deps, {lat: 40, lng: -74, quality: "HIGH"});
+    await expect(runDevRoofLookup(deps, {lat: 41, lng: -74, quality: "HIGH"})).rejects.toBeInstanceOf(LiveCallLimitError);
+    const again = await runDevRoofLookup(deps, {lat: 40, lng: -74, quality: "HIGH"});
+    expect(again.solar.cached).toBe(true);
+  });
+
   test("leaves non-Solar fields alone when trimming", () => {
     expect(trimSolarResponse({name: "x"})).toEqual({name: "x"});
   });
 });
 
-describe("dev roof lookup route", () => {
-  test("is a 404 outside local development", async () => {
-    vi.stubEnv("NODE_ENV", "production");
-    vi.stubEnv("GOOGLE_MAPS_API_KEY", "k");
+describe("roof lookup route", () => {
+  const request = () => new Request("http://localhost/api/roof-measure/solar?lat=40&lng=-74");
+
+  test("refuses a signed-out caller", async () => {
+    auth.user = null;
+    vi.stubEnv("ROOF_MEASURE_GOOGLE_API_KEY", "k");
     const {GET} = await import("./route");
-    const response = await GET(new Request("http://localhost/api/dev/roof-measure/solar?lat=40&lng=-74"));
-    expect(response.status).toBe(404);
+    expect((await GET(request())).status).toBe(401);
   });
 
-  test("asks for the key when it is missing", async () => {
-    vi.stubEnv("NODE_ENV", "development");
-    vi.stubEnv("GOOGLE_MAPS_API_KEY", "");
+  test("refuses a signed-in user without CRM access", async () => {
+    auth.user = {id: "u1"};
+    auth.role = "employee";
+    vi.stubEnv("ROOF_MEASURE_GOOGLE_API_KEY", "k");
     const {GET} = await import("./route");
-    const response = await GET(new Request("http://localhost/api/dev/roof-measure/solar?lat=40&lng=-74"));
+    expect((await GET(request())).status).toBe(403);
+  });
+
+  test("uses only its own key and says when it is missing", async () => {
+    auth.user = {id: "u1"};
+    auth.role = "manager";
+    vi.stubEnv("ROOF_MEASURE_GOOGLE_API_KEY", "");
+    vi.stubEnv("GOOGLE_MAPS_API_KEY", "shared-key");
+    const {GET} = await import("./route");
+    const response = await GET(request());
     expect(response.status).toBe(503);
+    expect((await response.json()).error).toContain("ROOF_MEASURE_GOOGLE_API_KEY");
+  });
+
+  test("looks up for a signed-in manager with the dedicated key", async () => {
+    auth.user = {id: "u1"};
+    auth.role = "manager";
+    vi.stubEnv("ROOF_MEASURE_GOOGLE_API_KEY", "roof-key");
+    // The route caches under os.tmpdir(); keep that inside a throwaway folder.
+    vi.stubEnv("TMPDIR", await tempDir());
+    const fetchMock = fakeFetch({
+      "https://solar.googleapis.com/v1/buildingInsights:findClosest": () => json({error: {code: 404}}, 404),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const {GET} = await import("./route");
+    const response = await GET(new Request("http://localhost/api/roof-measure/solar?lat=40.0001&lng=-74.0001"));
+    expect(response.status).toBe(200);
+    expect((await response.json()).solar.status).toBe("no_coverage");
+    expect(new URL(String(fetchMock.mock.calls[0][0])).searchParams.get("key")).toBe("roof-key");
+    vi.unstubAllGlobals();
   });
 });

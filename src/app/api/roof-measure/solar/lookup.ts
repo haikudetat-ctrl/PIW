@@ -1,12 +1,14 @@
 import "server-only";
 import {createHash} from "node:crypto";
 import {mkdir, readFile, writeFile} from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 
-// Dev-only Google lookups for the roof measuring sandbox. Building Insights is
-// billed per call ($10 per 1,000 after 10,000 free a month at the Nov 2026
-// list price), so every response is cached on disk under .cache/ and reused.
-// Data Layers is never called here.
+// Google lookups for the staff roof measuring page (/roof-measure). Building
+// Insights is billed per call ($10 per 1,000 after 10,000 free a month at the
+// Nov 2026 list price), so every response is cached and reused. On Vercel the
+// cache lives in the function's /tmp, which survives only while that instance
+// is warm; it is a stopgap, not a durable store. Data Layers is never called.
 
 export type SolarQuality = "HIGH" | "MEDIUM" | "LOW";
 
@@ -22,10 +24,14 @@ export type LookupDeps = {
   apiKey: string;
   fetch: typeof fetch;
   cacheDir: string | null;
+  /** Called before each uncached Building Insights call; false refuses it. */
+  allowLiveSolarCall?: () => boolean;
 };
 
+export class LiveCallLimitError extends Error {}
+
 export function defaultCacheDir() {
-  return path.join(process.cwd(), ".cache", "dev-roof-measure");
+  return path.join(os.tmpdir(), "piw-roof-measure");
 }
 
 async function cached<T>(deps: LookupDeps, key: string, load: () => Promise<T>): Promise<{value: T; cached: boolean}> {
@@ -35,8 +41,12 @@ async function cached<T>(deps: LookupDeps, key: string, load: () => Promise<T>):
     return {value: JSON.parse(await readFile(file, "utf8")) as T, cached: true};
   } catch {
     const value = await load();
-    await mkdir(deps.cacheDir, {recursive: true});
-    await writeFile(file, JSON.stringify(value));
+    try {
+      await mkdir(deps.cacheDir, {recursive: true});
+      await writeFile(file, JSON.stringify(value));
+    } catch {
+      // A read-only or full disk only costs a repeat call next time.
+    }
     return {value, cached: false};
   }
 }
@@ -54,10 +64,10 @@ export function trimSolarResponse(raw: Record<string, unknown>) {
   return {...raw, solarPotential: kept};
 }
 
-async function getJson(deps: LookupDeps, url: URL, label: string) {
+async function getJson(deps: LookupDeps, url: URL | string, label: string, init?: RequestInit) {
   let response: Response;
   try {
-    response = await deps.fetch(url.toString(), {cache: "no-store"});
+    response = await deps.fetch(url.toString(), {cache: "no-store", ...init});
   } catch {
     throw new Error(`${label} request failed`);
   }
@@ -70,19 +80,27 @@ async function getJson(deps: LookupDeps, url: URL, label: string) {
   return {status: response.status, ok: response.ok, body};
 }
 
+// Places Text Search, which PIW's key already uses for address validation.
 export async function geocodeAddress(deps: LookupDeps, address: string) {
-  const {value} = await cached(deps, `geocode:${address.trim().toLowerCase()}`, async () => {
-    const url = new URL("https://maps.googleapis.com/maps/api/geocode/json");
-    url.searchParams.set("address", address);
-    url.searchParams.set("components", "country:US");
-    url.searchParams.set("key", deps.apiKey);
-    const result = await getJson(deps, url, "Geocoding");
-    const body = result.body as {status?: string; results?: Array<{formatted_address?: string; geometry?: {location?: {lat: number; lng: number}}}>} | null;
-    const first = body?.results?.[0];
-    if (!result.ok || body?.status !== "OK" || !first?.geometry?.location) {
-      throw new Error(`Google could not find that address (${body?.status ?? result.status})`);
+  const {value} = await cached(deps, `places:${address.trim().toLowerCase()}`, async () => {
+    const result = await getJson(deps, "https://places.googleapis.com/v1/places:searchText", "Google Places", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": deps.apiKey,
+        "X-Goog-FieldMask": "places.formattedAddress,places.location",
+      },
+      body: JSON.stringify({textQuery: address, languageCode: "en-US", regionCode: "us", maxResultCount: 1}),
+    });
+    const body = result.body as {places?: Array<{formattedAddress?: string; location?: {latitude: number; longitude: number}}>} | null;
+    const first = body?.places?.[0];
+    if (!result.ok || !first?.location) {
+      throw new Error(result.ok ? "Google could not find that address" : `Google Places responded with ${result.status}`);
     }
-    return {location: first.geometry.location, formattedAddress: first.formatted_address ?? null};
+    return {
+      location: {lat: first.location.latitude, lng: first.location.longitude},
+      formattedAddress: first.formattedAddress ?? null,
+    };
   });
   return value;
 }
@@ -90,6 +108,9 @@ export async function geocodeAddress(deps: LookupDeps, address: string) {
 export async function lookupSolar(deps: LookupDeps, location: {lat: number; lng: number}, quality: SolarQuality) {
   const key = `solar:${location.lat.toFixed(6)},${location.lng.toFixed(6)}:${quality}`;
   return cached(deps, key, async () => {
+    if (deps.allowLiveSolarCall && !deps.allowLiveSolarCall()) {
+      throw new LiveCallLimitError("Live Solar lookup limit reached for this hour; cached addresses still load");
+    }
     const url = new URL("https://solar.googleapis.com/v1/buildingInsights:findClosest");
     url.searchParams.set("location.latitude", String(location.lat));
     url.searchParams.set("location.longitude", String(location.lng));

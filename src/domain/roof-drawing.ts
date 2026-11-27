@@ -1,6 +1,6 @@
-// Roof drawing model for the dev-only measuring sandbox
-// (/roof-estimate/dev-assessment/measure). Pure geometry: no network, no
-// database, and nothing here feeds the live customer price path.
+// Roof drawing model for the staff roof measuring page (/roof-measure). Pure
+// geometry: no network, no database, and nothing here feeds the live customer
+// price path.
 //
 // Three helper tiers produce a roof measurement:
 //   1. Solar: Google Building Insights segments, placed as azimuth-aligned

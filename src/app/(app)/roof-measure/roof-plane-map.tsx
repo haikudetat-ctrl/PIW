@@ -6,8 +6,8 @@ import {Fragment, useEffect, useMemo} from "react";
 import {MapContainer, Marker, Polygon, Polyline, TileLayer, Tooltip, useMapEvents} from "react-leaflet";
 import {NJGIN_AERIAL_ATTRIBUTION, NJGIN_AERIAL_TILE_URL} from "@/components/parcel-map";
 import {roofEdgeKindLabels, type LatLng, type RoofEdge, type RoofPlane} from "@/domain/roof-drawing";
-import {edgeKindColors} from "./edge-colors";
-import type {MeasureAction, MeasureMode} from "./measure-state";
+import {edgeKindColors} from "@/modules/roof-measure/edge-colors";
+import type {MeasureAction, MeasureMode} from "@/modules/roof-measure/measure-state";
 
 // Loaded only in the browser (see roof-plane-map-loader.tsx): Leaflet needs window.
 

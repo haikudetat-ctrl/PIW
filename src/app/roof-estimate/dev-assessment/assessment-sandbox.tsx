@@ -23,7 +23,7 @@ import {
   MEASUREMENT_HANDOFF_KEY,
   readMeasurementHandoff,
   type MeasurementHandoff,
-} from "./measure/measure-pricing";
+} from "@/modules/roof-measure/measure-pricing";
 
 const campaigns: Array<{slug: RoofAssessmentPresentationKey; label: string}> = [
   {slug: "all-season-main", label: "Main website"},
@@ -166,7 +166,7 @@ export function AssessmentSandbox() {
     () => "",
   );
   const previewQuery = useMemo(() => getPreviewQuery(search), [search]);
-  // A roof measured on /roof-estimate/dev-assessment/measure in this tab, if any.
+  // A roof measured on /roof-measure in this tab, if any.
   const handoffSnapshot = useSyncExternalStore(subscribeToHandoff, readHandoffSnapshot, () => null);
   const handoff = useMemo(() => parseHandoffSnapshot(handoffSnapshot), [handoffSnapshot]);
   const address = handoff?.address ?? PREVIEW_ADDRESS;
@@ -293,7 +293,7 @@ export function AssessmentSandbox() {
               {handoff.squares.toFixed(1)} squares from the {handoff.tier === "solar" ? "Solar estimate" : handoff.tier === "drawn" ? "drawing" : "measured report"}
             </p>
           ) : null}
-          <Link href="/roof-estimate/dev-assessment/measure" className="whitespace-nowrap rounded-sm px-3 py-2.5 text-left text-xs font-bold text-slate-600 hover:bg-slate-100">
+          <Link href="/roof-measure" className="whitespace-nowrap rounded-sm px-3 py-2.5 text-left text-xs font-bold text-slate-600 hover:bg-slate-100">
             {handoff ? "Remeasure with Solar" : "Measure with Solar"}
           </Link>
           {handoff ? (

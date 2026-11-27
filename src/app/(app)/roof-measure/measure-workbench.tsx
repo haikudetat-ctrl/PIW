@@ -26,10 +26,10 @@ import {
   triggeredAdjustments,
   withPercentAdjustments,
   type StoryAnswer,
-} from "./measure-pricing";
-import {initialMeasureState, measureReducer} from "./measure-state";
+} from "@/modules/roof-measure/measure-pricing";
+import {initialMeasureState, measureReducer} from "@/modules/roof-measure/measure-state";
 import {RoofPlaneMap} from "./roof-plane-map-loader";
-import {edgeKindColors} from "./edge-colors";
+import {edgeKindColors} from "@/modules/roof-measure/edge-colors";
 
 type LookupResponse = {
   location: {lat: number; lng: number};
@@ -61,7 +61,11 @@ function parseCoordinates(text: string) {
 const emptyMeasured: MeasuredReportInput = {source: "Roofr", totalSqft: null, predominantPitchRise: null, lengthsFt: {}};
 const measuredLengthKinds: RoofEdgeKind[] = ["eave", "rake", "ridge", "hip", "valley", "step_flashing", "wall_flashing"];
 
-export function MeasureWorkbench({fetchLookup = defaultFetchLookup}: {fetchLookup?: (query: string, quality: string) => Promise<LookupResponse>}) {
+export function MeasureWorkbench({fetchLookup = defaultFetchLookup, sandboxLinks = false}: {
+  fetchLookup?: (query: string, quality: string) => Promise<LookupResponse>;
+  /** Links to the dev-only assessment sandbox, which 404s outside local development. */
+  sandboxLinks?: boolean;
+}) {
   const [query, setQuery] = useState("");
   const [quality, setQuality] = useState("HIGH");
   const [lookup, setLookup] = useState<Lookup>({status: "idle"});
@@ -128,13 +132,13 @@ export function MeasureWorkbench({fetchLookup = defaultFetchLookup}: {fetchLooku
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+    <div className="min-h-full bg-slate-50 font-sans text-slate-900">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-5 py-3">
         <div>
-          <p className="text-[0.65rem] font-black uppercase tracking-[0.16em] text-amber-700">Dev only · not customer facing</p>
+          <p className="text-[0.65rem] font-black uppercase tracking-[0.16em] text-amber-700">Prototype · staff only · not customer facing</p>
           <h1 className="text-lg font-semibold">Roof measuring sandbox</h1>
         </div>
-        <Link href="/roof-estimate/dev-assessment" className="text-xs font-semibold text-slate-600 underline">Back to assessment sandbox</Link>
+        {sandboxLinks ? <Link href="/roof-estimate/dev-assessment" className="text-xs font-semibold text-slate-600 underline">Back to assessment sandbox</Link> : null}
       </header>
 
       <form onSubmit={runLookup} className="flex flex-wrap items-end gap-2 border-b border-slate-200 bg-white px-5 py-3">
@@ -374,7 +378,7 @@ export function MeasureWorkbench({fetchLookup = defaultFetchLookup}: {fetchLooku
 
             {active ? (
               <div className="flex flex-wrap gap-2">
-                <button
+                {sandboxLinks ? <button
                   type="button"
                   className="rounded-md bg-slate-950 px-3 py-2 text-xs font-semibold text-white"
                   onClick={() => {
@@ -391,7 +395,7 @@ export function MeasureWorkbench({fetchLookup = defaultFetchLookup}: {fetchLooku
                   }}
                 >
                   Use in assessment sandbox
-                </button>
+                </button> : null}
                 <button
                   type="button"
                   className="rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold"
@@ -411,7 +415,7 @@ export function MeasureWorkbench({fetchLookup = defaultFetchLookup}: {fetchLooku
         </div>
       ) : (
         <p className="px-5 py-10 text-sm text-slate-500">
-          Look up an address to load Google Solar planes over the NJGIN aerial. Each lookup is a live Building Insights call (cached on disk afterwards) plus a Geocoding and an Elevation call.
+          Look up an address to load Google Solar planes over the NJGIN aerial. A new address costs one Building Insights call, one Places search and one Elevation call; repeat lookups are cached while the server stays warm.
         </p>
       )}
     </div>
@@ -427,7 +431,7 @@ async function defaultFetchLookup(query: string, quality: string): Promise<Looku
   } else {
     params.set("address", query);
   }
-  const response = await fetch(`/api/dev/roof-measure/solar?${params}`);
+  const response = await fetch(`/api/roof-measure/solar?${params}`);
   const body = await response.json() as LookupResponse & {error?: string};
   if (!response.ok) throw new Error(body.error ?? `Lookup failed (${response.status})`);
   return body;

@@ -9,7 +9,8 @@ import {
 // Sandbox copy of the All Season NJ 2026 rate card from
 // scripts/seed-all-season-roof-pricing.mjs. Live estimates price in SQL
 // (finalize_roof_estimate_packages) from the database rate card; this copy
-// only prices the dev measuring page and the sandbox preview.
+// only prices the staff measuring page (/roof-measure) and the dev sandbox
+// preview. It never reaches a customer estimate.
 export const SANDBOX_PRICING_VERSION = "all-season-nj-2026-v1 (sandbox copy)";
 
 export const sandboxTierRates: RoofPricingTierRate[] = [
@@ -47,8 +48,8 @@ export function withPercentAdjustments(cents: number, adjustments: RoofPricingAd
 }
 
 // ---------------------------------------------------------------------------
-// Handoff from the measuring page to the assessment sandbox (same browser tab
-// session only; nothing leaves the browser).
+// Handoff from the measuring page to the dev assessment sandbox (same browser
+// tab session only; nothing leaves the browser).
 
 export const MEASUREMENT_HANDOFF_KEY = "piw.devRoofMeasurement.v1";
 

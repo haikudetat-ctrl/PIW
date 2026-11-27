@@ -1,7 +1,7 @@
 import {fireEvent, render, screen, waitFor, within} from "@testing-library/react";
 import {afterEach, describe, expect, test, vi} from "vitest";
 import {degreesFromPitchRise, toLatLng} from "@/domain/roof-drawing";
-import {MEASUREMENT_HANDOFF_KEY} from "./measure-pricing";
+import {MEASUREMENT_HANDOFF_KEY} from "@/modules/roof-measure/measure-pricing";
 
 vi.mock("./roof-plane-map-loader", () => ({
   RoofPlaneMap: ({planes, edges, dispatch}: {planes: Array<{id: string}>; edges: unknown[]; dispatch: (action: unknown) => void}) => (
@@ -75,7 +75,7 @@ describe("roof measuring sandbox", () => {
   });
 
   test("a typed measured report wins and the result can be handed to the assessment sandbox", async () => {
-    render(<MeasureWorkbench fetchLookup={async () => lookupResponse} />);
+    render(<MeasureWorkbench sandboxLinks fetchLookup={async () => lookupResponse} />);
     fireEvent.change(screen.getByLabelText(/address, or latitude/i), {target: {value: "40.35, -74.07"}});
     fireEvent.click(screen.getByRole("button", {name: "Look up roof"}));
     await screen.findByTestId("map");
@@ -90,6 +90,16 @@ describe("roof measuring sandbox", () => {
     expect(screen.getByRole("link", {name: /open the customer result/i})).toHaveAttribute("href", "/roof-estimate/dev-assessment?result=ready");
   });
 
+  test("hides links to the dev-only sandbox in production", async () => {
+    render(<MeasureWorkbench fetchLookup={async () => lookupResponse} />);
+    fireEvent.change(screen.getByLabelText(/address, or latitude/i), {target: {value: "40.35, -74.07"}});
+    fireEvent.click(screen.getByRole("button", {name: "Look up roof"}));
+    await screen.findByTestId("map");
+    expect(screen.queryByRole("button", {name: "Use in assessment sandbox"})).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", {name: /assessment sandbox/i})).not.toBeInTheDocument();
+    expect(screen.getByRole("button", {name: "Copy report JSON"})).toBeInTheDocument();
+  });
+
   test("without Solar coverage the aerial still loads for drawing by hand", async () => {
     render(<MeasureWorkbench fetchLookup={async () => ({...lookupResponse, solar: {status: "no_coverage" as const, cached: false}})} />);
     fireEvent.change(screen.getByLabelText(/address, or latitude/i), {target: {value: "somewhere"}});
@@ -99,9 +109,9 @@ describe("roof measuring sandbox", () => {
   });
 
   test("shows lookup errors", async () => {
-    render(<MeasureWorkbench fetchLookup={async () => { throw new Error("GOOGLE_MAPS_API_KEY is not set in .env.local"); }} />);
+    render(<MeasureWorkbench fetchLookup={async () => { throw new Error("ROOF_MEASURE_GOOGLE_API_KEY is not set"); }} />);
     fireEvent.change(screen.getByLabelText(/address, or latitude/i), {target: {value: "x st"}});
     fireEvent.click(screen.getByRole("button", {name: "Look up roof"}));
-    expect(await screen.findByRole("alert")).toHaveTextContent("GOOGLE_MAPS_API_KEY");
+    expect(await screen.findByRole("alert")).toHaveTextContent("ROOF_MEASURE_GOOGLE_API_KEY");
   });
 });
