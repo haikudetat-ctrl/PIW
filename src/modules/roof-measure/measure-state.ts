@@ -4,8 +4,10 @@ import {
   distanceMeters,
   edgeBearings,
   guessAzimuthForDrawnPlane,
+  mergePlanes,
   orthoSnapCorner,
   snapToNearbyVertex,
+  splitPlane,
   squareUpPlane,
   type EdgePairMode,
   type LatLng,
@@ -14,7 +16,7 @@ import {
   type RoofSurface,
 } from "@/domain/roof-drawing";
 
-export type MeasureMode = "edit" | "draw";
+export type MeasureMode = "edit" | "draw" | "cut";
 
 export type DrawingSnapshot = {
   planes: RoofPlane[];
@@ -33,6 +35,8 @@ export type MeasureState = DrawingSnapshot & {
   nextDrawnId: number;
   /** Building axis for 90-degree helpers, from the Solar planes at load. */
   axisDegrees: number | null;
+  /** Why the last cut or merge was refused, shown until the next edit. */
+  notice: string | null;
 };
 
 export type MeasureAction =
@@ -49,6 +53,8 @@ export type MeasureAction =
   | {type: "setPitchRise"; planeId: string; rise: number}
   | {type: "setAzimuth"; planeId: string; azimuthDegrees: number}
   | {type: "setEdgeKind"; edgeId: string; kind: RoofEdgeKind | null}
+  | {type: "startCut"}
+  | {type: "mergePlanes"; firstId: string; secondId: string}
   | {type: "startDraw"}
   | {type: "addDraftPoint"; at: LatLng}
   | {type: "finishDraw"}
@@ -69,6 +75,7 @@ export const initialMeasureState: MeasureState = {
   history: [],
   nextDrawnId: 1,
   axisDegrees: null,
+  notice: null,
 };
 
 const HISTORY_LIMIT = 50;
@@ -88,7 +95,14 @@ function editPlane(state: MeasureState, planeId: string, change: (plane: RoofPla
     return next ? [next] : [];
   });
   if (!changed) return state;
-  return {...state, planes, history: remember(state)};
+  return {...state, planes, history: remember(state), notice: null};
+}
+
+function uniqueId(taken: Set<string>, wanted: string, fallback: () => string) {
+  if (wanted.length <= 40 && !taken.has(wanted)) return wanted;
+  let id = fallback();
+  while (taken.has(id)) id = `${id}x`;
+  return id;
 }
 
 const adjusted = (plane: RoofPlane): RoofPlane["source"] => (plane.source === "solar" ? "adjusted" : plane.source);
@@ -110,7 +124,7 @@ export function measureReducer(state: MeasureState, action: MeasureAction): Meas
       };
     }
     case "selectPlane":
-      return {...state, selectedPlaneId: action.planeId, selectedEdgeId: null};
+      return {...state, selectedPlaneId: action.planeId, selectedEdgeId: null, notice: null};
     case "selectEdge":
       return {...state, selectedEdgeId: action.edgeId};
     case "moveVertex": {
@@ -170,11 +184,43 @@ export function measureReducer(state: MeasureState, action: MeasureAction): Meas
     }
     case "startDraw":
       return {...state, mode: "draw", draft: [], selectedPlaneId: null, selectedEdgeId: null};
+    case "startCut":
+      if (!state.selectedPlaneId) return state;
+      return {...state, mode: "cut", draft: [], selectedEdgeId: null, notice: null};
     case "addDraftPoint": {
-      if (state.mode !== "draw") return state;
+      if (state.mode === "edit") return state;
       const origin = state.origin;
       const at = origin ? snapToNearbyVertex(origin, action.at, state.planes, "") : action.at;
-      return {...state, draft: [...state.draft, at]};
+      if (state.mode === "draw") return {...state, draft: [...state.draft, at]};
+      // Cut mode: the second click finishes the cut line.
+      if (state.draft.length === 0) return {...state, draft: [at]};
+      const plane = state.planes.find((candidate) => candidate.id === state.selectedPlaneId);
+      if (!origin || !plane) return {...state, mode: "edit", draft: []};
+      const result = splitPlane(origin, plane, state.draft[0], at);
+      if (!result.ok) return {...state, mode: "edit", draft: [], notice: result.reason};
+      const taken = new Set(state.planes.map((candidate) => candidate.id));
+      let nextDrawnId = state.nextDrawnId;
+      const halves = result.planes.map((half) => {
+        const id = uniqueId(taken, half.id, () => `drawn-${nextDrawnId++}`);
+        taken.add(id);
+        return {...half, id};
+      });
+      const index = state.planes.indexOf(plane);
+      const planes = [...state.planes.slice(0, index), ...halves, ...state.planes.slice(index + 1)];
+      return {...state, planes, history: remember(state), mode: "edit", draft: [], selectedPlaneId: halves[0].id, nextDrawnId, notice: null};
+    }
+    case "mergePlanes": {
+      const first = state.planes.find((plane) => plane.id === action.firstId);
+      const second = state.planes.find((plane) => plane.id === action.secondId);
+      if (!state.origin || !first || !second || first === second) return state;
+      const result = mergePlanes(state.origin, first, second);
+      if (!result.ok) return {...state, notice: result.reason};
+      const [merged] = result.planes;
+      const planes = state.planes.flatMap((plane) => {
+        if (plane === first || plane === second) return plane.id === merged.id ? [merged] : [];
+        return [plane];
+      });
+      return {...state, planes, history: remember(state), selectedPlaneId: merged.id, selectedEdgeId: null, notice: null};
     }
     case "finishDraw": {
       if (state.mode !== "draw" || state.draft.length < 3 || !state.origin) {
@@ -204,7 +250,7 @@ export function measureReducer(state: MeasureState, action: MeasureAction): Meas
       };
     }
     case "cancelDraw":
-      return {...state, mode: "edit", draft: []};
+      return {...state, mode: "edit", draft: [], notice: null};
     case "resetToSolar":
       return {...state, planes: state.solarPlanes, overrides: {}, pairModes: {}, history: remember(state), selectedPlaneId: null, selectedEdgeId: null};
     case "undo": {

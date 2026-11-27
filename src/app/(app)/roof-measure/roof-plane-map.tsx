@@ -37,11 +37,14 @@ const snapIcon = L.divIcon({
 
 const toTuple = (point: LatLng): [number, number] => [point.lat, point.lng];
 
-function MapClicks({mode, dispatch}: {mode: MeasureMode; dispatch: (action: MeasureAction) => void}) {
+function MapClicks({mode, dispatch, onPointer}: {mode: MeasureMode; dispatch: (action: MeasureAction) => void; onPointer: (at: LatLng | null) => void}) {
   const map = useMapEvents({
     click(event) {
-      if (mode === "draw") dispatch({type: "addDraftPoint", at: {lat: event.latlng.lat, lng: event.latlng.lng}});
+      if (mode !== "edit") dispatch({type: "addDraftPoint", at: {lat: event.latlng.lat, lng: event.latlng.lng}});
       else dispatch({type: "selectPlane", planeId: null});
+    },
+    mousemove(event) {
+      if (mode === "cut") onPointer({lat: event.latlng.lat, lng: event.latlng.lng});
     },
     dblclick() {
       if (mode === "draw") dispatch({type: "finishDraw"});
@@ -75,6 +78,7 @@ export default function RoofPlaneMap({center, planes, edges, selectedPlaneId, se
   // Alt (Option) held while dragging turns snapping off.
   const freeDrag = useRef(false);
   const [snapHint, setSnapHint] = useState<LatLng | null>(null);
+  const [pointer, setPointer] = useState<LatLng | null>(null);
   useEffect(() => {
     const update = (event: KeyboardEvent) => {
       freeDrag.current = event.altKey;
@@ -96,7 +100,7 @@ export default function RoofPlaneMap({center, planes, edges, selectedPlaneId, se
       className="h-full min-h-[28rem] w-full"
     >
       <TileLayer attribution={NJGIN_AERIAL_ATTRIBUTION} url={NJGIN_AERIAL_TILE_URL} maxNativeZoom={NJGIN_MAX_NATIVE_ZOOM} maxZoom={23} keepBuffer={4} />
-      <MapClicks mode={mode} dispatch={dispatch} />
+      <MapClicks mode={mode} dispatch={dispatch} onPointer={setPointer} />
       {planes.map((plane) => (
         <Polygon
           key={plane.id}
@@ -110,7 +114,7 @@ export default function RoofPlaneMap({center, planes, edges, selectedPlaneId, se
           }}
           eventHandlers={{
             click(event) {
-              if (mode === "draw") return;
+              if (mode !== "edit") return;
               L.DomEvent.stopPropagation(event);
               dispatch({type: "selectPlane", planeId: plane.id});
             },
@@ -128,7 +132,7 @@ export default function RoofPlaneMap({center, planes, edges, selectedPlaneId, se
           }}
           eventHandlers={{
             click(event) {
-              if (mode === "draw") return;
+              if (mode !== "edit") return;
               L.DomEvent.stopPropagation(event);
               dispatch({type: "selectEdge", edgeId: edge.id});
             },
@@ -175,6 +179,9 @@ export default function RoofPlaneMap({center, planes, edges, selectedPlaneId, se
         );
       }) : null}
       {snapHint ? <Marker position={toTuple(snapHint)} icon={snapIcon} interactive={false} /> : null}
+      {mode === "cut" && draft.length === 1 && pointer ? (
+        <Polyline positions={[toTuple(draft[0]), toTuple(pointer)]} pathOptions={{color: "#f43f5e", weight: 2, dashArray: "6 4"}} interactive={false} />
+      ) : null}
       {draft.length > 0 ? (
         <>
           <Polyline positions={draft.map(toTuple)} pathOptions={{color: "#facc15", weight: 2, dashArray: "4 4"}} />
