@@ -5,6 +5,7 @@ import L from "leaflet";
 import {Fragment, useEffect, useMemo, useRef, useState} from "react";
 import {MapContainer, Marker, Polygon, Polyline, TileLayer, Tooltip, useMapEvents} from "react-leaflet";
 import {NJGIN_AERIAL_ATTRIBUTION, NJGIN_AERIAL_TILE_URL, NJGIN_MAX_NATIVE_ZOOM} from "@/components/parcel-map";
+import {NJ_2025_MAX_NATIVE_ZOOM, NJ_2025_MIN_NATIVE_ZOOM, type NjImageryLayer} from "@/modules/roof-measure/nj-ortho";
 import {roofEdgeKindLabels, type LatLng, type RoofEdge, type RoofPlane} from "@/domain/roof-drawing";
 import {edgeKindColors} from "@/modules/roof-measure/edge-colors";
 import type {MeasureAction, MeasureMode} from "@/modules/roof-measure/measure-state";
@@ -34,6 +35,12 @@ const snapIcon = L.divIcon({
   html: '<span style="display:block;width:16px;height:16px;border:2px solid #22d3ee;border-radius:2px;box-shadow:0 0 0 1px rgba(0,0,0,.5)"></span>',
   iconAnchor: [8, 8],
 });
+
+// Rendered by PIW from the state's 2025 files (see nj-ortho-tiles.ts). Below
+// zoom 18 only the 2020 layer shows; tiles outside the 2025 files 404 and the
+// 2020 layer shows through.
+const NJ_2025_TILE_URL = "/api/roof-measure/imagery/nj-2025/{z}/{x}/{y}.jpg";
+const NJ_2025_ATTRIBUTION = 'Aerial imagery &copy; <a href="https://www.nj.gov/njgin/edata/imagery/">NJ Office of GIS</a> (2025)';
 
 const toTuple = (point: LatLng): [number, number] => [point.lat, point.lng];
 
@@ -69,11 +76,13 @@ export type RoofPlaneMapProps = {
   draft: LatLng[];
   showPlaneFill: boolean;
   dispatch: (action: MeasureAction) => void;
+  /** Aerial under the planes. The 2020 layer always sits underneath as the fallback. */
+  imagery?: NjImageryLayer;
   /** Where a corner dragged to `to` would snap, for the live square marker. */
   previewSnap?: (planeId: string, index: number, to: LatLng) => {point: LatLng; snapped: boolean};
 };
 
-export default function RoofPlaneMap({center, planes, edges, selectedPlaneId, selectedEdgeId, mode, draft, showPlaneFill, dispatch, previewSnap}: RoofPlaneMapProps) {
+export default function RoofPlaneMap({center, planes, edges, selectedPlaneId, selectedEdgeId, mode, draft, showPlaneFill, dispatch, previewSnap, imagery = "nj2025"}: RoofPlaneMapProps) {
   const selected = useMemo(() => planes.find((plane) => plane.id === selectedPlaneId) ?? null, [planes, selectedPlaneId]);
   // Alt (Option) held while dragging turns snapping off.
   const freeDrag = useRef(false);
@@ -100,6 +109,17 @@ export default function RoofPlaneMap({center, planes, edges, selectedPlaneId, se
       className="h-full min-h-[28rem] w-full"
     >
       <TileLayer attribution={NJGIN_AERIAL_ATTRIBUTION} url={NJGIN_AERIAL_TILE_URL} maxNativeZoom={NJGIN_MAX_NATIVE_ZOOM} maxZoom={23} keepBuffer={4} />
+      {imagery === "nj2025" ? (
+        <TileLayer
+          attribution={NJ_2025_ATTRIBUTION}
+          url={NJ_2025_TILE_URL}
+          minZoom={NJ_2025_MIN_NATIVE_ZOOM - 1}
+          minNativeZoom={NJ_2025_MIN_NATIVE_ZOOM}
+          maxNativeZoom={NJ_2025_MAX_NATIVE_ZOOM}
+          maxZoom={23}
+          keepBuffer={2}
+        />
+      ) : null}
       <MapClicks mode={mode} dispatch={dispatch} onPointer={setPointer} />
       {planes.map((plane) => (
         <Polygon

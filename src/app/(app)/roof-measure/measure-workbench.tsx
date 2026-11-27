@@ -37,6 +37,7 @@ import {
   type SavedMeasurementSummary,
 } from "@/modules/roof-measure/saved-drawing";
 import {RoofPlaneMap} from "./roof-plane-map-loader";
+import {NJ_IMAGERY_LABELS, type NjImageryLayer} from "@/modules/roof-measure/nj-ortho";
 import {edgeKindColors} from "@/modules/roof-measure/edge-colors";
 
 type LookupResponse = {
@@ -99,6 +100,7 @@ export function MeasureWorkbench({fetchLookup = defaultFetchLookup, sandboxLinks
   const [storiesOverride, setStoriesOverride] = useState<StoryAnswer | null>(initialSaved?.stories ?? null);
   const [wasteOverride, setWasteOverride] = useState<number | null>(initialSaved?.wastePercent ?? null);
   const [showFill, setShowFill] = useState(true);
+  const [imagery, setImagery] = useState<NjImageryLayer>(initialSaved?.drawing.imagery ?? "nj2025");
   const [handoffSaved, setHandoffSaved] = useState(false);
   const [copied, setCopied] = useState(false);
   const [savedId, setSavedId] = useState<string | null>(initialSaved?.id ?? null);
@@ -167,7 +169,7 @@ export function MeasureWorkbench({fetchLookup = defaultFetchLookup, sandboxLinks
       solarBuildingName: insight?.buildingName ?? null,
       solarImageryDate: insight?.imageryDate ?? null,
       solarResponse: solarRaw && typeof solarRaw === "object" ? solarRaw : null,
-      drawing: {version: SAVED_DRAWING_VERSION, planes: state.planes, overrides: state.overrides, pairModes: state.pairModes},
+      drawing: {version: SAVED_DRAWING_VERSION, planes: state.planes, overrides: state.overrides, pairModes: state.pairModes, imagery},
       measured: measuredInput,
       stories,
       wastePercent,
@@ -253,6 +255,13 @@ export function MeasureWorkbench({fetchLookup = defaultFetchLookup, sandboxLinks
                   <ToolButton onClick={() => dispatch({type: "undo"})} disabled={state.history.length === 0}>Undo</ToolButton>
                   <ToolButton onClick={() => dispatch({type: "resetToSolar"})}>Reset to Solar</ToolButton>
                   <label className="ml-auto flex items-center gap-1 text-slate-600">
+                    Aerial
+                    <select aria-label="Aerial imagery" value={imagery} onChange={(event) => setImagery(event.target.value as NjImageryLayer)} className="rounded border border-slate-300 px-1 py-0.5">
+                      <option value="nj2025">NJ 2025 (6-inch)</option>
+                      <option value="nj2020">NJ 2020 (1-foot)</option>
+                    </select>
+                  </label>
+                  <label className="flex items-center gap-1 text-slate-600">
                     <input type="checkbox" checked={showFill} onChange={(event) => setShowFill(event.target.checked)} /> Plane fill
                   </label>
                 </>
@@ -272,6 +281,7 @@ export function MeasureWorkbench({fetchLookup = defaultFetchLookup, sandboxLinks
                 mode={state.mode}
                 draft={state.draft}
                 showPlaneFill={showFill}
+                imagery={imagery}
                 dispatch={dispatch}
                 previewSnap={(planeId, index, to) => {
                   const plane = state.planes.find((item) => item.id === planeId);
@@ -280,7 +290,7 @@ export function MeasureWorkbench({fetchLookup = defaultFetchLookup, sandboxLinks
               />
             </div>
             <p className="border-t border-slate-200 bg-white px-3 py-2 text-[0.7rem] leading-5 text-slate-500">
-              Click a plane to edit it: drag a square corner to move it (it snaps to nearby corners and squares up to the building; hold Alt to drag freely), click a + to add a corner, right-click a corner to delete it. Click an edge line to relabel it, to join or split two planes there, or to merge them. Cut in two splits a plane along a line you click. Dashed amber planes are untouched Solar; dashed edges need a look. Aerial is NJGIN 2020; Solar planes come from Google imagery{insight?.imageryDate ? ` dated ${insight.imageryDate}` : ""}.
+              Click a plane to edit it: drag a square corner to move it (it snaps to nearby corners and squares up to the building; hold Alt to drag freely), click a + to add a corner, right-click a corner to delete it. Click an edge line to relabel it, to join or split two planes there, or to merge them. Cut in two splits a plane along a line you click. Dashed amber planes are untouched Solar; dashed edges need a look. Aerial is the {NJ_IMAGERY_LABELS[imagery]} from the NJ Office of GIS (zoom out past 18 and it falls back to 2020); Solar planes come from Google imagery{insight?.imageryDate ? ` dated ${insight.imageryDate}` : ""}.
             </p>
           </section>
 
@@ -595,7 +605,7 @@ export function MeasureWorkbench({fetchLookup = defaultFetchLookup, sandboxLinks
         </div>
       ) : (
         <p className="px-5 py-10 text-sm text-slate-500">
-          Look up an address to load Google Solar planes over the NJGIN aerial. A new address costs one Building Insights call, one Places search and one Elevation call; repeat lookups are cached while the server stays warm.
+          Look up an address to load Google Solar planes over the NJ aerial. A new address costs one Building Insights call, one Places search and one Elevation call; repeat lookups are cached while the server stays warm.
         </p>
       )}
     </div>

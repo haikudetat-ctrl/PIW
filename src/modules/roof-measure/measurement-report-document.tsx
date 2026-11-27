@@ -13,6 +13,8 @@ export type MeasurementReportDocumentProps = {
   jobLabel: string | null;
   preparedOn: Date;
   imageryDate: string | null;
+  /** Aerial the outlines were checked against, e.g. "NJ 2025 aerial (6-inch, leaf-off)". */
+  aerialLabel: string;
   storiesLabel: string | null;
   wastePercent: number | null;
   /** Squares the drawing was saved with (the tier staff priced on). */
@@ -222,7 +224,7 @@ export function MeasurementReportDocument(props: MeasurementReportDocumentProps)
             <Text style={styles.note}>{`${report.wallPlaneCount} face${report.wallPlaneCount === 1 ? "" : "s"} (${fmt(report.wallSqft, 0)} sq ft) marked as wall and left out of every total.`}</Text>
           ) : null}
           <Text style={styles.note}>
-            {`Facet outlines start from Google Solar roof segments${props.imageryDate ? ` (imagery dated ${props.imageryDate})` : ""} and were checked and adjusted by staff over the NJGIN 2020 aerial. Field-verify before ordering.`}
+            {`Facet outlines start from Google Solar roof segments${props.imageryDate ? ` (imagery dated ${props.imageryDate})` : ""} and were checked and adjusted by staff over the ${props.aerialLabel}. Field-verify before ordering.`}
           </Text>
         </View>
         <Footer {...props} />

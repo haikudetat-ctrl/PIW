@@ -161,12 +161,15 @@ describe("roof measuring sandbox, phase 2", () => {
     await loaded({storage});
     fireEvent.change(screen.getByLabelText(/Link to a JobNimbus job/), {target: {value: "Harbor"}});
     fireEvent.click(await screen.findByRole("button", {name: /#4021/}));
+    expect(screen.getByLabelText("Aerial imagery")).toHaveValue("nj2025");
+    fireEvent.change(screen.getByLabelText("Aerial imagery"), {target: {value: "nj2020"}});
     fireEvent.click(screen.getByRole("button", {name: "Save drawing"}));
     expect(await screen.findByRole("status", {name: ""})).toBeInTheDocument();
     await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
     const payload = (save.mock.calls[0] as unknown[])[0] as Record<string, unknown>;
     expect(payload).toMatchObject({id: null, jobJnid: "jn1", stories: "two"});
     expect((payload.drawing as {planes: unknown[]}).planes).toHaveLength(2);
+    expect(payload.drawing).toMatchObject({imagery: "nj2020"});
     expect(payload.solarResponse).toMatchObject({name: "buildings/test"});
     expect(await screen.findByRole("button", {name: "Save changes"})).toBeInTheDocument();
     expect(screen.getByRole("link", {name: "PDF report"})).toHaveAttribute("href", "/api/roof-measure/11111111-2222-4333-8444-555555555555/pdf");
